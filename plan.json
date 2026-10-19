@@ -10269,6 +10269,60 @@
           "Requested by the coordinator 2026-10-19 from the project's UX-REVIEW.md, which was not reachable from this machine (/mnt/project-files does not exist here): the five fixes were built from the relay's own descriptions, so anything in that file beyond them is not done.",
           "Built 2026-10-19. Found by the new screenshots: splitting the quality table made it wide enough to scroll sideways, so its region is now labelled and keyboard-focusable (axe scrollable-region-focusable); the quality table repeated its caveat twice; the routing rows said shared pool twice."
         ]
+      },
+      {
+        "id": "W20-01",
+        "title": "UX P0s: finding lifecycle actions, rule transitions, shared view links, add member, sign out",
+        "phase": 20,
+        "module": "web",
+        "stories": [],
+        "write_scope": [
+          "apps/web/**",
+          "docs/**",
+          "plan.json",
+          "scripts/validate-plan.mjs"
+        ],
+        "depends_on": [
+          "W19-13"
+        ],
+        "acceptance": [
+          "UX_TODO FND-01: the finding panel offers exactly the transitions the lifecycle allows from the finding's status (Confirm, Mark fixed, Won't fix, Dismiss with reason, Reopen), and a test pins the web table to packages/insights lifecycle.ts",
+          "UX_TODO FND-69: Settings > Rules lifecycle buttons post to /rules/<id>/transition and show a refused transition on the row; DSH-01: /views/shared/<slug> opens the shared view read-only, explains a dead link, and Share shows the full URL with Copy; Set as home uses PUT, which the API routes",
+          "UX_TODO ADM-01 and ADM-02: Settings > Members shows the add-member form; Sign out is in the user menu and the phone drawer; every fix has a test and the workspace gate is green"
+        ],
+        "points": 3,
+        "status": "in_progress",
+        "notes": [
+          "Requested by Brad 2026-10-19 (fix the UX_TODO findings and loop). The sixth P0, ADM-42 (report PDFs in the packaged install), needs docker builds, so it is W20-02 and is verified on the Mac.",
+          "Found while fixing: Set as home sent POST to /me/default-view, which the API routes only as PUT, so it 404'd. Fixed here; DSH-03 (the home view is never honoured) stays open."
+        ]
+      },
+      {
+        "id": "W20-02",
+        "title": "Report PDFs work in the packaged install",
+        "phase": 20,
+        "module": "reports",
+        "stories": [],
+        "write_scope": [
+          "Dockerfile",
+          "deploy/**",
+          "apps/api/src/workers/**",
+          "packages/reports/**",
+          "docs/**",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W20-01"
+        ],
+        "acceptance": [
+          "UX_TODO ADM-42: the worker image can launch the browser the report printer uses, api and worker share one report-data volume at the same DATA_DIR, and the printer reaches the web service from inside the compose network",
+          "A packaged-install smoke test generates one report and downloads its PDF; verified on the Mac with a real docker or podman build"
+        ],
+        "points": 5,
+        "status": "todo",
+        "notes": [
+          "From docs/work/UX_TODO.md ADM-42, found by code reading on 2026-10-19 and not yet reproduced in a running install."
+        ]
       }
   ]
 }

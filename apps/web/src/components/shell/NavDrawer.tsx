@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { navGroups, navTestId, RailIcon } from './Rail.js';
 import { RepoPulseWordmark } from '../brand/RepoPulseMark.js';
+import { signOutAndReload } from '../../widgets/auth/contracts.js';
 
 // The narrow-screen navigation drawer (W17-14).
 //
@@ -173,6 +174,21 @@ export function NavDrawer({
             </ul>
           ))}
         </nav>
+        {/* W20-01 (UX_TODO ADM-02): the phone drawer had no way out of the
+            session at all. */}
+        <div className="border-t border-border px-2 py-2">
+          <button
+            type="button"
+            onClick={() => {
+              close();
+              void signOutAndReload();
+            }}
+            className="w-full rounded-md px-2.5 py-2.5 text-left text-sm text-fg-muted hover:bg-surface-2 hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            data-testid="nav-drawer-signout"
+          >
+            Sign out
+          </button>
+        </div>
       </div>
     </div>
   );

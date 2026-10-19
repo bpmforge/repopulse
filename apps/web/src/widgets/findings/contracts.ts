@@ -218,3 +218,63 @@ export function locationOf(finding: {
     ? `${finding.file}:${start}`
     : `${finding.file}:${start}–${end}`;
 }
+
+/**
+ * The status changes a person may make from each status (W20-01, UX_TODO
+ * FND-01). Mirrors HUMAN in packages/insights/src/findings/lifecycle.ts, which
+ * the API enforces; the web app does not depend on insights, so the table is
+ * repeated here and a test pins the two together.
+ */
+export type FindingLifecycleStatus = 'open' | 'confirmed' | 'dismissed' | 'resolved' | 'wont_fix';
+
+export const FINDING_TRANSITIONS: Record<
+  FindingLifecycleStatus,
+  readonly FindingLifecycleStatus[]
+> = {
+  open: ['confirmed', 'dismissed', 'wont_fix'],
+  confirmed: ['resolved', 'dismissed', 'wont_fix'],
+  dismissed: ['open'],
+  wont_fix: ['open'],
+  resolved: ['open'],
+};
+
+export function allowedFindingTransitions(status: string): readonly FindingLifecycleStatus[] {
+  return FINDING_TRANSITIONS[status as FindingLifecycleStatus] ?? [];
+}
+
+/** How each transition reads as a button, in the order it is offered. */
+export const FINDING_ACTIONS: Record<
+  FindingLifecycleStatus,
+  { label: string; busy: string; testId: string; hint: string }
+> = {
+  confirmed: {
+    label: 'Confirm',
+    busy: 'Confirming…',
+    testId: 'finding-confirm',
+    hint: 'This is a real problem that should be fixed.',
+  },
+  resolved: {
+    label: 'Mark fixed',
+    busy: 'Marking fixed…',
+    testId: 'finding-resolve',
+    hint: 'The code was fixed. If the problem comes back in a later scan, the finding reopens on its own.',
+  },
+  wont_fix: {
+    label: "Won't fix",
+    busy: 'Saving…',
+    testId: 'finding-wontfix',
+    hint: 'Real, but the team accepts it. Later scans will not reopen it.',
+  },
+  dismissed: {
+    label: 'Dismiss',
+    busy: 'Dismissing…',
+    testId: 'finding-dismiss',
+    hint: 'Not a real problem here. Pick a reason so the rule can be measured.',
+  },
+  open: {
+    label: 'Reopen',
+    busy: 'Reopening…',
+    testId: 'finding-reopen',
+    hint: 'Put this finding back in the queue.',
+  },
+};

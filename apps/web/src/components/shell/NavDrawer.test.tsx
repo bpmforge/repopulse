@@ -182,3 +182,10 @@ describe('nav grouping (W17-14)', () => {
     expect(byPath.get('/admin')).toBe('Settings');
   });
 });
+
+describe('NavDrawer sign out (W20-01, UX_TODO ADM-02)', () => {
+  it('offers Sign out on the phone, where there is no user menu', () => {
+    renderDrawer();
+    expect(screen.getByTestId('nav-drawer-signout').textContent).toMatch(/Sign out/);
+  });
+});

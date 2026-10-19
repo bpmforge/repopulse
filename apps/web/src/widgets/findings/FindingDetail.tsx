@@ -2,6 +2,8 @@ import { useRef, useState } from 'react';
 import { ErrorNote, WidgetFrame } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import {
+  allowedFindingTransitions,
+  FINDING_ACTIONS,
   locationOf,
   reviewSummary,
   SEVERITY_LABEL,
@@ -62,6 +64,7 @@ export function FindingDetail({
    * write leaves the chip exactly where the database has it.
    */
   const pending = transition.isPending ? transition.variables?.status : undefined;
+  const allowed = allowedFindingTransitions(finding.status);
 
   const copySummary = () => {
     const text = reviewSummary(finding, history?.items ?? []);
@@ -222,41 +225,51 @@ export function FindingDetail({
               onChange={(e) => setNote(e.target.value)}
             />
           </label>
-          <label className="flex flex-col gap-1 text-xs text-fg-muted">
-            Dismiss reason
-            <select
-              className="panel px-2 py-1 text-sm"
-              data-testid="finding-dismiss-reason"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-            >
-              {DISMISS_REASONS.map((r) => (
-                <option key={r} value={r}>
-                  {r.replace('_', ' ')}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            className={ACTION_BUTTON}
-            data-testid="finding-confirm"
-            disabled={pending === 'confirmed' || note.trim() === ''}
-            aria-busy={pending === 'confirmed' || undefined}
-            onClick={() => transition.mutate({ status: 'confirmed', note })}
-          >
-            {pending === 'confirmed' ? 'Confirming…' : 'Confirm'}
-          </button>
-          <button
-            type="button"
-            className={ACTION_BUTTON}
-            data-testid="finding-dismiss"
-            disabled={pending === 'dismissed' || note.trim() === ''}
-            aria-busy={pending === 'dismissed' || undefined}
-            onClick={() => transition.mutate({ status: 'dismissed', note, dismiss_reason: reason })}
-          >
-            {pending === 'dismissed' ? 'Dismissing…' : 'Dismiss'}
-          </button>
+          {/* W20-01 (UX_TODO FND-01): only Confirm and Dismiss existed, both
+              always enabled, so "mark fixed", "won't fix" and any reopen could
+              not be done from the UI and a dismissed finding answered both
+              buttons with a 409. The buttons are now the transitions the
+              lifecycle allows from THIS status, and nothing else. */}
+          {allowed.includes('dismissed') && (
+            <label className="flex flex-col gap-1 text-xs text-fg-muted">
+              Dismiss reason
+              <select
+                className="panel px-2 py-1 text-sm"
+                data-testid="finding-dismiss-reason"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+              >
+                {DISMISS_REASONS.map((r) => (
+                  <option key={r} value={r}>
+                    {r.replace('_', ' ')}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {allowed.map((to) => {
+            const action = FINDING_ACTIONS[to];
+            return (
+              <button
+                key={to}
+                type="button"
+                className={ACTION_BUTTON}
+                data-testid={action.testId}
+                title={action.hint}
+                disabled={pending === to || note.trim() === ''}
+                aria-busy={pending === to || undefined}
+                onClick={() =>
+                  transition.mutate(
+                    to === 'dismissed'
+                      ? { status: to, note, dismiss_reason: reason }
+                      : { status: to, note },
+                  )
+                }
+              >
+                {pending === to ? action.busy : action.label}
+              </button>
+            );
+          })}
           {/* Plain text to the clipboard, nothing to the forge (W17-23). A
               review is acted on in a PR thread or a ticket, and this is the
               way there that does not require RepoPulse to write to either. */}

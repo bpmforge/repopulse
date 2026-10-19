@@ -44,6 +44,7 @@ import { Route as ReposRepoIdHotspotsRouteImport } from './routes/repos/$repoId/
 import { Route as ReposRepoIdPerformanceRouteImport } from './routes/repos/$repoId/performance'
 import { Route as ReposRepoIdPrFlowRouteImport } from './routes/repos/$repoId/pr-flow'
 import { Route as ReposRepoIdSecurityRouteImport } from './routes/repos/$repoId/security'
+import { Route as ViewsSharedSlugRouteImport } from './routes/views/shared/$slug'
 import { Route as ReposRepoIdFilesSplatRouteImport } from './routes/repos/$repoId/files/$'
 import { Route as ReposRepoIdPrsIndexRouteImport } from './routes/repos/$repoId/prs/index'
 import { Route as ReposRepoIdPrsNumberRouteImport } from './routes/repos/$repoId/prs/$number'
@@ -223,6 +224,11 @@ const ReposRepoIdSecurityRoute = ReposRepoIdSecurityRouteImport.update({
   path: '/security',
   getParentRoute: () => ReposRepoIdRouteRoute,
 } as any)
+const ViewsSharedSlugRoute = ViewsSharedSlugRouteImport.update({
+  id: '/views/shared/$slug',
+  path: '/views/shared/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReposRepoIdFilesSplatRoute = ReposRepoIdFilesSplatRouteImport.update({
   id: '/files/$',
   path: '/files/$',
@@ -274,6 +280,7 @@ export interface FileRoutesByFullPath {
   '/repos/$repoId/performance': typeof ReposRepoIdPerformanceRoute
   '/repos/$repoId/pr-flow': typeof ReposRepoIdPrFlowRoute
   '/repos/$repoId/security': typeof ReposRepoIdSecurityRoute
+  '/views/shared/$slug': typeof ViewsSharedSlugRoute
   '/repos/$repoId/': typeof ReposRepoIdIndexRoute
   '/repos/$repoId/files/$': typeof ReposRepoIdFilesSplatRoute
   '/repos/$repoId/prs/$number': typeof ReposRepoIdPrsNumberRoute
@@ -312,6 +319,7 @@ export interface FileRoutesByTo {
   '/repos/$repoId/performance': typeof ReposRepoIdPerformanceRoute
   '/repos/$repoId/pr-flow': typeof ReposRepoIdPrFlowRoute
   '/repos/$repoId/security': typeof ReposRepoIdSecurityRoute
+  '/views/shared/$slug': typeof ViewsSharedSlugRoute
   '/repos/$repoId': typeof ReposRepoIdIndexRoute
   '/repos/$repoId/files/$': typeof ReposRepoIdFilesSplatRoute
   '/repos/$repoId/prs/$number': typeof ReposRepoIdPrsNumberRoute
@@ -353,6 +361,7 @@ export interface FileRoutesById {
   '/repos/$repoId/performance': typeof ReposRepoIdPerformanceRoute
   '/repos/$repoId/pr-flow': typeof ReposRepoIdPrFlowRoute
   '/repos/$repoId/security': typeof ReposRepoIdSecurityRoute
+  '/views/shared/$slug': typeof ViewsSharedSlugRoute
   '/repos/$repoId/': typeof ReposRepoIdIndexRoute
   '/repos/$repoId/files/$': typeof ReposRepoIdFilesSplatRoute
   '/repos/$repoId/prs/$number': typeof ReposRepoIdPrsNumberRoute
@@ -395,6 +404,7 @@ export interface FileRouteTypes {
     | '/repos/$repoId/performance'
     | '/repos/$repoId/pr-flow'
     | '/repos/$repoId/security'
+    | '/views/shared/$slug'
     | '/repos/$repoId/'
     | '/repos/$repoId/files/$'
     | '/repos/$repoId/prs/$number'
@@ -433,6 +443,7 @@ export interface FileRouteTypes {
     | '/repos/$repoId/performance'
     | '/repos/$repoId/pr-flow'
     | '/repos/$repoId/security'
+    | '/views/shared/$slug'
     | '/repos/$repoId'
     | '/repos/$repoId/files/$'
     | '/repos/$repoId/prs/$number'
@@ -473,6 +484,7 @@ export interface FileRouteTypes {
     | '/repos/$repoId/performance'
     | '/repos/$repoId/pr-flow'
     | '/repos/$repoId/security'
+    | '/views/shared/$slug'
     | '/repos/$repoId/'
     | '/repos/$repoId/files/$'
     | '/repos/$repoId/prs/$number'
@@ -495,6 +507,7 @@ export interface RootRouteChildren {
   SetupIndexRoute: typeof SetupIndexRoute
   ViewsIndexRoute: typeof ViewsIndexRoute
   PrintReportsReportIdRoute: typeof PrintReportsReportIdRoute
+  ViewsSharedSlugRoute: typeof ViewsSharedSlugRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -744,6 +757,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReposRepoIdSecurityRouteImport
       parentRoute: typeof ReposRepoIdRouteRoute
     }
+    '/views/shared/$slug': {
+      id: '/views/shared/$slug'
+      path: '/views/shared/$slug'
+      fullPath: '/views/shared/$slug'
+      preLoaderRoute: typeof ViewsSharedSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/repos/$repoId/files/$': {
       id: '/repos/$repoId/files/$'
       path: '/files/$'
@@ -849,6 +869,7 @@ const rootRouteChildren: RootRouteChildren = {
   SetupIndexRoute: SetupIndexRoute,
   ViewsIndexRoute: ViewsIndexRoute,
   PrintReportsReportIdRoute: PrintReportsReportIdRoute,
+  ViewsSharedSlugRoute: ViewsSharedSlugRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

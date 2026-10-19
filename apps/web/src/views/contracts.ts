@@ -25,6 +25,9 @@ export interface ViewResponse {
   updated_at: string;
 }
 
+/** GET /views/shared/:slug — only these three keys, by design (SC-17). */
+export type SharedViewResponse = Pick<ViewResponse, 'id' | 'name' | 'config'>;
+
 export interface ViewListResponse {
   items: ViewResponse[];
   next_cursor: string | null;
@@ -48,7 +51,8 @@ export function toWidget(entry: Record<string, unknown>): Widget | null {
   };
   if (typeof id !== 'string' || typeof type !== 'string') return null;
   const l = (layout ?? {}) as Record<string, unknown>;
-  const num = (v: unknown, fallback: number) => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
+  const num = (v: unknown, fallback: number) =>
+    typeof v === 'number' && Number.isFinite(v) ? v : fallback;
   // Spread-conditional rather than assigning undefined: the project runs
   // exactOptionalPropertyTypes, so `options: undefined` is NOT the same as an
   // absent key — and an absent key is what "this widget has no options" means.

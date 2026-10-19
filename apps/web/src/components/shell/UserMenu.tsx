@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import { PERSONAS, type MeContext, type Persona } from '../../widgets/org/contracts.js';
+import { signOutAndReload } from '../../widgets/auth/contracts.js';
 
 // User menu (UX_SPEC §3.1 rail bottom). Its one job in W4-10 is making the
 // persona changeable, which §6 promises — a first-login question with no way to
@@ -70,6 +71,23 @@ export function UserMenu() {
               </button>
             );
           })}
+          {/* W20-01 (UX_TODO ADM-02): there was no way to sign out of the app
+              short of clearing cookies. */}
+          <div className="mt-1 border-t border-border pt-1">
+            <button
+              type="button"
+              role="menuitem"
+              data-testid="user-menu-signout"
+              className="flex w-full items-center gap-2 rounded-sm px-1.5 py-1 text-left text-sm text-fg-muted hover:bg-surface-2 hover:text-fg"
+              onClick={() => {
+                setOpen(false);
+                void signOutAndReload();
+              }}
+            >
+              <span aria-hidden="true" className="w-3" />
+              Sign out
+            </button>
+          </div>
         </div>
       )}
     </div>

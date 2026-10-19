@@ -75,16 +75,17 @@ for (const t of plan.tickets) {
   // with the public slop-scorecard and the 2026 review-tool landscape.
   // W19 is the configurable-AI-layer wave: customer-chosen models, per-role
   // routing, evidence-fed triage and the standing mechanical-upgrade track.
+  // W20 works through docs/work/UX_TODO.md, the UX and UI review of every flow.
   //
   // This range LAGGED the board once already: the pattern stopped at 15 while a
   // complete 59-ticket W16 was on the board, so every W16 ticket failed here and
   // `continue` skipped its remaining checks. The validator reported 59 identical
   // id errors and could not print a claimable set at all. Widen this WITH the
   // wave, in the same commit that opens it.
-  const m = typeof t.id === 'string' && t.id.match(/^W([0-9]|1[0-9])-(\d{2})$/);
+  const m = typeof t.id === 'string' && t.id.match(/^W([0-9]|1[0-9]|20)-(\d{2})$/);
   // The message names the CURRENT range rather than a range that was true two
   // waves ago — a stale error message sends the next person to the wrong fix.
-  if (!m) { err(`${label}: id must match W<0-19>-<nn>`); continue; }
+  if (!m) { err(`${label}: id must match W<0-20>-<nn>`); continue; }
   if (byId.has(t.id)) err(`${t.id}: duplicate id`);
   byId.set(t.id, t);
 
