@@ -4,6 +4,8 @@ import { DEFAULT_WEIGHTS } from '@repopulse/insights';
 import {
   applyDefaults,
   healthWeightsSchema,
+  migrateLegacySettings,
+  unknownSettingsKeys,
   workspaceSettingsSchema,
 } from './workspace-settings.js';
 
@@ -77,5 +79,36 @@ describe('settings schema', () => {
 
   it('rejects a stale-N of zero: every PR would be stale the moment it opened', () => {
     expect(workspaceSettingsSchema.safeParse({ stale_pr_days: 0 }).success).toBe(false);
+  });
+});
+
+// W20-14: the legacy hand-written camel-case license policy is carried over to
+// `license_policy` instead of being stripped by the next save.
+describe('legacy settings migration (W20-14)', () => {
+  it('converts licensePolicy to license_policy and drops the camel key', () => {
+    const out = migrateLegacySettings({
+      stale_pr_days: 9,
+      licensePolicy: { flagCategories: ['weak-copyleft'], flagUnknown: false, allow: ['MIT'] },
+    });
+    expect(out['licensePolicy']).toBeUndefined();
+    expect(out['license_policy']).toEqual({
+      flag_categories: ['weak-copyleft'],
+      flag_unknown: false,
+      allow: ['MIT'],
+    });
+    expect(out['stale_pr_days']).toBe(9);
+  });
+
+  it('leaves an existing license_policy alone and keeps an unconvertible legacy value', () => {
+    const both = { license_policy: { flag: ['A'] }, licensePolicy: { flag: ['B'] } };
+    expect(migrateLegacySettings(both)).toBe(both);
+    const bad = { licensePolicy: { flagCategories: ['viral'] } };
+    expect(migrateLegacySettings(bad)).toBe(bad);
+  });
+
+  it('unknownSettingsKeys returns only the keys the schema does not own', () => {
+    expect(
+      unknownSettingsKeys({ stale_pr_days: 3, lm_hosts: ['x'], licensePolicy: { flag: [] } }),
+    ).toEqual({ lm_hosts: ['x'], licensePolicy: { flag: [] } });
   });
 });

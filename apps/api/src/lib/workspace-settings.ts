@@ -170,22 +170,70 @@ export function applyDefaults(stored: WorkspaceSettings): EffectiveWorkspaceSett
 }
 
 /**
+ * W20-14: carry the legacy hand-written `licensePolicy` (camel case, read by the
+ * register since W18-39) over to `license_policy`. Before this, the camel key
+ * was stripped by the schema parse on the next settings save, so any save (a
+ * stale-days edit) silently dropped a policy the register was applying.
+ *
+ * Only when no `license_policy` exists yet, and only when the converted object
+ * passes the schema; an unconvertible legacy value is left untouched so it is
+ * neither lost nor half-applied. Pure: returns a new object.
+ */
+export function migrateLegacySettings(raw: Record<string, unknown>): Record<string, unknown> {
+  const legacy = raw['licensePolicy'];
+  if (raw['license_policy'] !== undefined) return raw;
+  if (legacy === null || typeof legacy !== 'object' || Array.isArray(legacy)) return raw;
+  const l = legacy as Record<string, unknown>;
+  const candidate: Record<string, unknown> = {};
+  if (l['flagCategories'] !== undefined) candidate['flag_categories'] = l['flagCategories'];
+  if (l['flagUnknown'] !== undefined) candidate['flag_unknown'] = l['flagUnknown'];
+  if (l['allow'] !== undefined) candidate['allow'] = l['allow'];
+  if (l['flag'] !== undefined) candidate['flag'] = l['flag'];
+  const parsed = licensePolicySchema.safeParse(candidate);
+  if (!parsed.success) return raw;
+  const next: Record<string, unknown> = { ...raw, license_policy: parsed.data };
+  delete next['licensePolicy'];
+  return next;
+}
+
+/**
+ * The keys of a stored blob that the settings schema does not own (planned LLM
+ * knobs, an unconvertible legacy key). A PATCH keeps these verbatim.
+ */
+export function unknownSettingsKeys(raw: Record<string, unknown>): Record<string, unknown> {
+  const known = new Set(Object.keys(workspaceSettingsSchema.shape));
+  return Object.fromEntries(Object.entries(raw).filter(([k]) => !known.has(k)));
+}
+
+/**
  * Read one workspace's settings. A row whose jsonb fails validation (hand-edited
  * SQL, a downgrade) yields the defaults rather than throwing: a malformed
  * setting must not take the dashboard down, and the admin screen shows what is
  * actually in effect.
+ *
+ * `raw` is the stored jsonb (legacy keys migrated) INCLUDING keys this schema
+ * does not know, so a PATCH can merge over it without deleting them.
  */
 export async function readWorkspaceSettings(
   db: Database,
   workspaceId: number,
-): Promise<{ stored: WorkspaceSettings; effective: EffectiveWorkspaceSettings }> {
+): Promise<{
+  stored: WorkspaceSettings;
+  effective: EffectiveWorkspaceSettings;
+  raw: Record<string, unknown>;
+}> {
   const [row] = await db
     .select({ settings: core.workspaces.settings })
     .from(core.workspaces)
     .where(eq(core.workspaces.id, workspaceId))
     .limit(1);
 
-  const parsed = workspaceSettingsSchema.safeParse(row?.settings ?? {});
+  const source: unknown = row?.settings;
+  const raw =
+    source !== null && typeof source === 'object' && !Array.isArray(source)
+      ? migrateLegacySettings(source as Record<string, unknown>)
+      : {};
+  const parsed = workspaceSettingsSchema.safeParse(raw);
   const stored = parsed.success ? parsed.data : {};
-  return { stored, effective: applyDefaults(stored) };
+  return { stored, effective: applyDefaults(stored), raw };
 }

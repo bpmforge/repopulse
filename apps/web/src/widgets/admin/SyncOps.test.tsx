@@ -1,8 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SYNC_POLL_MS, SyncOps, syncPollInterval } from './SyncOps.js';
-import type { OrgSyncStatus, RepoSyncStatus } from './contracts.js';
+import { SYNC_POLL_MS, SyncOps, syncEmptyMessage, syncPollInterval } from './SyncOps.js';
+import { phaseLabel, type OrgSyncStatus, type RepoSyncStatus } from './contracts.js';
 
 // W17-39 (R-16): a feature switched off on the repository (issues disabled on
 // a Gitea repo) is information, not a failure. Before this it could only reach
@@ -73,7 +73,57 @@ describe('SyncOps — features not enabled on a repo (W17-39)', () => {
     // Not styled or placed as a failure.
     expect(note.className).not.toMatch(/text-crit/);
     const row = note.closest('tr')!;
-    expect(within(row).getByText('—')).toBeInTheDocument();
+    expect(within(row).getAllByText('—').length).toBeGreaterThan(0);
+  });
+});
+
+// W20-14 (UX_TODO INS-30, INS-31, INS-32, INS-44, ADM-16, ADM-41).
+describe('SyncOps plain words and per-row actions (W20-14)', () => {
+  beforeEach(() => vi.stubGlobal('fetch', vi.fn()));
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('names phases in words, shows the last webhook, hides an unrecorded budget, offers Retry and expands a long error', async () => {
+    const long = `issues not ingested — HTTP 403: ${'x'.repeat(120)} THE END`;
+    respond({
+      phase: 'paused_budget',
+      repoCount: 2,
+      percentComplete: 50,
+      worstLagSeconds: 60,
+      repos: [
+        repo({ repoId: '1', phase: 'paused_budget', lastWebhookAt: new Date().toISOString() }),
+        repo({
+          repoId: '2',
+          phase: 'error',
+          lastWebhookAt: null,
+          lastError: { at: new Date().toISOString(), message: long, jobId: null },
+        }),
+      ],
+    });
+    renderWidget();
+    expect(await screen.findByText('Waiting for rate limit', { selector: 'span' })).toBeTruthy();
+    expect(screen.getByTestId('sync-phase')).toHaveTextContent('Waiting for rate limit');
+    expect(screen.getByTestId('sync-webhook-1')).toHaveTextContent('just now');
+    expect(screen.getByTestId('sync-webhook-2')).toHaveTextContent('never');
+    expect(screen.queryByText('Budget left')).toBeNull();
+    expect(screen.getByTestId('sync-retry-2')).toBeInTheDocument();
+    expect(screen.queryByTestId('sync-retry-1')).toBeNull();
+    const details = screen.getByTestId('sync-error-2');
+    expect(details.tagName).toBe('DETAILS');
+    expect(details).toHaveTextContent('THE END');
+  });
+
+  it('branches the empty message on whether a forge is connected', () => {
+    expect(syncEmptyMessage(0)).toMatch(/No forge is connected/);
+    expect(syncEmptyMessage(2)).toMatch(/no repositories are selected/);
+  });
+
+  it('labels every phase', () => {
+    expect(phaseLabel('history')).toBe('Loading history');
+    expect(phaseLabel('live')).toBe('Up to date');
+    expect(phaseLabel('paused')).toBe('Paused');
   });
 });
 

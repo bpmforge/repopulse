@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import {
   chmodSync,
+  chownSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -41,7 +42,7 @@ describe('deploy/restore.sh + backup.sh refusals (W17-29)', () => {
     dir = mkdtempSync(path.join(tmpdir(), 'rp restore-'));
     deployDir = path.join(dir, 'deploy');
     mkdirSync(deployDir, { recursive: true });
-    for (const f of ['restore.sh', 'backup.sh', 'compose.yaml']) {
+    for (const f of ['restore.sh', 'backup.sh', 'scan-db-sync.sh', 'compose.yaml']) {
       await run('cp', [path.join(repoRoot, 'deploy', f), path.join(deployDir, f)]);
     }
     // A stub `podman` that logs its argv and fails: any runtime call at all
@@ -83,7 +84,7 @@ describe('deploy/restore.sh + backup.sh refusals (W17-29)', () => {
   }
 
   async function sh(
-    script: 'restore.sh' | 'backup.sh',
+    script: 'restore.sh' | 'backup.sh' | 'scan-db-sync.sh',
     args: string[],
     env: Record<string, string> = {},
   ): Promise<{ code: number; out: string }> {
@@ -188,6 +189,57 @@ describe('deploy/restore.sh + backup.sh refusals (W17-29)', () => {
       expect(r.code).toBe(1);
       expect(r.out).toContain('BACKUP REFUSED');
       expect(runtimeCalls()).toBe('');
+    });
+  });
+
+  // INS-67: the fetching containers get the outbound proxy from deploy/.env.
+  it('scan-db-sync.sh passes HTTPS_PROXY / NO_PROXY from .env into the fetch container', async () => {
+    writeEnv({
+      SCAN_RULES_DIR: path.join(dir, 'scan-rules'),
+      HTTPS_PROXY: 'http://proxy.test:3128',
+      NO_PROXY: 'api,scan-runner',
+    });
+    await sh('scan-db-sync.sh', []);
+    const calls = runtimeCalls();
+    expect(calls).toContain('run --rm --user 0:0 -e GRYPE_DB_CACHE_DIR=/db');
+    expect(calls).toContain('-e HTTPS_PROXY=http://proxy.test:3128');
+    expect(calls).toContain('-e https_proxy=http://proxy.test:3128');
+    expect(calls).toContain('-e NO_PROXY=api,scan-runner');
+  });
+
+  // INS-65: root's podman cannot see a rootless install's containers or images,
+  // so a nightly job in root's crontab failed every night. Both scripts now
+  // refuse up front when run as root over an install another user owns. Only
+  // testable when this suite itself runs as root (chown needs it).
+  const asRoot = typeof process.getuid === 'function' && process.getuid() === 0;
+  describe.runIf(asRoot)('refuses to run as root over a rootless install (INS-65)', () => {
+    it('backup.sh refuses, names the owner, and calls no runtime', async () => {
+      writeEnv();
+      chownSync(path.join(deployDir, '.env'), 65534, 65534);
+      const r = await sh('backup.sh', ['--project=rp-verify']);
+      expect(r.code).toBe(1);
+      expect(r.out).toContain('BACKUP REFUSED: running as root');
+      expect(r.out).toContain('crontab');
+      expect(runtimeCalls()).toBe('');
+    });
+
+    it('scan-db-sync.sh refuses the same way, before writing anything', async () => {
+      writeEnv({ SCAN_RULES_DIR: path.join(dir, 'scan-rules') });
+      chownSync(path.join(deployDir, '.env'), 65534, 65534);
+      const r = await sh('scan-db-sync.sh', []);
+      expect(r.code).toBe(1);
+      expect(r.out).toContain('REFUSED: running as root');
+      expect(existsSync(path.join(dir, 'scan-rules'))).toBe(false);
+      expect(runtimeCalls()).toBe('');
+    });
+
+    it('REPOPULSE_ALLOW_ROOT=1 opens the gate for a rootful install', async () => {
+      writeEnv();
+      chownSync(path.join(deployDir, '.env'), 65534, 65534);
+      const r = await sh('backup.sh', ['--project=rp-verify'], { REPOPULSE_ALLOW_ROOT: '1' });
+      expect(r.out).not.toContain('running as root');
+      // The stub runtime answers nothing, so it now fails on the container lookup.
+      expect(r.out).toContain('postgres container is not running');
     });
   });
 

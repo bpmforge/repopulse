@@ -58,6 +58,8 @@ export interface RepoSyncStatus {
   lagSeconds: number | null;
   lastError: { at: string; message: string; jobId: string | null } | null;
   lastSyncedAt: string | null;
+  /** Newest webhook delivery for the repo (W20-14, INS-32); absent from an older API. */
+  lastWebhookAt?: string | null;
 }
 
 const ENTITY_LABEL: Record<string, string> = {
@@ -93,6 +95,31 @@ export interface OrgSyncStatus {
  * shown as one.
  */
 export const ATTENTION_PHASES: SyncPhase[] = ['error', 'paused_budget', 'paused'];
+
+/**
+ * A sync phase in plain words (W20-14, UX_TODO INS-44 / ADM-41): the table
+ * showed raw values such as "paused budget" and "history".
+ */
+export function phaseLabel(phase: SyncPhase): string {
+  switch (phase) {
+    case 'queued':
+      return 'Queued';
+    case 'history':
+      return 'Loading history';
+    case 'enrichment':
+      return 'Loading details';
+    case 'live':
+      return 'Up to date';
+    case 'paused_budget':
+      return 'Waiting for rate limit';
+    case 'paused':
+      return 'Paused';
+    case 'error':
+      return 'Error';
+    default:
+      return String(phase).replace(/_/g, ' ');
+  }
+}
 
 export function phaseSeverity(phase: SyncPhase): 'high' | 'medium' | 'low' {
   if (phase === 'error') return 'high';

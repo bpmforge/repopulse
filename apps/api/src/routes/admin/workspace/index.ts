@@ -7,6 +7,7 @@ import {
   SETTINGS_DEFAULTS,
   applyDefaults,
   readWorkspaceSettings,
+  unknownSettingsKeys,
   workspaceSettingsSchema,
 } from '../../../lib/workspace-settings.js';
 
@@ -76,8 +77,12 @@ export default async function workspaceRoutes(
         return reply;
       }
 
-      const { stored: before } = await readWorkspaceSettings(opts.db, workspaceId);
-      const merged = { ...before, ...parsed.data };
+      // W20-14: merge over the stored blob's unknown keys too (the comment at
+      // the top of this file promised that; merging the parsed `before` alone
+      // stripped them), with the legacy `licensePolicy` already carried over to
+      // `license_policy`, so a save never drops a policy the register applies.
+      const { stored: before, raw } = await readWorkspaceSettings(opts.db, workspaceId);
+      const merged = { ...unknownSettingsKeys(raw), ...before, ...parsed.data };
 
       const [row] = await opts.db
         .update(core.workspaces)

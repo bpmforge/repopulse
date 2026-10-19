@@ -47,7 +47,7 @@ curl -f http://127.0.0.1:8099/healthz && echo OK
 Open the URL and sign in as the admin email with the password you set. You are
 asked to change it before anything else is reachable. The install is now
 working and empty: connecting a forge is done from **Settings → Connections**
-inside the product, with your own GitHub App, Gitea token or GitLab token.
+inside the product, with an access token for GitHub, Gitea or GitLab.
 [docs/INSTALL.md](docs/INSTALL.md) walks through that, the reverse proxy, and
 the scan-data sync that dependency scanning needs.
 
@@ -93,9 +93,9 @@ amd64 are untested, not unsupported.
 | First admin sign-in, forced password change | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | recorded smoke + browser journey (W17-28, W17-30) | **Tested** | one bootstrap admin only; further people from Settings → Members |
 | Single sign-on (OIDC) | the `OIDC_*` group | unit tests of the callback and half-configuration refusal | Supported | no real identity provider was connected in release evidence |
 | Sign in with GitHub | `GITHUB_APP_CLIENT_ID` / `_SECRET` | e2e with a mocked OAuth boundary | Supported | real GitHub OAuth not run in release evidence |
-| Connect a forge and choose repositories | Settings → Connections; GitHub App, Gitea token or GitLab token | browser journey against a fixture forge (W17-30) | **Tested** against the fixture forge | the real `api.github.com` run is **blocked** (no credential on the evidence host); no real Gitea or GitLab instance connected in release evidence |
+| Connect a forge and choose repositories | Settings → Connections; an access token for GitHub, Gitea or GitLab | browser journey against a fixture forge (W17-30) | **Tested** against the fixture forge | the real `api.github.com` run is **blocked** (no credential on the evidence host); no real Gitea or GitLab instance connected in release evidence |
 | Backfill and ingestion to `live` | a connected forge | browser journey (W17-30) | **Tested** against the fixture forge | as above |
-| Webhook deliveries | forge can reach `PUBLIC_BASE_URL`; `WEBHOOK_SECRET` | unit tests of signature verification | Supported for GitHub | one receiver, GitHub signature format; Gitea and GitLab freshness comes from the nightly reconcile |
+| Webhook deliveries | forge can reach `PUBLIC_BASE_URL` | unit tests of signature and token verification; Gitea deliveries verified against Gitea 1.24.7 | Supported for GitHub, Gitea and GitLab | two receivers: `/api/v1/webhooks/github` (GitHub and Gitea, HMAC signature) and `/api/v1/webhooks/gitlab` (GitLab token); expose both through your proxy. A forge that cannot reach the install falls back to the nightly reconcile |
 | Tier-1 metrics: health, hotspots, PR flow, reviews, CI, DORA-style delivery | none | populated screens (W17-30); bounds measured at 100 repos / 10,000 findings (W17-32) | **Tested** | repository lists are not paged (about 311 bytes per repository per request) |
 | Tier-2 model review (OpenAI-compatible endpoint such as LM Studio) | Settings → Models | browser journey with a fixture model: connection test, checklist finding, timeout, recovery (W17-30) | **Tested** against the fixture model | a real local model was exercised in development, not in release evidence; use an instruct model, not a reasoning model |
 | Tier-3 hosted model (API key) | Settings → Models, plus per-repository opt-in; writes an egress audit row | unit tests | Supported | not exercised in release evidence; API-key auth only (Vertex, Bedrock, Copilot absent) |

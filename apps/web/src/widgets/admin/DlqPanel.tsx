@@ -7,6 +7,7 @@ import {
 } from '../../components/index.js';
 import { errorToast, type Toast } from '../../components/store/uiStore.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
+import { ErrorDetails } from './ErrorDetails.js';
 
 // Admin → Sync → Dead-letter queue (W4-20, NFR-11).
 //
@@ -34,26 +35,38 @@ function ReplayButton({ row, onToast }: { row: DlqRow; onToast: (t: Toast[]) => 
     { invalidate: [queryKeyFor(LIST)] },
   );
 
+  // INS-45: a replayed row says so (and when), so nobody replays it twice
+  // wondering whether the first click did anything.
+  const replayedAt = row.replayed_at;
   return (
-    <button
-      type="button"
-      className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent"
-      data-testid={`dlq-replay-${row.id}`}
-      disabled={replay.isPending}
-      onClick={() =>
-        replay.mutate(
-          {},
-          {
-            // W20-04 (UX_TODO ADM-12): title, detail and request id, not the title alone.
-            onError: (err: Error) => onToast([errorToast(`dlq-${row.id}-err`, err)]),
-            onSuccess: () =>
-              onToast([{ id: `dlq-${row.id}-ok`, tone: 'ok', message: `Replayed ${row.job_id}` }]),
-          },
-        )
-      }
-    >
-      Replay
-    </button>
+    <div className="flex flex-col items-start gap-0.5">
+      {replayedAt ? (
+        <span className="text-xs text-fg-muted" data-testid={`dlq-replayed-${row.id}`}>
+          Replayed {new Date(replayedAt).toLocaleString()}
+        </span>
+      ) : null}
+      <button
+        type="button"
+        className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+        data-testid={`dlq-replay-${row.id}`}
+        disabled={replay.isPending}
+        onClick={() =>
+          replay.mutate(
+            {},
+            {
+              // W20-04 (UX_TODO ADM-12): title, detail and request id, not the title alone.
+              onError: (err: Error) => onToast([errorToast(`dlq-${row.id}-err`, err)]),
+              onSuccess: () =>
+                onToast([
+                  { id: `dlq-${row.id}-ok`, tone: 'ok', message: `Replayed ${row.job_id}` },
+                ]),
+            },
+          )
+        }
+      >
+        {replay.isPending ? 'Replaying…' : replayedAt ? 'Replay again' : 'Replay'}
+      </button>
+    </div>
   );
 }
 
@@ -70,11 +83,8 @@ export function DlqPanel() {
       // The REASON, not just a count. A dead-letter list that shows how many
       // jobs failed and not why tells an operator nothing they can act on.
       header: 'Error',
-      cell: (row) => (
-        <span className="block max-w-md truncate" title={row.error}>
-          {row.error}
-        </span>
-      ),
+      // ADM-16: expandable, not truncated behind a mouse-only tooltip.
+      cell: (row) => <ErrorDetails message={row.error} testId={`dlq-error-${row.id}`} />,
     },
     { id: 'failed', header: 'Failed', cell: (row) => new Date(row.failed_at).toLocaleString() },
     {

@@ -3,7 +3,7 @@ import { createServer, type Server } from 'node:http';
 import { and, eq } from 'drizzle-orm';
 import { Redis } from 'ioredis';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { core, createDb, read, type Database } from '@repopulse/shared';
+import { core, createDb, read, security, type Database } from '@repopulse/shared';
 import { buildApp } from '../../../app.js';
 import { loginAs } from '../../../testing/login.js';
 import { HEARTBEAT_PREFIX, startWorkerHeartbeat } from '../../../workers/heartbeat.js';
@@ -152,6 +152,78 @@ describeIfLiveInfra('GET /admin/system (W17-07)', () => {
       if (c.lastSuccessAt !== null) {
         expect(new Date(c.lastSuccessAt).getFullYear()).toBeGreaterThan(2000);
       }
+    }
+  });
+
+  // W20-14 (UX_TODO ADM-13): the release is on the panel.
+  it('names the running version', async () => {
+    const { body } = await getAs('w17-07-admin');
+    expect(typeof body.about.version).toBe('string');
+    expect(body.about.version.length).toBeGreaterThan(0);
+  });
+
+  // W20-14 (UX_TODO ADM-75): judged on each scanner's LATEST run per repo.
+  it('scanners: an old failure that later succeeded is ready; a latest failure is named', async () => {
+    const [conn] = await db
+      .insert(core.forgeConnections)
+      .values({
+        workspaceId,
+        provider: 'github',
+        authKind: 'pat',
+        credentialCiphertext: Buffer.alloc(8),
+        credentialIv: Buffer.alloc(12),
+        keyVersion: 1,
+        credentialFingerprint: 'w20-14-system-fp',
+        status: 'active',
+      })
+      .returning();
+    const [repo] = await db
+      .insert(core.repos)
+      .values({
+        workspaceId,
+        connectionId: conn!.id,
+        forgeRepoId: 'w20-14-system-repo',
+        org: 'w20-14',
+        name: 'scanned',
+        defaultBranch: 'main',
+        isPrivate: false,
+        isArchived: false,
+        syncStatus: 'live',
+        tier2Auto: false,
+      })
+      .returning();
+    const run = (scannerKey: string, status: string, startedAt: string) => ({
+      workspaceId,
+      repoId: repo!.id,
+      scannerKey,
+      scannerVersion: 'test',
+      commitSha: 'abc',
+      trigger: 'manual',
+      status,
+      startedAt: new Date(startedAt),
+      finishedAt: new Date(startedAt),
+    });
+    try {
+      await db
+        .insert(security.scanRuns)
+        .values([
+          run('dependency', 'failed', '2026-01-01T00:00:00Z'),
+          run('dependency', 'succeeded', '2026-01-02T00:00:00Z'),
+        ]);
+      const healed = await getAs('w17-07-admin');
+      const before = healed.body.components.find((c) => c.id === 'scanners');
+      expect(before?.reason).not.toContain('w20-14/scanned');
+
+      await db.insert(security.scanRuns).values([run('secrets', 'failed', '2026-01-03T00:00:00Z')]);
+      const broken = await getAs('w17-07-admin');
+      const after = broken.body.components.find((c) => c.id === 'scanners');
+      expect(after?.state).toBe('degraded');
+      expect(after?.reason).toContain('w20-14/scanned (secrets)');
+      expect(after?.action?.href).toMatch(/^\/repos\/\d+\/security$/);
+    } finally {
+      await db.delete(security.scanRuns).where(eq(security.scanRuns.repoId, repo!.id));
+      await db.delete(core.repos).where(eq(core.repos.id, repo!.id));
+      await db.delete(core.forgeConnections).where(eq(core.forgeConnections.id, conn!.id));
     }
   });
 

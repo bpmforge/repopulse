@@ -266,6 +266,30 @@ describeIfLiveInfra('connections routes (W2-01, FR-INGEST-1, FR-AUTH-5)', () => 
     const repos = await db.select().from(core.repos).where(eq(core.repos.connectionId, connId));
     expect(repos).toHaveLength(2);
     expect(repos.every((r) => r.syncStatus === 'pending_backfill')).toBe(true);
+    expect(res.json().webhook_failed).toEqual([]);
+  });
+
+  // INS-29: a refused webhook is named in the response, not only on the row.
+  it('names the repos whose webhook the forge refused', async () => {
+    const cookie = await loginAs(app, ADMIN);
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/v1/connections',
+      cookies: { repopulse_sid: cookie },
+      payload: { auth_kind: 'pat', credential: TOKEN },
+    });
+    const connId = created.json().id as number;
+    registerWebhook.mockImplementationOnce(() => Promise.reject(new Error('HTTP 403')));
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/connections/${connId}/repos`,
+      cookies: { repopulse_sid: cookie },
+      payload: { repo_forge_ids: ['201', '202'] },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().repo_ids).toHaveLength(2);
+    expect(res.json().webhook_failed).toHaveLength(1);
+    expect(res.json().webhook_failed[0]).toMatch(/^acme\//);
   });
 
   it('GET /connections lists last4 + fingerprint + repo_count, never ciphertext', async () => {
@@ -662,6 +686,30 @@ describeIfLiveInfra('connections routes (W2-01, FR-INGEST-1, FR-AUTH-5)', () => 
     });
     expect(resumed.json()).toEqual({ repo_id: repoId, sync_status: 'pending_backfill' });
     expect(enqueueBackfillPlan).toHaveBeenCalledTimes(1);
+
+    // W20-14 (INS-30): an errored repo is retried the same way.
+    await db.update(core.repos).set({ syncStatus: 'error' }).where(eq(core.repos.id, repoId));
+    enqueueBackfillPlan.mockClear();
+    const retried = await app.inject({
+      method: 'PUT',
+      url: `/api/v1/repos/${repoId}/tracking`,
+      cookies: { repopulse_sid: cookie },
+      payload: { paused: false },
+    });
+    expect(retried.json()).toEqual({ repo_id: repoId, sync_status: 'pending_backfill' });
+    expect(enqueueBackfillPlan).toHaveBeenCalledTimes(1);
+
+    // A live repo is left alone.
+    await db.update(core.repos).set({ syncStatus: 'live' }).where(eq(core.repos.id, repoId));
+    enqueueBackfillPlan.mockClear();
+    const live = await app.inject({
+      method: 'PUT',
+      url: `/api/v1/repos/${repoId}/tracking`,
+      cookies: { repopulse_sid: cookie },
+      payload: { paused: false },
+    });
+    expect(live.json()).toEqual({ repo_id: repoId, sync_status: 'live' });
+    expect(enqueueBackfillPlan).not.toHaveBeenCalled();
 
     const missing = await app.inject({
       method: 'PUT',

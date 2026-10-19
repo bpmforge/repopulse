@@ -41,13 +41,14 @@ does not land in shell history. You must change it at first sign-in.
 ADMIN_PASSWORD='a long passphrase' ./install.sh --url=... --admin-email=...
 ```
 
-Then open the URL. Connecting a forge (GitHub App or Gitea token) is done
-from inside the product after you sign in.
+Then open the URL. Connecting a forge (an access token for GitHub, GitLab or
+Gitea) is done from inside the product after you sign in.
 
 ## What is where
 
 | Path | What it is |
 |---|---|
+| `RUNBOOK.md` | the operating guide: backup, upgrade, rollback, restore (also onto a new server), outages |
 | `VERSION` | the version tag, image prefix, platform and source commit |
 | `manifest.json` | every image by name, id and digest, plus the build host and runtime |
 | `SHA256SUMS` | checksum of every file here except itself |
@@ -88,6 +89,27 @@ fetches it directly. Run `deploy/scan-db-sync.sh` once the stack is up
 (needs outbound HTTPS to grype.anchore.io and ~5 GB under
 `deploy/scan-rules`). Until then the Security tab says the scanner is
 unavailable rather than pretending a clean result.
+
+`RUNBOOK.md` beside this file is the full operating guide: backup, upgrade,
+rollback, restore, and what to do when the app is down.
+
+## Restore onto a new server
+
+The short form of `RUNBOOK.md` → *Restore onto a new server*. The new install
+must start with the **old** `TOKEN_ENC_KEY`, or the restore is refused.
+
+1. Extract the bundle of the **same version** the dump was taken on.
+2. Before `install.sh`, copy the old `deploy/.env` to `deploy/.env` here
+   (`install.sh` keeps an existing one). Check `PUBLIC_BASE_URL`,
+   `SCAN_RULES_DIR` and `EXTRA_CA_DIR` still make sense on this machine. Only
+   the key was saved? Run `install.sh` first, then put the saved value on the
+   `TOKEN_ENC_KEY=` line.
+3. `./install.sh`
+4. `./deploy/restore.sh --project=repopulse --production <dump>`
+5. `./deploy/scan-db-sync.sh`, then the cron lines and lingering as in
+   `RUNBOOK.md`.
+6. Check the repositories are back and a forge sync works. A new hostname
+   also needs the steps in `RUNBOOK.md` → *Change the install's address*.
 
 ## Upgrading
 

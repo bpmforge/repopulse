@@ -41,6 +41,95 @@ export const OPTIONAL_SCOPES: Record<'github' | 'gitlab' | 'gitea', string | nul
     'Optional: write:repository adds live updates (Gitea treats creating the push webhook as a write) and read:issue adds issues. Without them the repositories still backfill.',
 };
 
+type Forge = 'github' | 'gitlab' | 'gitea';
+
+/** The token field's placeholder, per forge (W20-14, UX_TODO INS-43). */
+export const TOKEN_PLACEHOLDER: Record<Forge, string> = {
+  github: 'ghp_… (classic) or github_pat_… (fine-grained)',
+  gitlab: 'glpat-…',
+  gitea: 'the 40-character token Gitea shows once',
+};
+
+/**
+ * Fine-grained GitHub tokens name permissions, not scopes (W20-14, INS-26):
+ * the label used to list only the classic scopes.
+ */
+export const GITHUB_FINE_GRAINED =
+  'Fine-grained token: choose the repositories, then Repository permissions → Metadata, Contents, Pull requests, Issues and Commit statuses: Read-only (Webhooks: Read and write for live updates).';
+
+/** The forge's own host when the row has no URL (W20-14, UX_TODO INS-43). */
+export function connectionHost(provider: string, baseUrl: string | null): string {
+  if (baseUrl) {
+    try {
+      return new URL(baseUrl).host;
+    } catch {
+      return baseUrl;
+    }
+  }
+  if (provider === 'github') return 'github.com';
+  if (provider === 'gitlab') return 'gitlab.com';
+  return 'no address set';
+}
+
+/** "GitHub · github.com" — what a picker and a row are called (INS-28). */
+export function connectionLabel(provider: string, baseUrl: string | null): string {
+  const name =
+    provider === 'github'
+      ? 'GitHub'
+      : provider === 'gitlab'
+        ? 'GitLab'
+        : provider === 'gitea'
+          ? 'Gitea'
+          : provider;
+  return `${name} · ${connectionHost(provider, baseUrl)}`;
+}
+
+/**
+ * Where to create the token, on this forge (W20-14, UX_TODO INS-26). The
+ * GitHub link pre-fills the classic scopes. Null when the address is unknown
+ * (Gitea with no URL typed yet) or not a URL.
+ */
+export function tokenCreateUrl(provider: Forge, baseUrl: string): string | null {
+  let origin: string;
+  const typed = baseUrl.trim();
+  if (typed) {
+    try {
+      const u = new URL(typed);
+      // A GitHub Enterprise API root (…/api/v3) lives on the same origin as
+      // its settings pages; strip any API path.
+      origin = u.origin;
+    } catch {
+      return null;
+    }
+  } else if (provider === 'github') {
+    origin = 'https://github.com';
+  } else if (provider === 'gitlab') {
+    origin = 'https://gitlab.com';
+  } else {
+    return null;
+  }
+  switch (provider) {
+    case 'github':
+      return `${origin}/settings/tokens/new?scopes=repo,read:org&description=RepoPulse`;
+    case 'gitlab':
+      return `${origin}/-/user_settings/personal_access_tokens?name=RepoPulse&scopes=read_api`;
+    case 'gitea':
+      return `${origin}/user/settings/applications`;
+  }
+}
+
+/** A connection's status in words (W20-14, UX_TODO ADM-41). */
+export function connectionStatusText(status: string): string {
+  switch (status) {
+    case 'active':
+      return 'Active';
+    case 'removed':
+      return 'Removed — token wiped, repositories paused';
+    default:
+      return status.replace(/_/g, ' ');
+  }
+}
+
 /** The Instance URL label names the real default per forge (W20-07, UX_TODO INS-73). */
 export const BASE_URL_LABEL: Record<'github' | 'gitlab' | 'gitea', string> = {
   github:
@@ -125,7 +214,17 @@ export function removeConsequence(repoCount: number): string {
  * path short of a second connection. Each row owns its mutations because the
  * URL carries the id (same reason as RepoPicker and Members).
  */
-function ConnectionActions({ row, onToast }: { row: Row; onToast: (toasts: Toast[]) => void }) {
+function ConnectionActions({
+  row,
+  onToast,
+  pickerOpen,
+  onTogglePicker,
+}: {
+  row: Row;
+  onToast: (toasts: Toast[]) => void;
+  pickerOpen: boolean;
+  onTogglePicker: () => void;
+}) {
   const [mode, setMode] = useState<'idle' | 'rekey' | 'remove'>('idle');
   const [token, setToken] = useState('');
   const rekey = useApiMutation<{ credential: string }, { id: number; fingerprint: string }>(
@@ -253,7 +352,7 @@ function ConnectionActions({ row, onToast }: { row: Row; onToast: (toasts: Toast
                       message:
                         res.outcome === 'deleted'
                           ? 'Connection deleted'
-                          : `Connection removed — ${res.paused_repos} repo(s) paused, history kept`,
+                          : `Connection removed — ${res.paused_repos} ${res.paused_repos === 1 ? 'repository' : 'repositories'} paused, history kept`,
                     },
                   ]);
                 },
@@ -275,7 +374,20 @@ function ConnectionActions({ row, onToast }: { row: Row; onToast: (toasts: Toast
   }
 
   return (
-    <div className="flex gap-1.5">
+    <div className="flex flex-wrap gap-1.5">
+      {/* INS-75: the picker lists the forge's repositories live, so it opens
+          on request rather than on every visit to Settings. */}
+      {row.status !== 'removed' && (
+        <button
+          type="button"
+          aria-expanded={pickerOpen}
+          className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          data-testid={`connection-pick-${row.id}`}
+          onClick={onTogglePicker}
+        >
+          {pickerOpen ? 'Hide repositories' : 'Choose repositories…'}
+        </button>
+      )}
       <button
         type="button"
         className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent"
@@ -321,7 +433,18 @@ export function Connections() {
   // FORGE_BASE_URL is the default, not the only answer.
   const [baseUrl, setBaseUrl] = useState('');
   const [submitted, setSubmitted] = useState<string | null>(null);
+  // INS-75: which connections' pickers are open, and which one just connected
+  // (INS-27: it opens by itself and takes focus).
+  const [openPickers, setOpenPickers] = useState<Set<number>>(new Set());
+  const [justConnected, setJustConnected] = useState<number | null>(null);
   const pushToasts = useUiStore((s) => s.pushToasts);
+  const togglePicker = (id: number) =>
+    setOpenPickers((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const { data, isLoading, isError, error, refetch } = useApiQuery<ConnectionList>(LIST);
 
@@ -339,10 +462,9 @@ export function Connections() {
       header: 'Instance',
       // The HOST, not the whole URL: the column exists so two connections to
       // two forges are told apart at a glance, and a full URL crowds that out.
+      // INS-43: a blank row shows the forge's real host, not "server default".
       cell: (row) => (
-        <span className="text-fg-muted">
-          {row.base_url ? new URL(row.base_url).host : 'server default'}
-        </span>
+        <span className="text-fg-muted">{connectionHost(row.provider, row.base_url)}</span>
       ),
     },
     { id: 'kind', header: 'Auth', cell: (row) => row.auth_kind },
@@ -357,7 +479,10 @@ export function Connections() {
       id: 'status',
       header: 'Status',
       cell: (row) => (
-        <SeverityBadge severity={row.status === 'active' ? 'low' : 'medium'} label={row.status} />
+        <SeverityBadge
+          severity={row.status === 'active' ? 'low' : 'medium'}
+          label={connectionStatusText(row.status)}
+        />
       ),
     },
     {
@@ -369,16 +494,24 @@ export function Connections() {
     {
       id: 'actions',
       header: 'Manage',
-      cell: (row) => <ConnectionActions row={row} onToast={pushToasts} />,
+      cell: (row) => (
+        <ConnectionActions
+          row={row}
+          onToast={pushToasts}
+          pickerOpen={openPickers.has(row.id)}
+          onTogglePicker={() => togglePicker(row.id)}
+        />
+      ),
     },
   ];
+  const tokenUrl = tokenCreateUrl(provider, baseUrl);
 
   return (
     <div className="flex flex-col gap-4" data-testid="admin-connections">
       <WidgetFrame
         title="Connect an organisation"
         state="ready"
-        definitionHref={docsUrl('/docs/INSTALL.md')}
+        definitionHref={docsUrl('/docs/INSTALL.md#connect-your-forge')}
       >
         <form
           className="flex flex-col gap-2"
@@ -397,8 +530,12 @@ export function Connections() {
                   // Clear immediately: a token left in a form field survives in
                   // the DOM and in any screenshot the operator takes next.
                   setCredential('');
-                  setSubmitted(`Connected (${res.status})`);
-                  pushToasts([{ id: `conn-${res.id}`, tone: 'ok', message: 'Connection created' }]);
+                  // INS-27 / INS-44: say what comes next instead of the raw
+                  // status, open the new connection's picker and move focus
+                  // there. The toast duplicated this line, so it is gone.
+                  setSubmitted('Connected. Now choose which repositories to track below.');
+                  setOpenPickers((prev) => new Set(prev).add(res.id));
+                  setJustConnected(res.id);
                 },
               },
             );
@@ -425,6 +562,10 @@ export function Connections() {
             id="connection-base-url"
             type="url"
             autoComplete="off"
+            // INS-25: Gitea has no default host, so the browser says so before
+            // the server has to.
+            required={provider === 'gitea'}
+            aria-required={provider === 'gitea'}
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}
             // Deliberately NOT the real GitHub API host: validate-arch rule 4
@@ -457,13 +598,30 @@ export function Connections() {
               {OPTIONAL_SCOPES[provider]}
             </p>
           ) : null}
+          {provider === 'github' ? (
+            <p className="text-xs text-fg-faint" data-testid="connection-fine-grained">
+              {GITHUB_FINE_GRAINED}
+            </p>
+          ) : null}
+          {/* INS-26: straight to the page that makes the token. */}
+          {tokenUrl ? (
+            <a
+              href={tokenUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-fit text-xs text-accent underline-offset-2 hover:underline"
+              data-testid="connection-token-link"
+            >
+              Create a token on {connectionHost(provider, baseUrl.trim() || null)} ↗
+            </a>
+          ) : null}
           <input
             id="connection-credential"
             type="password"
             autoComplete="off"
             value={credential}
             onChange={(e) => setCredential(e.target.value)}
-            placeholder="ghp_… — a classic PAT, or a fine-grained token with read access"
+            placeholder={TOKEN_PLACEHOLDER[provider]}
             className="panel px-2 py-1 text-sm"
             data-testid="connection-credential"
           />
@@ -478,7 +636,7 @@ export function Connections() {
             </button>
             {create.isError && <ConnectError error={create.error} provider={provider} />}
             {submitted && !create.isError && (
-              <span className="text-xs text-fg-muted" data-testid="connection-result">
+              <span className="text-xs text-fg-muted" role="status" data-testid="connection-result">
                 {submitted}
               </span>
             )}
@@ -486,11 +644,18 @@ export function Connections() {
         </form>
       </WidgetFrame>
 
-      {/* A removed connection holds no token to list repositories with. */}
+      {/* A removed connection holds no token to list repositories with.
+          INS-75: only the pickers someone opened; each one asks the forge. */}
       {items
-        .filter((c) => c.status !== 'removed')
+        .filter((c) => c.status !== 'removed' && openPickers.has(c.id))
         .map((c) => (
-          <RepoPicker key={c.id} connectionId={c.id} connectionsKey={queryKeyFor(LIST)} />
+          <RepoPicker
+            key={c.id}
+            connectionId={c.id}
+            connectionsKey={queryKeyFor(LIST)}
+            sourceLabel={connectionLabel(c.provider, c.base_url)}
+            autoFocus={justConnected === c.id}
+          />
         ))}
 
       <WidgetFrame

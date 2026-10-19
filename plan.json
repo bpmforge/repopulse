@@ -10826,6 +10826,68 @@
           "FND-71: findings stats now divide false positives by findings a person triaged (confirmed, dismissed, won't fix, or any human status event) and return `triaged`.",
           "API additions: GET /findings and /findings/ids take q (ILIKE, % and _ escaped) and chain_id; /repos/:id/security returns security_open_total, cves[].reachability and a real chains_computed. openapi.snapshot.json was already stale and was not regenerated."
         ]
+      },
+      {
+        "id": "W20-14",
+        "title": "Install and admin: proxy, root cron, connect flow, sync and system health polish",
+        "phase": 20,
+        "module": "web",
+        "stories": [],
+        "write_scope": [
+          "apps/web/src/lib/time.ts",
+          "apps/web/src/routes/admin/index.tsx",
+          "apps/web/src/widgets/admin/**",
+          "apps/api/src/lib/workspace-settings.ts",
+          "apps/api/src/lib/workspace-settings.test.ts",
+          "apps/api/src/routes/admin/system/**",
+          "apps/api/src/routes/admin/workspace/**",
+          "apps/api/src/routes/connections/**",
+          "apps/api/src/routes/sync/**",
+          "apps/api/src/routes/setup/env-registry.ts",
+          "apps/api/test/ops/deploy-restore.test.ts",
+          "packages/security/src/registers/run.ts",
+          "deploy/.env.example",
+          "deploy/backup.sh",
+          "deploy/bundle.sh",
+          "deploy/bundle/README.md",
+          "deploy/compose.yaml",
+          "deploy/scan-db-sync.sh",
+          "docs/CONFIG.md",
+          "docs/DEPLOYMENT.md",
+          "docs/INSTALL.md",
+          "docs/RUNBOOK.md",
+          "docs/work/UX_TODO.md",
+          "README.md",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W20-07"
+        ],
+        "acceptance": [
+          "UX_TODO INS-63, INS-65: HTTPS_PROXY / NO_PROXY reach the api, worker and scan-data containers and are documented; backup.sh and scan-db-sync.sh refuse to run as root against a rootless Podman install unless REPOPULSE_ALLOW_ROOT=1",
+          "UX_TODO ADM-43, ADM-44, ADM-75, ADM-76: /admin/system catches each component's failure, reports disk free with warn and critical thresholds and the app version, judges scanners on each repo's latest run; RUNBOOK covers restore onto a new server, changing the address and 'when the app is down'",
+          "UX_TODO INS-24..INS-32, INS-75: the connect flow names the forge, links to its token page, opens a filterable picker only on request, reports refused webhooks and links to Sync; Sync labels phases in words, shows the last webhook, offers Retry on errored repos and names the missing step when empty",
+          "The legacy licensePolicy settings key is migrated to license_policy and no unknown settings key is dropped by a save; both have tests",
+          "Every fix has a test where it has behaviour; lint, typecheck and the web suite are green"
+        ],
+        "points": 8,
+        "status": "done",
+        "notes": [
+          "Requested 2026-10-19 (fix the open install and admin UX_TODO items), install/admin batch after W20-07.",
+          "Fixed: INS-24, INS-25, INS-26, INS-27, INS-28, INS-29, INS-31, INS-32, INS-37, INS-38, INS-43, INS-44, INS-45, INS-48, INS-63, INS-65, INS-75, ADM-16, ADM-41, ADM-43 (remainder: per-component catch in /admin/system; the outage screen came in W20-04), ADM-44, ADM-51, ADM-67, ADM-75, ADM-76.",
+          "Settings: PATCH /admin/workspace now keeps keys the schema does not know (the comment said it did; it stripped them), and readWorkspaceSettings migrates a valid legacy licensePolicy to license_policy once.",
+          "Partial INS-09: pause, resume and track-all exist; auto-add of future repositories and a purge need a product decision.",
+          "Partial INS-30: Retry for errored repos only; no 'Sync now' for a live repository (needs a budgeted on-demand sync job).",
+          "Partial INS-67: proxy variables pass into the scan containers; no corporate CA mount.",
+          "Partial ADM-13: System health shows the version and links to the RUNBOOK backup and upgrade sections; no backup-status row (backups run outside the app) and no version in the rail footer.",
+          "Partial ADM-53: dead-letter errors are expandable; no repository or report column and no discard action (needs job payload parsing per queue).",
+          "Partial ADM-77: RUNBOOK documents changing the address and editing webhooks by hand; no 'update webhooks' action in the app.",
+          "Skipped (product decision): INS-50, INS-51 (sign-in by forge id touches the forge-user-id gate), INS-61, ADM-45.",
+          "Skipped (podman/macOS builds not verifiable here): INS-58, INS-68.",
+          "Skipped (other areas: findings, AI, dashboards): INS-22, INS-35, INS-60, ADM-59, ADM-60, ADM-70, ADM-73.",
+          "Not reached: remaining P3 items and ADM-78, INS-59 (GitHub Enterprise /api/v3 base path would need the e2e fake forge to follow), INS-69, INS-70.",
+          "Found, not fixed: WEBHOOK_SECRET is written by configure.sh but never read by the api; per-connection webhook secrets are used instead."
+        ]
       }
   ]
 }

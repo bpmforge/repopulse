@@ -8,8 +8,10 @@
 # on a schedule, fetches what the scanners need into a directory, and that
 # directory is mounted read-only into the scan container.
 #
-# Run it from cron/systemd nightly:
-#   0 3 * * *  /opt/repopulse/deploy/scan-db-sync.sh >> /var/log/repopulse-scan-sync.log 2>&1
+# Run it nightly from the crontab of the user who ran install.sh (NOT root's:
+# rootless Podman keeps images per user, and this script refuses to run as root
+# against a rootless install, INS-65):
+#   0 3 * * *  /opt/repopulse/deploy/scan-db-sync.sh >> $HOME/repopulse-scan-sync.log 2>&1
 #
 # Exit codes: 0 = everything synced, 1 = a source failed. A partial sync is
 # reported loudly rather than left to look like a successful one, because a
@@ -46,7 +48,41 @@ SCAN_IMAGE="$(env_value SCAN_IMAGE)"
 : "${SCAN_IMAGE:=localhost/repopulse/scan:dev}"
 FAILED=0
 
+# INS-67: the two fetching containers get the outbound proxy the api and worker
+# use (shell first, then deploy/.env). Without it, from cron (no proxy in the
+# environment) or under Docker, grype and the feed builder never reach the
+# proxy. Both spellings, because Go reads HTTPS_PROXY and Python reads either.
+proxy_env=()
+for proxy_var in HTTPS_PROXY NO_PROXY; do
+  proxy_val="$(env_value "$proxy_var")"
+  if [ -n "$proxy_val" ]; then
+    lower="$(printf '%s' "$proxy_var" | tr 'A-Z' 'a-z')"
+    proxy_env+=(-e "$proxy_var=$proxy_val" -e "$lower=$proxy_val")
+  fi
+done
+
 log() { printf '[scan-db-sync] %s\n' "$*"; }
+
+# INS-65: refuse to run as root against a rootless install. Root's podman has
+# its own image store, so it cannot find the scan image the install's user
+# loaded, and anything it did write would leave root-owned files in the scan
+# data directory that the install's user can then no longer replace. The
+# install belongs to whoever owns deploy/.env (or, before configure, this
+# directory). REPOPULSE_ALLOW_ROOT=1 is for a deliberately rootful install.
+if [ "$(id -u)" = 0 ] && [ "${REPOPULSE_ALLOW_ROOT:-0}" != 1 ] && command -v podman >/dev/null 2>&1; then
+  owned="$SCRIPT_DIR/.env"
+  [ -e "$owned" ] || owned="$SCRIPT_DIR"
+  owner_uid="$(ls -ldn "$owned" | awk '{print $3}')"
+  if [ -n "$owner_uid" ] && [ "$owner_uid" != 0 ]; then
+    owner="$(ls -ld "$owned" | awk '{print $3}')"
+    log "REFUSED: running as root, but this install belongs to $owner (the owner of $owned)."
+    log "Rootless Podman gives each user their own images; root cannot see the scan image."
+    log "Run it as $owner instead: put the cron line in $owner's crontab (crontab -e as $owner)"
+    log "and enable lingering (sudo loginctl enable-linger $owner). See docs/INSTALL.md -> Scan data."
+    log "For a deliberately rootful install, set REPOPULSE_ALLOW_ROOT=1."
+    exit 1
+  fi
+fi
 
 mkdir -p "$DEST"
 
@@ -197,6 +233,7 @@ if [ "${SCAN_SYNC_VULN_DB:-1}" = "1" ]; then
       fi
       if [ -z "${ARCHIVE_BAD:-}" ] && "$runtime" run --rm --user 0:0 \
            -e GRYPE_DB_CACHE_DIR=/db \
+           ${proxy_env[@]+"${proxy_env[@]}"} \
            -v "$stage:/db:rw" \
            ${db_mounts[@]+"${db_mounts[@]}"} \
            "$SCAN_IMAGE" "${db_fetch[@]}"; then
@@ -272,6 +309,7 @@ if [ "${SCAN_SYNC_MALICIOUS:-1}" != "0" ]; then
     rm -rf "$mal_stage"
     mkdir -p "$mal_stage"
     if "$runtime" run --rm --user 0:0 \
+         ${proxy_env[@]+"${proxy_env[@]}"} \
          -v "$mal_stage:/out:rw" \
          -v "$SCRIPT_DIR/build-malicious-index.py:/build.py:ro" \
          "$SCAN_IMAGE" python3 /build.py /out; then

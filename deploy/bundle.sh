@@ -10,6 +10,7 @@
 #   repopulse-<version>-<os>-<arch>/
 #     install.sh                verify → load → configure → up, in that order
 #     README.md                 how to install, upgrade, back up, troubleshoot
+#     RUNBOOK.md                the full operating guide (restore onto a new server, outages)
 #     ARCHITECTURES.md          what was built and smoke-tested, and what was NOT
 #     VERSION                   the version tag, and the commit it was built from
 #     manifest.json             images by name, id and digest; build host; runtime
@@ -234,6 +235,9 @@ find "$STAGE/deploy/scan-rules/rulepacks" -type f -exec chmod 0444 {} +
 
 cp deploy/bundle/install.sh "$STAGE/install.sh"
 cp deploy/bundle/README.md "$STAGE/README.md"
+# ADM-76: the operating guide travels with the install; the bundle README is
+# only its short form and the full restore-onto-a-new-server steps live here.
+cp docs/RUNBOOK.md "$STAGE/RUNBOOK.md"
 cp deploy/bundle/ARCHITECTURES.md "$STAGE/ARCHITECTURES.md"
 # W20-10 (UX_TODO ADM-76): the operating guide ships WITH the install. The
 # bundle README's restore line was the only restore guidance a customer had,
