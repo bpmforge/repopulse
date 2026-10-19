@@ -268,6 +268,15 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     default: '3301',
   },
   {
+    name: 'REPORT_PRINT_BASE_URL',
+    scope: 'worker',
+    required: false,
+    purpose:
+      'Base URL the report printer loads /print/reports/:id from. The deploy stack sets it to the internal web service (http://web:8080). Unset, PUBLIC_BASE_URL is used.',
+    ifWrong:
+      'Every report ends "failed" with a navigation error, because the headless browser cannot reach the page it prints.',
+  },
+  {
     name: 'DATA_DIR',
     scope: 'shared',
     required: false,

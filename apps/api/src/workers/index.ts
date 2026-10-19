@@ -876,7 +876,14 @@ async function main(): Promise<void> {
       [QUEUE.reports]: reportProcessor({
         db,
         dataDir: process.env.DATA_DIR ?? './.data',
-        printBaseUrl: process.env.PUBLIC_BASE_URL ?? 'http://localhost:5273',
+        // The headless printer loads /print/reports/:id from HERE (W20-02).
+        // PUBLIC_BASE_URL is where users reach the install, which from inside a
+        // container is usually not reachable at all (localhost is the worker
+        // itself), so the packaged stack points this at the internal web service.
+        // `||`, not `??`: .env.example ships the variable blank, meaning unset.
+        printBaseUrl:
+          process.env.REPORT_PRINT_BASE_URL ||
+          (process.env.PUBLIC_BASE_URL ?? 'http://localhost:5273'),
       }),
       // W18-19. A verified patch: this workspace's model drafts, the sandbox
       // re-scans. The forge is read through the same scan-lane config as every

@@ -102,10 +102,14 @@ deploy/up.sh                                   # start (or restart) and verify; 
 podman compose -f deploy/compose.yaml down     # stop; data stays in the volumes
 deploy/backup.sh                               # dump the database beside a manifest
 deploy/scan-db-sync.sh                         # refresh scan rules + fetch the CVE database
+deploy/smoke-report-pdf.sh                     # generate one report and download its PDF
 ```
 
-Data lives in two named volumes, `repopulse_pgdata` and `repopulse_redisdata`.
-`down` keeps them; only `down -v` deletes them. Upgrading, rolling back and
+Data lives in three named volumes: `repopulse_pgdata`, `repopulse_redisdata`,
+and `repopulse_reportdata` (generated report PDFs and their data, written by the
+worker and served by the api). `down` keeps them; only `down -v` deletes them.
+`backup.sh` dumps the database only. A report whose files are gone still shows
+in Reports with its parameters, and can be generated again. Upgrading, rolling back and
 restoring are in [RUNBOOK.md](RUNBOOK.md).
 
 ## Install from a checkout
@@ -561,6 +565,39 @@ images need nothing. Images pinned by digest are scanned as written; for images
 pinned by tag, a finding also says when a newer tag of the same variant would
 clear it. References that cannot be pulled as written (build arguments, stage
 names, `scratch`) are counted as skipped, not scanned.
+
+## Check that reports work
+
+Run this once after the first install and after each upgrade:
+
+```bash
+SMOKE_EMAIL=you@example.com SMOKE_PASSWORD='…' deploy/smoke-report-pdf.sh
+```
+
+With no `SMOKE_*` variables it signs in as `ADMIN_EMAIL` / `ADMIN_PASSWORD`
+from `deploy/.env`. The account must already have done its first-sign-in
+password change, because the script does not change anyone's password. It
+generates one Repo Health report, waits for the worker, downloads the PDF
+through the api, and checks the PDF header and page count:
+
+```
+PASS: report #2 downloaded as a PDF, 61234 bytes, 2 page(s)
+```
+
+The report stays in the history. The chain it tests crosses three containers:
+
+- the **worker** prints with Playwright's headless Chromium, which is why the
+  worker image is Debian-based when the others are Alpine;
+- the printer loads `/print/reports/:id` from the **web** service on the
+  internal network (`REPORT_PRINT_BASE_URL`, default `http://web:8080`), not
+  from your public URL, which a container usually cannot reach;
+- the worker writes the files to the `reportdata` volume at `/app/.data`, and
+  the **api** reads them from the same volume at the same path to serve the
+  download.
+
+If a step fails, the script names it. `failed in the worker: …` carries the
+worker's error. `has_pdf=false` means the api cannot see the worker's files, so
+check that both services mount `reportdata`.
 
 ## Put TLS in front
 
