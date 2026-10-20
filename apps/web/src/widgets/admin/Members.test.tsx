@@ -111,3 +111,22 @@ describe('Members role changes (W20-04)', () => {
     expect(screen.getByTestId('member-role-confirm-1')).toBeInTheDocument();
   });
 });
+
+describe('Members remove (W20-17, UX_TODO ADM-35/69)', () => {
+  it('marks you, and disables Remove on yourself with the reason', async () => {
+    renderMembers();
+    await waitFor(() => expect(screen.getByTestId('member-login-1')).toHaveTextContent('(you)'));
+    expect(screen.getByTestId('member-remove-1')).toBeDisabled();
+    expect(screen.getByTestId('member-remove-why-1')).toHaveTextContent(/cannot remove yourself/);
+    expect(screen.getByTestId('member-remove-2')).toBeEnabled();
+  });
+
+  it('moves focus to the consequences, and back to the button on Cancel', async () => {
+    const user = userEvent.setup();
+    renderMembers();
+    await user.click(await screen.findByTestId('member-remove-2'));
+    expect(screen.getByTestId('member-remove-confirm-2').querySelector('p')).toHaveFocus();
+    await user.click(screen.getByTestId('member-remove-cancel-2'));
+    expect(screen.getByTestId('member-remove-2')).toHaveFocus();
+  });
+});

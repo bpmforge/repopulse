@@ -231,6 +231,16 @@ export interface MeContext {
    * before an admin demotes themselves. Optional: an older API omits it.
    */
   user_id?: number;
+  /** W20-17 (UX_TODO ADM-54): the signed-in account, for the user menu. */
+  login?: string | null;
+  email?: string | null;
+  /** W20-17: repositories tracked in this workspace (first-run surfaces). */
+  repo_count?: number;
+  /** W20-17 (UX_TODO INS-39): repositories already live, and workspace members. */
+  live_repo_count?: number;
+  member_count?: number;
+  /** W20-17 (UX_TODO ADM-21): up to five admin logins, sent to members only. */
+  admin_logins?: string[];
   identity_id: number | null;
   default_view_id: number | null;
   /**
@@ -257,7 +267,7 @@ export interface MeContext {
   has_admin?: boolean;
 }
 
-export const PERSONAS = ['lead', 'developer', 'security', 'exec'] as const;
+export const PERSONAS = ['lead', 'developer', 'security', 'exec', 'admin'] as const;
 export type Persona = (typeof PERSONAS)[number];
 
 export interface UserPrefs {

@@ -50,7 +50,12 @@ describeIfLiveInfra('security posture — scanner sections', () => {
 
     const [user] = await db
       .insert(core.users)
-      .values({ authProvider: 'github', authSubject: 'w8-11-user', forgeUserId: 'w8-11-user', login: 'w8-11-user' })
+      .values({
+        authProvider: 'github',
+        authSubject: 'w8-11-user',
+        forgeUserId: 'w8-11-user',
+        login: 'w8-11-user',
+      })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w8-11-user' } })
       .returning();
     userId = user!.id;
@@ -191,8 +196,8 @@ describeIfLiveInfra('security posture — scanner sections', () => {
     expect(table?.kind).toBe('table');
     const top = byId(sections, 'scanner_secrets_top');
     expect(top?.kind).toBe('table');
-    // Highest severity first.
-    expect(top?.kind === 'table' ? top.rows[0]?.[0] : null).toBe(5);
+    // Highest severity first, in words (W20-17).
+    expect(top?.kind === 'table' ? top.rows[0]?.[0] : null).toBe('critical');
   });
 
   it('reports null, not zero, when there is no previous run to compare against', async () => {

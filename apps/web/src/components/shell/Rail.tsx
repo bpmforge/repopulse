@@ -1,7 +1,6 @@
 import { Link, useRouterState } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { useUiStore } from '../store/uiStore.js';
-import { SyncStatusChip } from '../primitives/SyncStatusChip.js';
 import { ThemeToggle } from './ThemeToggle.js';
 import { UserMenu } from './UserMenu.js';
 import { RepoPulseWordmark } from '../brand/RepoPulseMark.js';
@@ -132,6 +131,19 @@ export function navGroups(isAdmin: boolean): { label: string | null; items: NavI
 export type { NavItem };
 
 /**
+ * What a rail badge means, in words (W20-12 DSH-64; W20-17 ADM-62 adds the
+ * Settings count of install components that are not working).
+ */
+export function badgeLabel(to: string, badge: number): string {
+  if (to === '/pull-requests')
+    return `${badge} ${badge === 1 ? 'review' : 'reviews'} waiting on you`;
+  if (to === '/admin') {
+    return `${badge} install ${badge === 1 ? 'component is' : 'components are'} not working`;
+  }
+  return `${badge} new`;
+}
+
+/**
  * Test id for a destination, derived from its PATH rather than its label.
  *
  * W17-14 renamed two labels in presentation only, and every rail test broke —
@@ -165,7 +177,6 @@ const COLLAPSE_BELOW_PX = 768;
 export function Rail({ badges = {}, isAdmin = true, search }: RailProps) {
   const stored = useUiStore((s) => s.railCollapsed);
   const toggleRail = useUiStore((s) => s.toggleRail);
-  const sseConnection = useUiStore((s) => s.sseConnection);
 
   // Narrow WINS over the stored preference, and deliberately does not overwrite
   // it: someone who expanded the rail on a wide screen should still find it
@@ -214,7 +225,7 @@ export function Rail({ badges = {}, isAdmin = true, search }: RailProps) {
           type="button"
           hidden={narrow}
           onClick={toggleRail}
-          className="rounded-md px-1.5 py-1 text-fg-faint hover:bg-surface-2 hover:text-fg"
+          className="rounded-md px-1.5 py-1 text-fg-faint hover:bg-surface-2 hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           data-testid="rail-collapse"
           aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
           aria-expanded={!collapsed}
@@ -252,6 +263,9 @@ export function Rail({ badges = {}, isAdmin = true, search }: RailProps) {
                     data-testid={`rail-${navTestId(item.to)}`}
                     aria-current={active ? 'page' : undefined}
                     title={collapsed ? item.label : undefined}
+                    // W20-17 (UX_TODO ADM-40): collapsed, the link's name came
+                    // only from `title`, which not every reader announces.
+                    aria-label={collapsed ? item.label : undefined}
                   >
                     <span
                       className={`flex w-4 shrink-0 items-center justify-center ${active ? 'text-accent' : 'text-fg-faint group-hover:text-fg-muted'}`}
@@ -264,8 +278,17 @@ export function Rail({ badges = {}, isAdmin = true, search }: RailProps) {
                       badge > 0 &&
                       item.to !== '/pull-requests' && (
                         <span
-                          className="rounded-full bg-accent/15 px-1.5 py-px text-[11px] font-medium tabular-nums text-accent"
-                          aria-label={`${badge} new`}
+                          className={`rounded-full px-1.5 py-px text-[11px] font-medium tabular-nums ${
+                            item.to === '/admin'
+                              ? 'bg-warn/20 text-warn'
+                              : 'bg-accent/15 text-accent'
+                          }`}
+                          aria-label={badgeLabel(item.to, badge)}
+                          title={
+                            item.to === '/admin'
+                              ? 'System health: open Settings → Connections to see which'
+                              : undefined
+                          }
                           data-testid={`rail-badge-${navTestId(item.to)}`}
                         >
                           {badge}
@@ -299,13 +322,16 @@ export function Rail({ badges = {}, isAdmin = true, search }: RailProps) {
         ))}
       </div>
 
+      {/* W20-17 (UX_TODO ADM-30): no sync chip here any more. The top bar's
+          is on every screen at every width, and two role=status chips made a
+          screen reader announce each change twice. */}
       <div className="flex flex-col gap-1 border-t border-border px-3 py-2">
-        {!collapsed && <SyncStatusChip connection={sseConnection} />}
-        <div className="flex items-center justify-between">
+        <div className={`flex items-center ${collapsed ? 'flex-col gap-1' : 'justify-between'}`}>
           <ThemeToggle />
           {/* W4-10: this button existed and did nothing. It now opens the
-              persona switcher UX_SPEC §6 promises. */}
-          {!collapsed && <UserMenu />}
+              persona switcher UX_SPEC §6 promises. W20-17 (ADM-40): kept when
+              the rail is collapsed — it holds sign-out. */}
+          <UserMenu />
         </div>
       </div>
     </nav>

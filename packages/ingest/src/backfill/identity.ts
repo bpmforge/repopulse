@@ -13,7 +13,7 @@ import type { DbOrTx } from './db.js';
 // `forge_login = 'email:{address}'`, so churn/ownership never silently drop
 // email-only commits. These rows merge like any other identity (W5-05).
 
-export type Provider = 'github' | 'gitea';
+export type Provider = 'github' | 'gitea' | 'gitlab';
 
 export interface IdentityRef {
   /** Forge login, or null for an email-only commit author. */

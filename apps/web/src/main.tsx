@@ -4,6 +4,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { createRouter, RouterProvider } from '@tanstack/react-router';
 import { createQueryClient } from './api/queryClient.js';
 import { NotFound } from './components/shell/NotFound.js';
+import { AppError, reloadForNewVersion } from './components/shell/AppError.js';
 import { routeTree } from './routeTree.gen';
 import './styles/theme.css';
 
@@ -18,11 +19,18 @@ import './styles/theme.css';
 
 const queryClient = createQueryClient();
 
+// W20-17 (UX_TODO INS-57): a chunk from the previous release failed to load
+// (the tab outlived an upgrade). Vite announces it; reload once to fetch the
+// new version. If that already happened a moment ago, AppError explains.
+window.addEventListener('vite:preloadError', (event) => {
+  if (reloadForNewVersion()) event.preventDefault();
+});
 
 const router = createRouter({
   routeTree,
   context: { queryClient },
   defaultNotFoundComponent: NotFound,
+  defaultErrorComponent: AppError,
 });
 
 const rootElement = document.getElementById('root');

@@ -40,6 +40,6 @@ export const identities = pgTable(
   (t) => [
     index('identities_workspace_id_idx').on(t.workspaceId),
     unique('identities_workspace_provider_login_key').on(t.workspaceId, t.provider, t.forgeLogin),
-    check('identities_provider_check', sql`${t.provider} in ('github', 'gitea')`),
+    check('identities_provider_check', sql`${t.provider} in ('github', 'gitea', 'gitlab')`),
   ],
 );

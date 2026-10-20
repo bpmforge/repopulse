@@ -103,6 +103,9 @@ export function weightsSumOk(w: HealthWeights): boolean {
  * admin who deliberately types 7 has made a decision, and a screen that calls
  * it "default" is telling them their choice did not save.
  */
+/** A PATCH body: `null` for a key restores its default (W20-17, UX_TODO ADM-56). */
+export type SettingsPatch = { [K in keyof StoredSettings]?: StoredSettings[K] | null };
+
 export function isDefaulted(stored: StoredSettings, key: keyof StoredSettings): boolean {
   return stored[key] === undefined;
 }

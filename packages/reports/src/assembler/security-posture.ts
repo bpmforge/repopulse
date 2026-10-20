@@ -285,7 +285,7 @@ export async function securityPostureSections(
     markdown: [
       '**Appendix B — how to read this report.**',
       '',
-      '- Severity is 1–5, 5 = critical. Confidence is the analysing model’s own, not a measured probability.',
+      '- Severity reads critical, high, medium, low or info (5 down to 1 in the API). Confidence is the analysing model’s own, not a measured probability.',
       '- `unverified` means no second model re-judged the finding. It is not a weaker finding; it is an unchecked one.',
       '- The egress audit records every Tier-3 call **before** it is made, so a crashed call still appears. Byte counts are of the prompt sent, and content is stored as a sha256 digest rather than a copy.',
       '- Dependency and secret signals are heuristic and are marked as such wherever they appear.',
@@ -531,7 +531,7 @@ export async function scannerSections(
         columns: ['Severity', 'Finding', 'Location', 'Rule', 'Finding #'],
         findingIdColumn: 4,
         rows: posture.topFindings.map((f) => [
-          f.severity,
+          severityWord(f.severity),
           f.title,
           // A repo-level finding genuinely has no location; an empty string
           // would render as a blank cell that looks like missing data.
@@ -552,7 +552,7 @@ export async function scannerSections(
           columns: ['Chain', 'Severity', 'Steps'],
           rows: chains.map((chain) => [
             chain.chainId,
-            chain.severity,
+            severityWord(chain.severity),
             chain.steps.map((s) => s.title).join(' → '),
           ]),
         }

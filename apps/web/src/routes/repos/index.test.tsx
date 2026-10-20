@@ -183,8 +183,9 @@ describe('repository list (W17-18)', () => {
     await screen.findByTestId('widget-state-empty');
     expect(screen.getByTestId('widget-state-empty')).toHaveTextContent(/no repositories/i);
     // A dead end was the whole complaint: there is now a way to connect one.
-    const action = screen.getByTestId('repo-list-connect');
-    expect(action).toHaveAttribute('href', expect.stringContaining('/setup'));
+    const action = await screen.findByTestId('repo-list-connect');
+    // W20-17 (UX_TODO INS-18): the Connections form, not the Setup status page.
+    expect(action).toHaveAttribute('href', expect.stringMatching(/\/admin\/?(\?|$)/));
   });
 
   it('a filter that matches nothing is NOT "no repositories connected"', async () => {

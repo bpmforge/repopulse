@@ -2,6 +2,7 @@ import { and, desc, eq, gte, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { auditLog, core, facts, plans as plansSchema, type Database } from '@repopulse/shared';
 import {
+  AGREEMENT_DEFAULTS,
   AGREEMENT_KINDS,
   EXCEPTION_WINDOW_DAYS,
   computeExceptions,
@@ -31,6 +32,33 @@ function fail(
 ): FastifyReply {
   sendProblem(req, reply, status, title, detail === undefined ? {} : { detail });
   return reply;
+}
+
+/**
+ * Range check for a threshold (W20-17, UX_TODO ADM-65). Nothing was checked,
+ * so negative line counts, 0 hours or a CI rate of 90 were all saved and then
+ * silently judged every pull request (or none). An empty threshold is fine:
+ * it means the documented default. Returns the problem, or null.
+ */
+export function thresholdProblem(
+  kind: AgreementKind,
+  threshold: Record<string, unknown>,
+): string | null {
+  const def = AGREEMENT_DEFAULTS[kind];
+  const keys = Object.keys(threshold);
+  if (keys.length === 0) return null;
+  if (keys.length > 1 || keys[0] !== def.key) {
+    return `threshold for ${kind} takes one key: ${def.key}`;
+  }
+  const v = threshold[def.key];
+  if (typeof v !== 'number' || !Number.isFinite(v)) return `${def.key} must be a number`;
+  if (def.key === 'rate') {
+    return v > 0 && v <= 1 ? null : 'rate is a fraction between 0 and 1 (0.9 = 90%)';
+  }
+  if (def.key === 'hours') return v > 0 ? null : 'hours must be more than 0';
+  if (def.key === 'count')
+    return Number.isInteger(v) && v >= 0 ? null : 'count must be a whole number, 0 or more';
+  return Number.isInteger(v) && v >= 1 ? null : `${def.key} must be a whole number, 1 or more`;
 }
 
 /** PRs in the trailing window, with the review facts an agreement needs. */
@@ -145,12 +173,20 @@ export default async function agreementsRoutes(
       }
       const kind = request.body?.kind;
       if (typeof kind !== 'string' || !AGREEMENT_KINDS.includes(kind as AgreementKind)) {
-        return fail(request, reply, 400, 'Invalid kind', `kind must be one of ${AGREEMENT_KINDS.join(', ')}`);
+        return fail(
+          request,
+          reply,
+          400,
+          'Invalid kind',
+          `kind must be one of ${AGREEMENT_KINDS.join(', ')}`,
+        );
       }
       const threshold =
         request.body?.threshold && typeof request.body.threshold === 'object'
           ? (request.body.threshold as Record<string, unknown>)
           : {};
+      const problem = thresholdProblem(kind as AgreementKind, threshold);
+      if (problem) return fail(request, reply, 400, 'Invalid threshold', problem);
       const repoIds = Array.isArray(request.body?.repo_ids)
         ? (request.body.repo_ids as unknown[]).map(Number).filter(Number.isInteger)
         : [];
@@ -190,7 +226,12 @@ export default async function agreementsRoutes(
       const [existing] = await db
         .select()
         .from(plansSchema.agreements)
-        .where(and(eq(plansSchema.agreements.id, id), eq(plansSchema.agreements.workspaceId, workspaceId)))
+        .where(
+          and(
+            eq(plansSchema.agreements.id, id),
+            eq(plansSchema.agreements.workspaceId, workspaceId),
+          ),
+        )
         .limit(1);
       // Tenancy (Law 5): another workspace's agreement is a 404, never a 403.
       if (!existing) return fail(request, reply, 404, 'Not Found');
@@ -203,8 +244,22 @@ export default async function agreementsRoutes(
       if (Object.keys(patch).length === 0) {
         return fail(request, reply, 400, 'Invalid body', 'active or threshold is required');
       }
+      if (patch.threshold) {
+        const problem = thresholdProblem(existing.kind as AgreementKind, patch.threshold);
+        if (problem) return fail(request, reply, 400, 'Invalid threshold', problem);
+      }
 
-      await db.update(plansSchema.agreements).set(patch).where(eq(plansSchema.agreements.id, id));
+      // Workspace-filtered as well as id-filtered (Law 5), though the select
+      // above already proved the row is this workspace's.
+      await db
+        .update(plansSchema.agreements)
+        .set(patch)
+        .where(
+          and(
+            eq(plansSchema.agreements.id, id),
+            eq(plansSchema.agreements.workspaceId, workspaceId),
+          ),
+        );
 
       auditLog(request.log, {
         event: 'agreement.configured',
@@ -232,7 +287,12 @@ export default async function agreementsRoutes(
       if (!Number.isInteger(id)) return fail(request, reply, 400, 'Invalid agreement id');
       const deleted = await db
         .delete(plansSchema.agreements)
-        .where(and(eq(plansSchema.agreements.id, id), eq(plansSchema.agreements.workspaceId, workspaceId)))
+        .where(
+          and(
+            eq(plansSchema.agreements.id, id),
+            eq(plansSchema.agreements.workspaceId, workspaceId),
+          ),
+        )
         .returning({ id: plansSchema.agreements.id });
       if (deleted.length === 0) return fail(request, reply, 404, 'Not Found');
       return reply.send({ id, deleted: true });

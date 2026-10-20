@@ -30,7 +30,13 @@ import {
 } from '@repopulse/ingest';
 import { computeRepoSnapshots } from '@repopulse/metrics';
 import { hotspotPercentiles, repriceFindings, writeFindingsMetric } from '@repopulse/insights';
-import { providerForRepo, type WorkerProviderDeps } from './forge-provider.js';
+import { credentials } from '@repopulse/auth';
+import {
+  providerForConnection,
+  providerForRepo,
+  type WorkerProviderDeps,
+} from './forge-provider.js';
+import { autoAddNewRepos } from './auto-add.js';
 
 // The queue processors (W12-03).
 //
@@ -77,6 +83,12 @@ export interface ProcessorDeps extends WorkerProviderDeps {
    * ever wrote to and live sync had never worked.
    */
   publish?: (workspaceId: number, event: SyncStreamEvent) => Promise<void>;
+  /**
+   * PUBLIC_BASE_URL + /api/v1/webhooks/github (W20-17, UX_TODO INS-09). The
+   * nightly sweep's auto-add registers hooks on newly found repositories at
+   * this address; unset, auto-add is skipped (it would register no hook).
+   */
+  webhookUrl?: string;
 }
 
 /**
@@ -567,7 +579,30 @@ async function processReconcileSweep(deps: ProcessorDeps) {
 
   let requeued = 0;
   let swept = 0;
+  let autoAdded = 0;
   for (const ws of workspaces) {
+    // W20-17 (UX_TODO INS-09): connections set to "auto-add new" track the
+    // repositories created since the last sweep. First, so a new repository's
+    // plan is queued alongside the rescue below. A failure is per connection
+    // and never stops the sweep.
+    if (deps.webhookUrl) {
+      const added = await autoAddNewRepos(
+        {
+          db: deps.db,
+          webhookUrl: deps.webhookUrl,
+          tokenKeySeal: (pt) => credentials.sealSecret(pt, deps.tokenKey),
+          tokenKeyOpen: (sealed) => credentials.openSecret(sealed, deps.tokenKey),
+          providerFor: (workspaceId, connectionId) =>
+            providerForConnection(deps, workspaceId, connectionId),
+          enqueuePlan: async (workspaceId, repoId) => {
+            await deps.backfillQueue.add('plan', { workspaceId, repoId });
+          },
+        },
+        ws.id,
+      );
+      autoAdded += added.added;
+    }
+
     // Repos stuck in `error` get a fresh plan (§5). requeueErrorRepos was
     // implemented in W2 and had no caller until now.
     const ids = await requeueErrorRepos(
@@ -596,7 +631,7 @@ async function processReconcileSweep(deps: ProcessorDeps) {
       swept++;
     }
   }
-  return { requeued, swept };
+  return { requeued, swept, autoAdded };
 }
 
 /** Metric snapshots — the numbers every screen reads. */

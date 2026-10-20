@@ -3,6 +3,7 @@ import { serializeGlobalSearch } from '@repopulse/shared/url-state';
 import { HealthBadge, PageHeader, WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 import { forgeLabel } from '../../widgets/repo/contracts.js';
+import type { MeContext } from '../../widgets/org/contracts.js';
 
 // Repo list — the breadcrumb's middle rung. Org Overview links straight to a
 // repo, but a pasted /repos URL has to land somewhere real rather than the
@@ -119,6 +120,9 @@ function RepoList() {
   const sort = search.sort ?? DEFAULT_SORT;
   const q = search.q ?? '';
 
+  // W20-17 (UX_TODO INS-18): the empty state's call to action depends on role.
+  const { data: me } = useApiQuery<MeContext>({ endpoint: '/me/context' });
+  const isAdmin = me?.role === 'admin';
   const { data, isLoading, isError, error, refetch } = useApiQuery<{ items: RepoRow[] }>({
     endpoint: '/repos',
     query: { window: search.window },
@@ -190,14 +194,22 @@ function RepoList() {
             >
               Clear filters
             </button>
-          ) : (
+          ) : // W20-17 (UX_TODO INS-18): the Connections form, like the welcome
+          // and the checklist (this went to the Setup status page, which has
+          // no form); members are told who can do it instead of a link they
+          // would be refused.
+          isAdmin ? (
             <Link
-              to="/setup"
+              to="/admin"
               data-testid="repo-list-connect"
               className="rounded-sm border border-border px-2 py-1 text-xs text-fg hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
             >
               Connect a forge
             </Link>
+          ) : (
+            <span className="text-xs text-fg-muted" data-testid="repo-list-ask-admin">
+              Ask an admin to connect a forge.
+            </span>
           )
         }
       >

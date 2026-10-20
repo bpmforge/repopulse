@@ -375,8 +375,8 @@ export function ScannerErrorDetail({ scannerKey, error }: { scannerKey: string; 
         // copy would ship stale and look current.
         <div className="mt-0.5" data-testid={`scanner-db-${scannerKey}`}>
           The vulnerability database is refreshed daily and is not part of the image. Run{' '}
-          <code className="rounded bg-surface-2 px-1 font-mono">deploy/scan-db-sync.sh</code> — see
-          docs/RUNNING.md → Scan tools.
+          <code className="rounded bg-surface-2 px-1 font-mono">deploy/scan-db-sync.sh</code> on the
+          host where RepoPulse runs (see INSTALL → Scan data).
         </div>
       )}
       {!looksLikeStaleVulnDb(error) && looksLikeMissingScanTools(error) && (
@@ -384,11 +384,16 @@ export function ScannerErrorDetail({ scannerKey, error }: { scannerKey: string; 
         // missing and stops there has told someone their scan failed and left
         // them to guess.
         <div className="mt-0.5" data-testid={`scanner-fix-${scannerKey}`}>
-          The scan tools run in a container image. Build it with{' '}
+          {/* W20-17 (UX_TODO INS-22): a bundle install has no Containerfile
+              and no docs/ folder; the build command is for a checkout only. */}
+          The scan tools run in the RepoPulse scan image, which{' '}
+          <code className="rounded bg-surface-2 px-1 font-mono">deploy/up.sh</code> loads from the
+          bundle. Re-run it, and check the scan image is listed by{' '}
+          <code className="rounded bg-surface-2 px-1 font-mono">podman images</code>. From a source
+          checkout instead, build it with{' '}
           <code className="rounded bg-surface-2 px-1 font-mono">
             podman build -f Containerfile.scan -t localhost/repopulse/scan:dev .
-          </code>{' '}
-          — see docs/RUNNING.md → Scan tools.
+          </code>
         </div>
       )}
     </div>

@@ -29,7 +29,7 @@ export interface MeRoutesOptions {
 /** The "Files I've changed most" window (W20-12, UX_TODO DSH-88). */
 const MY_FILES_DAYS = 90;
 
-export const PERSONAS = ['lead', 'developer', 'security', 'exec'] as const;
+export const PERSONAS = ['lead', 'developer', 'security', 'exec', 'admin'] as const;
 export type Persona = (typeof PERSONAS)[number];
 
 export const PERSONA_HOME: Record<Persona, string> = {
@@ -37,6 +37,9 @@ export const PERSONA_HOME: Record<Persona, string> = {
   developer: '/me', // P2 → My Focus
   security: '/findings', // P3 → Findings Explorer
   exec: '/reports', // P4 → Exec rollup lives under Reports until W5's views
+  // W20-17 (UX_TODO INS-16): the person who runs the install. A home screen,
+  // not a permission: a member who picks it meets the ask-an-admin page.
+  admin: '/admin/setup',
 };
 
 /** A first look at the inbox shows a week, not every finding ever recorded. */
@@ -67,13 +70,21 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
     return { workspaceId, identityId };
   }
 
-  async function readUser(
-    request: FastifyRequest,
-  ): Promise<{ persona: string | null; prefs: Record<string, unknown> } | null> {
+  async function readUser(request: FastifyRequest): Promise<{
+    persona: string | null;
+    prefs: Record<string, unknown>;
+    login: string;
+    email: string | null;
+  } | null> {
     const userId = request.session.get('userId');
     if (userId === undefined) return null;
     const [row] = await db
-      .select({ persona: core.users.persona, prefs: core.users.prefs })
+      .select({
+        persona: core.users.persona,
+        prefs: core.users.prefs,
+        login: core.users.login,
+        email: core.users.email,
+      })
       .from(core.users)
       .where(eq(core.users.id, userId))
       .limit(1);
@@ -115,6 +126,21 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
             )
             .limit(1);
     const persona = (me?.persona ?? null) as Persona | null;
+    // W20-17 (UX_TODO INS-16, INS-17, INS-36): first-run surfaces need to know
+    // whether the workspace tracks anything yet. Workspace-filtered (Law 5).
+    const [tracked] = await db
+      .select({
+        n: sql<number>`count(*)::int`,
+        live: sql<number>`(count(*) filter (where ${core.repos.syncStatus} = 'live'))::int`,
+      })
+      .from(core.repos)
+      .where(eq(core.repos.workspaceId, request.workspace.id));
+    // INS-39: the onboarding steps tick from data ("Assign workspace roles"
+    // once anyone else is a member).
+    const [members] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(core.workspaceMembers)
+      .where(eq(core.workspaceMembers.workspaceId, request.workspace.id));
     return reply.send({
       workspace: {
         id: request.workspace.id,
@@ -125,6 +151,31 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
       // W20-04 (UX_TODO ADM-11): Members needs to know which row is the
       // caller, to warn an admin before they demote themselves.
       user_id: request.session.get('userId'),
+      // W20-17 (UX_TODO ADM-54): who you are signed in as, for the user menu.
+      login: me?.login ?? null,
+      email: me?.email ?? null,
+      repo_count: tracked?.n ?? 0,
+      live_repo_count: tracked?.live ?? 0,
+      member_count: members?.n ?? 0,
+      // W20-17 (UX_TODO ADM-21): "ask an admin" now says who. Members only;
+      // an admin has Settings → Members. Workspace-filtered (Law 5).
+      admin_logins:
+        request.role === 'admin'
+          ? []
+          : (
+              await db
+                .select({ login: core.users.login })
+                .from(core.workspaceMembers)
+                .innerJoin(core.users, eq(core.users.id, core.workspaceMembers.userId))
+                .where(
+                  and(
+                    eq(core.workspaceMembers.workspaceId, request.workspace.id),
+                    eq(core.workspaceMembers.role, 'admin'),
+                  ),
+                )
+                .orderBy(core.users.login)
+                .limit(5)
+            ).map((r) => r.login),
       identity_id: ctx.identityId,
       default_view_id: defaultView?.id ?? null,
       // The persona's home, so the shell can land there after sign-in without

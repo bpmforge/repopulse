@@ -11,6 +11,7 @@ import {
   connectionHost,
   connectionStatusText,
   removeConsequence,
+  removedMessage,
   tokenCreateUrl,
 } from './Connections.js';
 
@@ -49,13 +50,15 @@ beforeEach(() => {
               registered: 2,
               failed: [{ repo: 'acme/c', error: 'forbidden' }],
             }
-          : method === 'PATCH' || method === 'POST'
-            ? { id: 5, status: 'active', fingerprint: 'y' }
-            : method === 'DELETE'
-              ? { id: 5, outcome: 'disconnected', paused_repos: 3 }
-              : url.includes('available-repos')
-                ? { items: [], total: 0, truncated: false }
-                : CONNECTIONS;
+          : method === 'PUT' && url.includes('/auto-add')
+            ? { id: 5, auto_add: true }
+            : method === 'PATCH' || method === 'POST'
+              ? { id: 5, status: 'active', fingerprint: 'y' }
+              : method === 'DELETE'
+                ? { id: 5, outcome: 'disconnected', paused_repos: 3 }
+                : url.includes('available-repos')
+                  ? { items: [], total: 0, truncated: false }
+                  : CONNECTIONS;
       return Promise.resolve(
         new Response(JSON.stringify(body), {
           status: 200,
@@ -206,6 +209,39 @@ describe('managing a connection (W20-07, INS-08)', () => {
   it('describes an empty connection as deleted outright', () => {
     expect(removeConsequence(0)).toMatch(/deleted outright/);
     expect(removeConsequence(1)).toMatch(/1 tracked repository stops syncing and is paused/);
+    expect(removeConsequence(2)).toMatch(/deletes the webhooks it registered/);
+  });
+
+  // W20-17 (UX_TODO INS-09): auto-add of new repositories, per connection.
+  it('turns auto-add on for a connection', async () => {
+    const user = userEvent.setup();
+    renderConnections();
+    const toggle = await screen.findByTestId('connection-auto-add-5');
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+    expect(toggle).toHaveTextContent('Auto-add: off');
+    await user.click(toggle);
+    await waitFor(() =>
+      expect(calls.find((c) => c.method === 'PUT')).toMatchObject({
+        url: expect.stringContaining('/connections/5/auto-add'),
+        body: { enabled: true },
+      }),
+    );
+  });
+
+  // W20-17: removal deletes the hooks and names the ones left to do by hand.
+  it('says how many webhooks were deleted and which are left', () => {
+    expect(removedMessage({ outcome: 'disconnected', paused_repos: 2, webhooks_removed: 2 })).toBe(
+      'Connection removed — 2 repositories paused, history kept; 2 webhooks deleted on the forge',
+    );
+    expect(
+      removedMessage({
+        outcome: 'disconnected',
+        paused_repos: 2,
+        webhooks_removed: 1,
+        webhook_failures: [{ repo: 'acme/b', error: 'HTTP 403' }],
+      }),
+    ).toMatch(/1 webhook deleted on the forge\. Delete the RepoPulse webhook by hand on: acme\/b$/);
+    expect(removedMessage({ outcome: 'deleted', paused_repos: 0 })).toBe('Connection deleted');
   });
 
   // W20-10 (UX_TODO ADM-77): after the install moves, hooks still point at the

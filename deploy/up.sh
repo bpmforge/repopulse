@@ -448,3 +448,20 @@ echo
 # configured with --port=8199 is not told to open 8099 (W17-28).
 port="$(env_value REPOPULSE_PORT)"
 echo "All services running. Open http://localhost:${port:-8099}"
+# W20-17 (UX_TODO INS-23): say where the install is reachable from outside,
+# who signs in first, and what comes next, instead of only a localhost URL.
+public_url="$(env_value PUBLIC_BASE_URL)"
+admin_email="$(env_value ADMIN_EMAIL)"
+if [ -n "$public_url" ]; then
+  echo "Public address (PUBLIC_BASE_URL): $public_url"
+fi
+echo
+echo "Next steps:"
+if [ -n "$admin_email" ]; then
+  echo "  1. Sign in as $admin_email with ADMIN_PASSWORD; you will be asked to change it."
+else
+  echo "  1. Sign in with your configured single sign-on."
+fi
+echo "  2. Open Admin → Setup and work down the checklist."
+echo "  3. Connect a forge (Admin → Connections) and choose repositories."
+echo "  4. Watch the first sync in Settings → Sync."

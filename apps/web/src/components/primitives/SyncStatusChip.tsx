@@ -5,11 +5,14 @@ import type { SseConnection } from '../store/uiStore.js';
 // reinforcement only (UX §7). When a repo is mid-backfill it shows the phase +
 // percent (FR-INGEST-8).
 
+// W20-17 (UX_TODO ADM-30): the chip describes the LIVE-UPDATE stream, not how
+// fresh the data is. "Offline" read as "sync is broken" while every repository
+// was still syncing on schedule.
 const CONN_LABEL: Record<SseConnection, string> = {
   connecting: 'Connecting…',
-  open: 'Live',
-  reconnecting: 'Reconnecting…',
-  closed: 'Offline',
+  open: 'Live updates on',
+  reconnecting: 'Live updates reconnecting…',
+  closed: 'Live updates paused',
 };
 
 const CONN_DOT: Record<SseConnection, string> = {
@@ -34,7 +37,7 @@ export function SyncStatusChip({ connection, progress, className = '' }: SyncSta
     <span
       className={`inline-flex items-center gap-1.5 text-xs text-fg-muted ${className}`}
       role="status"
-      aria-label={`sync status: ${label}`}
+      aria-label={progress ? `Sync: ${label}` : label}
       data-testid="sync-status-chip"
       data-connection={connection}
     >

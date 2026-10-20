@@ -103,19 +103,25 @@ export function buildUrl(
 
 /** Fetch JSON from the API, throwing ApiError with the problem envelope on failure. */
 export async function apiFetch<T>(url: string, init: RequestInit = {}): Promise<T> {
+  // `...init` goes FIRST and the merged headers last (W20-17): spreading init
+  // after `headers` let a caller's own init.headers replace the whole object,
+  // silently dropping the CSRF and accept headers. Headers may arrive as a
+  // plain object, a tuple list or a Headers instance; normalise before merging.
+  const callerHeaders = Object.fromEntries(new Headers(init.headers ?? {}).entries());
   const res = await fetch(url, {
+    ...init,
     // Session cookie auth (FR-AUTH); the CSRF header guards mutating verbs.
-    credentials: 'include',
+    credentials: init.credentials ?? 'include',
     headers: {
       accept: 'application/json',
+      ...(init.body ? { 'content-type': 'application/json' } : {}),
+      ...callerHeaders,
       // SC-7 CSRF: the API rejects any mutating verb without this header. It is
       // a simple header so it triggers no CORS preflight, and sending it on
-      // reads too costs nothing — omitting it made every write 403.
+      // reads too costs nothing — omitting it made every write 403. Set last
+      // so no caller can drop it.
       'x-requested-with': 'repopulse',
-      ...(init.body ? { 'content-type': 'application/json' } : {}),
-      ...init.headers,
     },
-    ...init,
   });
 
   if (!res.ok) {

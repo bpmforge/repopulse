@@ -10,6 +10,25 @@ import { errorDetailOf, errorMessageOf, requestIdOf } from '../../api/client.js'
 
 export type Density = 'comfortable' | 'compact';
 export type Theme = 'dark' | 'light';
+/**
+ * The person's choice (W20-17, UX_TODO ADM-38): 'system' follows the OS
+ * `prefers-color-scheme`, and is the first-visit default instead of dark.
+ */
+export type ThemePref = Theme | 'system';
+
+/** The theme actually applied for a preference. */
+export function resolveTheme(pref: ThemePref): Theme {
+  if (pref !== 'system') return pref;
+  try {
+    return typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-color-scheme: light)').matches
+      ? 'light'
+      : 'dark';
+  } catch {
+    return 'dark';
+  }
+}
 export type ToastTone = 'info' | 'ok' | 'warn' | 'crit';
 export type SseConnection = 'connecting' | 'open' | 'reconnecting' | 'closed';
 
@@ -25,6 +44,8 @@ export interface Toast {
   detail?: string;
   /** Rendered selectable, like ErrorNote: it is what someone quotes to support. */
   requestId?: string;
+  /** W20-17 (UX_TODO INS-34): where to look, e.g. the repository that finished. */
+  action?: { label: string; to: string };
 }
 
 /**
@@ -59,9 +80,10 @@ interface UiState {
   density: Density;
   setDensity: (density: Density) => void;
 
-  /** Dark-first (FR-WEB-1); persisted and applied to <html data-theme>. */
-  theme: Theme;
-  setTheme: (theme: Theme) => void;
+  /** System by default (W20-17, ADM-38); persisted, resolved onto <html data-theme>. */
+  theme: ThemePref;
+  setTheme: (theme: ThemePref) => void;
+  /** Flips the APPLIED theme and stores that explicit choice. */
   toggleTheme: () => void;
 
   /** ISO timestamp of the last dashboard visit — drives the attention feed. */
@@ -109,9 +131,10 @@ export const useUiStore = create<UiState>()(
       density: 'comfortable',
       setDensity: (density) => set({ density }),
 
-      theme: 'dark',
+      theme: 'system',
       setTheme: (theme) => set({ theme }),
-      toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
+      toggleTheme: () =>
+        set((s) => ({ theme: resolveTheme(s.theme) === 'dark' ? 'light' : 'dark' })),
 
       lastSeenAt: null,
       markSeen: (lastSeenAt) => set({ lastSeenAt }),

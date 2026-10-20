@@ -77,7 +77,9 @@ ADMIN_PASSWORD='a long passphrase' ./install.sh --url=https://repopulse.example.
 The administrator password comes from `ADMIN_PASSWORD` in the environment or a
 `deploy/admin-password` file, never from an argument, so it does not land in
 shell history. It must be at least 12 characters; a shorter one fails the boot
-rather than creating a weak administrator.
+rather than creating a weak administrator. `configure.sh` deletes the
+`deploy/admin-password` file once `.env` holds the password, so the plaintext
+copy does not stay beside the bundle.
 
 `--url=` is the address your users will open, and it must match the callback
 you later register on your GitHub App. `--port=` (default `8099`) is the one
@@ -394,6 +396,14 @@ the screens fill in as history lands. In the recorded journey three
 repositories went from selected to `live` and every screen showed that run's
 data.
 
+**Track all and auto-add new** tracks every repository the token can see and
+turns on *Auto-add* for that connection: repositories created on the forge
+later are tracked by the nightly sync (archived ones are left for you to pick).
+Turn it off with the connection row's **Auto-add** switch; that never
+untracks anything. To stop tracking one repository, use **Pause** on it in
+**Settings → Sync**: it makes no forge calls and keeps its history. Removing a
+connection deletes the webhooks it registered on the forge first.
+
 ### Webhooks
 
 Webhook deliveries are how RepoPulse notices a push without polling. Until
@@ -412,9 +422,9 @@ arrives:
 
 You do not configure the webhook by hand. When you connect, RepoPulse
 registers a hook on each selected repository with a secret it generates for
-that connection and stores encrypted. The `WEBHOOK_SECRET` line that
-`install.sh` writes into `deploy/.env` is not read by this release and can be
-ignored. Where the hook points depends on the forge:
+that connection and stores encrypted. There is no global `WEBHOOK_SECRET`
+to set; an older `deploy/.env` that still has that line can keep it, nothing
+reads it. Where the hook points depends on the forge:
 
 | Forge | Receiver | How a delivery is authenticated |
 |---|---|---|

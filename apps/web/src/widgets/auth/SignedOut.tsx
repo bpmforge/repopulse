@@ -25,7 +25,7 @@ export function SignedOut({ expired }: SignedOutProps) {
   if (!ready) {
     return (
       <div
-        className="flex min-h-screen w-screen items-center justify-center bg-bg text-fg-muted"
+        className="flex min-h-screen w-full items-center justify-center bg-bg text-fg-muted"
         data-testid="signin-probe"
         aria-busy="true"
       >

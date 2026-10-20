@@ -87,12 +87,18 @@ export function WidgetFrame({
       <header className="flex items-center justify-between gap-2 px-4 pt-3.5 pb-1">
         <div className="flex items-center gap-1.5">
           <h3 className="text-sm font-semibold text-fg">{title}</h3>
+          {/* W20-17 (UX_TODO ADM-31): an outside docs page opens in a new tab
+              rather than replacing the app; the glyph gets a real target and
+              a focus ring; "definition" was wrong for INSTALL.md links. */}
           {definitionHref && (
             <a
               href={definitionHref}
-              className="text-fg-faint hover:text-fg"
-              aria-label={`${title} definition`}
-              title="Definition"
+              className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-fg-faint hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              aria-label={`About ${title}${/^https?:/.test(definitionHref) ? ' (opens in a new tab)' : ''}`}
+              title="About this"
+              {...(/^https?:/.test(definitionHref)
+                ? { target: '_blank', rel: 'noopener noreferrer' }
+                : {})}
             >
               ⓘ
             </a>

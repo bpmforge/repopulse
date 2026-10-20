@@ -193,6 +193,22 @@ describeIfLiveInfra('backfill entity ingest (W2-03, FR-INGEST-2/3/4)', () => {
     expect(fallback, 'email-only commit got a fallback identity').toBeTruthy();
   });
 
+  it('labels identities with the forge they came from (W20-17: GitLab was stored as github)', async () => {
+    const repoId = await makeRepo('r-gitlab');
+    const provider = pagedProvider({ kind: 'gitlab', listCommits: pageFn(commitPages) });
+    await ingestEntityPages(
+      { db, provider },
+      { workspaceId, repoId, repo: 'acme/r-gitlab', entityType: 'commits' },
+    );
+    const rows = await db
+      .select({ provider: core.identities.provider })
+      .from(core.identities)
+      .where(
+        and(eq(core.identities.workspaceId, workspaceId), eq(core.identities.forgeLogin, 'alice')),
+      );
+    expect(rows.map((r) => r.provider).sort()).toContain('gitlab');
+  });
+
   it('is idempotent — re-running the backfill produces no duplicate rows', async () => {
     const repoId = await makeRepo('r-idem');
     const provider = pagedProvider({ listCommits: pageFn(commitPages) });

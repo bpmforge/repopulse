@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import { PERSONAS, type MeContext, type Persona } from '../org/contracts.js';
@@ -20,7 +20,21 @@ const LABELS: Record<Persona, { title: string; blurb: string }> = {
   developer: { title: 'Developer', blurb: 'My PRs, my review queue, code I own' },
   security: { title: 'Security', blurb: 'Findings, risk and unreviewed merges' },
   exec: { title: 'Executive', blurb: 'Org-level trends and DORA, no per-person data' },
+  // W20-17 (UX_TODO INS-16): offered to admins only.
+  admin: { title: 'Administrator', blurb: 'Setup, connections, sync and system health' },
 };
+
+/**
+ * Whether the picker should ask now (W20-17, UX_TODO INS-16). Never while the
+ * bootstrap admin is still setting up (no repositories yet): every option
+ * would describe an empty screen, and it interrupted them straight after the
+ * password change. Exported for its test.
+ */
+export function shouldAskPersona(me: MeContext | undefined): boolean {
+  if (!me || me.persona !== null) return false;
+  if (me.role === 'admin' && me.repo_count === 0) return false;
+  return true;
+}
 
 const DEFER_KEY = 'repopulse.persona.deferred';
 
@@ -55,20 +69,64 @@ export function PersonaPicker() {
     { invalidate: [queryKeyFor(ME)] },
   );
 
+  const open = !deferred && isSuccess && shouldAskPersona(me);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // W20-17 (UX_TODO INS-15): a real modal. Focus moves to the first option,
+  // everything else in the shell is inert (so neither Tab nor a screen reader
+  // reaches the page behind it), and Escape means "Not now".
+  useEffect(() => {
+    if (!open) return;
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    dialog.querySelector<HTMLElement>('button')?.focus();
+    const siblings = [...(dialog.parentElement?.children ?? [])].filter(
+      (el): el is HTMLElement => el !== dialog && el instanceof HTMLElement && !el.inert,
+    );
+    for (const el of siblings) el.inert = true;
+    return () => {
+      for (const el of siblings) el.inert = false;
+    };
+  }, [open]);
+
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      defer();
+      return;
+    }
+    if (e.key !== 'Tab') return;
+    const focusable = [
+      ...(dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled])') ?? []),
+    ];
+    const first = focusable[0];
+    const last = focusable.at(-1);
+    if (!first || !last) return;
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
+
   // Render nothing until the answer is known. Defaulting to "show it" would
   // flash the dialog at every returning user on a slow request.
   // Deferred for THIS SESSION only. `me.persona` stays null, so the picker
   // returns on the next visit rather than the choice being silently lost.
-  if (deferred) return null;
-  if (!isSuccess || me?.persona !== null) return null;
+  if (!open) return null;
+  const choices = PERSONAS.filter((p) => p !== 'admin' || me?.role === 'admin');
 
   return (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-labelledby="persona-title"
       className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 p-4"
       data-testid="persona-picker"
+      onKeyDown={onKeyDown}
     >
       <div className="w-full max-w-lg rounded-lg border border-border bg-surface p-5 shadow-lg">
         <h2 id="persona-title" className="text-base font-semibold text-fg">
@@ -79,7 +137,7 @@ export function PersonaPicker() {
           affect what you are permitted to see.
         </p>
         <ul className="mt-4 flex flex-col gap-2">
-          {PERSONAS.map((persona) => (
+          {choices.map((persona) => (
             <li key={persona}>
               <button
                 type="button"
@@ -113,6 +171,13 @@ export function PersonaPicker() {
             </li>
           ))}
         </ul>
+        {/* W20-17 (UX_TODO INS-16): a failed save said nothing at all. */}
+        {setPersona.isError ? (
+          <p className="mt-3 text-xs text-crit" role="alert" data-testid="persona-error">
+            Could not save your choice ({setPersona.error.message}). Try again, or choose Not now
+            and set it later from the user menu.
+          </p>
+        ) : null}
 
         {/*
           A WAY PAST IT (W16-26).

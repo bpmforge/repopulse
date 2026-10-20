@@ -157,6 +157,13 @@ async function main(): Promise<void> {
     snapshotQueue,
     enrichQueue,
     reconcileQueue,
+    // W20-17 (UX_TODO INS-09): auto-add registers hooks on new repositories at
+    // the address the API registers them at.
+    ...(process.env.PUBLIC_BASE_URL
+      ? {
+          webhookUrl: `${process.env.PUBLIC_BASE_URL.replace(/\/+$/, '')}/api/v1/webhooks/github`,
+        }
+      : {}),
     // W4-22: the missing half. publishSyncEvent was built, documented and
     // unit-tested, and had ZERO production callers — so GET /api/v1/events
     // relayed a channel nothing ever wrote to, and live sync had never worked.

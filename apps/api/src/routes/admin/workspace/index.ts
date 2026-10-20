@@ -68,7 +68,19 @@ export default async function workspaceRoutes(
         return reply;
       }
 
-      const parsed = workspaceSettingsSchema.safeParse(request.body ?? {});
+      // RESET A KEY (W20-17, UX_TODO ADM-56): `null` for a known key removes
+      // the stored override so the default applies again (and the "default"
+      // badge comes back). Unknown keys with null are left to the schema.
+      const body: Record<string, unknown> =
+        request.body && typeof request.body === 'object' && !Array.isArray(request.body)
+          ? { ...(request.body as Record<string, unknown>) }
+          : {};
+      const resetKeys = Object.keys(body).filter(
+        (k) => body[k] === null && k in workspaceSettingsSchema.shape,
+      );
+      for (const k of resetKeys) delete body[k];
+
+      const parsed = workspaceSettingsSchema.safeParse(body);
       if (!parsed.success) {
         const first = parsed.error.issues[0];
         sendProblem(request, reply, 400, 'Invalid workspace settings', {
@@ -82,7 +94,12 @@ export default async function workspaceRoutes(
       // stripped them), with the legacy `licensePolicy` already carried over to
       // `license_policy`, so a save never drops a policy the register applies.
       const { stored: before, raw } = await readWorkspaceSettings(opts.db, workspaceId);
-      const merged = { ...unknownSettingsKeys(raw), ...before, ...parsed.data };
+      const merged: Record<string, unknown> = {
+        ...unknownSettingsKeys(raw),
+        ...before,
+        ...parsed.data,
+      };
+      for (const k of resetKeys) delete merged[k];
 
       const [row] = await opts.db
         .update(core.workspaces)
@@ -103,7 +120,7 @@ export default async function workspaceRoutes(
         workspaceId,
         ip: request.ip,
         ua: request.headers['user-agent'] ?? null,
-        changedKeys: Object.keys(parsed.data),
+        changedKeys: [...Object.keys(parsed.data), ...resetKeys],
       });
 
       const stored = workspaceSettingsSchema.parse(row.settings);

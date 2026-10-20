@@ -51,12 +51,51 @@ interface Args {
   dryRun: boolean;
 }
 
+const USAGE = [
+  'Usage: FORGE_TOKEN=... pnpm connect:forge --provider <github|gitlab|gitea> [options]',
+  '',
+  '  --provider <kind>   required: github, gitlab or gitea',
+  '  --base-url <url>    the forge address (required for gitea; GitHub Enterprise and',
+  '                      self-hosted GitLab too)',
+  '  --all               track every repository the token can see',
+  '  --repos a/b,c/d     track only these',
+  '  --dry-run           check the token and list repositories; save nothing',
+  '  --workspace <slug>  default: default',
+  '  --help              this text',
+  '',
+  'The token is read from FORGE_TOKEN, never from an argument (shell history, ps).',
+].join('\n');
+
+const KINDS: readonly ForgeKind[] = ['github', 'gitlab', 'gitea'];
+
+/**
+ * W20-17 (UX_TODO INS-49): --provider is REQUIRED. It used to default to
+ * gitea, so a GitHub token run without it was sent to a Gitea API and failed
+ * as a "bad token". Returns the problem, or null.
+ */
+function providerProblem(value: string | undefined): string | null {
+  if (value === undefined) return 'Missing --provider (github, gitlab or gitea).';
+  if (!KINDS.includes(value as ForgeKind)) {
+    return `Unknown --provider ${value}: use github, gitlab or gitea.`;
+  }
+  return null;
+}
+
 function parseArgs(argv: string[]): Args {
   const get = (flag: string): string | undefined => {
     const at = argv.indexOf(flag);
     return at === -1 ? undefined : argv[at + 1];
   };
-  const provider = (get('--provider') ?? 'gitea') as ForgeKind;
+  if (argv.includes('--help') || argv.includes('-h')) {
+    console.log(USAGE);
+    process.exit(0);
+  }
+  const problem = providerProblem(get('--provider'));
+  if (problem) {
+    console.error(`\n${problem}\n\n${USAGE}\n`);
+    process.exit(1);
+  }
+  const provider = get('--provider') as ForgeKind;
   const repos = (get('--repos') ?? '')
     .split(',')
     .map((r) => r.trim())

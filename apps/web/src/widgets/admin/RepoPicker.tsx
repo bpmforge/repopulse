@@ -200,8 +200,9 @@ export function RepoPicker({ connectionId, connectionsKey, sourceLabel, autoFocu
             </button>
             {/* W20-07 (UX_TODO INS-09): the API always accepted "all"; the
               screen never offered it. It tracks every repository the token can
-              see NOW. New repositories created later are not added on their
-              own yet — pick them here when they appear. */}
+              see now AND (W20-17) turns on auto-add, so repositories created
+              later are tracked by the nightly sync. The connection row's
+              "Auto-add" switch turns that off again. */}
             {untracked.length > 0 && (
               <button
                 type="button"
@@ -214,8 +215,9 @@ export function RepoPicker({ connectionId, connectionsKey, sourceLabel, autoFocu
                 }
                 className="rounded-md border border-border px-3 py-1.5 text-sm hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                 data-testid="repo-select-all"
+                title="Tracks every repository listed here now, and new ones the nightly sync finds later. Turn auto-add off on the connection row."
               >
-                Track all {untracked.length} untracked
+                Track all {untracked.length} and auto-add new
               </button>
             )}
             {select.isSuccess && (

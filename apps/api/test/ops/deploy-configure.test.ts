@@ -98,7 +98,9 @@ describe('deploy/configure.mjs (W17-05)', () => {
     // 32 bytes of hex, because loadTokenKey validates the length at boot.
     expect(env.TOKEN_ENC_KEY).toMatch(/^[0-9a-f]{64}$/);
     expect(env.SESSION_SECRET).toMatch(/^[0-9a-f]{64}$/);
-    expect(env.WEBHOOK_SECRET).toMatch(/^[0-9a-f]{64}$/);
+    expect(env.SCAN_RUNNER_TOKEN).toMatch(/^[0-9a-f]{64}$/);
+    // W20-17: nothing reads a global webhook secret (they are per connection).
+    expect(env.WEBHOOK_SECRET).toBeUndefined();
     // The connection URLs must carry the passwords that were just generated —
     // the hand-edit step this script exists to remove.
     expect(env.DATABASE_URL).toContain(env.POSTGRES_PASSWORD);
@@ -139,7 +141,12 @@ describe('deploy/configure.mjs (W17-05)', () => {
   it('never prints a generated secret', async () => {
     const { out } = await configure(['--url=https://repopulse.example.com', '--no-admin']);
     const env = readEnv();
-    for (const key of ['TOKEN_ENC_KEY', 'SESSION_SECRET', 'WEBHOOK_SECRET', 'POSTGRES_PASSWORD']) {
+    for (const key of [
+      'TOKEN_ENC_KEY',
+      'SESSION_SECRET',
+      'SCAN_RUNNER_TOKEN',
+      'POSTGRES_PASSWORD',
+    ]) {
       expect(out, `${key} leaked into stdout`).not.toContain(env[key]);
     }
   });
@@ -211,6 +218,8 @@ describe('deploy/configure.mjs (W17-05)', () => {
     const env = readEnv();
     expect(env.ADMIN_EMAIL).toBe('admin@example.com');
     expect(env.ADMIN_PASSWORD).toBe('a-long-enough-password');
+    // W20-17 (UX_TODO INS-71): and the plaintext file is gone afterwards.
+    expect(existsSync(path.join(dir, 'admin-password'))).toBe(false);
   });
 
   it('rejects a too-short admin password', async () => {
@@ -237,7 +246,7 @@ describe('deploy configuration is not committable (W17-05)', () => {
     expect(ignore).toMatch(/^deploy\/\.env$/m);
 
     const example = readFileSync(path.join(repoRoot, 'deploy/.env.example'), 'utf8');
-    for (const key of ['SESSION_SECRET', 'TOKEN_ENC_KEY', 'WEBHOOK_SECRET', 'POSTGRES_PASSWORD']) {
+    for (const key of ['SESSION_SECRET', 'TOKEN_ENC_KEY', 'POSTGRES_PASSWORD']) {
       const m = new RegExp(`^${key}=(.*)$`, 'm').exec(example);
       expect(m, `${key} missing from .env.example`).toBeTruthy();
       expect(m?.[1] ?? '', `${key} ships with a value`).toBe('');

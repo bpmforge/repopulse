@@ -336,6 +336,13 @@
       "when": 1793100000000,
       "tag": "0049_requested_reviewers",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1793200000000,
+      "tag": "0050_identities_gitlab",
+      "breakpoints": true
     }
   ]
 }

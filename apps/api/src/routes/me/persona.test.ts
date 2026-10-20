@@ -12,6 +12,10 @@ describe('persona homes (UX_SPEC §6, D9/R-A2)', () => {
     expect(PERSONA_HOME.developer).toBe('/me'); // P2 → My Focus
     expect(PERSONA_HOME.security).toBe('/findings'); // P3 → Findings Explorer
     expect(PERSONA_HOME.exec).toBe('/reports'); // P4 → Exec rollup
+    // W20-17 (UX_TODO INS-16): the person running the install. A landing
+    // preference, not a permission: the picker offers it to admins only, and
+    // a member who sets it anyway meets the ask-an-admin page.
+    expect(PERSONA_HOME.admin).toBe('/admin/setup');
   });
 
   it('every persona has a home — a picker option with nowhere to go is a dead end', () => {
@@ -22,7 +26,7 @@ describe('persona homes (UX_SPEC §6, D9/R-A2)', () => {
   });
 
   it('the set is closed — an unknown persona is not routable', () => {
-    expect(PERSONAS).not.toContain('admin' as Persona);
+    expect([...PERSONAS].sort()).toEqual(['admin', 'developer', 'exec', 'lead', 'security']);
     // admin/member is an AUTHORIZATION role and says nothing about which screen
     // someone wants to land on: a security reviewer and a tech lead are both
     // "member". That gap is why §6's routing needed its own column.

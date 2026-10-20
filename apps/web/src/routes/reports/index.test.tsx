@@ -251,6 +251,18 @@ describe('Report Center rows (W17-26)', () => {
     expect(screen.queryByTestId('report-stalled-9')).toBeNull();
   });
 
+  it('offers View only on a ready row (W20-17, ADM-22)', async () => {
+    listResponse = {
+      items: [row({ id: 12 }), row({ id: 13, status: 'failed', has_pdf: false, error: 'x' })],
+    };
+    renderCenter();
+
+    await screen.findByTestId('report-12');
+    expect(screen.getByTestId('report-view-12')).toBeInTheDocument();
+    expect(screen.queryByTestId('report-view-13')).toBeNull();
+    expect(screen.getByTestId('report-generated-12')).toHaveTextContent(/ago|just now/);
+  });
+
   it('a settled list is fetched once and not polled', async () => {
     listResponse = {
       items: [row({ id: 10 }), row({ id: 11, status: 'failed', has_pdf: false, error: 'x' })],

@@ -4,10 +4,10 @@
 // WHY THIS IS NOT `cp .env.example .env`.
 //
 // The example cannot start the product, on purpose: SESSION_SECRET,
-// TOKEN_ENC_KEY, WEBHOOK_SECRET, POSTGRES_PASSWORD and REDIS_PASSWORD all ship
+// TOKEN_ENC_KEY, POSTGRES_PASSWORD and REDIS_PASSWORD all ship
 // BLANK, because a committed secret is a published secret (CLAUDE.md law 9).
 // So the documented first step leaves the operator running `openssl rand -hex
-// 32` five times and hand-editing two connection URLs to match two of the
+// 32` four times and hand-editing two connection URLs to match two of the
 // passwords they just generated. That is the step people get wrong, and getting
 // it wrong produces "TOKEN_ENC_KEY is required (32-byte hex)" at boot, or worse,
 // credentials encrypted under a key that will not survive the next edit.
@@ -27,7 +27,7 @@
 // localhost ports.
 
 import { randomBytes } from 'node:crypto';
-import { existsSync, openSync, readFileSync, writeSync, closeSync } from 'node:fs';
+import { existsSync, openSync, readFileSync, writeSync, closeSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 
 const DEPLOY_DIR =
@@ -169,8 +169,10 @@ function main() {
   const adminEmail = typeof args['admin-email'] === 'string' ? args['admin-email'] : '';
   let adminPassword = process.env.ADMIN_PASSWORD ?? '';
   const pwFile = path.join(DEPLOY_DIR, 'admin-password');
+  let pwFromFile = false;
   if (!adminPassword && existsSync(pwFile)) {
     adminPassword = readFileSync(pwFile, 'utf8').trim();
+    pwFromFile = true;
   }
   if (adminEmail && !adminPassword) {
     die(
@@ -240,7 +242,9 @@ function main() {
     REPOPULSE_BIND: bind,
     SESSION_SECRET: hex32(),
     TOKEN_ENC_KEY: hex32(),
-    WEBHOOK_SECRET: hex32(),
+    // No WEBHOOK_SECRET (W20-17): nothing read it. Each forge connection gets
+    // its own webhook secret, generated and sealed when it first registers a
+    // hook, so a global one only looked like a setting that did something.
     // W17-27: the worker → scan-runner bearer token. Per install, like the rest.
     SCAN_RUNNER_TOKEN: hex32(),
     ADMIN_EMAIL: adminEmail,
@@ -306,6 +310,21 @@ function main() {
     closeSync(fd);
   }
 
+  // W20-17 (UX_TODO INS-71): the usage text always said the file is "deleted
+  // after it is read", and nothing deleted it, so the plaintext password sat
+  // beside the bundle and in every copy of the directory. Only once .env holds
+  // it, so a refused run never loses the operator's password.
+  if (pwFromFile) {
+    try {
+      unlinkSync(pwFile);
+      console.log(dim('Removed deploy/admin-password (its value is now in deploy/.env).'));
+    } catch {
+      console.log(
+        `Remove deploy/admin-password yourself: it holds the admin password in plain text.`,
+      );
+    }
+  }
+
   // Never print a generated secret. Someone is always sharing this terminal, and
   // a scrollback with TOKEN_ENC_KEY in it is a compromised install.
   console.log(`\n${green('Wrote deploy/.env')} ${dim('(mode 0600)')}\n`);
@@ -315,7 +334,7 @@ function main() {
     `  Admin: ${adminEmail || dim('not set — see docs/INSTALL.md before first sign-in')}`,
   );
   console.log(`\n  Generated: POSTGRES_PASSWORD, REDIS_PASSWORD, SESSION_SECRET,`);
-  console.log(`             TOKEN_ENC_KEY, WEBHOOK_SECRET ${dim('(values not printed)')}\n`);
+  console.log(`             TOKEN_ENC_KEY, SCAN_RUNNER_TOKEN ${dim('(values not printed)')}\n`);
   console.log(`  ${red('BACK UP TOKEN_ENC_KEY SEPARATELY FROM YOUR DATABASE DUMP.')}`);
   console.log(`  It decrypts stored forge credentials. A database restored without`);
   console.log(`  it cannot use any connection it contains.\n`);

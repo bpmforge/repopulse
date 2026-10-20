@@ -203,7 +203,72 @@ export function removeConsequence(repoCount: number): string {
   if (repoCount === 0) {
     return 'It tracks no repositories, so it is deleted outright.';
   }
-  return `Its ${repoCount} tracked repositor${repoCount === 1 ? 'y stops' : 'ies stop'} syncing and ${repoCount === 1 ? 'is' : 'are'} paused; history already collected stays on every dashboard. The token and webhook secret are wiped, so the RepoPulse webhooks left on the forge are refused from now on — delete them there if you want them gone. Replace the token later to reconnect.`;
+  return `Its ${repoCount} tracked repositor${repoCount === 1 ? 'y stops' : 'ies stop'} syncing and ${repoCount === 1 ? 'is' : 'are'} paused; history already collected stays on every dashboard. RepoPulse first deletes the webhooks it registered on those repositories, then wipes the token and webhook secret; any hook it cannot delete is named afterwards and refused from now on. Replace the token later to reconnect.`;
+}
+
+/**
+ * The toast after removing a connection (W20-17): how many hooks were deleted
+ * on the forge, and which repositories still need theirs removed by hand.
+ */
+export function removedMessage(res: {
+  outcome: string;
+  paused_repos: number;
+  webhooks_removed?: number;
+  webhook_failures?: { repo: string; error: string }[];
+}): string {
+  const removed = res.webhooks_removed ?? 0;
+  const failures = res.webhook_failures ?? [];
+  const head =
+    res.outcome === 'deleted'
+      ? 'Connection deleted'
+      : `Connection removed — ${res.paused_repos} ${res.paused_repos === 1 ? 'repository' : 'repositories'} paused, history kept`;
+  const hooks =
+    removed > 0 ? `; ${removed} webhook${removed === 1 ? '' : 's'} deleted on the forge` : '';
+  const left =
+    failures.length > 0
+      ? `. Delete the RepoPulse webhook by hand on: ${failures
+          .slice(0, 5)
+          .map((f) => f.repo)
+          .join(', ')}${failures.length > 5 ? ` and ${failures.length - 5} more` : ''}`
+      : '';
+  return `${head}${hooks}${left}`;
+}
+
+/**
+ * "Auto-add new repositories" per connection (W20-17, UX_TODO INS-09). On, the
+ * nightly sync tracks every repository created on the forge since the last
+ * one; off, nothing new is tracked until someone picks it. Never untracks.
+ */
+function AutoAddToggle({ row, onToast }: { row: Row; onToast: (t: Toast[]) => void }) {
+  const toggle = useApiMutation<{ enabled: boolean }, { id: number; auto_add: boolean }>(
+    { endpoint: '/connections/{id}/auto-add', path: { id: row.id }, method: 'PUT' },
+    { invalidate: [queryKeyFor(LIST)] },
+  );
+  if (row.status !== 'active') return <span className="text-fg-muted">—</span>;
+  const on = row.auto_add === true;
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      disabled={toggle.isPending}
+      title={
+        on
+          ? 'New repositories on this connection are tracked by the nightly sync. Click to stop.'
+          : 'Track repositories created on the forge later, at the nightly sync.'
+      }
+      className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+      data-testid={`connection-auto-add-${row.id}`}
+      onClick={() =>
+        toggle.mutate(
+          { enabled: !on },
+          { onError: (err: Error) => onToast([errorToast(`conn-aa-${row.id}-err`, err)]) },
+        )
+      }
+    >
+      {on ? 'Auto-add: on' : 'Auto-add: off'}
+    </button>
+  );
 }
 
 /**
@@ -231,7 +296,15 @@ function ConnectionActions({
     { endpoint: '/connections/{id}', path: { id: row.id }, method: 'PATCH' },
     { invalidate: [queryKeyFor(LIST)] },
   );
-  const remove = useApiMutation<undefined, { outcome: string; paused_repos: number }>(
+  const remove = useApiMutation<
+    undefined,
+    {
+      outcome: string;
+      paused_repos: number;
+      webhooks_removed?: number;
+      webhook_failures?: { repo: string; error: string }[];
+    }
+  >(
     { endpoint: '/connections/{id}', path: { id: row.id }, method: 'DELETE' },
     { invalidate: [queryKeyFor(LIST)] },
   );
@@ -345,14 +418,12 @@ function ConnectionActions({
                 onError: (err: Error) => onToast([errorToast(`conn-rm-${row.id}-err`, err)]),
                 onSuccess: (res) => {
                   setMode('idle');
+                  const failures = res.webhook_failures ?? [];
                   onToast([
                     {
                       id: `conn-rm-${row.id}`,
-                      tone: 'ok',
-                      message:
-                        res.outcome === 'deleted'
-                          ? 'Connection deleted'
-                          : `Connection removed — ${res.paused_repos} ${res.paused_repos === 1 ? 'repository' : 'repositories'} paused, history kept`,
+                      tone: failures.length > 0 ? 'warn' : 'ok',
+                      message: removedMessage(res),
                     },
                   ]);
                 },
@@ -490,6 +561,11 @@ export function Connections() {
       header: 'Repos',
       align: 'right',
       cell: (row) => <span className="tabular-nums">{row.repo_count}</span>,
+    },
+    {
+      id: 'auto_add',
+      header: 'New repos',
+      cell: (row) => <AutoAddToggle row={row} onToast={pushToasts} />,
     },
     {
       id: 'actions',

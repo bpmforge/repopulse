@@ -63,6 +63,27 @@ describe('apiFetch', () => {
     });
   });
 
+  it('keeps the CSRF and accept headers when the caller passes its own headers (W20-17)', async () => {
+    const fetchMock = vi.fn(
+      async (_url: string, _init?: RequestInit) => new Response(null, { status: 204 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    await apiFetch('/api/v1/reports', {
+      method: 'POST',
+      body: '{}',
+      headers: { 'if-match': 'v1', 'x-requested-with': 'someone-else' },
+    });
+    const init = fetchMock.mock.calls[0]![1]!;
+    expect(init.method).toBe('POST');
+    expect(init.credentials).toBe('include');
+    expect(init.headers).toMatchObject({
+      accept: 'application/json',
+      'content-type': 'application/json',
+      'if-match': 'v1',
+      'x-requested-with': 'repopulse',
+    });
+  });
+
   it('synthesizes an envelope for a non-JSON error body', async () => {
     vi.stubGlobal(
       'fetch',

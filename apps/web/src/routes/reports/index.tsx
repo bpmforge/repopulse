@@ -10,6 +10,7 @@ import {
 import type { MeContext } from '../../widgets/org/contracts.js';
 import { MakePlanButton } from '../../widgets/plans/MakePlanButton.js';
 import { repoIdsFromFilter } from '../../widgets/plans/contracts.js';
+import { localDateTime, relativeTime } from '../../lib/time.js';
 
 // Report Center (W5-04, UX_SPEC §4.h). The rail has linked to /reports since
 // W4-02 with no route behind it.
@@ -317,37 +318,47 @@ function ReportCenter() {
         onRetry={() => void refetch()}
         emptyMessage="No reports yet — generate one above."
       >
-        <table className="table-plain w-full text-sm">
-          <caption className="sr-only">Generated reports, newest first</caption>
-          <thead>
-            <tr className="text-left text-xs text-fg-muted">
-              <th scope="col">Report</th>
-              <th scope="col">Scope</th>
-              <th scope="col">Window</th>
-              <th scope="col">Generated</th>
-              <th scope="col">By</th>
-              <th scope="col">Status</th>
-              <th scope="col">Compare</th>
-              <th scope="col">Actions</th>
-            </tr>
-          </thead>
-          <tbody data-testid="report-rows">
-            {items.map((r) => (
-              <HistoryRow
-                key={r.id}
-                row={r}
-                repoNames={repoNames}
-                compared={compare.includes(r.id)}
-                onCompare={(checked) =>
-                  setCompare((c) =>
-                    checked ? [...c, r.id].slice(-2) : c.filter((id) => id !== r.id),
-                  )
-                }
-                onRefresh={() => void refetch()}
-              />
-            ))}
-          </tbody>
-        </table>
+        {/* W20-17 (UX_TODO ADM-32): its own scroll region, so eight columns
+            scroll inside the panel at 390 px instead of pushing <main> sideways. */}
+        <div
+          className="overflow-x-auto"
+          role="region"
+          aria-label="Report history"
+          tabIndex={0}
+          data-testid="report-history-scroll"
+        >
+          <table className="table-plain w-full text-sm">
+            <caption className="sr-only">Generated reports, newest first</caption>
+            <thead>
+              <tr className="text-left text-xs text-fg-muted">
+                <th scope="col">Report</th>
+                <th scope="col">Scope</th>
+                <th scope="col">Window</th>
+                <th scope="col">Generated</th>
+                <th scope="col">By</th>
+                <th scope="col">Status</th>
+                <th scope="col">Compare</th>
+                <th scope="col">Actions</th>
+              </tr>
+            </thead>
+            <tbody data-testid="report-rows">
+              {items.map((r) => (
+                <HistoryRow
+                  key={r.id}
+                  row={r}
+                  repoNames={repoNames}
+                  compared={compare.includes(r.id)}
+                  onCompare={(checked) =>
+                    setCompare((c) =>
+                      checked ? [...c, r.id].slice(-2) : c.filter((id) => id !== r.id),
+                    )
+                  }
+                  onRefresh={() => void refetch()}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
       </WidgetFrame>
 
       {compare.length === 2 && <ReportDiff before={compare[0]!} after={compare[1]!} />}
@@ -552,7 +563,12 @@ function HistoryRow({
       <td className="py-1 text-xs" data-testid={`report-window-${r.id}`}>
         {r.params?.windowDays ? `${r.params.windowDays}d` : '—'}
       </td>
-      <td className="py-1 text-xs">{r.generated_at.slice(0, 16).replace('T', ' ')}</td>
+      {/* W20-17 (UX_TODO ADM-26): local time with the zone named, plus "5 min
+          ago"; it was a bare UTC slice that read as local time. */}
+      <td className="py-1 text-xs" data-testid={`report-generated-${r.id}`}>
+        <span title={r.generated_at}>{localDateTime(r.generated_at)}</span>
+        <span className="block text-fg-faint">{relativeTime(r.generated_at)}</span>
+      </td>
       <td className="py-1 text-xs" data-testid={`report-by-${r.id}`}>
         {r.generated_by ?? '—'}
       </td>
@@ -569,8 +585,14 @@ function HistoryRow({
           </span>
         )}
         {stalled && (
+          // W20-17 (UX_TODO ADM-47): name the usual cause and where to check it.
           <span className="ml-2 text-xs text-fg-muted" data-testid={`report-stalled-${r.id}`}>
-            no progress for over 15 minutes; polling paused
+            no progress for over 15 minutes; polling paused. The background worker may not be
+            running —{' '}
+            <Link to="/admin" className="text-accent hover:underline">
+              check System health
+            </Link>
+            .
           </span>
         )}
         {retry.isError && (
@@ -597,14 +619,19 @@ function HistoryRow({
       </td>
       <td className="py-1">
         <div className="flex flex-wrap gap-2">
-          <Link
-            to="/print/reports/$reportId"
-            params={{ reportId: String(r.id) }}
-            className="text-xs text-accent hover:underline"
-            data-testid={`report-view-${r.id}`}
-          >
-            View
-          </Link>
+          {/* W20-17 (UX_TODO ADM-22): View only once there is something to
+              view; a queued, running or failed row opened onto "no stored
+              data". Its status, and Retry where it applies, say the rest. */}
+          {r.status === 'ready' && (
+            <Link
+              to="/print/reports/$reportId"
+              params={{ reportId: String(r.id) }}
+              className="text-xs text-accent hover:underline"
+              data-testid={`report-view-${r.id}`}
+            >
+              View
+            </Link>
+          )}
           {r.has_pdf && (
             // A plain link, not fetch(): the download streams through
             // the API behind the session check, and letting the

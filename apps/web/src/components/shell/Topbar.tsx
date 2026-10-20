@@ -21,6 +21,7 @@ export function Topbar({
   actions,
 }: TopbarProps) {
   const sseConnection = useUiStore((s) => s.sseConnection);
+  const setPalette = useUiStore((s) => s.setPalette);
   return (
     <header
       // W20-12 (UX_TODO DSH-67): wraps on a phone. A long org/repo option
@@ -38,6 +39,17 @@ export function Topbar({
       />
       <div className="flex items-center gap-3">
         {actions}
+        {/* W20-17 (UX_TODO ADM-27): the palette had no visible way in; ⌘K was
+            only discoverable by reading the docs. */}
+        <button
+          type="button"
+          onClick={() => setPalette(true)}
+          className="hidden items-center gap-2 rounded-sm border border-border px-2 py-1 text-xs text-fg-muted hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent sm:inline-flex"
+          aria-keyshortcuts="Meta+K Control+K"
+          data-testid="topbar-search"
+        >
+          Search <kbd className="font-mono text-[10px] text-fg-faint">⌘K</kbd>
+        </button>
         <SyncStatusChip connection={sseConnection} />
       </div>
     </header>

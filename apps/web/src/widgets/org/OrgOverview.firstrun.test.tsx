@@ -52,7 +52,7 @@ describe('Overview at zero repositories (W20-07)', () => {
     stub({ role: 'admin', has_admin: true });
     renderOverview();
     const checklist = await screen.findByTestId('onboarding-checklist');
-    expect(checklist).toHaveTextContent('Connect your organisation');
+    expect(checklist).toHaveTextContent('Connect a forge and choose repositories');
     expect(checklist).not.toHaveTextContent('(done)');
     expect(screen.getByTestId('welcome-connect')).toBeInTheDocument();
   });

@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import { SetupChecklistForTest } from './index.js';
+import { SetupChecklist } from '../../widgets/admin/SetupChecklist.js';
 
 // The setup checklist (W11-02, E1.2).
 
@@ -17,7 +17,7 @@ function renderWith(routes: Record<string, unknown>) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <SetupChecklistForTest />
+      <SetupChecklist linkActions={false} />
     </QueryClientProvider>,
   );
 }
@@ -72,9 +72,7 @@ describe('setup checklist', () => {
     // A webhook that has not fired is a fact about history, not a misconfig —
     // showing it as a failure sends operators hunting for nothing.
     renderWith({ '/setup/status': status, '/setup/config': config });
-    expect(await screen.findByTestId('setup-webhook-status')).toHaveAccessibleName(
-      'not known yet',
-    );
+    expect(await screen.findByTestId('setup-webhook-status')).toHaveAccessibleName('not known yet');
   });
 
   it('says whether a secret is SET and never shows a value', async () => {

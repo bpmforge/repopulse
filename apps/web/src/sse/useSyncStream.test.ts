@@ -115,6 +115,41 @@ describe('createSyncStream (DASHBOARD §6)', () => {
     stream.stop();
   });
 
+  // W20-17 (UX_TODO INS-33): named, and one toast for a burst of finishes.
+  it('names finished repositories and batches several into one toast', () => {
+    const { calls, callbacks } = makeCallbacks();
+    callbacks.repoName = (id) => (id === 1 ? 'acme/api' : id === 2 ? 'acme/web' : `r${id}`);
+    const stream = createSyncStream((url) => new FakeEventSource(url), callbacks);
+    const es = FakeEventSource.instances[0]!;
+    es.onopen?.(null);
+    es.emit('sync.done', { repoId: 1 });
+    vi.advanceTimersByTime(500);
+    expect(calls.toasts[0]).toEqual([{ message: 'acme/api finished syncing', tone: 'ok' }]);
+
+    for (const id of [1, 2, 3, 4, 5]) es.emit('sync.done', { repoId: id });
+    vi.advanceTimersByTime(500);
+    expect(calls.toasts[1]).toEqual([
+      { message: '5 repositories finished syncing: acme/api, acme/web, r3 and 2 more', tone: 'ok' },
+    ]);
+    stream.stop();
+  });
+
+  // W20-17 (UX_TODO ADM-46): a reconnect tells the caller, a first open does not.
+  it('reports a reconnect so the caller can refetch what failed', () => {
+    const { callbacks } = makeCallbacks();
+    const reconnected = vi.fn();
+    callbacks.onReconnected = reconnected;
+    const stream = createSyncStream((url) => new FakeEventSource(url), callbacks);
+    const first = FakeEventSource.instances[0]!;
+    first.onopen?.(null);
+    expect(reconnected).not.toHaveBeenCalled();
+    first.onerror?.(null);
+    vi.advanceTimersByTime(30_000);
+    FakeEventSource.instances.at(-1)!.onopen?.(null);
+    expect(reconnected).toHaveBeenCalledTimes(1);
+    stream.stop();
+  });
+
   it('reconnects with backoff and resumes from Last-Event-ID', () => {
     const { calls, callbacks } = makeCallbacks();
     const stream = createSyncStream((url) => new FakeEventSource(url), callbacks, {

@@ -3,6 +3,8 @@ import { Link, useRouterState } from '@tanstack/react-router';
 import { navGroups, navTestId, RailIcon } from './Rail.js';
 import { RepoPulseWordmark } from '../brand/RepoPulseMark.js';
 import { signOutAndReload } from '../../widgets/auth/contracts.js';
+import { ThemeToggle } from './ThemeToggle.js';
+import { UserMenu } from './UserMenu.js';
 
 // The narrow-screen navigation drawer (W17-14).
 //
@@ -177,6 +179,16 @@ export function NavDrawer({
         {/* W20-01 (UX_TODO ADM-02): the phone drawer had no way out of the
             session at all. */}
         <div className="border-t border-border px-2 py-2">
+          {/* W20-17 (UX_TODO ADM-29): the rail holds the theme toggle and the
+              user menu, and the rail is hidden below 768px, so a phone could
+              change neither theme nor home screen. */}
+          <div
+            className="flex items-center justify-between px-1 pb-1"
+            data-testid="nav-drawer-footer"
+          >
+            <ThemeToggle />
+            <UserMenu />
+          </div>
           <button
             type="button"
             onClick={() => {
