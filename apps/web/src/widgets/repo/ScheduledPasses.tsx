@@ -5,6 +5,8 @@ import { useApiMutation, useApiQuery, queryKeyFor } from '../../api/useApiQuery.
 import {
   READABLE_SOURCES,
   localDateTime,
+  pausedLine,
+  windowLabel,
   type PassStatus,
   type ScheduleResponse,
 } from '../findings/aiContracts.js';
@@ -44,6 +46,9 @@ const when = (iso: string | null): string => localDateTime(iso);
 /** Times a failed pull-request review is tried again (PR_REVIEW_ATTEMPTS on the server). */
 const PR_REVIEW_ATTEMPTS = 3;
 
+const HOURS = Array.from({ length: 24 }, (_, h) => h);
+const hourText = (h: number) => `${String(h).padStart(2, '0')}:00`;
+
 function parsePaths(text: string): string[] {
   return text
     .split(/[\n,]/)
@@ -67,6 +72,10 @@ export function ScheduledPasses({ repoId, isAdmin }: { repoId: string; isAdmin: 
   const [scope, setScope] = useState<'paths' | 'new_pull_requests'>('paths');
   const [paths, setPaths] = useState('');
   const [ack, setAck] = useState(false);
+  // W20-18 (UX_TODO AI-53): an optional run window, in the server's hours.
+  const [windowOn, setWindowOn] = useState(false);
+  const [winStart, setWinStart] = useState(1);
+  const [winEnd, setWinEnd] = useState(6);
   const [capText, setCapText] = useState<string | null>(null);
   const [capSaved, setCapSaved] = useState(false);
 
@@ -83,11 +92,17 @@ export function ScheduledPasses({ repoId, isAdmin }: { repoId: string; isAdmin: 
   const on = schedule?.enabled === true;
   const pathList = parsePaths(paths);
   const scopeOk = scope === 'new_pull_requests' || pathList.length > 0;
-  const canEnable = ack && scopeOk && egress.destinations.length > 0;
+  const windowOk = !windowOn || winStart !== winEnd;
+  const canEnable = ack && scopeOk && windowOk && egress.destinations.length > 0;
+  // W20-18 (UX_TODO AI-53; decision 2026-10-20): run windows are in the SERVER's
+  // time zone, named wherever a window is shown.
+  const zone = data.server_time_zone ?? 'the server’s time zone';
+  const off = pausedLine(data.ai_paused, 'no scheduled pass runs');
   // W20-11 (UX_TODO AI-37): why Enable is greyed out, in words, tied to the button.
   const enableBlockers = [
     ...(egress.destinations.length === 0 ? ['set up a model first, in Admin → Models'] : []),
     ...(scopeOk ? [] : ['enter at least one path']),
+    ...(windowOk ? [] : ['choose a run window whose start and end differ']),
     ...(ack || egress.destinations.length === 0
       ? []
       : ['tick the box above to acknowledge where source would be sent']),
@@ -100,6 +115,9 @@ export function ScheduledPasses({ repoId, isAdmin }: { repoId: string; isAdmin: 
     setFrequency(schedule?.frequency ?? 'weekly');
     setScope(schedule?.scope.kind ?? 'paths');
     setPaths((schedule?.scope.paths ?? []).join('\n'));
+    setWindowOn(Boolean(schedule?.window));
+    setWinStart(schedule?.window?.start_hour ?? 1);
+    setWinEnd(schedule?.window?.end_hour ?? 6);
     setAck(false);
     setEditing(true);
   };
@@ -113,6 +131,15 @@ export function ScheduledPasses({ repoId, isAdmin }: { repoId: string; isAdmin: 
       <h3 id="scheduled-passes-h" className="text-sm font-medium">
         Scheduled passes
       </h3>
+      {off ? (
+        <p
+          className="rounded-sm border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-fg"
+          role="status"
+          data-testid="schedule-paused"
+        >
+          {off} Schedules keep their settings and resume when it is switched back on.
+        </p>
+      ) : null}
 
       {on && schedule ? (
         <div className="flex flex-col gap-2" data-testid="schedule-on">
@@ -127,6 +154,11 @@ export function ScheduledPasses({ repoId, isAdmin }: { repoId: string; isAdmin: 
               'new pull requests since the last run'
             )}
             .
+          </p>
+          <p className="text-xs text-fg-muted" data-testid="schedule-window">
+            {schedule.window
+              ? `Runs only between ${windowLabel(schedule.window)}, ${zone} (the server’s time zone).`
+              : `Runs at any time of day. Times are kept in ${zone} (the server’s time zone).`}
           </p>
           <p className="text-xs text-fg-muted" data-testid="schedule-times">
             Next run {when(schedule.next_run_at)} · last run {when(schedule.last_run_at)} · enabled
@@ -207,6 +239,7 @@ export function ScheduledPasses({ repoId, isAdmin }: { repoId: string; isAdmin: 
                 enabled: true,
                 frequency,
                 scope: { kind: scope, ...(scope === 'paths' ? { paths: pathList } : {}) },
+                window: windowOn ? { start_hour: winStart, end_hour: winEnd } : null,
                 acknowledged_egress: egress.digest,
               },
               { onSuccess: () => setEditing(false) } as never,
@@ -260,6 +293,77 @@ export function ScheduledPasses({ repoId, isAdmin }: { repoId: string; isAdmin: 
               The diff of new pull requests since the last run
             </label>
           </fieldset>
+          <fieldset
+            className="flex flex-col gap-2 text-xs text-fg-muted"
+            data-testid="schedule-window-fields"
+          >
+            <legend className="mb-1">When it may run</legend>
+            <div className="flex flex-wrap gap-4">
+              <label className="flex items-center gap-1">
+                <input
+                  type="radio"
+                  name="schedule-window"
+                  data-testid="schedule-window-any"
+                  checked={!windowOn}
+                  onChange={() => setWindowOn(false)}
+                />
+                At any time
+              </label>
+              <label className="flex items-center gap-1">
+                <input
+                  type="radio"
+                  name="schedule-window"
+                  data-testid="schedule-window-between"
+                  checked={windowOn}
+                  onChange={() => setWindowOn(true)}
+                />
+                Only in a window, for example outside working hours
+              </label>
+            </div>
+            {windowOn ? (
+              <div className="flex flex-wrap items-end gap-2">
+                <label className="flex flex-col gap-1">
+                  From
+                  <select
+                    className="panel px-2 py-1 text-sm"
+                    data-testid="schedule-window-start"
+                    value={winStart}
+                    onChange={(e) => setWinStart(Number(e.target.value))}
+                  >
+                    {HOURS.map((h) => (
+                      <option key={h} value={h}>
+                        {hourText(h)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1">
+                  Until
+                  <select
+                    className="panel px-2 py-1 text-sm"
+                    data-testid="schedule-window-end"
+                    value={winEnd}
+                    onChange={(e) => setWinEnd(Number(e.target.value))}
+                  >
+                    {HOURS.map((h) => (
+                      <option key={h} value={h}>
+                        {hourText(h)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <span className="text-fg" data-testid="schedule-window-zone">
+                  {zone} (the server&rsquo;s time zone)
+                </span>
+              </div>
+            ) : null}
+            <span className="text-fg-faint">
+              Times are the server&rsquo;s, in {zone}, not your browser&rsquo;s. A run that falls
+              due outside the window waits for the window to open; an end before the start runs past
+              midnight.
+            </span>
+          </fieldset>
+
           {scope === 'paths' ? (
             <label className="flex flex-col gap-1 text-xs text-fg-muted">
               Paths (one per line, relative to the repository root)

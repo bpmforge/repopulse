@@ -37,6 +37,40 @@ const FREQUENCY_MS = { daily: 24 * 60 * 60 * 1000, weekly: 7 * 24 * 60 * 60 * 10
  */
 export const PR_REVIEW_ATTEMPTS = 3;
 
+/**
+ * The server's time zone (W20-18, UX_TODO AI-53; decision 2026-10-20): a run
+ * window is in the SERVER's hours, and the screen names this zone beside it.
+ */
+export function serverTimeZone(): string {
+  try {
+    // Intl already honours TZ when it is set; nothing else is read here.
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  } catch {
+    return 'UTC';
+  }
+}
+
+/** Whether `at` falls in [start, end) of the server's hours; end before start wraps midnight. */
+export function inRunWindow(at: Date, start: number | null, end: number | null): boolean {
+  if (start === null || end === null) return true;
+  const h = at.getHours();
+  return start < end ? h >= start && h < end : h >= start || h < end;
+}
+
+/** The next time the window opens after `at` (start hour, server time). */
+export function nextWindowStart(at: Date, start: number): Date {
+  const next = new Date(at.getTime());
+  next.setHours(start, 0, 0, 0);
+  if (next.getTime() <= at.getTime()) next.setDate(next.getDate() + 1);
+  return next;
+}
+
+/** A due time moved into the window: unchanged if inside, else the window's next opening. */
+export function intoRunWindow(at: Date, start: number | null, end: number | null): Date {
+  if (start === null || end === null || inRunWindow(at, start, end)) return at;
+  return nextWindowStart(at, start);
+}
+
 export interface SchedulerAudit {
   (
     event: 'ai_pass.scheduled_started' | 'ai_pass.scheduled_skipped',
@@ -98,10 +132,19 @@ export async function runScheduleTick(deps: SchedulerDeps): Promise<TickResult> 
   const egressOf = deps.egress ?? defaultPassEgress;
   const result: TickResult = { considered: 0, started: 0, skipped: 0 };
 
+  // W20-18 (UX_TODO AI-77): a workspace with AI switched off is not looked at:
+  // no pass starts and no skip row is written for every tick while it is off.
+  // The schedules keep their settings and resume when AI is switched back on.
   const due = await db
     .select()
     .from(read.aiPassSchedules)
-    .where(and(eq(read.aiPassSchedules.enabled, true), lte(read.aiPassSchedules.nextRunAt, now)))
+    .where(
+      and(
+        eq(read.aiPassSchedules.enabled, true),
+        lte(read.aiPassSchedules.nextRunAt, now),
+        sql`not exists (select 1 from ai_pass_settings st where st.workspace_id = ${read.aiPassSchedules.workspaceId} and st.ai_paused)`,
+      ),
+    )
     .orderBy(asc(read.aiPassSchedules.nextRunAt))
     .limit(50);
 
@@ -110,6 +153,23 @@ export async function runScheduleTick(deps: SchedulerDeps): Promise<TickResult> 
     result.considered += 1;
     const ws = sch.workspaceId;
     const interval = FREQUENCY_MS[sch.frequency];
+
+    // W20-18 (UX_TODO AI-53): outside the run window nothing is due yet. The
+    // run moves to the window's next opening (server time); not a skip, so no
+    // row is written. Compare-and-set like the claim below.
+    if (!inRunWindow(now, sch.windowStartHour, sch.windowEndHour)) {
+      await db
+        .update(read.aiPassSchedules)
+        .set({ nextRunAt: nextWindowStart(now, sch.windowStartHour!), updatedAt: now })
+        .where(
+          and(
+            eq(read.aiPassSchedules.id, sch.id),
+            eq(read.aiPassSchedules.workspaceId, ws),
+            eq(read.aiPassSchedules.nextRunAt, sch.nextRunAt!),
+          ),
+        );
+      continue;
+    }
 
     // Claim the slot first (compare-and-set on next_run_at), so a second worker or
     // an overlapping tick cannot start the same schedule twice.

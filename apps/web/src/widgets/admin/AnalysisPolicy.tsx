@@ -4,6 +4,7 @@ import { ErrorNote, WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import { localDateTime } from '../findings/aiContracts.js';
 import { AiSpend, type Spend } from './AiSpend.js';
+import { AiControls } from './AiControls.js';
 
 // Admin → Analysis (W7-08, UX_SPEC §4.i).
 //
@@ -106,7 +107,9 @@ function RepoRow({ repo }: { repo: RepoPolicy }) {
             <span className="sr-only">Tier-3 opt-in for {repo.name}</span>
             {/* W20-06 (UX_TODO AI-72): no Tier-3 transport exists, so the label
                 says what opting in does today: records a choice, sends nothing. */}
-            {repo.tier3_opt_in ? 'opted in (nothing is sent yet)' : 'off'}
+            {/* W20-18 (UX_TODO AI-14): the opt-in now does one real thing:
+                it lets an admin ask a hosted model for a second opinion. */}
+            {repo.tier3_opt_in ? 'opted in (hosted second opinions allowed)' : 'off'}
           </label>
           <ErrorNote error={patch.error} testId={`tier3-error-${repo.id}`} />
         </td>
@@ -133,11 +136,12 @@ function RepoRow({ repo }: { repo: RepoPolicy }) {
                 Anthropic (the Claude API), outside your network. Each call would be recorded in the
                 egress audit below before it is made. There is no spending cap for it yet.
               </p>
-              <p>
-                <strong>Tier 3 is not available yet.</strong> No Tier-3 connection exists, so opting
-                in sends nothing today; it only records that this repository may use Tier 3 once it
-                does. Hosted models added in Admin → Models are separate, and are used for every
-                repository.
+              <p data-testid={`tier3-confirm-second-opinion-${repo.id}`}>
+                <strong>What it allows today:</strong> an admin may ask a hosted model in Admin →
+                Models, off your network, for a second opinion on an AI suggestion in this
+                repository. That sends the finding, its rule and the stored lines of code around it
+                (not the whole file), is recorded in the egress audit, and counts toward the daily
+                AI-pass limit. The Tier-3 deep review itself is not available yet and sends nothing.
               </p>
               <div className="flex gap-1.5">
                 <button
@@ -290,10 +294,13 @@ export function AnalysisPolicy() {
           <Link to="/admin/models" className="text-fg underline underline-offset-2">
             Routing
           </Link>{' '}
-          for which of them leave your network. Tier 3 (the Claude API) is not available yet: an
-          opt-in above records the choice and sends nothing.
+          for which of them leave your network. Tier 3 (the Claude API deep review) is not available
+          yet. A Tier-3 opt-in above does one thing today: it lets an admin ask a hosted model, off
+          your network, for a second opinion on an AI suggestion in that repository.
         </p>
       </WidgetFrame>
+
+      <AiControls />
 
       <AiSpend spend={data?.spend} />
 

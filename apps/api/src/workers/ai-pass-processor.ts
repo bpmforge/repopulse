@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import type { Job } from 'bullmq';
-import { read, safeErrorText, type Database } from '@repopulse/shared';
+import { core, read, safeErrorText, type Database } from '@repopulse/shared';
 import {
   contextWindowForRole,
   runSpecialists,
@@ -14,6 +14,8 @@ import {
 import { dedupKey, persistFindings } from '@repopulse/insights';
 import { TRIAGE_TOP_N, runTriage, type TriageCandidate } from '@repopulse/security';
 import { overlaps, rangesByFile, type DiffRequest, type LoadedDiff } from './ai-pass-diff.js';
+import { isAiPaused } from '../lib/ai-pause.js';
+import { describeEndpoint, loadStoredRouting, providersFor } from '../lib/llm-routing.js';
 
 // ai.pass processor (W19-09): planned specialists, then evidence-fed triage, over
 // one repository, through THIS workspace's routing chain.
@@ -75,6 +77,14 @@ export interface AiPassDeps {
   }) => Promise<LoadedSources>;
   /** The changes of a pull request or a commit range (W19-11); absent = diff mode unavailable. */
   loadDiff?: (req: DiffRequest) => Promise<LoadedDiff>;
+  /**
+   * W20-18 (UX_TODO AI-14): a gateway on ONE connection and model, for a second
+   * opinion. Absent = second opinions are unavailable on this server.
+   */
+  secondOpinionGatewayFor?: (
+    workspaceId: number,
+    pin: { providerId: number; model: string },
+  ) => Promise<{ gateway: AnalysisGateway; hosts: T2Host[] } | null>;
   maxCalls?: number;
   now?: () => Date;
 }
@@ -142,10 +152,28 @@ export function aiPassProcessor(deps: AiPassDeps) {
     // count is the specialists' (a floor, never an overcount).
     let progress: Partial<typeof read.aiPassRuns.$inferInsert> = {};
 
+    // W20-18 (UX_TODO AI-77): AI switched off after this was queued. Nothing
+    // is sent; recorded as skipped (it never ran, so it is not a pass today).
+    if (await isAiPaused(db, workspaceId)) {
+      return finish('skipped', {
+        reasonCode: 'ai_paused',
+        reason:
+          'AI analysis was switched off for this workspace before this pass started, so nothing was sent to a model.',
+      });
+    }
+
     await db
       .update(read.aiPassRuns)
       .set({ status: 'running', startedAt: now() })
       .where(eq(read.aiPassRuns.id, runId));
+
+    if (run.mode === 'second_opinion') {
+      try {
+        return await secondOpinionStep({ deps, run, workspaceId, runId, maxCalls, fail, finish });
+      } catch (err) {
+        return fail('error', safeErrorText(err));
+      }
+    }
 
     try {
       const wg = await deps.gatewayFor(workspaceId);
@@ -459,25 +487,7 @@ async function triageStep(a: {
   }
 
   const byKey = new Map(scoped.map((r) => [r.dedupKey, r]));
-  const candidates: TriageCandidate[] = scoped.map((r) => ({
-    finding: {
-      dedupKey: r.dedupKey,
-      scannerKey: r.scannerKey!,
-      ruleId: r.ruleId!,
-      title: r.title,
-      dimension: r.dimension,
-      file: r.file!,
-      lineStart: r.lineStart!,
-      lineEnd: r.lineEnd ?? r.lineStart!,
-      evidenceQuote: r.evidence,
-    },
-    // Only dependency findings carry a reachability tier; for a rule-raised code
-    // finding it is "not computed" and the prompt says so.
-    reachability: { tier: null },
-    source: r.contextLines!,
-    sourceStartLine: r.contextStartLine ?? 1,
-    effectiveRisk: Number(r.effectiveRisk ?? 0),
-  }));
+  const candidates: TriageCandidate[] = scoped.map(triageCandidateOf);
 
   const result = await runTriage(candidates, {
     gateway: a.wg.gateway,
@@ -513,4 +523,173 @@ async function triageStep(a: {
       .onConflictDoNothing();
   }
   return { funnel: result.funnel, skipped: null, calls: result.calls };
+}
+
+/** A rule-raised finding with stored context, as triage reads it. */
+function triageCandidateOf(r: typeof read.findings.$inferSelect): TriageCandidate {
+  return {
+    finding: {
+      dedupKey: r.dedupKey,
+      scannerKey: r.scannerKey!,
+      ruleId: r.ruleId!,
+      title: r.title,
+      dimension: r.dimension,
+      file: r.file!,
+      lineStart: r.lineStart!,
+      lineEnd: r.lineEnd ?? r.lineStart!,
+      evidenceQuote: r.evidence,
+    },
+    // Only dependency findings carry a reachability tier; for a rule-raised code
+    // finding it is "not computed" and the prompt says so.
+    reachability: { tier: null },
+    source: r.contextLines!,
+    sourceStartLine: r.contextStartLine ?? 1,
+    effectiveRisk: Number(r.effectiveRisk ?? 0),
+  };
+}
+
+/** What POST .../second-opinion stored on the run's plan. */
+interface SecondOpinionPlan {
+  verdict_id: number;
+  finding_id: number;
+  provider_id: number;
+  model: string;
+}
+
+/** Model calls one second opinion may make: one answer and one corrective retry. */
+const SECOND_OPINION_CALLS = 2;
+
+/**
+ * A SECOND OPINION (W20-18, UX_TODO AI-14): the same evidence-fed triage of one
+ * finding, asked of the connection and model the person chose, stored beside
+ * the suggestion it checks. Where it may go is checked AGAIN here, at the moment
+ * code would be sent: a connection off the network needs the repository's
+ * Tier-3 opt-in and local-only off (decision 2026-10-20). The gateway writes the
+ * egress audit row for any call that leaves the network.
+ */
+async function secondOpinionStep(a: {
+  deps: AiPassDeps;
+  run: typeof read.aiPassRuns.$inferSelect;
+  workspaceId: number;
+  runId: number;
+  maxCalls: number;
+  fail: (
+    code: string,
+    reason: string,
+    extra?: Partial<typeof read.aiPassRuns.$inferInsert>,
+  ) => Promise<AiPassResult>;
+  finish: (
+    status: 'succeeded' | 'failed' | 'skipped',
+    patch?: Partial<typeof read.aiPassRuns.$inferInsert>,
+  ) => Promise<AiPassResult>;
+}): Promise<AiPassResult> {
+  const { db } = a.deps;
+  const plan = (a.run.plan as { second_opinion?: SecondOpinionPlan } | null)?.second_opinion;
+  if (!plan || !a.deps.secondOpinionGatewayFor) {
+    return a.fail('no_second_opinion', 'Second opinions are not available on this server.');
+  }
+
+  const [row] = await db
+    .select({ v: read.aiTriageVerdicts, f: read.findings })
+    .from(read.aiTriageVerdicts)
+    .innerJoin(read.findings, eq(read.findings.id, read.aiTriageVerdicts.findingId))
+    .where(
+      and(
+        eq(read.aiTriageVerdicts.id, plan.verdict_id),
+        eq(read.aiTriageVerdicts.findingId, plan.finding_id),
+        eq(read.aiTriageVerdicts.workspaceId, a.workspaceId),
+        eq(read.findings.workspaceId, a.workspaceId),
+        eq(read.findings.repoId, a.run.repoId),
+      ),
+    )
+    .limit(1);
+  if (!row) return a.fail('not_found', 'The suggestion or its finding no longer exists.');
+  const f = row.f;
+  if (!f.scannerKey || !f.ruleId || !f.file || f.lineStart === null || !f.contextLines) {
+    return a.fail(
+      'no_context',
+      'The finding no longer has the stored lines of code a second opinion reads.',
+    );
+  }
+
+  // Where the code would go, decided from the server's own facts, now.
+  const provider = (await providersFor(db, a.workspaceId)).find(
+    (p) => p.id === plan.provider_id && p.enabled,
+  );
+  if (!provider) {
+    return a.fail(
+      'no_connection',
+      'The chosen model connection was removed or switched off before the second opinion ran.',
+    );
+  }
+  if (describeEndpoint(provider.kind, provider.baseUrl).leavesNetwork) {
+    const { localOnly } = await loadStoredRouting(db, a.workspaceId);
+    if (localOnly) {
+      return a.fail(
+        'local_only_forbids',
+        'Local-only is on, and the chosen model is off your network. Nothing was sent.',
+      );
+    }
+    const [repo] = await db
+      .select({ optIn: core.repos.tier3OptIn })
+      .from(core.repos)
+      .where(and(eq(core.repos.id, a.run.repoId), eq(core.repos.workspaceId, a.workspaceId)))
+      .limit(1);
+    if (!repo?.optIn) {
+      return a.fail(
+        'tier3_not_opted_in',
+        'The chosen model is off your network, and this repository is not opted in to Tier 3. Nothing was sent.',
+      );
+    }
+  }
+
+  const wg = await a.deps.secondOpinionGatewayFor(a.workspaceId, {
+    providerId: plan.provider_id,
+    model: plan.model,
+  });
+  if (!wg) {
+    return a.fail(
+      'no_connection',
+      'The chosen model connection could not be used (it did not resolve). See Admin → Models.',
+    );
+  }
+
+  const result = await runTriage([triageCandidateOf(f)], {
+    gateway: wg.gateway,
+    contextWindow: wg.hosts[0]?.contextWindow ?? null,
+    limit: 1,
+    maxCalls: Math.min(a.maxCalls, SECOND_OPINION_CALLS),
+    meta: { repoId: String(a.run.repoId), prNumber: 0, initiator: 'ai-second-opinion' },
+  });
+  const funnel = result.funnel as unknown as Record<string, unknown>;
+  const p = result.proposals[0];
+  if (!p) {
+    const why = result.rejections[0];
+    return a.fail(
+      'no_answer',
+      `${plan.model} gave no usable answer${why ? ` (${why.reason}: ${why.detail})` : ''}.`,
+      { calls: result.calls, triageFunnel: funnel },
+    );
+  }
+  await db
+    .insert(read.aiTriageVerdicts)
+    .values({
+      workspaceId: a.workspaceId,
+      findingId: f.id,
+      aiPassRunId: a.runId,
+      secondOpinionOf: row.v.id,
+      verdict: p.verdict,
+      confidence: p.confidence,
+      model: p.model,
+      checklistVersion: p.checklistVersion,
+      rationale: p.rationale,
+      citations: p.citations,
+      vexJustification: p.vex?.justification ?? null,
+      vexStatement: p.vex?.statement ?? null,
+      // No patch proof runs for a second opinion: it is a verdict, not a fix.
+      patchStatus: 'not_attempted',
+      route: p.route as Record<string, unknown> | null,
+    })
+    .onConflictDoNothing();
+  return a.finish('succeeded', { calls: result.calls, triageFunnel: funnel });
 }

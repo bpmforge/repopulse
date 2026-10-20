@@ -263,6 +263,31 @@ describeIfLiveInfra('verified-patch routes (W18-19)', () => {
     expect(added).toHaveLength(1);
   });
 
+  // W20-18 (UX_TODO AI-77; decision 2026-10-20): the workspace "AI off" switch
+  // stops a draft a person asks for too - refused with a typed problem.
+  it('refuses a new draft while AI is switched off, and says so on the GET', async () => {
+    await db.insert(read.aiPassSettings).values({ workspaceId, aiPaused: true });
+    try {
+      const post = await app.inject({
+        method: 'POST',
+        url: `/findings/${findingId}/patch`,
+        headers: as('member'),
+        payload: {},
+      });
+      expect(post.statusCode).toBe(409);
+      expect(post.json().type).toBe('urn:repopulse:problem:ai-paused');
+      expect(added).toHaveLength(0);
+      const get = await app.inject({
+        method: 'GET',
+        url: `/findings/${findingId}/patch`,
+        headers: as('member'),
+      });
+      expect(get.json().ai_paused).toMatchObject({ paused: true });
+    } finally {
+      await db.delete(read.aiPassSettings).where(eq(read.aiPassSettings.workspaceId, workspaceId));
+    }
+  });
+
   it('Tier-3 needs an admin AND the repository opt-in', async () => {
     const member = await app.inject({
       method: 'POST',

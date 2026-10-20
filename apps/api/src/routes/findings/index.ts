@@ -7,6 +7,13 @@ import { sendProblem } from '../../lib/problem.js';
 import { actorLoginFor } from '../../lib/actor.js';
 import { FINDING_DIMENSIONS } from '@repopulse/shared/dimensions';
 import { parseExternalScannerKey } from '@repopulse/security';
+import {
+  EXPORT_CAP,
+  cleanTicketUrl,
+  findingsCsv,
+  findingsSarif,
+  type ExportFormat,
+} from './export.js';
 
 // Findings API (W6-04, API_DESIGN.md §2, FR-API-3 / FR-INSIGHTS-1).
 
@@ -210,6 +217,8 @@ function findingsQuery(db: Database) {
         scanScannerVersion: security.scanRuns.scannerVersion,
         // W20-15 (UX_TODO X-10): which of the customer's models raised it.
         analysisModelId: read.analysisRuns.modelId,
+        // W20-18 (UX_TODO X-08): the tracker issue someone linked.
+        externalTicketUrl: read.findings.externalTicketUrl,
       })
       .from(read.findings)
       .innerJoin(core.repos, eq(core.repos.id, read.findings.repoId))
@@ -285,6 +294,9 @@ function toFinding(r: FindingRow) {
     // W20-15 (UX_TODO X-10): rule, model or another tool — the "mechanical
     // first, then AI" promise, said on every finding instead of "Tier N".
     found_by: foundByOf(r),
+    // W20-18 (UX_TODO X-08): the tracker issue (Jira, Linear, ...) someone
+    // linked, http(s) only; null when nobody has.
+    external_ticket_url: r.externalTicketUrl,
     // OPEN IT IN THE FORGE (W16-41). Null when there is nothing honest to link
     // to — a finding about the whole repository has no file, and a connection
     // with no recorded base URL has no instance to point at.
@@ -785,6 +797,129 @@ export default async function findingsRoutes(
       cap: BULK_SELECT_CAP,
     });
   });
+
+  /**
+   * GET /findings/export?format=csv|sarif — the list under its current filters,
+   * as a file (W20-18, UX_TODO X-08). The same filters as the list
+   * (listFilters, workspace-filtered) and the same order, up to EXPORT_CAP rows;
+   * a cut export says so in the file and in X-RepoPulse-Truncated. Audited:
+   * findings leaving the product is the SC-22 `finding.bulk_export` record.
+   */
+  app.get<{ Querystring: ListQuery & { format?: string; sort?: string } }>(
+    '/findings/export',
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
+      const format = request.query.format;
+      if (format !== 'csv' && format !== 'sarif') {
+        return fail(request, reply, 400, 'Choose a format', 'format must be "csv" or "sarif".');
+      }
+      const { filters } = listFilters(db, workspaceId, request.query);
+      const sort: FindingSort = request.query.sort === 'severity' ? 'severity' : 'risk';
+      const rows = await findingsQuery(db)
+        .where(and(...filters))
+        .orderBy(
+          ...(sort === 'severity'
+            ? [desc(read.findings.severity), desc(read.findings.id)]
+            : [
+                sql`${read.findings.effectiveRisk} desc nulls last`,
+                desc(read.findings.severity),
+                desc(read.findings.id),
+              ]),
+        )
+        .limit(EXPORT_CAP + 1);
+      const truncated = rows.length > EXPORT_CAP;
+      const page = rows.slice(0, EXPORT_CAP);
+      const base = (process.env.PUBLIC_BASE_URL ?? '').trim() || null;
+      const exportRows = page.map((r) => ({
+        ...r,
+        recommendation: r.recommendation ?? '',
+      }));
+
+      const userId = request.session?.get('userId');
+      auditLog(request.log, {
+        event: 'finding.bulk_export',
+        actorUserId: userId ?? null,
+        workspaceId,
+        ip: request.ip,
+        ua: request.headers['user-agent'] ?? null,
+        detail: {
+          format,
+          count: page.length,
+          truncated,
+          // The filters, not the rows: what was asked for is the record.
+          filters: Object.fromEntries(
+            Object.entries(request.query).filter(([k, v]) => k !== 'format' && v !== ''),
+          ),
+        },
+      });
+
+      const day = new Date().toISOString().slice(0, 10);
+      const ext: Record<ExportFormat, string> = { csv: 'csv', sarif: 'sarif' };
+      reply
+        .header(
+          'Content-Disposition',
+          `attachment; filename="repopulse-findings-${day}.${ext[format]}"`,
+        )
+        .header('X-RepoPulse-Count', String(page.length))
+        .header('X-RepoPulse-Truncated', truncated ? 'true' : 'false')
+        .header('Cache-Control', 'no-store');
+      if (format === 'csv') {
+        return reply
+          .type('text/csv; charset=utf-8')
+          .send(findingsCsv(exportRows, { base, truncated }));
+      }
+      return reply
+        .type('application/sarif+json; charset=utf-8')
+        .send(JSON.stringify(findingsSarif(exportRows, { base, truncated }), null, 2));
+    },
+  );
+
+  /**
+   * PUT /findings/:id/external-ticket — link the issue that tracks this
+   * finding in another tool (W20-18, UX_TODO X-08). Optional, http(s) only,
+   * validated here and by a CHECK; `url: null` removes it. Any member may set
+   * it (it records where the work is tracked, it decides nothing). Audited.
+   */
+  app.put<{ Params: { id: string }; Body: { url?: unknown } | undefined }>(
+    '/findings/:id/external-ticket',
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      const userId = request.session?.get('userId');
+      if (workspaceId === undefined || userId === undefined) {
+        return fail(request, reply, 401, 'No active session');
+      }
+      const id = Number(request.params.id);
+      if (!Number.isInteger(id)) return fail(request, reply, 400, 'Invalid finding id');
+      const cleaned = cleanTicketUrl(request.body?.url);
+      if (typeof cleaned === 'string') return fail(request, reply, 400, 'Invalid link', cleaned);
+
+      const [before] = await db
+        .select({ url: read.findings.externalTicketUrl })
+        .from(read.findings)
+        .where(and(eq(read.findings.id, id), eq(read.findings.workspaceId, workspaceId)))
+        .limit(1);
+      // Tenancy (Law 5): another workspace's finding is a 404, never a 403.
+      if (!before) return fail(request, reply, 404, 'No such finding');
+
+      await db
+        .update(read.findings)
+        .set({ externalTicketUrl: cleaned.url })
+        .where(and(eq(read.findings.id, id), eq(read.findings.workspaceId, workspaceId)));
+      if (before.url !== cleaned.url) {
+        auditLog(request.log, {
+          event: 'finding.external_ticket_set',
+          actorUserId: userId,
+          workspaceId,
+          ip: request.ip,
+          ua: request.headers['user-agent'] ?? null,
+          findingId: id,
+          detail: { from: before.url, to: cleaned.url },
+        });
+      }
+      return reply.send({ id, external_ticket_url: cleaned.url });
+    },
+  );
 
   /**
    * GET /findings/:id — one finding, whatever the caller's filters are (W16-32).

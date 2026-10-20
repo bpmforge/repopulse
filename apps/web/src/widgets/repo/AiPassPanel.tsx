@@ -8,8 +8,10 @@ import {
   TRIAGE_PER_PASS,
   localDateTime,
   passLabel,
+  pausedLine,
   specialistLabel,
   type AiPassRun,
+  type AiPause,
   type PassMode,
   type PassStatus,
   type ScheduleResponse,
@@ -418,6 +420,8 @@ export function AiPassPanel({
   const { data, isLoading, isError } = useApiQuery<{
     runs?: AiPassRun[];
     more?: boolean;
+    /** W20-18 (UX_TODO AI-77). */
+    ai_paused?: AiPause;
   }>(descriptor, {
     // Follow a pass while it is in flight; a settled list does not change.
     refetchInterval: (d) => ((d?.runs ?? []).some((r) => ACTIVE(r.status)) ? 5000 : false),
@@ -460,15 +464,18 @@ export function AiPassPanel({
           : null;
   // W20-11 (UX_TODO AI-30): why Start is greyed out, in words, tied to the
   // button (the wizard's pattern from W19-13).
-  const startBlocker = active
-    ? 'wait for the running pass to end; this list follows it'
-    : body !== null
-      ? null
-      : mode === 'paths'
-        ? 'enter at least one file or directory'
-        : mode === 'pull_request'
-          ? 'enter a pull request number'
-          : 'enter a base and a head commit SHA (7 to 64 hexadecimal characters each)';
+  const off = pausedLine(data?.ai_paused, 'no AI pass can start');
+  const startBlocker = off
+    ? 'AI analysis is switched off for this workspace'
+    : active
+      ? 'wait for the running pass to end; this list follows it'
+      : body !== null
+        ? null
+        : mode === 'paths'
+          ? 'enter at least one file or directory'
+          : mode === 'pull_request'
+            ? 'enter a pull request number'
+            : 'enter a base and a head commit SHA (7 to 64 hexadecimal characters each)';
   const rerun = (r: AiPassRun) => {
     const m = r.mode ?? 'paths';
     if (m === 'paths' && r.paths.length > 0) start.mutate({ paths: r.paths });
@@ -497,6 +504,15 @@ export function AiPassPanel({
         included; a scheduled run that was skipped does not count). Over a limit the pass is refused
         with the reason; it never reads part of what you asked for and calls it all.
       </p>
+      {off ? (
+        <p
+          className="rounded-sm border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-fg"
+          role="status"
+          data-testid="ai-pass-paused"
+        >
+          {off}
+        </p>
+      ) : null}
 
       {isAdmin ? (
         <form
@@ -599,7 +615,7 @@ export function AiPassPanel({
               type="submit"
               className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
               data-testid="ai-pass-start"
-              disabled={body === null || start.isPending || active}
+              disabled={body === null || start.isPending || active || off !== null}
               aria-busy={start.isPending || undefined}
               aria-describedby={startBlocker ? 'ai-pass-start-hint' : undefined}
             >

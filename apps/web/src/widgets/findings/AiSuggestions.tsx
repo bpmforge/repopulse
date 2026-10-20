@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link } from '@tanstack/react-router';
 import { ErrorNote } from '../../components/index.js';
 import { useApiMutation, useApiQuery, queryKeyFor } from '../../api/useApiQuery.js';
@@ -12,6 +12,7 @@ import {
   type AiVerdict,
   type FindingAi,
 } from './aiContracts.js';
+import { AskSecondOpinion, SecondOpinionAnswer } from './SecondOpinion.js';
 
 // AI suggestions in the finding drawer (W19-10).
 //
@@ -108,9 +109,15 @@ function Suggestion({
   onOfferDismiss,
   onOfferConfirm,
   evidenceFile,
+  seconds = [],
+  ask,
 }: {
   findingId: number;
   s: AiSuggestion;
+  /** W20-18 (UX_TODO AI-14): other models' answers about this suggestion. */
+  seconds?: AiSuggestion[];
+  /** W20-18 (UX_TODO AI-14): the "ask another model" control, on the newest suggestion. */
+  ask?: ReactNode;
   invalidate: readonly (readonly unknown[])[];
   onOfferDismiss: () => void;
   onOfferConfirm?: (() => void) | undefined;
@@ -237,6 +244,15 @@ function Suggestion({
           `A proposed patch was not kept (${s.patch.reason ?? s.patch.status}).`
         )}
       </p>
+
+      {seconds.length > 0 || ask ? (
+        <div className="flex flex-col gap-1" data-testid="ai-second-opinions">
+          {seconds.map((o) => (
+            <SecondOpinionAnswer key={o.id} first={s} second={o} />
+          ))}
+          {ask}
+        </div>
+      ) : null}
 
       {open ? (
         <div className="flex flex-wrap items-center gap-2" data-testid="ai-decide">
@@ -410,7 +426,15 @@ export function AiSuggestions({
   finding?: AiFindingContext;
 }) {
   const descriptor = { endpoint: '/findings/{id}/ai', path: { id: findingId } } as const;
-  const { data, isError } = useApiQuery<FindingAi>(descriptor);
+  const { data, isError } = useApiQuery<FindingAi>(descriptor, {
+    // W20-18 (UX_TODO AI-14): follow a second opinion while it runs.
+    refetchInterval: (d) =>
+      d?.second_opinion?.latest?.status === 'pending' ||
+      d?.second_opinion?.latest?.status === 'running'
+        ? 4000
+        : false,
+  });
+  const { data: me } = useApiQuery<{ role?: string }>({ endpoint: '/me/context' });
   const invalidate = [queryKeyFor(descriptor)];
 
   if (isError) {
@@ -432,7 +456,11 @@ export function AiSuggestions({
 
   // Read defensively: a body of another shape is "nothing recorded", never a crash.
   const raisedBy = data.raised_by ?? null;
-  const suggestions = data.suggestions ?? [];
+  // W20-18 (UX_TODO AI-14): second opinions sit under the suggestion they check.
+  const all = data.suggestions ?? [];
+  const suggestions = all.filter((s) => !s.second_opinion_of);
+  const secondsOf = (id: number) => all.filter((s) => s.second_opinion_of === id);
+  const second = data.second_opinion ?? null;
   return (
     <div data-testid="ai-section">
       <h3 className="text-xs tracking-wide text-fg-muted uppercase">AI review</h3>
@@ -454,6 +482,18 @@ export function AiSuggestions({
               onOfferDismiss={onOfferDismiss}
               onOfferConfirm={onOfferConfirm}
               evidenceFile={finding?.file}
+              seconds={secondsOf(s.id)}
+              ask={
+                second && second.of === s.id ? (
+                  <AskSecondOpinion
+                    findingId={findingId}
+                    info={second}
+                    isAdmin={me?.role === 'admin'}
+                    paused={data.ai_paused}
+                    invalidate={invalidate}
+                  />
+                ) : undefined
+              }
             />
           ))}
         </ul>

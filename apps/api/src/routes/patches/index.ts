@@ -6,6 +6,7 @@ import { QUEUE, createQueue, createRedisConnection, type QueueName } from '@repo
 import { resolvePatchTarget } from '@repopulse/security';
 import { sendProblem } from '../../lib/problem.js';
 import { passEgress } from '../../lib/ai-pass-egress.js';
+import { aiPauseState, refuseWhenAiPaused } from '../../lib/ai-pause.js';
 
 // Verified patches (W18-19, D16 "Verified + CI pull", API_DESIGN.md §2).
 //
@@ -114,6 +115,8 @@ const MEMBER_SAFE_FAILURES = new Set([
   'no_connection',
   'source_unavailable',
   'tier3_not_opted_in',
+  // W20-18 (UX_TODO AI-77): AI was switched off before the draft ran.
+  'ai_paused',
 ]);
 
 export default async function patchRoutes(
@@ -182,6 +185,9 @@ export default async function patchRoutes(
       eligible: true,
       commit_sha: target.commitSha,
       patch: row ? patchView(row, target.file, isAdmin) : null,
+      // W20-18 (UX_TODO AI-77): with AI off the drawer says so instead of
+      // offering a button the API would refuse.
+      ai_paused: await aiPauseState(db, workspaceId),
       drafter: {
         local_only: egress.local_only,
         leaves_network: egress.leaves_network,
@@ -223,6 +229,27 @@ export default async function patchRoutes(
       if (!target.ok && target.status === 404) return fail(request, reply, 404, 'No such finding');
       if (!target.ok)
         return fail(request, reply, 409, 'No verified fix can be drafted', target.reason);
+
+      // W20-18 (UX_TODO AI-77; decision 2026-10-20): the workspace's "AI off"
+      // switch stops drafts a person asks for too. Off means off. An already
+      // decided answer is still returned below; only a new model call is refused.
+      const decided = await rowFor(workspaceId, id, target.commitSha);
+      const wouldDraft =
+        !decided ||
+        decided.status === 'failed' ||
+        (decided.status === 'rejected' && request.body?.retry === true);
+      if (
+        wouldDraft &&
+        (await refuseWhenAiPaused(
+          db,
+          request,
+          reply,
+          workspaceId,
+          'no verified fix can be drafted',
+        ))
+      ) {
+        return reply;
+      }
 
       if (tier === 3) {
         if (!isAdmin) {

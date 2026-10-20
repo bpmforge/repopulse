@@ -43,6 +43,11 @@ export function awaitingProducer(dimension: string): boolean {
 export interface Finding {
   id: number;
   repo: { id: number; org: string; name: string };
+  /**
+   * W20-18 (UX_TODO X-08): the issue tracking this finding in another tool
+   * (Jira, Linear, ...). http(s) only, checked by the API; null when none.
+   */
+  external_ticket_url?: string | null;
   dimension: string;
   severity: number;
   confidence: number;
@@ -378,6 +383,23 @@ export function findingUrl(id: number, origin: string = window.location.origin):
 }
 
 /**
+ * A short name for a tracker link (W20-18, UX_TODO X-08): its host and last
+ * path part, e.g. "linear.app ENG-142". Null for anything that is not an
+ * http(s) URL, so it is never rendered as a link.
+ */
+export function ticketLabel(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
+    const last = u.pathname.split('/').filter(Boolean).pop();
+    return last ? `${u.host} ${decodeURIComponent(last)}` : u.host;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * The whole review, as plain text (W17-23).
  *
  * For pasting into a PR comment, a ticket, or a message — which is where a
@@ -405,6 +427,8 @@ export function reviewSummary(
       (finding.dismiss_reason ? ` (${dismissReasonLabel(finding.dismiss_reason)})` : ''),
     `Verification: ${(VERIFY_LABEL[finding.verify_status] ?? finding.verify_status).replace(/^[✓✕·]+ /, '')}`,
     ...(finding.forge ? [`Link: ${finding.forge.url}`] : []),
+    // W20-18 (UX_TODO X-08): where the work on it is tracked.
+    ...(ticketLabel(finding.external_ticket_url) ? [`Ticket: ${finding.external_ticket_url}`] : []),
     '',
     'Evidence:',
     finding.evidence,

@@ -124,6 +124,17 @@ export type AuditEvent =
   | 'ai_pass.scheduled_started'
   | 'ai_pass.scheduled_skipped'
   | 'ai_pass_settings.updated'
+  // W20-18 (UX_TODO AI-14, AI-77). Asking another model for a second opinion
+  // sends code to it (off-network only on a Tier-3 opted-in repository); the
+  // workspace-wide AI switch and "turn off every schedule" decide whether any
+  // code is sent at all.
+  | 'ai_verdict.second_opinion_requested'
+  | 'ai.paused_changed'
+  | 'ai_pass_schedule.disabled_all'
+  // W20-18 (UX_TODO X-08). Exporting findings takes them out of the product
+  // (SC-22 named finding.bulk_export); a tracker link is part of a finding's record.
+  | 'finding.bulk_export'
+  | 'finding.external_ticket_set'
   // W16-10. A manual run spends CPU on the host and, for a sync, forge budget
   // that everything else has to share. Who asked for it is the same record a
   // scheduled pass gets from its cron line.

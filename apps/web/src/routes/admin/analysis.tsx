@@ -18,6 +18,8 @@ function Analysis() {
           'ai_pass_schedule.enabled',
           'ai_pass_schedule.disabled',
           'ai_pass_schedule.updated',
+          'ai_pass_schedule.disabled_all',
+          'ai.paused_changed',
         ]}
         testId="analysis-last-changed"
       />

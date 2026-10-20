@@ -33,6 +33,7 @@ import { RulePrecisionSummary } from '../trust/RulePrecision.js';
 import { SHADOW_EXPLAINER, ShadowBadge } from './ShadowBadge.js';
 import { DependencyWhy } from './DependencyWhy.js';
 import { VexForm } from './VexForm.js';
+import { ExternalTicket } from './ExternalTicket.js';
 import { ProposeRuleForm } from '../rules/ProposeRuleForm.js';
 
 /** The by-id query's endpoint; its key prefix covers every finding's copy. */
@@ -337,6 +338,13 @@ export function FindingDetail({
         {/* W20-08 (UX_TODO FND-57): what the scanner worked out, so "real, or
             not affected?" can be answered from this panel. */}
         <DependencyWhy finding={finding} />
+
+        {/* W20-18 (UX_TODO X-08): the tracker issue for this finding, if any. */}
+        <ExternalTicket
+          findingId={finding.id}
+          url={finding.external_ticket_url}
+          invalidate={[...invalidate, [FINDING_BY_ID_ENDPOINT]]}
+        />
 
         {/* W20-08 (UX_TODO FND-05): a person records the VEX statement here. */}
         {finding.dimension === 'dependency' && (finding.cve_id || finding.rule_id) && (

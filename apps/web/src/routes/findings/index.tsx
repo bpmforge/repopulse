@@ -34,6 +34,8 @@ import { FindingSeverityBadge } from '../../widgets/findings/FindingSeverity.js'
 import { SaveAsViewButton } from '../../views/SaveAsViewButton.js';
 import type { ViewConfig } from '../../views/contracts.js';
 import { ShadowBadge } from '../../widgets/findings/ShadowBadge.js';
+import { ExportFindings } from '../../widgets/findings/ExportFindings.js';
+import { TicketLink } from '../../widgets/findings/ExternalTicket.js';
 
 // Findings Explorer (W6-04, UX_SPEC §4.e, FR-WEB-9).
 //
@@ -565,6 +567,8 @@ function FindingsExplorer() {
               stay
               config={findingsViewConfig(search as Record<string, unknown>)}
             />
+            {/* W20-18 (UX_TODO X-08): the list under its current filters, as a file. */}
+            <ExportFindings filters={filterQuery} total={data?.total} />
             {/* W20-03 (UX_TODO FND-10): the queue holds this page, at most
                 fifty, and was labelled as though it were the whole queue. */}
             <button
@@ -1061,6 +1065,12 @@ function FindingsExplorer() {
                     {/* Marked in the row, whatever the facet: a mixed list must
                         never leave the reader to guess which rows are proven. */}
                     {f.experimental ? <ShadowBadge className="ml-2" /> : null}
+                    {/* W20-18 (UX_TODO X-08): where the work is tracked. */}
+                    <TicketLink
+                      url={f.external_ticket_url}
+                      testId={`finding-ticket-${f.id}`}
+                      className="ml-2 text-xs text-fg-muted"
+                    />
                   </th>
                   <td className="py-1 text-xs">{f.repo.name}</td>
                   <td className="py-1 font-mono text-xs" data-testid={`finding-file-${f.id}`}>
