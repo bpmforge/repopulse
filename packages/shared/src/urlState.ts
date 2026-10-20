@@ -14,7 +14,7 @@ import { z } from 'zod';
 
 /** Time window: a preset, or a custom ISO-date range `start..end`. */
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-export const WINDOW_PRESETS = ['7d', '30d', '90d', '365d'] as const;
+export const WINDOW_PRESETS = ['7d', '14d', '30d', '90d', '365d'] as const;
 export type WindowPreset = (typeof WINDOW_PRESETS)[number];
 export const DEFAULT_WINDOW: WindowPreset = '30d';
 

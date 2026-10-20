@@ -10935,6 +10935,60 @@
           "Fixed in passing: providerForRepo looked a repo up by id without the workspace filter (Law 5); it is now workspace-filtered.",
           "Bugs noticed, not fixed: only secrets and sensitive_change run on pr_synced (incremental Semgrep and the anti-slop/perf/logging PR modes are never called from the workers); apiFetch spreads init after headers, so passing init.headers drops the CSRF and accept headers; the identities provider check allows github/gitea but not gitlab; report tables other than security posture still print numeric severity; DELETE /connections does not remove the connection's webhooks."
         ]
+      },
+      {
+        "id": "W20-16",
+        "title": "Findings, AI and dashboards round 2: requested reviewers, Reviews views, AI spend, CLI in both containers, AI pass scope",
+        "phase": 20,
+        "module": "web",
+        "stories": [],
+        "write_scope": [
+          "apps/web/**",
+          "apps/api/**",
+          "packages/forge/src/**",
+          "packages/ingest/src/backfill/**",
+          "packages/shared/src/db/schema/facts/pull-requests.ts",
+          "packages/shared/src/db/schema/read/ai-pass.ts",
+          "packages/shared/src/urlState.ts",
+          "packages/shared/drizzle/0049_requested_reviewers.sql",
+          "packages/shared/drizzle/meta/_journal.json",
+          "packages/metrics/src/**",
+          "packages/insights/src/**",
+          "packages/security/src/snapshot/**",
+          "deploy/up.sh",
+          "deploy/bundle.sh",
+          "deploy/compose.claude-cli.yaml",
+          "deploy/.env.example",
+          "docs/INSTALL.md",
+          "e2e/views.spec.ts",
+          "e2e/org-overview.spec.ts",
+          "docs/work/UX_TODO.md",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W20-13"
+        ],
+        "acceptance": [
+          "UX_TODO DSH-85: requested reviewers are ingested on GitHub (REST and GraphQL), Gitea and GitLab into pull_requests.requested_reviewer_identity_ids (migration 0049; NULL = not captured, '{}' = nobody asked); /me/review-queue lists PRs that request me, and marks the ones synced before 0049 as 'request not known yet' (integration tested); the rail badge counts only known requests",
+          "UX_TODO FND-03: Reviews filters save as a view (config.target='findings' plus its search); the view opens Reviews with those filters; colleagues see shared views under 'Shared with me' with Duplicate instead of owner actions (DSH-66); templates ask for a name first (DSH-54)",
+          "UX_TODO AI-08: Admin -> Analysis shows six months of spend per month and model from the egress audit, with an estimate only for models an admin priced (PUT /admin/analysis/prices, audited)",
+          "UX_TODO AI-73, AI-74: the CLI overlay mounts into the api and the worker; the worker heartbeat reports its own CLI check, shown beside the api's, and System health degrades when the worker has none; up.sh --with-claude-cli records the overlay in .env so every later up/stop keeps it; bundle.sh ships the overlay (deploy tests)",
+          "UX_TODO AI-85: an AI pass walks only the named paths, reads more languages, refuses a truncated walk, and says why a scope had no files (missing, unsupported type, over 512 KB); skipped files are counted on the run; and UX_TODO AI-40, AI-51, AI-52, AI-54, AI-55, AI-69, AI-70, DSH-07, DSH-49, DSH-52, DSH-53, DSH-61, DSH-62, DSH-64, DSH-82, DSH-84 as ticked in UX_TODO (tests named in the notes' fixed list)"
+        ],
+        "points": 8,
+        "status": "done",
+        "notes": [
+          "Requested 2026-10-20 (round 2 of the open FND, AI and DSH items, P1 first; build a reasonable default where one exists and record it; re-walk 15 ticked items).",
+          "Fixed: FND-03, AI-08, AI-40, AI-51, AI-52, AI-54, AI-55, AI-69, AI-70, AI-73, AI-74, AI-85, DSH-07, DSH-49, DSH-52, DSH-53, DSH-54, DSH-61, DSH-62, DSH-64, DSH-66, DSH-82, DSH-84, DSH-85.",
+          "Defaults chosen (cheap to change): DSH-85 a PR synced before 0049 keeps the old rule (open, someone else's, not reviewed by me) and is labelled 'request not known yet' until its next sync; team requests name nobody and are left out. FND-03 a Reviews view is a saved view with config.target='findings' and config.search (no migration). DSH-07 'Save as view' on a repository = the Overview widgets scoped to that repository. AI-08 prices are entered by an admin per model id (US$ per million tokens) in workspaces.settings.llm_prices; no price list ships and there is no money cap. AI-73 the overlay mounts the CLI into both containers; the worker re-checks every 10 minutes. AI-40 the optional 'why' note is up to 500 characters, stored on the suggestion (ai_triage_verdicts.decision_note, also in 0049) and cleared on undo. DSH-62 the window control shows only on Pulse, Activity, Hotspots, PR Flow, AI Reviewers, CI and the PR list. DSH-82 the risk strip follows the header's window (any non-preset reads as 30d).",
+          "Partial (left unticked): DSH-56 a 14d preset (snapshots, metrics, API enums) and a 'Custom range' date form are added; numbers for a custom range are still read from the preset that covers it, ending today - metrics for an arbitrary historic range are not computed. DSH-31 / DSH-29 / DSH-44 / DSH-45 / DSH-41 / DSH-63 unchanged from W20-12's partial notes; DSH-29 has no CI runs screen to link to.",
+          "Needs decision: AI-14 (second opinion) - may a second opinion go to a hosted (Tier-3, off-network) model, and does it count against the daily AI-pass limit? The build (mode 'second_opinion', ai_triage_verdicts.second_opinion_of, agree/disagree in the drawer) is designed but not started. AI-48 (oversight of RepoPulse's own AI use) - is AI spend on Admin -> Analysis enough, or is a separate governance page wanted? AI-77 (workspace-wide AI off switch) - should 'off' also stop verified-fix drafts a person asks for? AI-53 (run window for scheduled passes) - which time zone: the server's or each admin's?",
+          "Not reached: FND-22, FND-25, FND-28, FND-43, FND-47, FND-51, FND-52, FND-53, FND-55, FND-61, FND-62, FND-63, FND-68, FND-70, AI-20, AI-29, AI-31, AI-32, AI-33, AI-38, AI-43, AI-56, AI-63, AI-64, AI-78, AI-80, DSH-18, DSH-30, DSH-33, DSH-36, DSH-37, DSH-47, DSH-50, DSH-51, DSH-55, DSH-70, DSH-71, DSH-74, DSH-76, DSH-77, DSH-91, DSH-92 (most carry a partial note from W20-03/11/12/13).",
+          "Re-walk (15 random ticked FND/AI/DSH items): AI-76, DSH-23, AI-04, DSH-87, FND-19, AI-16, FND-34, FND-17, DSH-04, DSH-01, FND-24, AI-17, FND-36, FND-41 hold. AI-24 was short: the unsaved-routing warning fired only on closing the tab, not on moving to another screen in the app; fixed with the router's blocker (LlmRouting.test). DSH-87's API comment still said requested reviewers are not ingested; corrected.",
+          "Migration 0049 (requested_reviewer_identity_ids, decision_note): journal when=1793100000000. If another ticket lands a 0049 too, renumber the later one and give it a larger 'when', or the migrator skips it.",
+          "Fixed in passing (Law 5): GET/PATCH/DELETE /views/:id looked the row up by id and checked the workspace after; the select is now workspace-filtered. /me/review-queue's repos join gained the workspace filter.",
+          "Bugs noticed, not fixed: a custom date range is read as 'the last N days ending today' everywhere (only the label says so); the seed (packages/shared/src/testing/seed/seed.ts) snapshots 7d/30d/90d/365d only, so the 14d preset reads 'not computed' on a seeded stack until the nightly snapshot runs."
+        ]
       }
   ]
 }

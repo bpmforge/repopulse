@@ -17,7 +17,13 @@ export interface PrsRoutesOptions {
 
 const idParams = z.object({ id: z.coerce.number().int().positive() });
 const prParams = idParams.extend({ number: z.coerce.number().int().positive() });
-const WINDOW_DAYS: Record<string, number> = { '7d': 7, '30d': 30, '90d': 90, '365d': 365 };
+const WINDOW_DAYS: Record<string, number> = {
+  '7d': 7,
+  '14d': 14,
+  '30d': 30,
+  '90d': 90,
+  '365d': 365,
+};
 export const listQuery = z.object({
   state: z.enum(['open', 'closed', 'merged']).optional(),
   stale: z.coerce.boolean().optional(),
@@ -26,7 +32,7 @@ export const listQuery = z.object({
   // zod provider drops an unknown query param without complaint, so the repo
   // screen's window control changed every widget on the page except the two
   // built from this list — and nothing anywhere said so.
-  window: z.enum(['7d', '30d', '90d', '365d']).default('30d'),
+  window: z.enum(['7d', '14d', '30d', '90d', '365d']).default('30d'),
 });
 
 // --- org-wide list (W4-16) ---------------------------------------------------

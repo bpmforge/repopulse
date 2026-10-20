@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { core, read, type Database } from '@repopulse/shared';
+import { WINDOW_PRESETS, core, read, type Database } from '@repopulse/shared';
 import { SECURITY_DIMENSIONS, scoreLetter } from '@repopulse/insights';
 import { healthBand } from '@repopulse/shared/health-band';
 import { sendProblem } from '../../lib/problem.js';
@@ -172,12 +172,17 @@ export default async function riskRoutes(
    * axis score and the WORST repository is named beside it, because a median
    * alone would hide the one repository that needs the work.
    */
-  app.get<{ Querystring: { repo_id?: string; repos?: string } }>(
+  app.get<{ Querystring: { repo_id?: string; repos?: string; window?: string } }>(
     '/risk/axes',
     async (request, reply) => {
       const workspaceId = request.workspace?.id;
       if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
       const repoIds = scopeOf(request.query);
+      // W20-16 (UX_TODO DSH-82): the window the health badge beside the strip
+      // uses, so the two header indicators describe the same period. Anything
+      // that is not a preset reads as the 30-day default.
+      const asked = request.query?.window;
+      const window = asked && (WINDOW_PRESETS as readonly string[]).includes(asked) ? asked : '30d';
 
       const scope = [
         eq(read.findings.workspaceId, workspaceId),
@@ -218,7 +223,7 @@ export default async function riskRoutes(
             repoIds.length > 0 ? inArray(core.repos.id, repoIds) : undefined,
           ),
         );
-      const healths = await repoHealthMany(db, workspaceId, repos, '30d', Date.now());
+      const healths = await repoHealthMany(db, workspaceId, repos, window, Date.now());
       const single = repoIds.length === 1;
 
       const axes = Object.entries(AXIS_DIMENSIONS).map(([axis, dimensions]) => {
@@ -283,7 +288,7 @@ export default async function riskRoutes(
         };
       });
 
-      return reply.send({ axes, repos_in_scope: repos.length });
+      return reply.send({ axes, repos_in_scope: repos.length, window });
     },
   );
 

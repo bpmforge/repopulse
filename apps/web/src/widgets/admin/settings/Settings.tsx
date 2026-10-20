@@ -273,13 +273,13 @@ export function Settings() {
             on, not the organisation being measured.
           </li>
           <li>
-            <span className="text-fg">Tier-3 monthly spend cap</span> — not implemented. Tier 3 is
-            opt-in per repository on the{' '}
+            <span className="text-fg">AI spend</span> — estimated per month and model on the{' '}
             <Link to="/admin/analysis" className="text-accent hover:underline">
               Analysis
             </Link>{' '}
-            tab, and every call is recorded in the egress audit there, but nothing yet stops
-            spending at a threshold.
+            tab (W20-16), from the tokens each hosted model reported and the prices you enter there.
+            The limit that stops spending is the monthly cap on model calls for scheduled passes;
+            there is no limit in money.
           </li>
         </ul>
       </WidgetFrame>

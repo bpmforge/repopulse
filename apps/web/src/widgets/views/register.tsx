@@ -126,10 +126,10 @@ registerWidget({
 
 registerWidget({
   type: 'my-queue',
-  // W20-09 (UX_TODO DSH-85): not "waiting on my review" — requested
-  // reviewers are not ingested, so the list is open PRs by others that this
-  // person has not reviewed, drafts and bots left out.
-  title: 'Open PRs by others',
+  // W20-16 (UX_TODO DSH-85): requested reviewers are ingested, so this is
+  // the PRs that ask you (plus, until their next sync, older PRs whose
+  // request list is not known — marked on the row).
+  title: 'Awaiting my review',
   category: 'personal',
   defaultSize: { w: 6, h: 2 },
   component: () => {
@@ -139,7 +139,7 @@ registerWidget({
     const items = data?.items ?? [];
     return (
       <WidgetFrame
-        title="Open PRs by others you haven't reviewed"
+        title="Awaiting my review"
         state={frameState({
           isLoading,
           isError,
@@ -147,7 +147,7 @@ registerWidget({
         })}
         {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
-        emptyMessage="No open pull requests by others are waiting without a review from you."
+        emptyMessage="No open pull request is waiting on a review from you."
       >
         <ul data-testid="widget-my-queue">
           {items.map((item) => (
@@ -157,7 +157,7 @@ registerWidget({
               number={item.number}
               title={item.title}
               repo={item.repo.name}
-              meta={`${item.author} · ${formatAge(item.opened_at, Date.now())}`}
+              meta={`${item.author} · ${formatAge(item.opened_at, Date.now())}${item.requested === null ? ' · request not known yet' : ''}`}
             />
           ))}
         </ul>

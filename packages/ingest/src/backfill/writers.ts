@@ -88,6 +88,15 @@ export async function upsertPullRequests(
   for (const p of prs) {
     const authorId = await resolver.resolve({ login: p.authorLogin, isBot: p.isBot });
     const mergedById = p.mergedByLogin ? await resolver.resolve({ login: p.mergedByLogin }) : null;
+    // W20-16 (UX_TODO DSH-85). undefined = the forge did not say, kept NULL so
+    // the review queue can tell "not captured" from "nobody asked".
+    let requested: number[] | null = null;
+    if (p.requestedReviewerLogins !== undefined) {
+      requested = [];
+      for (const login of p.requestedReviewerLogins) {
+        requested.push(await resolver.resolve({ login }));
+      }
+    }
     await db
       .insert(facts.pullRequests)
       .values({
@@ -108,6 +117,7 @@ export async function upsertPullRequests(
         baseRef: p.baseRef,
         headSha: p.headSha,
         headRef: p.headRef ?? null,
+        requestedReviewerIdentityIds: requested,
         additions: p.additions ?? 0,
         deletions: p.deletions ?? 0,
         changedFiles: p.changedFiles ?? 0,
@@ -123,6 +133,8 @@ export async function upsertPullRequests(
           // W18-20. Only overwritten with a value: a later listing that omits
           // the ref (a deleted fork branch) must not erase what was known.
           ...(p.headRef ? { headRef: p.headRef } : {}),
+          // A listing that says nothing must not erase what an earlier one said.
+          ...(requested !== null ? { requestedReviewerIdentityIds: requested } : {}),
         },
       });
   }

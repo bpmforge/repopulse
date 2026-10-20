@@ -149,6 +149,7 @@ export function ModelsWizard() {
   const inContainer = kindsQuery.data?.in_container === true;
 
   const [step, setStep] = useState(0);
+  const [assignError, setAssignError] = useState(false);
   const [where, setWhere] = useState<Where>('local');
   const [kind, setKind] = useState('openai_compatible');
   const [name, setName] = useState('');
@@ -257,7 +258,14 @@ export function ModelsWizard() {
 
   async function assignRoles() {
     const current = routingQuery.data;
-    if (!current || createdId === null) return;
+    if (!current) return;
+    // W20-16 (UX_TODO AI-55): a create that returned no id used to make this
+    // button do nothing at all. Say so, and where to finish by hand.
+    if (createdId === null) {
+      setAssignError(true);
+      return;
+    }
+    setAssignError(false);
     const roles: Record<string, { provider_id: number; model: string | null }[]> = {};
     for (const r of current.roles) {
       const existing = r.chain.map((l) => ({ provider_id: l.provider_id, model: l.model }));
@@ -293,16 +301,45 @@ export function ModelsWizard() {
           className="flex flex-wrap gap-x-4 gap-y-1 text-xs"
           data-testid="wizard-steps"
         >
-          {STEPS.map((label, i) => (
-            <li
-              key={label}
-              {...(i === step ? { 'aria-current': 'step' as const } : {})}
-              className={i === step ? 'font-semibold text-fg' : 'text-fg-muted'}
-            >
-              {i + 1}. {label}
-              {i < step ? ' ✓' : ''}
-            </li>
-          ))}
+          {STEPS.map((label, i) => {
+            // W20-16 (UX_TODO AI-54): a finished step says "(done)" to a
+            // screen reader, and can be gone back to - except the two steps
+            // before the connection was saved, once it has been (going back
+            // there would add a second connection, not edit this one).
+            const done = i < step;
+            const canGoBack = done && (createdId === null || i === 2);
+            const text = (
+              <>
+                {i + 1}. {label}
+                {done ? (
+                  <>
+                    <span aria-hidden="true"> ✓</span>
+                    <span className="sr-only"> (done)</span>
+                  </>
+                ) : null}
+              </>
+            );
+            return (
+              <li
+                key={label}
+                {...(i === step ? { 'aria-current': 'step' as const } : {})}
+                className={i === step ? 'font-semibold text-fg' : 'text-fg-muted'}
+              >
+                {canGoBack ? (
+                  <button
+                    type="button"
+                    className="underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                    data-testid={`wizard-step-${i}`}
+                    onClick={() => setStep(i)}
+                  >
+                    {text}
+                  </button>
+                ) : (
+                  text
+                )}
+              </li>
+            );
+          })}
         </ol>
 
         {step === 0 && (
@@ -787,6 +824,17 @@ export function ModelsWizard() {
               >
                 {saveRouting.isPending ? 'Saving…' : 'Save and review'}
               </button>
+              {assignError ? (
+                <p
+                  className="w-full text-xs text-crit"
+                  role="alert"
+                  data-testid="wizard-assign-noid"
+                >
+                  The connection was saved, but the server did not say which one it is, so its roles
+                  cannot be set from here. Set them in the Routing section below: pick it as the
+                  first choice for each role you want.
+                </p>
+              ) : null}
               <button
                 type="button"
                 data-testid="wizard-skip"

@@ -194,6 +194,8 @@ export const aiTriageVerdicts = pgTable(
       onDelete: 'set null',
     }),
     decidedAt: timestamp('decided_at', { withTimezone: true }),
+    /** W20-16 (UX_TODO AI-40): the person's optional "why" with the answer. */
+    decisionNote: text('decision_note'),
   },
   (t) => [
     index('ai_triage_verdicts_workspace_finding_idx').on(

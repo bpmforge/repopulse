@@ -61,6 +61,8 @@ export interface AiSuggestion {
   decision: AiDecision;
   decided_by: string | null;
   decided_at: string | null;
+  /** W20-16 (UX_TODO AI-40): the optional "why" given with the answer. */
+  decision_note?: string | null;
   /** W20-11 (UX_TODO AI-40): the caller answered it, recently enough to change the answer. */
   can_undo?: boolean;
 }
@@ -117,6 +119,8 @@ export interface AiPassRun {
     /** Findings the evidence validator refused (a quote not in the source, a line out of range). */
     rejected?: number;
     filesRead?: number;
+    /** W20-16 (AI-85): files in scope that were not read, by reason. */
+    filesSkipped?: { unsupported: number; tooLarge: number };
     unreadable?: string[];
   } | null;
   triage_funnel: {
@@ -232,3 +236,9 @@ export interface ScheduleResponse {
     finished_at: string | null;
   }[];
 }
+
+// W20-16 (UX_TODO AI-85): in step with AI_PASS_READABLE in
+// apps/api/src/workers/ai-pass-sources.ts, which a model review reads — wider
+// than the deterministic scanners' list.
+export const READABLE_SOURCES =
+  'JavaScript and TypeScript (.js, .jsx, .ts, .tsx, .mjs, .cjs, .vue, .svelte), Python, Go (and go.mod), Ruby, Java, Kotlin, Scala, C#, PHP, Rust, Swift, C and C++, Objective-C, Dart, Elixir, shell scripts, Terraform (.tf, .hcl), YAML and SQL';

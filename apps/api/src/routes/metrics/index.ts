@@ -17,7 +17,7 @@ export interface MetricsRoutesOptions {
 
 const seriesQuery = z.object({
   metric_key: z.string(),
-  window: z.enum(['7d', '30d', '90d', '365d']).default('30d'),
+  window: z.enum(['7d', '14d', '30d', '90d', '365d']).default('30d'),
   repo_id: z.coerce.number().int().positive().optional(),
 });
 
@@ -25,7 +25,13 @@ function toNum(v: string | null): number | null {
   return v === null ? null : Number(v);
 }
 
-const WINDOW_DAYS: Record<string, number> = { '7d': 7, '30d': 30, '90d': 90, '365d': 365 };
+const WINDOW_DAYS: Record<string, number> = {
+  '7d': 7,
+  '14d': 14,
+  '30d': 30,
+  '90d': 90,
+  '365d': 365,
+};
 
 /**
  * The snapshots that fall inside the selected window (W20-12, UX_TODO DSH-75).

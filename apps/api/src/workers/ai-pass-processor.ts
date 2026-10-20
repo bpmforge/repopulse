@@ -52,7 +52,14 @@ export interface PassFile {
 }
 
 export type LoadedSources =
-  { ok: true; commitSha: string; files: PassFile[] } | { ok: false; code: string; reason: string };
+  | {
+      ok: true;
+      commitSha: string;
+      files: PassFile[];
+      /** W20-16 (AI-85): files in scope that were not read, by reason. */
+      skipped?: { unsupported: number; tooLarge: number };
+    }
+  | { ok: false; code: string; reason: string };
 
 export interface AiPassDeps {
   db: Database;
@@ -154,6 +161,7 @@ export function aiPassProcessor(deps: AiPassDeps) {
       let input: Parameters<typeof runSpecialists>[0];
       let promptTitle: string;
       let filesRead: number;
+      let filesSkipped: { unsupported: number; tooLarge: number } | null = null;
       let unreadable: string[] = [];
       let diffRanges: Map<string, [number, number][]> | null = null;
       let commitSha: string;
@@ -168,6 +176,7 @@ export function aiPassProcessor(deps: AiPassDeps) {
         input = { kind: 'module', name: `repo-${run.repoId}`, files: loaded.files };
         promptTitle = `Repository pass over ${run.paths.join(', ')}`;
         filesRead = loaded.files.length;
+        filesSkipped = loaded.skipped ?? null;
       } else {
         if (!deps.loadDiff) {
           return fail('no_diff_source', 'Reviewing a diff is not available on this server.');
@@ -219,6 +228,7 @@ export function aiPassProcessor(deps: AiPassDeps) {
           failures: spec.failures,
           rejected: spec.rejected.length,
           filesRead,
+          ...(filesSkipped ? { filesSkipped } : {}),
         },
       };
 
@@ -357,6 +367,7 @@ export function aiPassProcessor(deps: AiPassDeps) {
           failures: spec.failures,
           rejected: spec.rejected.length,
           filesRead,
+          ...(filesSkipped ? { filesSkipped } : {}),
           ...(unreadable.length > 0 ? { unreadable } : {}),
         },
         triageFunnel: triage.funnel as unknown as Record<string, unknown> | null,

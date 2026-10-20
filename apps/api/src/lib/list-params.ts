@@ -10,7 +10,7 @@ export const cursorPaginationSchema = z.object({
 });
 
 export const listFilterSchema = z.object({
-  window: z.enum(['7d', '30d', '90d', '365d']).optional().default('30d'),
+  window: z.enum(['7d', '14d', '30d', '90d', '365d']).optional().default('30d'),
   repo_ids: z
     .string()
     .optional()

@@ -27,6 +27,22 @@ export interface FilterScope {
 const NONE: FilterScope = { window: false, repos: false, person: false };
 
 /**
+ * The repository tabs that read the window (W20-16, UX_TODO DSH-62). Security,
+ * Findings, Code Health, Performance, a file and a PR's own page are not
+ * time-windowed, so the control is not offered there: changing it did nothing.
+ * '' is the repository's Pulse tab; 'prs' is the PR list, not one PR.
+ */
+const WINDOWED_REPO_TABS = new Set([
+  '',
+  'activity',
+  'hotspots',
+  'pr-flow',
+  'ai-reviewers',
+  'ci',
+  'prs',
+]);
+
+/**
  * The filters that apply to `pathname`.
  *
  * Anything not matched gets NONE — an unknown screen has not been checked, and
@@ -35,7 +51,14 @@ const NONE: FilterScope = { window: false, repos: false, person: false };
 export function filterScopeFor(pathname: string): FilterScope {
   // A repository's own screens ARE the repo filter, so offering a picker that
   // could contradict the page you are on would be worse than offering none.
-  if (pathname.startsWith('/repos/')) return { window: true, repos: false, person: false };
+  if (pathname.startsWith('/repos/')) {
+    const [, , , tab = '', ...rest] = pathname.replace(/\/+$/, '').split('/');
+    return {
+      window: WINDOWED_REPO_TABS.has(tab) && rest.length === 0,
+      repos: false,
+      person: false,
+    };
+  }
   if (pathname === '/repos') return { window: true, repos: true, person: false };
   // The ORG overview is deliberately not repo-filtered. Its nine widgets read
   // five org-rollup endpoints that have no repo_id, and the screen already has
@@ -59,6 +82,9 @@ export function filterScopeFor(pathname: string): FilterScope {
   // the controls pick the scope the next one is generated over, and the list
   // narrows to plans with exactly that scope (W17-24).
   if (pathname.startsWith('/plans')) return { window: true, repos: true, person: false };
+  // AI-code governance reads both (W20-16, UX_TODO DSH-61); its own copy
+  // sends people to "the filter bar", which it did not have.
+  if (pathname.startsWith('/governance')) return { window: true, repos: true, person: false };
   // My Focus is already scoped to one person: you.
   if (pathname.startsWith('/me')) return NONE;
   // Reports and Views each carry their own scope — a report pins its window at

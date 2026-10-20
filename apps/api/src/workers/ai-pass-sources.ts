@@ -1,3 +1,5 @@
+import { existsSync, statSync } from 'node:fs';
+import path from 'node:path';
 import { and, desc, eq } from 'drizzle-orm';
 import { core, facts, type Database } from '@repopulse/shared';
 import type { ForgeProvider } from '@repopulse/forge';
@@ -17,6 +19,26 @@ import {
 // BOUNDED, not truncated. A pass over more than AI_PASS_MAX_FILES files, or more
 // than AI_PASS_MAX_BYTES, is refused with a sentence telling the person to name a
 // smaller scope - silently reviewing "the first forty" would read as a clean pass.
+
+/**
+ * The file types an AI pass reads (W20-16, UX_TODO AI-85). Wider than the
+ * deterministic scanners' list: a model can review a Vue component, a Swift
+ * file or a Terraform module even though no rule here can. Kept in step with
+ * READABLE_SOURCES in apps/web/src/widgets/repo/AiPassPanel.tsx.
+ */
+export const AI_PASS_READABLE =
+  /(\.(js|jsx|ts|tsx|mjs|cjs|vue|svelte|py|go|rb|java|kt|kts|scala|cs|php|rs|swift|c|h|cc|cpp|cxx|hpp|m|mm|dart|ex|exs|sh|bash|tf|hcl|ya?ml|sql)|^go\.mod)$/;
+
+/** Upper bound on files WALKED for one pass (the read cap is AI_PASS_MAX_FILES). */
+const AI_PASS_WALK_FILES = 5000;
+
+/** Directory `rel` is on the way to, or inside, one of the named paths. */
+export function dirInScope(rel: string, paths: readonly string[]): boolean {
+  return paths.some((p) => {
+    const norm = p.replace(/\/+$/, '');
+    return norm === rel || norm.startsWith(`${rel}/`) || rel.startsWith(`${norm}/`);
+  });
+}
 
 export interface SnapshotSourceDeps {
   db: Database;
@@ -69,14 +91,49 @@ export function snapshotSources(deps: SnapshotSourceDeps): AiPassDeps['loadSourc
     return snapshotForScan(
       { provider: forge.provider, repo: forge.repoFullName, commitSha: head.sha },
       async (snapshot) => {
-        const all = readSnapshotSources(snapshot.dir, { maxFiles: 5000 });
-        const picked = all.files.filter((f) => inScope(f.path, paths));
-        if (picked.length === 0) {
+        // W20-16 (UX_TODO AI-85): walk ONLY the named paths. Walking the
+        // whole tree and filtering after meant a folder that sorted after the
+        // first 5,000 files of a monorepo was "not found".
+        const all = readSnapshotSources(snapshot.dir, {
+          maxFiles: AI_PASS_WALK_FILES,
+          readable: AI_PASS_READABLE,
+          include: (rel, isDir) => (isDir ? dirInScope(rel, paths) : inScope(rel, paths)),
+        });
+        const picked = all.files;
+        const at = head.sha.slice(0, 8);
+        if (all.truncated) {
           return {
             ok: false as const,
-            code: 'no_files',
-            reason: `None of the paths (${paths.join(', ')}) matched a readable source file at ${head.sha.slice(0, 8)}.`,
+            code: 'too_large',
+            reason: `Those paths hold more than ${AI_PASS_WALK_FILES} files at ${at}, so the pass stopped walking them rather than review part of what you asked for. Name a smaller directory or specific files.`,
           };
+        }
+        if (picked.length === 0) {
+          // Say WHY, not "no match": a path that exists but holds only file
+          // types the pass does not read, or only files over the size cap, is
+          // a different answer from a path that is not there.
+          const missing = paths.filter(
+            (p) => !existsSync(path.join(snapshot.dir, p.replace(/\/+$/, ''))),
+          );
+          const named = paths.filter((p) => !missing.includes(p));
+          const singleFile =
+            named.length === 1 && statSync(path.join(snapshot.dir, named[0]!)).isFile();
+          let reason: string;
+          if (named.length === 0) {
+            reason = `None of the paths (${paths.join(', ')}) exist at ${at}. Paths are relative to the repository root.`;
+          } else if (all.unsupported > 0 && all.tooLarge.length === 0) {
+            reason = singleFile
+              ? `${named[0]} exists at ${at}, but the pass does not read that file type.`
+              : `${named.join(', ')} ${named.length === 1 ? 'exists' : 'exist'} at ${at}, but ${all.unsupported === 1 ? 'the one file there is' : `all ${all.unsupported} files there are`} of types the pass does not read (for example ${all.unsupportedExamples[0]}).`;
+          } else if (all.tooLarge.length > 0) {
+            reason = `Every readable file under ${named.join(', ')} at ${at} is over 512 KB (for example ${all.tooLarge[0]}), and the pass skips files that large.`;
+          } else {
+            reason = `${named.join(', ')} ${named.length === 1 ? 'holds' : 'hold'} no files at ${at}.`;
+          }
+          if (missing.length > 0 && named.length > 0) {
+            reason += ` Not found: ${missing.join(', ')}.`;
+          }
+          return { ok: false as const, code: 'no_files', reason };
         }
         const bytes = picked.reduce((n, f) => n + Buffer.byteLength(f.source), 0);
         if (picked.length > AI_PASS_MAX_FILES || bytes > AI_PASS_MAX_BYTES) {
@@ -90,6 +147,8 @@ export function snapshotSources(deps: SnapshotSourceDeps): AiPassDeps['loadSourc
           ok: true as const,
           commitSha: head.sha,
           files: picked.map((f) => ({ path: f.path, content: f.source })),
+          // Reported on the run, never silent (AI-85).
+          skipped: { unsupported: all.unsupported, tooLarge: all.skipped },
         };
       },
     );

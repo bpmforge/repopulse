@@ -75,7 +75,10 @@ describe('deploy/up.sh health check (W16-04)', () => {
     // string: W17-04 inserted `-p "$REPOPULSE_PROJECT"` so a test stack cannot
     // collide with the operator's, and pinning the literal made this assertion
     // fail for a reason it does not care about.
-    const composeAt = script.search(/\$\{COMPOSE\[@\]\}"[^\n]*-f compose\.yaml up -d/);
+    // W20-16: the files are now an array that always starts with compose.yaml
+    // (`COMPOSE_FILES=(-f compose.yaml)`) plus any COMPOSE_EXTRA_FILES overlay.
+    const composeAt = script.search(/\$\{COMPOSE\[@\]\}"[^\n]*"\$\{COMPOSE_FILES\[@\]\}" up -d/);
+    expect(script).toContain('COMPOSE_FILES=(-f compose.yaml)');
 
     expect(mkdirAt, 'up.sh must create SCAN_RULES_DIR').toBeGreaterThan(-1);
     expect(composeAt, 'up.sh must invoke compose up on compose.yaml').toBeGreaterThan(-1);

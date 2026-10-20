@@ -1,0 +1,22 @@
+-- Migration 0049 (W20-16, UX_TODO DSH-85): who was asked to review a PR.
+--
+-- WHY. My Focus' review queue could not know which open PRs were waiting on
+-- THIS person: requested reviewers were never ingested, so the list showed
+-- every open PR someone else wrote. The forge's requested-reviewer users are
+-- stored as identity ids (teams are left out: a team request names nobody).
+--
+-- NULL MEANS NOT CAPTURED (ingested before 0049, or a payload that did not
+-- say); '{}' means "nobody is requested". The queue treats the two
+-- differently. The next sync of an open PR fills it.
+--
+-- TENANCY. New column on an existing tenant-scoped table (workspace_id
+-- indexed); the ids point at identities of the same workspace.
+--
+-- ROLLBACK. ALTER TABLE "pull_requests" DROP COLUMN "requested_reviewer_identity_ids";
+ALTER TABLE "pull_requests" ADD COLUMN "requested_reviewer_identity_ids" bigint[];
+--> statement-breakpoint
+-- W20-16 (UX_TODO AI-40): the optional "why" a person gives when answering an
+-- AI suggestion, so a wrong verdict carries the reason it was wrong. Cleared
+-- with the answer when it is withdrawn. Same tenant table (workspace_id).
+-- ROLLBACK. ALTER TABLE "ai_triage_verdicts" DROP COLUMN "decision_note";
+ALTER TABLE "ai_triage_verdicts" ADD COLUMN "decision_note" text;

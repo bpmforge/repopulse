@@ -79,7 +79,9 @@ describe('presetCovering / customRange', () => {
     const { presetCovering, customRange } = await import('./urlState.js');
     expect(presetCovering('90d')).toBe('90d');
     expect(presetCovering('2026-09-01..2026-09-07')).toBe('7d');
-    expect(presetCovering('2026-09-01..2026-09-14')).toBe('30d');
+    // W20-16 (UX_TODO DSH-56): a two-week sprint has its own preset.
+    expect(presetCovering('2026-09-01..2026-09-14')).toBe('14d');
+    expect(presetCovering('2026-09-01..2026-09-20')).toBe('30d');
     expect(presetCovering('2026-01-01..2026-03-31')).toBe('90d');
     expect(presetCovering('2024-01-01..2026-01-01')).toBe('365d');
     expect(presetCovering('garbage')).toBe('30d');

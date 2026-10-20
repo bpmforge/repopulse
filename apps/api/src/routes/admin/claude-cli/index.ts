@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { Redis } from 'ioredis';
 import { auditLog, type Database } from '@repopulse/shared';
 import {
   CLAUDE_CLI_STATEMENT_POINTS,
@@ -15,6 +16,7 @@ import {
   recordAcceptance,
   revokeAcceptance,
 } from '../../../lib/claude-cli-acceptance.js';
+import { readWorkerHeartbeats } from '../../../workers/heartbeat.js';
 
 // Admin → Models → the customer-supplied Claude Code CLI option (W19-08).
 //
@@ -27,6 +29,13 @@ export interface ClaudeCliRoutesOptions {
   db: Database;
   /** Injectable so tests need no real CLI. */
   cli?: CliDeps;
+  /**
+   * W20-16 (UX_TODO AI-73). Where worker heartbeats live: the worker publishes
+   * its OWN CLI check there, and the worker is the container that runs the
+   * CLI. Without one, only the api's check is reported.
+   */
+  redisUrl?: string;
+  redis?: Redis;
 }
 
 function fail(
@@ -45,6 +54,30 @@ export default async function claudeCliRoutes(
   opts: ClaudeCliRoutesOptions,
 ): Promise<void> {
   const { db } = opts;
+  const redis =
+    opts.redis ?? (opts.redisUrl ? new Redis(opts.redisUrl, { lazyConnect: true }) : null);
+  if (redis && opts.redis === undefined) {
+    redis.on('error', (err: Error) => app.log.warn({ err }, 'claude-cli redis error'));
+    app.addHook('onClose', async () => {
+      await redis.quit().catch(() => redis.disconnect());
+    });
+  }
+
+  /** The newest worker's own CLI check, or null when no worker has reported one. */
+  async function workerCli() {
+    if (!redis) return null;
+    const beats = await readWorkerHeartbeats(redis).catch(() => []);
+    const st = beats.find((b) => b.claudeCli)?.claudeCli;
+    return st
+      ? {
+          found: st.found,
+          version: st.version,
+          reportsLoggedIn: st.reportsLoggedIn,
+          reason: st.reason,
+          checked_at: st.checkedAt,
+        }
+      : null;
+  }
 
   app.get(
     '/admin/llm-providers/claude-cli',
@@ -70,7 +103,11 @@ export default async function claudeCliRoutes(
             }
           : null,
         // Presence and the CLI's own opinion of its login. No model call, no token.
+        // `cli` is the API container's own check (it also runs Test); with
+        // the overlay the api mounts the same volume since W20-16.
         cli: await claudeCliStatus(opts.cli),
+        // What the WORKER — which runs every pass — found (AI-73).
+        worker_cli: await workerCli(),
       });
     },
   );

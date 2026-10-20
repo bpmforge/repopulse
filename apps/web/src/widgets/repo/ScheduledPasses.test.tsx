@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScheduledPasses } from './ScheduledPasses.js';
@@ -21,6 +22,15 @@ vi.mock('../../api/useApiQuery.js', () => ({
       ? { mutate: state.cap, isPending: false, error: null }
       : { mutate: state.put, isPending: false, error: state.putError },
   queryKeyFor: () => [],
+}));
+
+// The cap line links to Admin → Analysis → AI spend (W20-16, AI-08).
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({ to, children, ...rest }: { to: string; children: ReactNode }) => (
+    <a href={to} {...rest}>
+      {children}
+    </a>
+  ),
 }));
 
 const local = {

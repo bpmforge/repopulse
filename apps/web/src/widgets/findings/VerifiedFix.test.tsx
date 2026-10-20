@@ -93,6 +93,10 @@ describe('VerifiedFix', () => {
     expect(clicked).toEqual(['repopulse-finding-5-run.js.patch']);
     expect(createObjectURL).toHaveBeenCalledTimes(1);
     spy.mockRestore();
+    // W20-16 (UX_TODO AI-70): how to apply it, and the commit it was made on.
+    expect(screen.getByTestId('verified-fix-apply')).toHaveTextContent(
+      /git apply repopulse-finding-5-run\.js\.patch.*made against commit/,
+    );
 
     // D9a: the panel has no way to write to the forge.
     expect(screen.queryByText(/pull request|open a pr|commit this/i)).toBeNull();
@@ -176,7 +180,16 @@ describe('VerifiedFix', () => {
     expect(state.mutate).toHaveBeenCalledWith({ tier: 't2' });
     unmount();
 
+    // W20-16 (UX_TODO AI-69): not eligible says why, in one muted line, and
+    // offers nothing to click; with no reason it stays silent.
     respond({ eligible: false, reason: 'model finding', patch: null });
+    const second = render(<VerifiedFix findingId={5} />);
+    expect(screen.getByTestId('verified-fix-ineligible')).toHaveTextContent(
+      'No verified fix for this finding: model finding',
+    );
+    expect(screen.queryByRole('button')).toBeNull();
+    second.unmount();
+    respond({ eligible: false, patch: null });
     const { container } = render(<VerifiedFix findingId={5} />);
     expect(container.textContent).toBe('');
   });

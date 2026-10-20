@@ -24,6 +24,8 @@ export const AI_PASSES_PER_DAY = 10;
 
 /** W20-11 (UX_TODO AI-40): how long the person who answered a suggestion may withdraw it. */
 export const AI_DECISION_UNDO_MINUTES = 15;
+/** W20-16 (UX_TODO AI-40): longest "why" note kept with an answer. */
+export const AI_DECISION_NOTE_MAX = 500;
 
 export interface AiPassRoutesOptions {
   db: Database;
@@ -442,6 +444,7 @@ export default async function aiPassRoutes(
         decision: v.decision,
         decided_by: login ?? null,
         decided_at: v.decidedAt,
+        decision_note: v.decisionNote,
         // W20-11 (UX_TODO AI-40): whether the caller may still withdraw the answer.
         can_undo:
           v.decidedBy !== null &&
@@ -455,7 +458,7 @@ export default async function aiPassRoutes(
 
   app.post<{
     Params: { id: string; verdictId: string };
-    Body: { decision?: unknown; undo?: unknown };
+    Body: { decision?: unknown; undo?: unknown; note?: unknown };
   }>('/findings/:id/ai-verdicts/:verdictId/decide', async (request, reply) => {
     const workspaceId = request.workspace?.id;
     const userId = request.session?.get('userId');
@@ -476,7 +479,7 @@ export default async function aiPassRoutes(
       // while a newer one waits is refused by that index, and said so below.
       const undone = await db
         .update(read.aiTriageVerdicts)
-        .set({ decision: null, decidedBy: null, decidedAt: null })
+        .set({ decision: null, decidedBy: null, decidedAt: null, decisionNote: null })
         .where(
           and(
             eq(read.aiTriageVerdicts.id, verdictId),
@@ -524,10 +527,26 @@ export default async function aiPassRoutes(
       );
     }
 
+    // W20-16 (UX_TODO AI-40): an optional "why", up to 500 characters.
+    const rawNote = request.body?.note;
+    if (rawNote !== undefined && rawNote !== null && typeof rawNote !== 'string') {
+      return fail(request, reply, 400, 'Invalid note', 'note must be text.');
+    }
+    const note = typeof rawNote === 'string' ? rawNote.trim() : '';
+    if (note.length > AI_DECISION_NOTE_MAX) {
+      return fail(
+        request,
+        reply,
+        400,
+        'Note too long',
+        `Keep the note to ${AI_DECISION_NOTE_MAX} characters.`,
+      );
+    }
+
     // Compare-and-set: only an undecided suggestion of THIS workspace and finding.
     const rows = await db
       .update(read.aiTriageVerdicts)
-      .set({ decision, decidedBy: userId, decidedAt: now() })
+      .set({ decision, decidedBy: userId, decidedAt: now(), decisionNote: note || null })
       .where(
         and(
           eq(read.aiTriageVerdicts.id, verdictId),

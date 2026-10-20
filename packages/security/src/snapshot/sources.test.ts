@@ -89,6 +89,41 @@ describe('reading a snapshot tree', () => {
   });
 });
 
+// W20-16 (UX_TODO AI-85): what an AI pass is told about what it did not read.
+describe('scoped and counted reads (W20-16)', () => {
+  it('walks only what include accepts, and counts unsupported and too-large files', () => {
+    const root = tree({
+      'aaa/first.ts': 'x',
+      'src/app/a.ts': 'const a = 1;',
+      'src/app/b.vue': '<template/>',
+      'src/app/big.ts': 'x'.repeat(200),
+      'src/other/c.ts': 'y',
+    });
+    const seen: string[] = [];
+    const result = readSnapshotSources(root, {
+      maxFileBytes: 100,
+      include: (rel, isDir) => {
+        seen.push(rel);
+        return isDir
+          ? 'src/app'.startsWith(rel) || rel.startsWith('src/app')
+          : rel.startsWith('src/app/');
+      },
+    });
+    expect(result.files.map((f) => f.path)).toEqual(['src/app/a.ts']);
+    expect(result.unsupported).toBe(1);
+    expect(result.unsupportedExamples).toEqual(['src/app/b.vue']);
+    expect(result.tooLarge).toEqual(['src/app/big.ts']);
+    // `aaa` was never entered.
+    expect(seen).not.toContain('aaa/first.ts');
+  });
+
+  it('reads more file types when given its own list', () => {
+    const root = tree({ 'a.vue': '<template/>', 'b.sh': 'echo' });
+    const result = readSnapshotSources(root, { readable: /\.(vue|sh)$/ });
+    expect(result.files.map((f) => f.path)).toEqual(['a.vue', 'b.sh']);
+  });
+});
+
 // W20-08 (UX_TODO FND-48): the tree a full run compares against, so a finding
 // on a deleted file closes.
 describe('listTreeFiles (W20-08)', () => {

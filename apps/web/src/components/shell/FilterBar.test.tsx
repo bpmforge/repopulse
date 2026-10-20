@@ -19,7 +19,8 @@ describe('custom window range', () => {
     const select = screen.getByTestId('filter-window') as HTMLSelectElement;
     expect(select.value).toBe('2026-09-01..2026-09-14');
     expect(screen.getByTestId('filter-window-custom')).toHaveTextContent(
-      '2026-09-01 → 2026-09-14 (as 30d)',
+      // W20-16: a 14-day range now has a 14d preset of its own.
+      '2026-09-01 → 2026-09-14 (numbers: last 14d)',
     );
   });
 
@@ -33,6 +34,26 @@ describe('custom window range', () => {
     );
     expect((screen.getByTestId('filter-window') as HTMLSelectElement).value).toBe('90d');
     expect(screen.queryByTestId('filter-window-custom')).toBeNull();
+  });
+
+  it('"Custom range…" asks for two dates and applies them as start..end (W20-16)', () => {
+    const onChange = vi.fn();
+    render(
+      <FilterBar
+        value={{ window: '30d' }}
+        onChange={onChange}
+        scope={{ window: true, repos: false, person: false }}
+      />,
+    );
+    fireEvent.change(screen.getByTestId('filter-window'), { target: { value: '__custom' } });
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByTestId('filter-window-from'), {
+      target: { value: '2026-09-01' },
+    });
+    fireEvent.change(screen.getByTestId('filter-window-to'), { target: { value: '2026-09-10' } });
+    expect(screen.getByTestId('filter-window-range-note')).toHaveTextContent('last 14d');
+    fireEvent.click(screen.getByTestId('filter-window-apply'));
+    expect(onChange).toHaveBeenCalledWith({ window: '2026-09-01..2026-09-10' });
   });
 
   it('requests carry the covering preset, never the raw range', () => {

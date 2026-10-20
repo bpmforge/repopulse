@@ -167,6 +167,8 @@ export interface RawGiteaPR {
   closed_at?: string | null;
   base?: { ref?: string } | null;
   head?: { sha?: string; ref?: string } | null;
+  /** Users asked to review (modules/structs/pull.go RequestedReviewers). */
+  requested_reviewers?: ({ login?: string } | null)[] | null;
   additions?: number | null;
   deletions?: number | null;
   changed_files?: number | null;
@@ -195,6 +197,13 @@ export function normalizePR(p: RawGiteaPR): ForgePR {
     baseRef: p.base?.ref ?? '',
     headSha: p.head?.sha ?? '',
     ...(p.head?.ref ? { headRef: p.head.ref } : {}),
+    ...(Array.isArray(p.requested_reviewers)
+      ? {
+          requestedReviewerLogins: p.requested_reviewers
+            .map((u) => u?.login)
+            .filter((l): l is string => typeof l === 'string' && l.length > 0),
+        }
+      : {}),
     // DIFFERENCE 3: like GitHub, the LIST omits these and the single-PR
     // endpoint fills them — verified live (list: null, detail: 233/6/4).
     ...(p.additions !== null && p.additions !== undefined ? { additions: p.additions } : {}),

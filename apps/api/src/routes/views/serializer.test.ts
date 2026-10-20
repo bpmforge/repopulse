@@ -36,14 +36,21 @@ describe('serializeSharedView (SC-17 allowlist)', () => {
 });
 
 describe('serializeView (owner-facing)', () => {
+  it('tells a colleague the view is not theirs, and never their home (W20-16, DSH-66)', () => {
+    const other = serializeView({ ...row, isDefaultForOwner: true }, row.ownerUserId + 1);
+    expect(other.is_owner).toBe(false);
+    expect(other.is_default).toBe(false);
+  });
+
   it('includes the full owner shape', () => {
-    expect(serializeView(row)).toEqual({
+    expect(serializeView(row, row.ownerUserId)).toEqual({
       id: 1,
       name: 'My View',
       config: { repo_ids: [1, 2], window: '30d', layout: [{ type: 'kpi' }] },
       is_shared: true,
       share_slug: 'deadbeefdeadbeefdeadbeefdeadbeef',
       is_default: false,
+      is_owner: true,
       created_at: '2026-01-01T00:00:00.000Z',
       updated_at: '2026-01-02T00:00:00.000Z',
     });

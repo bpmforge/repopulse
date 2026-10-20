@@ -50,7 +50,7 @@ beforeEach(() => {
     'fetch',
     vi.fn((input: unknown, init?: RequestInit) => {
       requests.push({ url: String(input), init });
-      if (init?.method === 'PATCH') {
+      if (init?.method === 'PATCH' || init?.method === 'PUT') {
         return Promise.resolve(
           new Response(
             JSON.stringify(
@@ -212,6 +212,58 @@ describe('Admin → Analysis egress audit (W20-11)', () => {
       expect(requests.some((r) => r.url.includes('repo_id=5') && !r.url.includes('before='))).toBe(
         true,
       ),
+    );
+  });
+
+  // W20-16 (UX_TODO AI-08): what hosted calls cost, honestly.
+  it('AI-08: shows spend per month and model, priced where a price was entered', async () => {
+    body = {
+      ...(body as object),
+      spend: {
+        months: 6,
+        prices: { 'gpt-x': { input_per_mtok: 3, output_per_mtok: 10 } },
+        rows: [
+          {
+            month: '2026-10',
+            model: 'gpt-x',
+            host: 'api.example.com',
+            calls: 4,
+            tokens_sent: 2_000_000,
+            tokens_received: 500_000,
+            unmeasured_calls: 0,
+            estimated_usd: 11,
+          },
+          {
+            month: '2026-10',
+            model: 'other',
+            host: 'api.other.com',
+            calls: 1,
+            tokens_sent: 10,
+            tokens_received: 5,
+            unmeasured_calls: 1,
+            estimated_usd: null,
+          },
+        ],
+      },
+    };
+    renderIt();
+    expect(await screen.findByTestId('ai-spend-estimate-2026-10-gpt-x')).toHaveTextContent('$11');
+    expect(screen.getByTestId('ai-spend-estimate-2026-10-other')).toHaveTextContent(
+      'no price entered',
+    );
+    expect(screen.getByTestId('ai-spend-month-2026-10')).toHaveTextContent(
+      /\$11.*\+ unpriced models/,
+    );
+    await userEvent.click(screen.getByText(/Prices \(1 of 2 models priced\)/));
+    await userEvent.type(screen.getByTestId('price-input-other'), '1');
+    await userEvent.type(screen.getByTestId('price-output-other'), '2');
+    await userEvent.click(screen.getByTestId('price-save-other'));
+    await waitFor(() =>
+      expect(
+        requests
+          .filter((r) => r.init?.method === 'PUT')
+          .map((r) => JSON.parse(String(r.init?.body))),
+      ).toEqual([{ model: 'other', input_per_mtok: 1, output_per_mtok: 2 }]),
     );
   });
 });

@@ -39,6 +39,17 @@ export function FilterBar({
   // labelled with its dates and the preset the cards actually read.
   const range = customRange(value.window);
 
+  // W20-16 (UX_TODO DSH-56): "Custom range…" asks for two dates instead of
+  // asking people to hand-edit the URL. Metrics are still snapshotted per
+  // preset, so the chosen dates are read through the smallest preset that
+  // covers them, ending today — the option's label says which.
+  const [picking, setPicking] = useState(false);
+  const today = new Date().toISOString().slice(0, 10);
+  const [from, setFrom] = useState(range?.start ?? '');
+  const [to, setTo] = useState(range?.end ?? today);
+  const rangeValid =
+    /^\d{4}-\d{2}-\d{2}$/.test(from) && /^\d{4}-\d{2}-\d{2}$/.test(to) && from <= to;
+
   // W20-12 (UX_TODO DSH-63): the person box is a DRAFT until Enter, leaving
   // the box, or picking a suggestion. Every keystroke used to push a history
   // entry and refetch — "alice" was five queries, "no PRs" flashed for "a" and
@@ -63,8 +74,15 @@ export function FilterBar({
             className="h-8 rounded-md border border-border bg-surface px-2 text-sm text-fg hover:border-border-strong"
             data-testid="filter-window"
             aria-label="Time window"
-            value={value.window}
-            onChange={(e) => onChange({ window: e.target.value })}
+            value={picking ? '__custom' : value.window}
+            onChange={(e) => {
+              if (e.target.value === '__custom') {
+                setPicking(true);
+                return;
+              }
+              setPicking(false);
+              onChange({ window: e.target.value });
+            }}
           >
             {WINDOW_PRESETS.map((w) => (
               <option key={w} value={w}>
@@ -73,11 +91,67 @@ export function FilterBar({
             ))}
             {range && (
               <option value={value.window} data-testid="filter-window-custom">
-                {range.start} → {range.end} (as {presetCovering(value.window)})
+                {range.start} → {range.end} (numbers: last {presetCovering(value.window)})
               </option>
             )}
+            <option value="__custom">Custom range…</option>
           </select>
         </label>
+      )}
+      {scope.window && picking && (
+        <form
+          className="flex flex-wrap items-center gap-1 text-xs text-fg-muted"
+          data-testid="filter-window-range"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!rangeValid) return;
+            setPicking(false);
+            onChange({ window: `${from}..${to}` });
+          }}
+        >
+          <label className="flex items-center gap-1">
+            From
+            <input
+              type="date"
+              className="h-8 rounded-md border border-border bg-surface px-1 text-sm text-fg"
+              data-testid="filter-window-from"
+              value={from}
+              max={to || today}
+              onChange={(e) => setFrom(e.target.value)}
+            />
+          </label>
+          <label className="flex items-center gap-1">
+            to
+            <input
+              type="date"
+              className="h-8 rounded-md border border-border bg-surface px-1 text-sm text-fg"
+              data-testid="filter-window-to"
+              value={to}
+              max={today}
+              onChange={(e) => setTo(e.target.value)}
+            />
+          </label>
+          <button
+            type="submit"
+            className="h-8 rounded-md border border-accent bg-accent/10 px-2 text-sm text-fg disabled:opacity-50"
+            disabled={!rangeValid}
+            data-testid="filter-window-apply"
+          >
+            Apply
+          </button>
+          <button
+            type="button"
+            className="h-8 rounded-md border border-border px-2 text-sm text-fg"
+            onClick={() => setPicking(false)}
+          >
+            Cancel
+          </button>
+          {rangeValid && (
+            <span data-testid="filter-window-range-note">
+              Numbers are read from the last {presetCovering(`${from}..${to}`)}, ending today.
+            </span>
+          )}
+        </form>
       )}
 
       {scope.repos && (

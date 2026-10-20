@@ -293,7 +293,7 @@ export function FindingDetail({
         {/* The quote is why anyone should believe the finding — it is validated
             to be verbatim from the reviewed diff (W6-02), so it can be read as
             evidence rather than as the model's paraphrase. */}
-        <div>
+        <div id="finding-evidence" className="scroll-mt-4">
           <h3 className="text-xs tracking-wide text-fg-muted uppercase">Evidence</h3>
           <div className="mt-1">
             <EvidenceCode finding={finding} />
@@ -346,7 +346,9 @@ export function FindingDetail({
         {/* W18-19: a model-drafted patch, shown only once the re-scan proved it
             clears this finding without raising another (D16). Copy and
             download; never a write to the forge (D9a). */}
-        <VerifiedFix findingId={finding.id} />
+        <div id="finding-verified-fix" className="scroll-mt-4">
+          <VerifiedFix findingId={finding.id} />
+        </div>
 
         {/* W19-10: what an AI pass said about this finding, labelled as AI. It
             only PREFILLS the dismiss form below; the person still writes the note

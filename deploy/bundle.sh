@@ -220,7 +220,10 @@ echo "== stage deploy/"
 strip_compose deploy/compose.yaml > "$STAGE/deploy/compose.yaml"
 grep -q '^    build:' "$STAGE/deploy/compose.yaml" &&
   die "bug: build: stanza survived strip_compose — deploy/compose.yaml's layout changed."
-for f in .env.example configure.sh configure.mjs up.sh backup.sh restore.sh rotate-token-key.sh uninstall.sh scan-db-sync.sh smoke-report-pdf.sh; do
+# compose.claude-cli.yaml (W20-16, UX_TODO AI-74): the optional CLI overlay
+# INSTALL.md documents; up.sh --with-claude-cli keeps it on every start. It has
+# no build: stanza, so it ships as is.
+for f in .env.example configure.sh configure.mjs up.sh backup.sh restore.sh rotate-token-key.sh uninstall.sh scan-db-sync.sh smoke-report-pdf.sh compose.claude-cli.yaml; do
   cp "deploy/$f" "$STAGE/deploy/$f"
 done
 cp deploy/scan-rules/README.md "$STAGE/deploy/scan-rules/README.md"

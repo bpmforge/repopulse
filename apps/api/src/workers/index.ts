@@ -6,6 +6,7 @@ import { outboundProxyNotice } from '../lib/outbound-proxy.js';
 import { credentials, workspace as workspaceModule } from '@repopulse/auth';
 import { QUEUE, createQueue, publishSyncEvent } from '@repopulse/ingest';
 import { createRedisConnection, type SyncStreamEvent } from '@repopulse/ingest';
+import { claudeCliStatus } from '@repopulse/analysis';
 import { createWorkerRuntime } from './runtime.js';
 import type { SecretsStreamRequest } from './processors.js';
 import {
@@ -16,7 +17,7 @@ import {
   snapshotProcessor,
 } from './processors.js';
 import { startWorkerHealthServer } from './health.js';
-import { startWorkerHeartbeat } from './heartbeat.js';
+import { startWorkerHeartbeat, type WorkerCliStatus } from './heartbeat.js';
 import { listenHost } from '../lib/listen-host.js';
 import { reportProcessor } from './report-processor.js';
 import { plansVerifyProcessor } from './plans-processor.js';
@@ -1076,10 +1077,29 @@ async function main(): Promise<void> {
   // pick up work", so publishing it during startup would state something untrue
   // for as long as the boot took. Its key is per-instance, so one worker
   // stopping cannot erase another's.
+  // W20-16 (UX_TODO AI-73/74): look for the Claude Code CLI from HERE, the
+  // container that runs it, and publish what was found with the heartbeat.
+  // Presence and `auth status` only — no model call. Re-checked every ten
+  // minutes so a volume dropped by a restart without the overlay shows up in
+  // System health instead of as failing passes.
+  let workerCli: WorkerCliStatus | undefined;
+  const checkCli = async () => {
+    try {
+      const st = await claudeCliStatus();
+      workerCli = { ...st, checkedAt: new Date().toISOString() };
+    } catch (err) {
+      log.warn({ err }, '[worker] claude cli status check failed');
+    }
+  };
+  void checkCli();
+  const cliTimer = setInterval(() => void checkCli(), 10 * 60 * 1000);
+  cliTimer.unref?.();
+
   const heartbeat = startWorkerHeartbeat({
     redis: healthRedis,
     queues: [...runtime.queues.keys()],
     onError: (err) => log.warn({ err }, '[worker] heartbeat write failed'),
+    claudeCli: () => workerCli,
   });
 
   // The AI-pass scheduler (W19-12). Strictly opt-in: it only ever acts on a
@@ -1127,6 +1147,7 @@ async function main(): Promise<void> {
   });
   process.once('SIGTERM', () => {
     if (schedulerTimer) clearInterval(schedulerTimer);
+    clearInterval(cliTimer);
     void aiPassQueue.close().catch(() => {});
     sweeper.stop();
     healthServer.close();

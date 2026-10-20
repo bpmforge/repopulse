@@ -27,8 +27,16 @@ export interface ReposRoutesOptions {
   db: Database;
 }
 
-const WINDOW_DAYS: Record<string, number> = { '7d': 7, '30d': 30, '90d': 90, '365d': 365 };
-const windowQuery = z.object({ window: z.enum(['7d', '30d', '90d', '365d']).default('30d') });
+const WINDOW_DAYS: Record<string, number> = {
+  '7d': 7,
+  '14d': 14,
+  '30d': 30,
+  '90d': 90,
+  '365d': 365,
+};
+const windowQuery = z.object({
+  window: z.enum(['7d', '14d', '30d', '90d', '365d']).default('30d'),
+});
 const idParams = z.object({ id: z.coerce.number().int().positive() });
 
 function fail(

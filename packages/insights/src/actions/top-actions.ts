@@ -180,7 +180,9 @@ function toAction(candidate: ActionCandidate): TopAction {
     repoName: null,
     effort: candidate.effort,
     target: { kind: 'plan_item', planId: candidate.planId, planItemId: candidate.planItemId },
-    href: '/plans',
+    // W20-16 (UX_TODO DSH-49): an anchor on the item, not a search param the
+    // plans route would strip.
+    href: `/plans#plan-item-${candidate.planItemId}`,
   };
 }
 

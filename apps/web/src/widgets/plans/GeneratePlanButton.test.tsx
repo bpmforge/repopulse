@@ -143,7 +143,7 @@ describe('GeneratePlanButton (W17-24)', () => {
   });
 
   it('generates a custom range as the preset that covers it (W20-09, DSH-56)', async () => {
-    renderButton({ window: '2026-09-01..2026-09-14' });
+    renderButton({ window: '2026-09-01..2026-09-20' });
     expect(screen.getByTestId('generate-plan')).toHaveTextContent('Generate 30d plan');
     await userEvent.click(screen.getByTestId('generate-plan'));
     await waitFor(() => expect(posted()).toHaveLength(1));

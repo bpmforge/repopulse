@@ -743,12 +743,25 @@ describe('Claude Code CLI switch-off and acceptance on the row (W20-11)', () => 
     );
   });
 
-  // UX_TODO AI-73 (partial): the check says which container it looked in.
-  it('says the CLI check runs in the API container', async () => {
+  // UX_TODO AI-73 (W20-16): both containers' checks, each named.
+  it("shows the worker's own CLI check beside the API container's", async () => {
+    claudeBody = {
+      ...accepted,
+      cli: { found: false, version: null, reportsLoggedIn: null, reason: 'no "claude" here' },
+      worker_cli: {
+        found: true,
+        version: '2.1.287 (Claude Code)',
+        reportsLoggedIn: true,
+        reason: null,
+        checked_at: '2026-10-20T00:00:00.000Z',
+      },
+    };
     await pick();
-    expect(await screen.findByTestId('claude-cli-panel')).toHaveTextContent(
-      /run in the API container/,
+    expect(await screen.findByTestId('claude-cli-status-worker')).toHaveTextContent(
+      /Worker container \(runs every pass\): found 2\.1\.287/,
     );
+    expect(screen.getByTestId('claude-cli-status-api')).toHaveTextContent(/API container/);
+    expect(screen.getByTestId('claude-cli-status-mismatch')).toHaveTextContent(/--with-claude-cli/);
   });
 
   // UX_TODO AI-67: a CLI row says whether the statement is accepted.

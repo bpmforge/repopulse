@@ -13,10 +13,16 @@ export interface HotspotsRoutesOptions {
   db: Database;
 }
 
-const WINDOW_DAYS: Record<string, number> = { '7d': 7, '30d': 30, '90d': 90, '365d': 365 };
+const WINDOW_DAYS: Record<string, number> = {
+  '7d': 7,
+  '14d': 14,
+  '30d': 30,
+  '90d': 90,
+  '365d': 365,
+};
 
 const hotspotsQuery = z.object({
-  window: z.enum(['7d', '30d', '90d', '365d']).default('30d'),
+  window: z.enum(['7d', '14d', '30d', '90d', '365d']).default('30d'),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   // The global filter's / a saved view's `repos` csv (W20-05, UX_TODO DSH-02):
   // a view scoped to three repositories ranked hotspots across all of them.

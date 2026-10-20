@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import { ErrorNote } from '../../components/primitives/ErrorNote.js';
 import {
@@ -53,6 +53,14 @@ export function PlanItemCard({
   const [reason, setReason] = useState('');
 
   const regressed = item.status === 'regressed';
+  // W20-16 (UX_TODO DSH-49): Overview's "Next actions" links here by anchor;
+  // the list arrives after navigation, so scroll once it has rendered.
+  const ref = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.hash === `#plan-item-${item.id}`) {
+      ref.current?.scrollIntoView?.({ block: 'start' });
+    }
+  }, [item.id]);
   // W20-12 (UX_TODO DSH-90): an item a broken working agreement raised. Its
   // evidence names the agreement and the breaching PRs; the card showed
   // neither, so the item appeared with nothing behind it.
@@ -73,7 +81,9 @@ export function PlanItemCard({
 
   return (
     <li
-      className={`rounded-md border p-3 ${regressed ? 'border-warn/40 bg-warn/10' : 'border-border bg-surface'}`}
+      ref={ref}
+      id={`plan-item-${item.id}`}
+      className={`scroll-mt-16 rounded-md border p-3 ${regressed ? 'border-warn/40 bg-warn/10' : 'border-border bg-surface'}`}
       data-testid={`plan-item-${item.id}`}
     >
       <div className="flex flex-wrap items-baseline gap-2">

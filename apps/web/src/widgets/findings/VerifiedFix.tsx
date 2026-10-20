@@ -154,12 +154,23 @@ export function VerifiedFix({ findingId }: { findingId: number }) {
   );
   const [copied, setCopied] = useState<'idle' | 'copied' | 'failed'>('idle');
 
-  // Not eligible (a model finding, a repo-level finding, nothing scanned): say
-  // nothing. The drawer is for the finding; an absent feature is not news.
-  if (!data || data.eligible !== true) return null;
-  const patch = data.patch;
-
   const heading = <h3 className="text-xs tracking-wide text-fg-muted uppercase">Verified fix</h3>;
+
+  if (!data) return null;
+  // Not eligible (a secret, a dependency CVE, a model finding, nothing scanned).
+  // W20-16 (UX_TODO AI-69): say why in one muted line, so a developer can tell
+  // why one finding offers a fix and another does not.
+  if (data.eligible !== true) {
+    return data.reason ? (
+      <div data-testid="verified-fix-ineligible">
+        {heading}
+        <p className="mt-1 text-xs text-fg-faint">
+          No verified fix for this finding: {data.reason}
+        </p>
+      </div>
+    ) : null;
+  }
+  const patch = data.patch;
 
   if (patch?.status === 'rejected' && !request.isPending) {
     return (
@@ -278,6 +289,16 @@ export function VerifiedFix({ findingId }: { findingId: number }) {
             <span className="text-xs text-fg-faint">drafted by {patch.model_id}</span>
           )}
         </div>
+        {/* W20-16 (UX_TODO AI-70): how to apply it, and against what. */}
+        <p className="mt-1 text-xs text-fg-muted" data-testid="verified-fix-apply">
+          Apply it from the repository root with{' '}
+          <code className="font-mono">
+            git apply {patch.filename ?? `finding-${findingId}.patch`}
+          </code>
+          . It was made against commit{' '}
+          <span className="font-mono">{patch.commit_sha.slice(0, 7)}</span>; if your branch has
+          moved on since, it may need a rebase or a small edit.
+        </p>
       </div>
     );
   }

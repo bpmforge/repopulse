@@ -480,8 +480,8 @@ describeIfDb('collectTopActions (W17-16)', () => {
     expect(found?.target).toEqual({ kind: 'finding', findingId, repoId });
     const item = actions.find((a) => a.kind === 'plan_item');
     expect(item?.target).toMatchObject({ kind: 'plan_item', planItemId: itemId });
-    // No search param the plans route does not validate (W16-49).
-    expect(item?.href).toBe('/plans');
+    // No search param the plans route does not validate (W16-49); an anchor (DSH-49).
+    expect(item?.href).toBe(`/plans#plan-item-${itemId}`);
   });
 
   it('returns at most three however many candidates exist', async () => {

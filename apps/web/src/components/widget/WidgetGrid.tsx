@@ -25,6 +25,12 @@ const COLUMNS = 12;
 export interface WidgetGridProps {
   widgets: Widget[];
   className?: string;
+  /**
+   * W20-16 (UX_TODO DSH-53): offered on a widget whose type no longer exists,
+   * so the person who can edit the view can take it out. Omitted where the
+   * viewer cannot change the layout.
+   */
+  onRemoveUnknown?: (widgetId: string) => void;
 }
 
 function clampInt(value: number, min: number, max: number): number {
@@ -54,7 +60,7 @@ const ITEM_CLASSES = [
   'md:[grid-row-end:span_var(--wg-h)]',
 ].join(' ');
 
-export function WidgetGrid({ widgets, className = '' }: WidgetGridProps) {
+export function WidgetGrid({ widgets, className = '', onRemoveUnknown }: WidgetGridProps) {
   return (
     <div
       className={`grid w-full min-w-0 grid-cols-1 gap-4 md:grid-cols-12 ${className}`}
@@ -77,11 +83,32 @@ export function WidgetGrid({ widgets, className = '' }: WidgetGridProps) {
             {def ? (
               <def.component widget={widget} />
             ) : (
-              <WidgetFrame
-                title={widget.type}
-                state="empty"
-                emptyMessage={`"${widget.type}" widget is not available yet.`}
-              />
+              // W20-16 (UX_TODO DSH-53): said in words, with the raw type
+              // kept small for whoever reports it, and a way to remove it.
+              <WidgetFrame title="Widget no longer available" state="ready">
+                <div
+                  className="flex flex-col gap-2 text-sm"
+                  data-testid={`unknown-widget-${widget.id}`}
+                >
+                  <p className="text-fg-muted">
+                    This view has a widget this version of RepoPulse does not have (it was renamed
+                    or retired). Nothing is shown in its place.{' '}
+                    <span className="font-mono text-xs text-fg-faint">{widget.type}</span>
+                  </p>
+                  {onRemoveUnknown ? (
+                    <button
+                      type="button"
+                      className="self-start rounded-sm border border-border px-2 py-0.5 text-xs"
+                      data-testid={`remove-unknown-${widget.id}`}
+                      onClick={() => onRemoveUnknown(widget.id)}
+                    >
+                      Remove it from this view
+                    </button>
+                  ) : (
+                    <p className="text-xs text-fg-faint">The view&rsquo;s owner can remove it.</p>
+                  )}
+                </div>
+              </WidgetFrame>
             )}
           </div>
         );

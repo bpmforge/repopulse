@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { ErrorNote } from '../../components/index.js';
 import { useApiMutation, useApiQuery, queryKeyFor } from '../../api/useApiQuery.js';
@@ -81,20 +82,46 @@ export function AiBadge() {
   );
 }
 
+/**
+ * Scrolls the drawer to one of its own sections (W20-16, UX_TODO AI-52). A
+ * button, not a #hash link: the drawer lives on a routed page whose URL must
+ * not change when someone jumps within it.
+ */
+function jumpTo(id: string): void {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+  const focusable = el.querySelector<HTMLElement>('pre, button, a, [tabindex]');
+  focusable?.focus({ preventScroll: true });
+}
+
+const JUMP_LINK =
+  'underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent';
+
+/** Longest "why" note sent with an answer (the API enforces the same). */
+const NOTE_MAX = 500;
+
 function Suggestion({
   findingId,
   s,
   invalidate,
   onOfferDismiss,
   onOfferConfirm,
+  evidenceFile,
 }: {
   findingId: number;
   s: AiSuggestion;
   invalidate: readonly (readonly unknown[])[];
   onOfferDismiss: () => void;
   onOfferConfirm?: (() => void) | undefined;
+  /** The file the drawer's evidence code is from, so a citation in it can jump there. */
+  evidenceFile?: string | null | undefined;
 }) {
-  const decide = useApiMutation<{ decision: 'accepted' | 'dismissed' } | { undo: true }, unknown>(
+  const [note, setNote] = useState('');
+  const decide = useApiMutation<
+    { decision: 'accepted' | 'dismissed'; note?: string } | { undo: true },
+    unknown
+  >(
     {
       endpoint: '/findings/{id}/ai-verdicts/{verdictId}/decide',
       path: { id: findingId, verdictId: s.id },
@@ -147,9 +174,23 @@ function Suggestion({
           <ul className="mt-1 flex flex-col gap-1">
             {s.citations.map((c, i) => (
               <li key={i}>
-                <span className="font-mono text-xs text-fg-faint">
-                  {c.file}:{c.line}
-                </span>
+                {/* W20-16 (UX_TODO AI-52): a citation in the finding's own file
+                    jumps to the evidence code shown above. */}
+                {evidenceFile === c.file ? (
+                  <button
+                    type="button"
+                    className={`font-mono text-xs text-fg-faint ${JUMP_LINK}`}
+                    data-testid="ai-citation-jump"
+                    title="Show the evidence code for this file"
+                    onClick={() => jumpTo('finding-evidence')}
+                  >
+                    {c.file}:{c.line}
+                  </button>
+                ) : (
+                  <span className="font-mono text-xs text-fg-faint">
+                    {c.file}:{c.line}
+                  </span>
+                )}
                 {/* Wraps rather than scrolls: a scrollable block must be keyboard-reachable
                     (axe scrollable-region-focusable, caught at 375px), and a one-line
                     citation is better read whole than panned. */}
@@ -177,11 +218,24 @@ function Suggestion({
       ) : null}
 
       <p className="text-xs text-fg-muted" data-testid="ai-patch">
-        {s.patch.status === 'verified' && s.patch.diff
-          ? 'A patch was proposed and verified by re-scanning. See Verified fix.'
-          : s.patch.status === 'not_attempted' || !s.patch.status
-            ? 'No patch was proposed or proven for this suggestion.'
-            : `A proposed patch was not kept (${s.patch.reason ?? s.patch.status}).`}
+        {s.patch.status === 'verified' && s.patch.diff ? (
+          <>
+            A patch was proposed and verified by re-scanning. See{' '}
+            <button
+              type="button"
+              className={JUMP_LINK}
+              data-testid="ai-jump-verified-fix"
+              onClick={() => jumpTo('finding-verified-fix')}
+            >
+              Verified fix
+            </button>
+            .
+          </>
+        ) : s.patch.status === 'not_attempted' || !s.patch.status ? (
+          'No patch was proposed or proven for this suggestion.'
+        ) : (
+          `A proposed patch was not kept (${s.patch.reason ?? s.patch.status}).`
+        )}
       </p>
 
       {open ? (
@@ -192,7 +246,9 @@ function Suggestion({
             data-testid="ai-agree"
             disabled={decide.isPending}
             aria-busy={pending === 'accepted' || undefined}
-            onClick={() => decide.mutate({ decision: 'accepted' })}
+            onClick={() =>
+              decide.mutate({ decision: 'accepted', ...(note.trim() ? { note: note.trim() } : {}) })
+            }
           >
             {pending === 'accepted' ? 'Recording…' : labels.agree}
           </button>
@@ -202,7 +258,12 @@ function Suggestion({
             data-testid="ai-disagree"
             disabled={decide.isPending}
             aria-busy={pending === 'dismissed' || undefined}
-            onClick={() => decide.mutate({ decision: 'dismissed' })}
+            onClick={() =>
+              decide.mutate({
+                decision: 'dismissed',
+                ...(note.trim() ? { note: note.trim() } : {}),
+              })
+            }
           >
             {pending === 'dismissed' ? 'Recording…' : labels.disagree}
           </button>
@@ -210,6 +271,20 @@ function Suggestion({
             Your answer is recorded on the suggestion. It does not change the finding. You can
             change it for {UNDO_MINUTES} minutes.
           </span>
+          {/* W20-16 (UX_TODO AI-40): an optional "why", kept with the answer,
+              so whoever tunes the rules or the model reads why it was wrong. */}
+          <label className="flex w-full flex-col gap-0.5 text-xs text-fg-muted">
+            Why (optional, saved with your answer)
+            <textarea
+              rows={2}
+              maxLength={NOTE_MAX}
+              className="rounded-sm border border-border bg-surface-2 px-1.5 py-1 text-fg"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              data-testid="ai-decision-note"
+              placeholder="For example: the input is validated two lines above"
+            />
+          </label>
         </div>
       ) : (
         <div data-testid="ai-decided">
@@ -221,6 +296,11 @@ function Suggestion({
                 : 'Superseded'}
             {s.decided_by ? ` by ${s.decided_by}` : ''}
             {s.decided_at ? ` on ${s.decided_at.slice(0, 10)}` : ''}.
+            {s.decision_note ? (
+              <span className="block" data-testid="ai-decision-note-shown">
+                Why: {s.decision_note}
+              </span>
+            ) : null}
             {s.can_undo ? (
               <>
                 {' '}
@@ -340,7 +420,15 @@ export function AiSuggestions({
       </p>
     );
   }
-  if (!data) return null;
+  // W20-16 (UX_TODO AI-51): one line while loading, so the drawer does not
+  // jump when the section arrives.
+  if (!data) {
+    return (
+      <p className="text-xs text-fg-faint" role="status" data-testid="ai-loading">
+        Loading AI review…
+      </p>
+    );
+  }
 
   // Read defensively: a body of another shape is "nothing recorded", never a crash.
   const raisedBy = data.raised_by ?? null;
@@ -365,6 +453,7 @@ export function AiSuggestions({
               invalidate={invalidate}
               onOfferDismiss={onOfferDismiss}
               onOfferConfirm={onOfferConfirm}
+              evidenceFile={finding?.file}
             />
           ))}
         </ul>

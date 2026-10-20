@@ -17,10 +17,11 @@ import { axisLabel, isMeasuredAxis, type RiskAxesResponse } from './contracts.js
 // unmeasured ones collapse behind one count that expands to the same names
 // and reasons the card shows.
 
-export function RiskAxisStrip({ repoId }: { repoId: string }) {
+export function RiskAxisStrip({ repoId, window }: { repoId: string; window?: string }) {
+  // W20-16 (UX_TODO DSH-82): read over the same window as the health badge.
   const { data } = useApiQuery<RiskAxesResponse>({
     endpoint: '/risk/axes',
-    query: { repo_id: repoId },
+    query: { repo_id: repoId, ...(window ? { window } : {}) },
   });
 
   const axes = data?.axes ?? [];
@@ -30,7 +31,12 @@ export function RiskAxisStrip({ repoId }: { repoId: string }) {
   const unmeasured = axes.filter((a) => !isMeasuredAxis(a));
 
   return (
-    <ul className="flex flex-wrap items-center gap-3 text-xs" data-testid="risk-axis-strip">
+    <ul
+      className="flex flex-wrap items-center gap-3 text-xs"
+      data-testid="risk-axis-strip"
+      aria-label={data?.window ? `Risk by axis, last ${data.window}` : 'Risk by axis'}
+      title={data?.window ? `Sub-scores over the last ${data.window}` : undefined}
+    >
       {measured.map((axis) => {
         const word = axis.band ? HEALTH_BAND_LABEL[axis.band] : '';
         return (

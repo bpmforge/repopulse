@@ -1,7 +1,13 @@
 import { useState } from 'react';
+import { Link } from '@tanstack/react-router';
 import { ErrorNote } from '../../components/index.js';
 import { useApiMutation, useApiQuery, queryKeyFor } from '../../api/useApiQuery.js';
-import { localDateTime, type PassStatus, type ScheduleResponse } from '../findings/aiContracts.js';
+import {
+  READABLE_SOURCES,
+  localDateTime,
+  type PassStatus,
+  type ScheduleResponse,
+} from '../findings/aiContracts.js';
 
 // Scheduled AI passes, on the repository's Security tab (W19-12).
 //
@@ -151,7 +157,11 @@ export function ScheduledPasses({ repoId, isAdmin }: { repoId: string; isAdmin: 
         Monthly cap: {monthly.used} of {monthly.cap} model calls used this month (
         {monthly.remaining} left). Scheduled passes stop when it is used up; passes started by hand
         count toward it but are never blocked by it. At most {data.limits.passes_per_day} passes a
-        day, each limited to 30 calls.
+        day, each limited to 30 calls. What hosted calls cost is estimated under{' '}
+        <Link to="/admin/analysis" className="text-accent hover:underline">
+          Admin → Analysis → AI spend
+        </Link>
+        .
       </p>
 
       {isAdmin && !showForm ? (
@@ -263,6 +273,11 @@ export function ScheduledPasses({ repoId, isAdmin }: { repoId: string; isAdmin: 
               />
               {/* W20-11 (UX_TODO AI-84): what a paths schedule re-reads, said
                   as plainly as the pull-request rule below. */}
+              {/* W20-16 (UX_TODO AI-85): what a paths run reads, here too. */}
+              <span className="text-fg-faint" data-testid="schedule-paths-languages">
+                Reads {READABLE_SOURCES} files only, each up to 512 KB; each run says how many files
+                it skipped.
+              </span>
               <span className="text-fg-faint" data-testid="schedule-paths-rerun">
                 Each run reads these paths again in full, up to 30 model calls. A run is skipped
                 when no new commit has been ingested since the last one; a new commit anywhere in

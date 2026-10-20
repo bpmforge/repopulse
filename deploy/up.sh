@@ -75,6 +75,47 @@ if [ ! -f .env ]; then
     cp deploy/.env.example deploy/.env"
 fi
 
+# ------------------------------------------------- overlays (W20-16, AI-74) ---
+# Extra compose files that must be part of EVERY start, read the way compose
+# reads its own variables (shell, then deploy/.env). The Claude Code CLI
+# overlay is the reason: run once without it and the worker is recreated
+# without its CLI volume, and every CLI connection silently starts failing.
+# `--with-claude-cli` records it in deploy/.env so a later plain `up.sh`
+# (restart, upgrade) keeps it.
+WITH_CLAUDE_CLI=0
+passthrough=()
+for arg in "$@"; do
+  if [ "$arg" = --with-claude-cli ]; then WITH_CLAUDE_CLI=1; else passthrough+=("$arg"); fi
+done
+set -- ${passthrough[@]+"${passthrough[@]}"}
+
+extra_files="$(env_value COMPOSE_EXTRA_FILES)"
+if [ "$WITH_CLAUDE_CLI" = 1 ]; then
+  [ -f compose.claude-cli.yaml ] ||
+    die "--with-claude-cli: deploy/compose.claude-cli.yaml is missing from this install."
+  case " $extra_files " in
+    *" compose.claude-cli.yaml "*) ;;
+    *)
+      extra_files="${extra_files:+$extra_files }compose.claude-cli.yaml"
+      # Rewrite the one line (or add it), leaving every other line as it was.
+      tmp_env="$(mktemp .env.XXXXXX)"
+      grep -v '^COMPOSE_EXTRA_FILES=' .env > "$tmp_env" || true
+      printf 'COMPOSE_EXTRA_FILES=%s\n' "$extra_files" >> "$tmp_env"
+      chmod --reference=.env "$tmp_env" 2>/dev/null || chmod 600 "$tmp_env"
+      mv "$tmp_env" .env
+      echo "overlays:   recorded COMPOSE_EXTRA_FILES=$extra_files in deploy/.env"
+      ;;
+  esac
+fi
+COMPOSE_FILES=(-f compose.yaml)
+for f in $extra_files; do
+  case "$f" in
+    */* | *..*) die "COMPOSE_EXTRA_FILES: '$f' must be a file name inside deploy/, not a path." ;;
+  esac
+  [ -f "$f" ] || die "COMPOSE_EXTRA_FILES names '$f', which is not in deploy/."
+  COMPOSE_FILES+=(-f "$f")
+done
+
 # ---------------------------------------------------------------- runtime ----
 # Explicit beats detection. On a host with both runtimes installed, detection
 # alone silently picks one, and the operator discovers which only when their
@@ -215,6 +256,7 @@ if [ "$RT" = podman ] && [ "$(id -u)" != 0 ] && command -v loginctl >/dev/null 2
 fi
 
 echo "runtime:    $RT (compose project: $REPOPULSE_PROJECT)"
+[ -n "$extra_files" ] && echo "overlays:   $extra_files"
 echo "scan-runner: $SCAN_RUNTIME via $CONTAINER_SOCKET, listening on the internal scan network"
 if ! grep -qE '^SCAN_RUNNER_TOKEN=.+' .env; then
   die "SCAN_RUNNER_TOKEN is missing from deploy/.env. It is the shared secret between
@@ -276,7 +318,7 @@ fi
 # worker dead exited 0 — so the verification below remains the real gate, but a
 # non-zero compose now prints what compose actually said.
 set +e
-compose_out="$("${COMPOSE[@]}" -p "$REPOPULSE_PROJECT" -f compose.yaml up -d "$@" 2>&1)"
+compose_out="$("${COMPOSE[@]}" -p "$REPOPULSE_PROJECT" "${COMPOSE_FILES[@]}" up -d "$@" 2>&1)"
 compose_rc=$?
 set -e
 printf '%s\n' "$compose_out"
@@ -346,7 +388,7 @@ if the old data is not wanted, remove it and start again:
     # worker were running against the un-migrated schema while this message
     # said nothing had been started. The promise below is now kept by hand,
     # on both providers.
-    "${COMPOSE[@]}" -p "$REPOPULSE_PROJECT" -f compose.yaml stop web api worker scan-runner >/dev/null 2>&1 || true
+    "${COMPOSE[@]}" -p "$REPOPULSE_PROJECT" "${COMPOSE_FILES[@]}" stop web api worker scan-runner >/dev/null 2>&1 || true
     die "DATABASE MIGRATION FAILED (exit ${m_code:-unknown}).
 
 The stack is not usable: the schema was not applied. api, worker and web have

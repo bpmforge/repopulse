@@ -7,14 +7,16 @@ function toViewConfig(config: Record<string, unknown>): ViewConfig {
   return config as ViewConfig;
 }
 
-export function serializeView(row: SavedViewRow): ViewResponse {
+export function serializeView(row: SavedViewRow, callerUserId: number): ViewResponse {
   return {
     id: row.id,
     name: row.name,
     config: toViewConfig(row.config),
     is_shared: row.isShared,
     share_slug: row.shareSlug,
-    is_default: row.isDefaultForOwner,
+    // "home" is the owner's choice; a colleague's view is never MY home.
+    is_default: row.isDefaultForOwner && row.ownerUserId === callerUserId,
+    is_owner: row.ownerUserId === callerUserId,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   };

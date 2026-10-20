@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { useApiMutation, queryKeyFor } from '../api/useApiQuery.js';
 import { ErrorNote } from '../components/primitives/ErrorNote.js';
 import type { Widget } from '../components/widget/types.js';
@@ -15,11 +15,23 @@ import { fromWidgets, type ViewConfig, type ViewResponse, type ViewWindow } from
 // stored copy of it would pin the new view to today's filter instead of
 // following the view's own scope.
 
-const VIEW_WINDOWS: readonly ViewWindow[] = ['7d', '30d', '90d', '365d'];
+const VIEW_WINDOWS: readonly ViewWindow[] = ['7d', '14d', '30d', '90d', '365d'];
 
 export interface SaveAsViewProps {
   /** The dashboard's widgets, as rendered. */
   widgets: Widget[];
+  /**
+   * W20-16 (UX_TODO FND-03): a screen that is not a widget grid (the Reviews
+   * explorer) hands over its own config — target and filters — instead.
+   */
+  config?: ViewConfig;
+  /** Button text; "Save as view…" by default. */
+  label?: string;
+  /**
+   * Stay on this screen after saving and say where the view went, rather
+   * than opening it (the Reviews explorer: the person is mid-triage).
+   */
+  stay?: boolean;
   window: string;
   /** The topbar's `repos` csv, or `all` / undefined for every repository. */
   repos: string | undefined;
@@ -47,9 +59,18 @@ export function configFromScreen(
   };
 }
 
-export function SaveAsViewButton({ widgets, window, repos, defaultName }: SaveAsViewProps) {
+export function SaveAsViewButton({
+  widgets,
+  window,
+  repos,
+  defaultName,
+  config,
+  label = 'Save as view…',
+  stay = false,
+}: SaveAsViewProps) {
   const navigate = useNavigate();
   const [naming, setNaming] = useState(false);
+  const [saved, setSaved] = useState<ViewResponse | null>(null);
   const [name, setName] = useState(defaultName);
   const create = useApiMutation<{ name: string; config: ViewConfig }, ViewResponse>(
     { endpoint: '/views', method: 'POST' },
@@ -58,14 +79,28 @@ export function SaveAsViewButton({ widgets, window, repos, defaultName }: SaveAs
 
   if (!naming) {
     return (
-      <button
-        type="button"
-        className="panel-inset px-3 py-1.5 text-sm hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-        data-testid="save-as-view"
-        onClick={() => setNaming(true)}
-      >
-        Save as view…
-      </button>
+      <>
+        {saved && (
+          <span className="text-xs text-fg-muted" role="status" data-testid="save-as-view-saved">
+            Saved as{' '}
+            <Link
+              to="/views/$viewId"
+              params={{ viewId: String(saved.id) }}
+              className="text-accent hover:underline"
+            >
+              {saved.name}
+            </Link>
+          </span>
+        )}
+        <button
+          type="button"
+          className="panel-inset px-3 py-1.5 text-sm hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          data-testid="save-as-view"
+          onClick={() => setNaming(true)}
+        >
+          {label}
+        </button>
+      </>
     );
   }
 
@@ -77,10 +112,16 @@ export function SaveAsViewButton({ widgets, window, repos, defaultName }: SaveAs
         e.preventDefault();
         if (name.trim().length === 0) return;
         create.mutate(
-          { name: name.trim(), config: configFromScreen(widgets, window, repos) },
+          { name: name.trim(), config: config ?? configFromScreen(widgets, window, repos) },
           {
-            onSuccess: (view) =>
-              void navigate({ to: '/views/$viewId', params: { viewId: String(view.id) } }),
+            onSuccess: (view) => {
+              if (stay) {
+                setSaved(view);
+                setNaming(false);
+                return;
+              }
+              void navigate({ to: '/views/$viewId', params: { viewId: String(view.id) } });
+            },
           },
         );
       }}

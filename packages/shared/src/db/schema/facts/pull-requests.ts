@@ -46,6 +46,12 @@ export const pullRequests = pgTable(
     // (claude/, copilot/, devin/...). NULL = unknown (ingested before 0035, or
     // the forge did not say) — never matched by a prefix rule.
     headRef: text('head_ref'),
+    // W20-16 (migration 0049, UX_TODO DSH-85): identities of the people the
+    // forge says were asked to review. NULL = not captured (ingested before
+    // 0049, or the forge did not say), which is NOT "nobody was asked" ('{}').
+    requestedReviewerIdentityIds: bigint('requested_reviewer_identity_ids', {
+      mode: 'number',
+    }).array(),
     // Set once the enrichment lane has fetched this PR's reviews and check
     // runs. A per-PR marker rather than a repo-level high-watermark: enrich
     // jobs run concurrently and complete out of order, so a watermark could

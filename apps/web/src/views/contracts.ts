@@ -6,12 +6,24 @@ import type { Widget, WidgetType } from '../components/widget/types.js';
 // side), so the narrowing lives here, in the layer that owns DASHBOARD.md §4's
 // Widget model.
 
-export type ViewWindow = '7d' | '30d' | '90d' | '365d';
+export type ViewWindow = '7d' | '14d' | '30d' | '90d' | '365d';
 
 export interface ViewConfig {
   repo_ids: number[];
   window: ViewWindow;
   layout: Record<string, unknown>[];
+  /**
+   * W20-16 (UX_TODO FND-03). What the view opens: the widget dashboard
+   * (absent, the default) or the Reviews explorer under `search`.
+   */
+  target?: 'dashboard' | 'findings';
+  /** The Reviews explorer's URL filters, as it validates them. */
+  search?: Record<string, string | number | boolean>;
+}
+
+/** True when a view opens the Reviews explorer rather than a dashboard. */
+export function isFindingsView(config: ViewConfig): boolean {
+  return config.target === 'findings';
 }
 
 export interface ViewResponse {
@@ -21,6 +33,8 @@ export interface ViewResponse {
   is_shared: boolean;
   share_slug: string | null;
   is_default: boolean;
+  /** W20-16 (DSH-66): the caller owns it. Absent from older APIs = assume yes. */
+  is_owner?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -99,6 +113,7 @@ export function scopeWidgets(widgets: Widget[], window: ViewWindow, repoIds: num
 
 const WINDOW_WORDS: Record<ViewWindow, string> = {
   '7d': 'Last 7 days',
+  '14d': 'Last 14 days',
   '30d': 'Last 30 days',
   '90d': 'Last 90 days',
   '365d': 'Last 365 days',

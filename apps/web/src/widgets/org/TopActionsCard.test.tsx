@@ -19,18 +19,20 @@ vi.mock('@tanstack/react-router', () => ({
   Link: ({
     to,
     search,
+    hash,
     children,
     ...rest
   }: {
     to: string;
     search?: Record<string, unknown>;
+    hash?: string;
     children: React.ReactNode;
   }) => {
     const params = new URLSearchParams(
       Object.entries(search ?? {}).map(([k, v]) => [k, String(v)]),
     ).toString();
     return (
-      <a href={params ? `${to}?${params}` : to} {...rest}>
+      <a href={`${params ? `${to}?${params}` : to}${hash ? `#${hash}` : ''}`} {...rest}>
         {children}
       </a>
     );
@@ -59,7 +61,7 @@ const planItem = (overrides: Partial<TopActionItem> = {}): TopActionItem => ({
   repo_name: null,
   effort: 'M',
   target: { kind: 'plan_item', plan_id: 3, plan_item_id: 9 },
-  href: '/plans',
+  href: '/plans#plan-item-9',
   ...overrides,
 });
 
@@ -101,6 +103,9 @@ describe('next actions card', () => {
     const planLink = screen.getByTestId('top-action-plan_item:9');
     expect(planLink.getAttribute('href')).toMatch(/^\/plans/);
     expect(planLink.getAttribute('href')).toContain('window=90d');
+    // W20-16 (UX_TODO DSH-49): to the item itself, with the Plans effort words.
+    expect(planLink.getAttribute('href')).toMatch(/#plan-item-9$/);
+    expect(planLink).toHaveTextContent('Medium effort');
   });
 
   it('renders exactly the actions it was given — no padding to three', () => {

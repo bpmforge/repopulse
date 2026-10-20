@@ -169,6 +169,8 @@ export interface RawGitlabMr {
   source_branch?: string | null;
   sha?: string | null;
   changes_count?: string | number | null;
+  /** Assigned reviewers. Unlike GitHub, GitLab keeps a reviewer here after they review. */
+  reviewers?: ({ username?: string } | null)[] | null;
 }
 
 export function normalizePR(m: RawGitlabMr): ForgePR {
@@ -195,6 +197,13 @@ export function normalizePR(m: RawGitlabMr): ForgePR {
     baseRef: m.target_branch ?? '',
     headSha: m.sha ?? '',
     ...(m.source_branch ? { headRef: m.source_branch } : {}),
+    ...(Array.isArray(m.reviewers)
+      ? {
+          requestedReviewerLogins: m.reviewers
+            .map((u) => u?.username)
+            .filter((l): l is string => typeof l === 'string' && l.length > 0),
+        }
+      : {}),
     // GitLab reports `changes_count` as a STRING, and as "32+" once it exceeds
     // its display cap — parseInt keeps the number and drops the marker rather
     // than letting NaN reach the warehouse.

@@ -16,6 +16,8 @@ test('the views list offers persona starter templates and creates one', async ({
 
   const firstTemplate = page.locator('[data-testid^="use-template-"]').first();
   await firstTemplate.click();
+  // W20-16 (DSH-54): a template asks for a name (prefilled) before it creates.
+  await page.locator('[data-testid^="create-from-template-"]').first().click();
 
   // Creating from a template lands ON the new view, not back at the list: the
   // next thing anyone wants is to look at it.
@@ -27,6 +29,7 @@ test('a saved layout survives a reload (FR-WEB-5)', async ({ page }) => {
   await loginAsFixture(page);
   await page.goto('/views');
   await page.locator('[data-testid^="use-template-"]').first().click();
+  await page.locator('[data-testid^="create-from-template-"]').first().click();
   await expect(page.getByTestId('view-detail')).toBeVisible();
   const url = page.url();
 
@@ -42,10 +45,14 @@ test('a saved layout survives a reload (FR-WEB-5)', async ({ page }) => {
   await expect(page.locator('[data-testid^="width-"]').first()).toHaveValue('4');
 });
 
-test('a shared view is readable by another workspace member (FR-WEB-4)', async ({ page, context }) => {
+test('a shared view is readable by another workspace member (FR-WEB-4)', async ({
+  page,
+  context,
+}) => {
   await loginAsFixture(page);
   await page.goto('/views');
   await page.locator('[data-testid^="use-template-"]').first().click();
+  await page.locator('[data-testid^="create-from-template-"]').first().click();
   await expect(page.getByTestId('view-detail')).toBeVisible();
 
   await page.getByTestId('share-view').click();

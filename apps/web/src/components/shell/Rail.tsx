@@ -240,7 +240,7 @@ export function Rail({ badges = {}, isAdmin = true, search }: RailProps) {
               const active = item.to === '/' ? pathname === '/' : pathname.startsWith(item.to);
               const badge = badges[item.to];
               return (
-                <li key={item.to}>
+                <li key={item.to} className="relative">
                   <Link
                     to={item.to}
                     search={search}
@@ -259,28 +259,39 @@ export function Rail({ badges = {}, isAdmin = true, search }: RailProps) {
                       <RailIcon name={item.icon} />
                     </span>
                     {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
-                    {!collapsed && badge !== undefined && badge > 0 && (
-                      // W20-12 (UX_TODO DSH-64, partial): a bare number read as
-                      // "Pull Requests 3" to a screen reader. The count is
-                      // your own review queue, and now says so.
-                      <span
-                        className="rounded-full bg-accent/15 px-1.5 py-px text-[11px] font-medium tabular-nums text-accent"
-                        aria-label={
-                          item.to === '/pull-requests'
-                            ? `${badge} ${badge === 1 ? 'review' : 'reviews'} waiting on you`
-                            : `${badge} new`
-                        }
-                        title={
-                          item.to === '/pull-requests'
-                            ? 'Reviews waiting on you — your queue is on My Focus'
-                            : undefined
-                        }
+                    {!collapsed &&
+                      badge !== undefined &&
+                      badge > 0 &&
+                      item.to !== '/pull-requests' && (
+                        <span
+                          className="rounded-full bg-accent/15 px-1.5 py-px text-[11px] font-medium tabular-nums text-accent"
+                          aria-label={`${badge} new`}
+                          data-testid={`rail-badge-${navTestId(item.to)}`}
+                        >
+                          {badge}
+                        </span>
+                      )}
+                  </Link>
+                  {/* W20-16 (UX_TODO DSH-64): the Pull Requests count is YOUR
+                      review queue, so it is its own link to that queue on My
+                      Focus rather than part of the org-wide list's link, where
+                      nothing matched the number. */}
+                  {!collapsed &&
+                    badge !== undefined &&
+                    badge > 0 &&
+                    item.to === '/pull-requests' && (
+                      <Link
+                        to="/me"
+                        hash="review-queue"
+                        search={search}
+                        className="absolute top-1/2 right-2 -translate-y-1/2 rounded-full bg-accent/15 px-1.5 py-px text-[11px] font-medium tabular-nums text-accent hover:bg-accent/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                        aria-label={`${badge} ${badge === 1 ? 'review' : 'reviews'} waiting on you — open your review queue`}
+                        title="Reviews waiting on you — opens your queue on My Focus"
                         data-testid={`rail-badge-${navTestId(item.to)}`}
                       >
                         {badge}
-                      </span>
+                      </Link>
                     )}
-                  </Link>
                 </li>
               );
             })}

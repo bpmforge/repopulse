@@ -15,6 +15,58 @@ export interface AnalysisAdminRoutesOptions {
   db: Database;
 }
 
+/**
+ * Admin-entered prices per million tokens, by the model id the egress audit
+ * records (W20-16, UX_TODO AI-08). Kept in workspaces.settings — no vendor
+ * price list ships with RepoPulse (it would be stale the day it shipped), so
+ * a figure is only shown for a model someone priced.
+ */
+export interface ModelPrice {
+  input_per_mtok: number;
+  output_per_mtok: number;
+}
+export const PRICES_KEY = 'llm_prices';
+
+export function pricesOf(
+  settings: Record<string, unknown> | null | undefined,
+): Record<string, ModelPrice> {
+  const raw = settings?.[PRICES_KEY];
+  if (!raw || typeof raw !== 'object') return {};
+  const out: Record<string, ModelPrice> = {};
+  for (const [model, v] of Object.entries(raw as Record<string, unknown>)) {
+    const p = v as Partial<ModelPrice> | null;
+    if (
+      p &&
+      typeof p.input_per_mtok === 'number' &&
+      typeof p.output_per_mtok === 'number' &&
+      Number.isFinite(p.input_per_mtok) &&
+      Number.isFinite(p.output_per_mtok)
+    ) {
+      out[model] = { input_per_mtok: p.input_per_mtok, output_per_mtok: p.output_per_mtok };
+    }
+  }
+  return out;
+}
+
+/** Estimated US dollars, or null when the model has no price or no tokens were measured. */
+export function estimateUsd(
+  price: ModelPrice | undefined,
+  tokensSent: number,
+  tokensReceived: number,
+): number | null {
+  if (!price) return null;
+  return (
+    Math.round(
+      ((tokensSent / 1_000_000) * price.input_per_mtok +
+        (tokensReceived / 1_000_000) * price.output_per_mtok) *
+        100,
+    ) / 100
+  );
+}
+
+/** How many calendar months the spend table covers, this one included. */
+const SPEND_MONTHS = 6;
+
 function fail(
   req: FastifyRequest,
   reply: FastifyReply,
@@ -169,8 +221,62 @@ export default async function analysisAdminRoutes(
               : 'No model is configured, so scheduled passes will skip and say so. Add one in Admin → Models.',
       };
 
+      // W20-16 (UX_TODO AI-08): spend per month and model, from the same
+      // audit. Calls are counted on the attempt row; tokens on the outcome
+      // row (or the single pre-W17-11 row). Calls that left with no token
+      // count reported are counted apart, so an estimate never pretends to
+      // cover them.
+      const [ws] = await db
+        .select({ settings: core.workspaces.settings })
+        .from(core.workspaces)
+        .where(eq(core.workspaces.id, workspaceId))
+        .limit(1);
+      const prices = pricesOf(ws?.settings);
+      const isOutcome = sql`(${read.egressAudit.outcome} is null or ${read.egressAudit.outcome} in ('succeeded', 'failed'))`;
+      const month = sql<string>`to_char(date_trunc('month', ${read.egressAudit.sentAt} at time zone 'UTC'), 'YYYY-MM')`;
+      const spendRows = await db
+        .select({
+          month,
+          model: read.egressAudit.modelId,
+          host: read.egressAudit.destinationHost,
+          calls: sql<number>`(count(*) filter (where ${isAttempt}))::int`,
+          tokensSent: sql<number>`coalesce(sum(${read.egressAudit.tokensSent}) filter (where ${isOutcome}), 0)::bigint`,
+          tokensReceived: sql<number>`coalesce(sum(${read.egressAudit.tokensReceived}) filter (where ${isOutcome}), 0)::bigint`,
+          unmeasured: sql<number>`(count(*) filter (where ${isOutcome} and ${read.egressAudit.tokensSent} is null))::int`,
+        })
+        .from(read.egressAudit)
+        .where(
+          and(
+            eq(read.egressAudit.workspaceId, workspaceId),
+            sql`${read.egressAudit.sentAt} >= date_trunc('month', now() at time zone 'UTC') - make_interval(months => ${SPEND_MONTHS - 1})`,
+          ),
+        )
+        .groupBy(month, read.egressAudit.modelId, read.egressAudit.destinationHost)
+        .orderBy(desc(month), read.egressAudit.modelId);
+      const spend = {
+        months: SPEND_MONTHS,
+        prices,
+        rows: spendRows
+          .filter((r) => Number(r.calls) > 0 || Number(r.tokensSent) > 0)
+          .map((r) => {
+            const sent = Number(r.tokensSent);
+            const received = Number(r.tokensReceived);
+            return {
+              month: r.month,
+              model: r.model,
+              host: r.host,
+              calls: Number(r.calls),
+              tokens_sent: sent,
+              tokens_received: received,
+              unmeasured_calls: Number(r.unmeasured),
+              estimated_usd: estimateUsd(prices[r.model], sent, received),
+            };
+          }),
+      };
+
       return reply.send({
         gateway,
+        spend,
         repos: repos.map((r) => ({
           id: r.id,
           name: `${r.org}/${r.name}`,
@@ -212,6 +318,78 @@ export default async function analysisAdminRoutes(
       });
     },
   );
+
+  /**
+   * PUT /admin/analysis/prices — set or clear one model's price (W20-16,
+   * UX_TODO AI-08). `{ model, input_per_mtok, output_per_mtok }` sets it;
+   * `{ model, clear: true }` removes it. Audited: the figures decide what
+   * the spend table tells whoever approves the bill.
+   */
+  app.put<{
+    Body: { model?: unknown; input_per_mtok?: unknown; output_per_mtok?: unknown; clear?: unknown };
+  }>('/admin/analysis/prices', { preHandler: requireAdmin }, async (request, reply) => {
+    const workspaceId = request.workspace?.id;
+    const userId = request.session.get('userId');
+    if (workspaceId === undefined || userId === undefined) {
+      return fail(request, reply, 401, 'No active session');
+    }
+    const body = request.body ?? {};
+    const model = typeof body.model === 'string' ? body.model.trim() : '';
+    if (model.length === 0 || model.length > 200) {
+      return fail(
+        request,
+        reply,
+        400,
+        'A model id is required',
+        'Use the model id the egress audit shows.',
+      );
+    }
+    const okPrice = (v: unknown): v is number =>
+      typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 10_000;
+    const clear = body.clear === true;
+    if (!clear && (!okPrice(body.input_per_mtok) || !okPrice(body.output_per_mtok))) {
+      return fail(
+        request,
+        reply,
+        400,
+        'Invalid price',
+        'Give input and output prices in US dollars per million tokens, from 0 to 10000.',
+      );
+    }
+
+    const next = await db.transaction(async (tx) => {
+      const [ws] = await tx
+        .select({ settings: core.workspaces.settings })
+        .from(core.workspaces)
+        .where(eq(core.workspaces.id, workspaceId))
+        .for('update')
+        .limit(1);
+      const settings = (ws?.settings ?? {}) as Record<string, unknown>;
+      const prices = pricesOf(settings);
+      if (clear) delete prices[model];
+      else
+        prices[model] = {
+          input_per_mtok: body.input_per_mtok as number,
+          output_per_mtok: body.output_per_mtok as number,
+        };
+      await tx
+        .update(core.workspaces)
+        .set({ settings: { ...settings, [PRICES_KEY]: prices } })
+        .where(eq(core.workspaces.id, workspaceId));
+      return prices;
+    });
+
+    auditLog(request.log, {
+      event: 'ai_pass_settings.updated',
+      actorUserId: userId,
+      workspaceId,
+      ip: request.ip,
+      ua: request.headers['user-agent'] ?? null,
+      priceModel: model,
+      price: clear ? null : next[model],
+    });
+    return reply.send({ prices: next });
+  });
 
   /** PATCH /admin/analysis/repos/:id — the opt-in toggle. Audited. */
   app.patch<{ Params: { id: string }; Body: { tier3_opt_in?: unknown; tier2_auto?: unknown } }>(

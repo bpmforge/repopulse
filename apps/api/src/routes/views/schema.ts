@@ -8,8 +8,19 @@ import { z } from 'zod';
 // web layer, not something this api-only ticket should pin down early.
 export const viewConfigSchema = z.object({
   repo_ids: z.array(z.number().int().positive()),
-  window: z.enum(['7d', '30d', '90d', '365d']),
+  window: z.enum(['7d', '14d', '30d', '90d', '365d']),
   layout: z.array(z.record(z.string(), z.unknown())),
+  /**
+   * W20-16 (UX_TODO FND-03). What the view opens: a widget dashboard (the
+   * default, and every view saved before this) or the Reviews explorer with
+   * `search` as its filters. Absent = dashboard.
+   */
+  target: z.enum(['dashboard', 'findings']).optional(),
+  /** The target screen's URL filters, as the web app validates them. */
+  search: z
+    .record(z.string().max(64), z.union([z.string().max(200), z.number(), z.boolean()]))
+    .refine((r) => Object.keys(r).length <= 32, { message: 'at most 32 filters' })
+    .optional(),
 });
 export type ViewConfig = z.infer<typeof viewConfigSchema>;
 
@@ -32,6 +43,12 @@ export type PatchViewBody = z.infer<typeof patchViewBodySchema>;
 export const viewIdParamsSchema = z.object({ id: z.coerce.number().int().positive() });
 export const shareSlugParamsSchema = z.object({ slug: z.string().min(1) });
 export const listViewsQuerySchema = z.object({
+  /**
+   * W20-16 (UX_TODO DSH-66). `mine` (default): views I own. `shared`: views
+   * colleagues shared with the workspace — they were readable by id and
+   * listed nowhere.
+   */
+  scope: z.enum(['mine', 'shared']).optional().default('mine'),
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).optional().default(20),
 });
@@ -45,6 +62,12 @@ export const viewResponseSchema = z.object({
   is_shared: z.boolean(),
   share_slug: z.string().nullable(),
   is_default: z.boolean(),
+  /**
+   * W20-16 (UX_TODO DSH-66). Whether the CALLER owns it: every mutation is
+   * owner-only, so a colleague opening a shared view must not be offered
+   * Edit, Share or Set as home that then answer 403.
+   */
+  is_owner: z.boolean(),
   created_at: z.string(),
   updated_at: z.string(),
 });

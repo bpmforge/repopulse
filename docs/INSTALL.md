@@ -524,10 +524,16 @@ time and the exact version of the statement.
    it and **Accept and turn on**. Anyone with admin rights can **Switch off**
    again; connections that use it then stop and say why.
 2. Install the CLI where the worker can run it, and sign in. The optional
-   `deploy/compose.claude-cli.yaml` gives the worker a persistent volume for the
-   CLI and its login and sets `CLAUDE_CLI_PATH` (default: `claude` on the
-   worker's `PATH`). Then, once, inside the worker container, install the CLI
-   into that volume and run `claude` to complete the login yourself.
+   `deploy/compose.claude-cli.yaml` (shipped in the bundle too) gives the worker
+   **and the api** one persistent volume for the CLI and its login and sets
+   `CLAUDE_CLI_PATH` (default: `claude` on the `PATH`). Start the stack with it
+   **once** as `deploy/up.sh --with-claude-cli`: that records
+   `COMPOSE_EXTRA_FILES=compose.claude-cli.yaml` in `deploy/.env`, so every
+   later `deploy/up.sh` (a restart or an upgrade) keeps the overlay. Started
+   without it, the containers are recreated without the volume and every CLI
+   connection fails; **System health** then says the worker cannot find the
+   CLI. Then, once, inside the worker container, install the CLI into that
+   volume and run `claude` to complete the login yourself.
 3. Add the connection (a model name such as `sonnet`; there is no key or address
    to enter). **Test connection** runs your CLI once. If the CLI is missing, or
    its login has expired, it says so in those words and nothing is sent.
@@ -546,10 +552,11 @@ in the tests), and every other path against a faked CLI. **Not checked:** a
 successful answer from a live CLI (the available login had expired and signing
 in is yours to do, not ours), installing the CLI inside the worker image, and
 the compose override. Note that `claude auth status` can report *logged in* while
-the session has expired, so **Test connection** is the only proof. Test and the
-"Found … on this server" line run in the **api** container; with the overlay the
-CLI lives in the **worker**, so on a container install they can report the CLI
-as missing even when the worker can use it.
+the session has expired, so **Test connection** is the only proof. Settings →
+Models shows two lines: what the **worker** found (it runs every pass, and checks
+every ten minutes) and what the **api** found (it runs Test connection). The
+overlay mounts the same volume into both, so they agree; if they do not, the
+stack was started without the overlay.
 
 **Removing it.** **Switch off** only withdraws the acceptance: RepoPulse stops
 using the CLI, but it stays installed and signed in inside the worker's
@@ -559,7 +566,9 @@ using the CLI, but it stays installed and signed in inside the worker's
    (`docker compose exec worker /var/lib/claude-cli/npm/bin/claude …`). This
    ends the session at Anthropic's end too; deleting the volume alone only
    forgets it locally.
-2. Start RepoPulse again without `-f deploy/compose.claude-cli.yaml`.
+2. Remove `compose.claude-cli.yaml` from `COMPOSE_EXTRA_FILES` in `deploy/.env`
+   (or the `-f deploy/compose.claude-cli.yaml` you start with by hand), then start
+   RepoPulse again with `deploy/up.sh`.
 3. Delete the volume, which holds the CLI and its login: `docker volume rm
    <project>_claude-cli` (`docker volume ls` shows the exact name).
 

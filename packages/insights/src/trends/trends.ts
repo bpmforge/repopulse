@@ -6,7 +6,13 @@ import { read, type Database } from '@repopulse/shared';
 // missing prior window ⇒ delta null (never fabricate a zero). Reads
 // metric_snapshots only — trend endpoints never recompute (FR-METRICS-13).
 
-const WINDOW_DAYS: Record<string, number> = { '7d': 7, '30d': 30, '90d': 90, '365d': 365 };
+const WINDOW_DAYS: Record<string, number> = {
+  '7d': 7,
+  '14d': 14,
+  '30d': 30,
+  '90d': 90,
+  '365d': 365,
+};
 
 export interface TrendResult {
   metricKey: string;

@@ -18,6 +18,7 @@ export const LIST_PULL_REQUESTS_QUERY = `query($owner:String!,$name:String!,$cur
         mergedBy{login}
         baseRefName headRefOid headRefName
         additions deletions changedFiles
+        reviewRequests(first:20){nodes{requestedReviewer{__typename ... on User{login}}}}
       }
     }
   }
@@ -42,6 +43,10 @@ interface GqlPrNode {
   additions: number;
   deletions: number;
   changedFiles: number;
+  /** W20-16 (DSH-85): who was asked to review. Teams carry no login and are dropped. */
+  reviewRequests?: {
+    nodes: ({ requestedReviewer: { __typename: string; login?: string } | null } | null)[];
+  } | null;
 }
 
 interface ListPullRequestsData {
@@ -73,6 +78,15 @@ function normalizeGqlPr(n: GqlPrNode): ForgePR {
     baseRef: n.baseRefName,
     headSha: n.headRefOid,
     ...(n.headRefName ? { headRef: n.headRefName } : {}),
+    ...(n.reviewRequests
+      ? {
+          requestedReviewerLogins: n.reviewRequests.nodes
+            .map((r) =>
+              r?.requestedReviewer?.__typename === 'User' ? r.requestedReviewer.login : null,
+            )
+            .filter((l): l is string => typeof l === 'string' && l.length > 0),
+        }
+      : {}),
     additions: n.additions,
     deletions: n.deletions,
     changedFiles: n.changedFiles,

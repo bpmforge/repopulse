@@ -181,19 +181,30 @@ export function MyFocus({ search }: Props) {
   const queueColumns: DataTableColumn<ReviewQueueItem>[] = [
     {
       id: 'pr',
-      // W20-09 (UX_TODO DSH-85): requested reviewers are not ingested, so
-      // this cannot be "awaiting MY review". It is what the API can know:
-      // open, non-draft, non-bot PRs by others that I have not reviewed.
-      header: 'Open PRs by others',
+      // W20-16 (UX_TODO DSH-85): requested reviewers are ingested, so a row
+      // is a PR that asks you — or, while a PR's request list is not captured
+      // yet, one by someone else you have not reviewed, marked as such.
+      header: 'Pull request',
       cell: (row) => (
-        <Link
-          to="/repos/$repoId/prs/$number"
-          params={{ repoId: String(row.repo_id), number: String(row.number) }}
-          search={search as never}
-          className="underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-        >
-          #{row.number} {row.title}
-        </Link>
+        <span className="flex flex-wrap items-center gap-1.5">
+          <Link
+            to="/repos/$repoId/prs/$number"
+            params={{ repoId: String(row.repo_id), number: String(row.number) }}
+            search={search as never}
+            className="underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          >
+            #{row.number} {row.title}
+          </Link>
+          {row.requested === null && (
+            <span
+              className="rounded-sm border border-border px-1 text-xs text-fg-muted"
+              data-testid="queue-request-unknown"
+              title="This pull request was synced before review requests were recorded. It is listed because someone else opened it and you have not reviewed it; the next sync says whether you were asked."
+            >
+              request not known yet
+            </span>
+          )}
+        </span>
       ),
     },
     ...(spansMultipleRepos(queueItems) ? [repoColumn<ReviewQueueItem>()] : []),
@@ -299,7 +310,7 @@ export function MyFocus({ search }: Props) {
           polarity="neutral"
         />
         <KpiTile
-          label="Open PRs by others (now)"
+          label="Awaiting my review (now)"
           value={queue.data ? String(queueItems.length) : null}
           polarity="neutral"
         />
@@ -351,7 +362,7 @@ export function MyFocus({ search }: Props) {
       </WidgetFrame>
 
       <WidgetFrame
-        title={`Open PRs by others you haven't reviewed (over ${REVIEW_SLA_DAYS}d flagged)`}
+        title={`Awaiting my review (over ${REVIEW_SLA_DAYS}d flagged)`}
         state={frameState({
           isLoading: queue.isLoading,
           isError: queue.isError,
@@ -359,9 +370,9 @@ export function MyFocus({ search }: Props) {
         })}
         {...(queue.error ? { errorMessage: queue.error.message, error: queue.error } : {})}
         onRetry={() => void queue.refetch()}
-        emptyMessage="No open pull requests by others are waiting without a review from you."
+        emptyMessage="No open pull request is waiting on a review from you."
       >
-        <div data-testid="review-queue">
+        <div id="review-queue" className="scroll-mt-16" data-testid="review-queue">
           <DataTable
             name="review-queue"
             columns={queueColumns}

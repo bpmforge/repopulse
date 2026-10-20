@@ -305,6 +305,38 @@ describeIfLiveInfra('GET /admin/system (W17-07)', () => {
     await hb.stop();
   });
 
+  // W20-16 (UX_TODO AI-74): a restart without the CLI overlay drops the
+  // worker's CLI; System health says so instead of passes failing silently.
+  it('flags an enabled Claude Code CLI connection the worker cannot find', async () => {
+    const [prov] = await db
+      .insert(core.llmProviders)
+      .values({ workspaceId, name: 'w20-16 cli', kind: 'claude_cli', model: 'sonnet' })
+      .returning();
+    const hb = startWorkerHeartbeat({
+      redis,
+      queues: ['ai.pass'],
+      instanceId: 'w17-07-cli',
+      claudeCli: () => ({
+        found: false,
+        version: null,
+        reportsLoggedIn: null,
+        reason: 'no "claude" on this server',
+        checkedAt: new Date().toISOString(),
+      }),
+    });
+    try {
+      await hb.beat();
+      const { body } = await getAs('w17-07-admin');
+      const models = body.components.find((c) => c.id === 'models');
+      expect(models?.state).toBe('degraded');
+      expect(models?.reason).toMatch(/worker cannot find the Claude Code CLI/);
+      expect(models?.reason).toMatch(/--with-claude-cli/);
+    } finally {
+      await hb.stop();
+      await db.delete(core.llmProviders).where(eq(core.llmProviders.id, prov!.id));
+    }
+  });
+
   // W20-10 (UX_TODO ADM-13): the version, and whether a backup has been taken
   // — read from the `ops.backup.taken` row deploy/backup.sh writes.
   it('reports the release and the last recorded backup', async () => {

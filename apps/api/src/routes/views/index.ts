@@ -1,4 +1,4 @@
-import { and, asc, eq, gt } from 'drizzle-orm';
+import { and, asc, eq, gt, ne } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { read, type Database } from '@repopulse/shared';
@@ -71,7 +71,7 @@ export default async function viewsRoutes(
       const ctx = requireContext(request);
       if (!ctx) return fail(request, reply, 401, 'No active session');
 
-      const { cursor, limit } = request.query;
+      const { cursor, limit, scope } = request.query;
       let afterId: number | null = null;
       if (cursor !== undefined) {
         afterId = decodeCursor(cursor);
@@ -84,7 +84,9 @@ export default async function viewsRoutes(
         .where(
           and(
             eq(read.savedViews.workspaceId, ctx.workspaceId),
-            eq(read.savedViews.ownerUserId, ctx.userId),
+            ...(scope === 'shared'
+              ? [eq(read.savedViews.isShared, true), ne(read.savedViews.ownerUserId, ctx.userId)]
+              : [eq(read.savedViews.ownerUserId, ctx.userId)]),
             afterId !== null ? gt(read.savedViews.id, afterId) : undefined,
           ),
         )
@@ -95,7 +97,7 @@ export default async function viewsRoutes(
       const page = hasMore ? rows.slice(0, limit) : rows;
       const lastRow = page[page.length - 1];
       return reply.send({
-        items: page.map(serializeView),
+        items: page.map((row) => serializeView(row, ctx.userId)),
         next_cursor: hasMore && lastRow ? encodeCursor(lastRow.id) : null,
       });
     },
@@ -119,7 +121,7 @@ export default async function viewsRoutes(
         })
         .returning();
       if (!row) throw new Error('saved_views insert returned no row');
-      return reply.code(201).send(serializeView(row));
+      return reply.code(201).send(serializeView(row, ctx.userId));
     },
   );
 
@@ -144,7 +146,12 @@ export default async function viewsRoutes(
       const [row] = await db
         .select()
         .from(read.savedViews)
-        .where(eq(read.savedViews.id, request.params.id))
+        .where(
+          and(
+            eq(read.savedViews.id, request.params.id),
+            eq(read.savedViews.workspaceId, ctx.workspaceId),
+          ),
+        )
         .limit(1);
       if (!row || row.workspaceId !== ctx.workspaceId)
         return fail(request, reply, 404, 'Not Found');
@@ -155,7 +162,7 @@ export default async function viewsRoutes(
       // is_default lives on the row itself (is_default_for_owner), the same
       // source the list endpoint serializes from — not a second lookup that
       // could disagree with it.
-      return reply.send(serializeView(row));
+      return reply.send(serializeView(row, ctx.userId));
     },
   );
 
@@ -175,7 +182,12 @@ export default async function viewsRoutes(
       const [existing] = await db
         .select()
         .from(read.savedViews)
-        .where(eq(read.savedViews.id, request.params.id))
+        .where(
+          and(
+            eq(read.savedViews.id, request.params.id),
+            eq(read.savedViews.workspaceId, ctx.workspaceId),
+          ),
+        )
         .limit(1);
       if (!existing || existing.workspaceId !== ctx.workspaceId) {
         return fail(request, reply, 404, 'Not Found');
@@ -190,11 +202,18 @@ export default async function viewsRoutes(
       // spreading a Partial<ViewConfig> over a full ViewConfig types each
       // overlapping field as possibly-undefined even though every field is
       // actually resolved below.
+      // W20-16: target/search (a Reviews view's filters) are kept unless the
+      // body replaces them — a rename must not turn a findings view into an
+      // empty dashboard.
+      const target = body.config?.target ?? existingConfig.target;
+      const search = body.config?.search ?? existingConfig.search;
       const nextConfig: ViewConfig | undefined = body.config
         ? {
             repo_ids: body.config.repo_ids ?? existingConfig.repo_ids,
             window: body.config.window ?? existingConfig.window,
             layout: body.config.layout ?? existingConfig.layout,
+            ...(target !== undefined ? { target } : {}),
+            ...(search !== undefined ? { search } : {}),
           }
         : undefined;
 
@@ -209,7 +228,7 @@ export default async function viewsRoutes(
         .where(eq(read.savedViews.id, request.params.id))
         .returning();
       if (!updated) throw new Error('saved_views update returned no row');
-      return reply.send(serializeView(updated));
+      return reply.send(serializeView(updated, ctx.userId));
     },
   );
 
@@ -223,7 +242,12 @@ export default async function viewsRoutes(
       const [existing] = await db
         .select()
         .from(read.savedViews)
-        .where(eq(read.savedViews.id, request.params.id))
+        .where(
+          and(
+            eq(read.savedViews.id, request.params.id),
+            eq(read.savedViews.workspaceId, ctx.workspaceId),
+          ),
+        )
         .limit(1);
       if (!existing || existing.workspaceId !== ctx.workspaceId) {
         return fail(request, reply, 404, 'Not Found');
@@ -247,7 +271,12 @@ export default async function viewsRoutes(
       const [existing] = await db
         .select()
         .from(read.savedViews)
-        .where(eq(read.savedViews.id, request.params.id))
+        .where(
+          and(
+            eq(read.savedViews.id, request.params.id),
+            eq(read.savedViews.workspaceId, ctx.workspaceId),
+          ),
+        )
         .limit(1);
       if (!existing || existing.workspaceId !== ctx.workspaceId) {
         return fail(request, reply, 404, 'Not Found');
@@ -287,7 +316,12 @@ export default async function viewsRoutes(
       const [existing] = await db
         .select()
         .from(read.savedViews)
-        .where(eq(read.savedViews.id, request.params.id))
+        .where(
+          and(
+            eq(read.savedViews.id, request.params.id),
+            eq(read.savedViews.workspaceId, ctx.workspaceId),
+          ),
+        )
         .limit(1);
       if (!existing || existing.workspaceId !== ctx.workspaceId) {
         return fail(request, reply, 404, 'Not Found');
@@ -344,7 +378,12 @@ export default async function viewsRoutes(
       const [target] = await db
         .select()
         .from(read.savedViews)
-        .where(eq(read.savedViews.id, request.body.view_id))
+        .where(
+          and(
+            eq(read.savedViews.id, request.body.view_id),
+            eq(read.savedViews.workspaceId, ctx.workspaceId),
+          ),
+        )
         .limit(1);
       if (!target || target.workspaceId !== ctx.workspaceId) {
         return fail(request, reply, 404, 'Not Found');
