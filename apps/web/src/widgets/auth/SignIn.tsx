@@ -196,7 +196,9 @@ export function SignIn({ expired }: SignInProps) {
   });
 
   return (
-    <div className="flex min-h-screen w-screen items-center justify-center bg-bg bg-[radial-gradient(70%_45%_at_50%_0%,var(--glow),transparent)] p-6 text-fg">
+    // w-full, not w-screen (W20-17, UX_TODO INS-46): 100vw adds a sideways
+    // scrollbar on desktops with classic scrollbars.
+    <div className="flex min-h-screen w-full items-center justify-center bg-bg bg-[radial-gradient(70%_45%_at_50%_0%,var(--glow),transparent)] p-6 text-fg">
       <main className="panel panel-hero w-full max-w-sm p-7" data-testid="signin">
         {/* W16-02 (F2). The demo banner is in the shell, which only mounts
             AFTER sign-in — so the one screen where a visitor needs to be told
@@ -321,6 +323,8 @@ export function SignIn({ expired }: SignInProps) {
                     type="email"
                     name="email"
                     autoComplete="username"
+                    // W20-17 (UX_TODO INS-46): typing starts on arrival.
+                    autoFocus
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}

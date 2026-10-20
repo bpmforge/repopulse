@@ -303,6 +303,20 @@ describeIfLiveInfra('admin workspace settings (W4-09)', () => {
     expect(body.stored.bot_login_globs).toEqual(['ci-bot*']);
   });
 
+  it('null restores a key to its default and leaves the others (W20-17, ADM-56)', async () => {
+    const cookie = await adminSession();
+    await patch(cookie, { stale_pr_days: 21, bot_login_globs: ['ci-bot*'] });
+    const res = await patch(cookie, { stale_pr_days: null });
+    expect(res.statusCode).toBe(200);
+    const body = (await get(cookie)).json() as {
+      stored: Record<string, unknown>;
+      effective: { stalePrDays: number };
+    };
+    expect(body.stored).not.toHaveProperty('stale_pr_days');
+    expect(body.effective.stalePrDays).toBe(7);
+    expect(body.stored.bot_login_globs).toEqual(['ci-bot*']);
+  });
+
   it('an emptied bot list is stored as empty, not as unset', async () => {
     const cookie = await adminSession();
     await patch(cookie, { bot_login_globs: [] });

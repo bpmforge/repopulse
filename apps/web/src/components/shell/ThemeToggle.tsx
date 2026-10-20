@@ -1,10 +1,10 @@
-import { useUiStore } from '../store/uiStore.js';
+import { resolveTheme, useUiStore } from '../store/uiStore.js';
 
 // Dark/light toggle (UX §3.1 rail bottom, FR-WEB-1). The theme lives in the UI
 // store (persisted); __root applies it to <html data-theme>, which flips every
 // token + the ECharts theme bridge together.
 export function ThemeToggle({ className = '' }: { className?: string }) {
-  const theme = useUiStore((s) => s.theme);
+  const theme = resolveTheme(useUiStore((s) => s.theme));
   const toggleTheme = useUiStore((s) => s.toggleTheme);
   const next = theme === 'dark' ? 'light' : 'dark';
   return (

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { authProvidersCheck } from './index.js';
+import { adminPasswordCheck, authProvidersCheck } from './index.js';
 
 // The sign-in row of the setup checklist (W15-05, D14).
 //
@@ -8,6 +8,22 @@ import { authProvidersCheck } from './index.js';
 // operator who reads "forge connection: missing" as "I cannot log in" goes and
 // registers a GitHub App they did not need — which is the exact friction D14
 // removed. These tests pin the words that prevent that reading.
+
+// W20-17 (UX_TODO INS-20): INSTALL says to remove ADMIN_PASSWORD after the
+// first sign-in; the checklist now says whether that was done.
+describe('the first-admin password row', () => {
+  it('asks for ADMIN_PASSWORD to be removed while it is still set, never echoing it', () => {
+    const check = adminPasswordCheck({ ADMIN_PASSWORD: 'not-a-real-one' });
+    expect(check.status).toBe('missing');
+    expect(check.blocking).toBe(false);
+    expect(check.detail).toContain('delete the line');
+    expect(check.detail).not.toContain('not-a-real-one');
+  });
+
+  it('is done once the variable is gone', () => {
+    expect(adminPasswordCheck({}).status).toBe('ok');
+  });
+});
 
 describe('the sign-in row tells an operator which doors are actually live', () => {
   it('reports local accounts on an install with no forge App and no IdP', () => {

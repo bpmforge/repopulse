@@ -155,6 +155,8 @@ export type AuditEvent =
   // every webhook is a change to where the forge sends deliveries.
   | 'identity.linked'
   | 'connection.webhooks_reregistered'
+  // W20-17 (UX_TODO INS-09): "track new repositories automatically" on or off.
+  | 'connection.auto_add'
   // W20-10 (UX_TODO ADM-13). Written by deploy/backup.sh straight into
   // audit_events (it has psql, not this function); listed so the name is
   // owned here. System health reads the newest one as "last backup".

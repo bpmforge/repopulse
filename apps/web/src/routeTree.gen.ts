@@ -27,6 +27,7 @@ import { Route as AdminModelsRouteImport } from './routes/admin/models'
 import { Route as AdminPatchesRouteImport } from './routes/admin/patches'
 import { Route as AdminRulesRouteImport } from './routes/admin/rules'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
+import { Route as AdminSetupRouteImport } from './routes/admin/setup'
 import { Route as AdminSyncRouteImport } from './routes/admin/sync'
 import { Route as FindingsIndexRouteImport } from './routes/findings/index'
 import { Route as PlansIndexRouteImport } from './routes/plans/index'
@@ -140,6 +141,11 @@ const AdminRulesRoute = AdminRulesRouteImport.update({
 const AdminSettingsRoute = AdminSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminSetupRoute = AdminSetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
   getParentRoute: () => AdminRouteRoute,
 } as any)
 const AdminSyncRoute = AdminSyncRouteImport.update({
@@ -282,6 +288,7 @@ export interface FileRoutesByFullPath {
   '/admin/patches': typeof AdminPatchesRoute
   '/admin/rules': typeof AdminRulesRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/admin/setup': typeof AdminSetupRoute
   '/admin/sync': typeof AdminSyncRoute
   '/views/$viewId': typeof ViewsViewIdRoute
   '/admin/': typeof AdminIndexRoute
@@ -324,6 +331,7 @@ export interface FileRoutesByTo {
   '/admin/patches': typeof AdminPatchesRoute
   '/admin/rules': typeof AdminRulesRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/admin/setup': typeof AdminSetupRoute
   '/admin/sync': typeof AdminSyncRoute
   '/views/$viewId': typeof ViewsViewIdRoute
   '/admin': typeof AdminIndexRoute
@@ -369,6 +377,7 @@ export interface FileRoutesById {
   '/admin/patches': typeof AdminPatchesRoute
   '/admin/rules': typeof AdminRulesRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/admin/setup': typeof AdminSetupRoute
   '/admin/sync': typeof AdminSyncRoute
   '/views/$viewId': typeof ViewsViewIdRoute
   '/admin/': typeof AdminIndexRoute
@@ -415,6 +424,7 @@ export interface FileRouteTypes {
     | '/admin/patches'
     | '/admin/rules'
     | '/admin/settings'
+    | '/admin/setup'
     | '/admin/sync'
     | '/views/$viewId'
     | '/admin/'
@@ -457,6 +467,7 @@ export interface FileRouteTypes {
     | '/admin/patches'
     | '/admin/rules'
     | '/admin/settings'
+    | '/admin/setup'
     | '/admin/sync'
     | '/views/$viewId'
     | '/admin'
@@ -501,6 +512,7 @@ export interface FileRouteTypes {
     | '/admin/patches'
     | '/admin/rules'
     | '/admin/settings'
+    | '/admin/setup'
     | '/admin/sync'
     | '/views/$viewId'
     | '/admin/'
@@ -673,6 +685,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/admin/settings'
       preLoaderRoute: typeof AdminSettingsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/setup': {
+      id: '/admin/setup'
+      path: '/setup'
+      fullPath: '/admin/setup'
+      preLoaderRoute: typeof AdminSetupRouteImport
       parentRoute: typeof AdminRouteRoute
     }
     '/admin/sync': {
@@ -857,6 +876,7 @@ interface AdminRouteRouteChildren {
   AdminPatchesRoute: typeof AdminPatchesRoute
   AdminRulesRoute: typeof AdminRulesRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
+  AdminSetupRoute: typeof AdminSetupRoute
   AdminSyncRoute: typeof AdminSyncRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
@@ -872,6 +892,7 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminPatchesRoute: AdminPatchesRoute,
   AdminRulesRoute: AdminRulesRoute,
   AdminSettingsRoute: AdminSettingsRoute,
+  AdminSetupRoute: AdminSetupRoute,
   AdminSyncRoute: AdminSyncRoute,
   AdminIndexRoute: AdminIndexRoute,
 }

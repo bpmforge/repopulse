@@ -2,6 +2,8 @@ import { createElement, createRef, type ReactNode } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { createQueryClient } from '../../api/queryClient.js';
 import { NavDrawer } from './NavDrawer.js';
 import { navGroups } from './Rail.js';
 
@@ -24,9 +26,15 @@ vi.mock('@tanstack/react-router', () => ({
   useRouterState: () => '/',
 }));
 
+// W20-17 (UX_TODO ADM-29): the drawer now holds the user menu, which reads
+// /me/context through the query layer.
+function wrapper({ children }: { children: ReactNode }) {
+  return <QueryClientProvider client={createQueryClient()}>{children}</QueryClientProvider>;
+}
+
 function renderDrawer(overrides: Partial<Parameters<typeof NavDrawer>[0]> = {}) {
   const onClose = vi.fn();
-  const utils = render(<NavDrawer open onClose={onClose} {...overrides} />);
+  const utils = render(<NavDrawer open onClose={onClose} {...overrides} />, { wrapper });
   return { onClose, ...utils };
 }
 
@@ -38,7 +46,7 @@ describe('NavDrawer (W17-14)', () => {
   });
 
   it('renders nothing at all when closed', () => {
-    render(<NavDrawer open={false} onClose={vi.fn()} />);
+    render(<NavDrawer open={false} onClose={vi.fn()} />, { wrapper });
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
@@ -61,7 +69,7 @@ describe('NavDrawer (W17-14)', () => {
   });
 
   it('hides Settings from a non-admin, and offers their own Account page instead', () => {
-    render(<NavDrawer open onClose={vi.fn()} isAdmin={false} />);
+    render(<NavDrawer open onClose={vi.fn()} isAdmin={false} />, { wrapper });
     expect(screen.queryByText('Settings')).toBeNull();
     // W20-04 (UX_TODO ADM-04): the slot a member clicked to meet an admin wall
     // now leads somewhere they may go.
@@ -84,7 +92,7 @@ describe('NavDrawer (W17-14)', () => {
     const ref = createRef<HTMLElement>();
     (ref as { current: HTMLElement | null }).current = trigger;
 
-    render(<NavDrawer open onClose={vi.fn()} returnFocusTo={ref} />);
+    render(<NavDrawer open onClose={vi.fn()} returnFocusTo={ref} />, { wrapper });
     await userEvent.click(screen.getByTestId('nav-drawer-close'));
 
     expect(document.activeElement).toBe(trigger);
@@ -139,7 +147,9 @@ describe('NavDrawer (W17-14)', () => {
   });
 
   it('renders a badge count, and nothing at all for zero', () => {
-    render(<NavDrawer open onClose={vi.fn()} badges={{ '/pull-requests': 4, '/repos': 0 }} />);
+    render(<NavDrawer open onClose={vi.fn()} badges={{ '/pull-requests': 4, '/repos': 0 }} />, {
+      wrapper,
+    });
     expect(screen.getByTestId('drawer-pull-requests')).toHaveTextContent('4');
     expect(screen.getByTestId('drawer-repos')).not.toHaveTextContent('0');
   });

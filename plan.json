@@ -10989,6 +10989,53 @@
           "Fixed in passing (Law 5): GET/PATCH/DELETE /views/:id looked the row up by id and checked the workspace after; the select is now workspace-filtered. /me/review-queue's repos join gained the workspace filter.",
           "Bugs noticed, not fixed: a custom date range is read as 'the last N days ending today' everywhere (only the label says so); the seed (packages/shared/src/testing/seed/seed.ts) snapshots 7d/30d/90d/365d only, so the 14d preset reads 'not computed' on a seeded stack until the nightly snapshot runs."
         ]
+      },
+      {
+        "id": "W20-17",
+        "title": "Install, admin and cross-flow round 2: auto-add, setup in admin, shell a11y, agreements, reports history",
+        "phase": 20,
+        "module": "web",
+        "stories": [],
+        "write_scope": [
+          "apps/web/**",
+          "apps/api/**",
+          "packages/ingest/src/backfill/**",
+          "packages/reports/src/**",
+          "packages/shared/drizzle/**",
+          "packages/shared/src/db/schema/core/identities.ts",
+          "packages/shared/src/logger/audit.ts",
+          "deploy/configure.mjs",
+          "deploy/.env.example",
+          "deploy/up.sh",
+          "docs/INSTALL.md",
+          "DEMO_RUNBOOK.md",
+          "docs/work/UX_TODO.md",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W20-15"
+        ],
+        "acceptance": [
+          "UX_TODO INS-09: Connections has a per-connection 'New repos' auto-add toggle (PUT /connections/:id/auto-add, admin-only, audited); the RepoPicker offers 'Track all N and auto-add new'; the nightly reconcile sweep tracks new non-archived repositories through the budgeted client; tested in auto-add.test.ts and the connections route test",
+          "Known bugs fixed: apiFetch keeps the CSRF header and caller headers; identities accept gitlab (migration 0050) and backfill/enrich label identities with the connection's forge; report tables print severity words; DELETE /connections/:id removes the registered webhooks (deleteWebhooks) and reports failures; configure.sh no longer writes WEBHOOK_SECRET",
+          "Setup lives at /admin/setup inside the admin layout (/setup redirects) with an in-app action per row, scan data, model and ADMIN_PASSWORD rows; members see the admin wall with admin logins, never admin-only error cards",
+          "Shell: one Live updates chip, skip link and focus on navigation, palette with rail names, admin actions for admins only, focus trap, backdrop close, a topbar Search button and preserved filters; phone drawer has theme and user menu; System/Light/Dark theme defaulting to the OS; toasts pause on hover/focus and carry an action; a server-unreachable screen and stale-chunk reload",
+          "Agreements can be edited, paused and deleted with range checks in the browser and the API (thresholdProblem); report history shows View only when ready, local time, a stalled-worker hint, a scroll region, and downloads named <type>-<date>-<id>.pdf; settings groups restore defaults via null (PATCH /admin/workspace) and warn before leaving unsaved edits"
+        ],
+        "points": 8,
+        "status": "done",
+        "notes": [
+          "Requested 2026-10-20 (round 2 of the open INS, ADM and X items in docs/work/UX_TODO.md, P1 first, plus five named bugs).",
+          "Fixed: INS-09, INS-15, INS-16, INS-17, INS-18, INS-19, INS-20, INS-21, INS-22, INS-23, INS-33, INS-34, INS-36, INS-39, INS-41, INS-46, INS-47, INS-49, INS-56, INS-57, INS-71; ADM-14, ADM-17, ADM-18, ADM-19, ADM-20, ADM-21, ADM-22, ADM-24, ADM-26, ADM-27, ADM-28, ADM-29, ADM-30, ADM-32, ADM-33, ADM-35, ADM-37, ADM-38, ADM-39, ADM-40, ADM-46, ADM-47, ADM-54, ADM-55, ADM-56, ADM-57, ADM-62, ADM-63, ADM-65, ADM-68, ADM-69.",
+          "Known bugs fixed: apiFetch header spread (init.headers dropped the CSRF and accept headers); identities_provider_check lacked gitlab and workers never passed provider_kind, so every identity was labelled github (migration 0050 widens the check and relabels identities in single-forge non-GitHub workspaces); non-posture report tables printed severity as a number; DELETE /connections left webhooks behind; configure.sh wrote WEBHOOK_SECRET, which nothing reads (removed, .env.example and INSTALL say why).",
+          "Defaults chosen (cheap to change): auto-add is stored per connection in workspace settings (auto_add_connection_ids, no migration) and runs in the nightly reconcile sweep only when PUBLIC_BASE_URL is set, skipping archived repositories; a new 'admin' persona whose home is /admin/setup; theme defaults to System; the admin tab formerly 'Settings' is 'Scoring'; first-run wording is 'Connect a forge'; /setup redirects to /admin/setup; members are shown up to five admin logins; the CI pass-rate agreement is typed as a percentage and stored as a fraction; the connect-forge CLI requires --provider; configure.sh deletes deploy/admin-password once .env holds it.",
+          "Partial (left unticked): INS-42 (first-run path now says 'Connect a forge' and 'organization' where touched; a full spelling sweep was not done). ADM-31 (docs links open in a new tab with a focus ring and a correct label; links still point at main, not the installed release, because the build has no version define). ADM-64 (h-dvh and a wrapping breadcrumb; the fixed header stack is not collapsed on phones).",
+          "Needs decision: INS-09 purge - should removing a repository also delete its stored history, and who may do it? INS-61 - should a sign-in by a second route with the same verified email join the existing account? INS-62 - may an admin choose the role at invite time, and should the result carry a ready-to-send message with the sign-in URL? INS-69 - should 'scheduled sync only' (no webhook registration) be a per-connection option? INS-70 - support GitHub Enterprise OAuth (new env vars) or document github.com-only sign-in? ADM-15 - where should members read agreements (Overview or Improvement plans)? ADM-48/49 - should Remove member revoke CI tokens, reassign connections and transfer saved views? ADM-61 - add a queued_at column so a retry keeps the original generated_at? ADM-72 - may reports be deleted, and by whom? X-08 - CSV/SARIF export and an external-ticket field.",
+          "Not reached: INS-30, INS-35, INS-40, INS-58, INS-59, INS-60, INS-67, INS-68; ADM-23, ADM-25, ADM-34, ADM-36, ADM-50, ADM-52, ADM-53, ADM-59, ADM-60, ADM-66, ADM-70, ADM-73, ADM-74; X-06, X-10, X-11, X-12, X-17 as before.",
+          "Re-walk of 15 random ticked items (INS-02, INS-05, INS-10, INS-13, INS-25, INS-48, INS-50, INS-52, ADM-02, ADM-07, ADM-08, ADM-16, ADM-78, X-02, X-13): all verified in code; none unticked.",
+          "Fixed in passing: the agreements PATCH update is now workspace-filtered as well as id-filtered (Law 5); providerForConnection in the worker is workspace-filtered; ErrorNote can show the problem detail (withDetail), used by agreements.",
+          "Bugs noticed, not fixed: ErrorNote shows only the problem title on most write surfaces (detail is opt-in now; several surfaces render it themselves); report retry overwrites generated_at by design (ADM-61)."
+        ]
       }
   ]
 }

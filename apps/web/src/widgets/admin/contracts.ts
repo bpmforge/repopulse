@@ -11,6 +11,8 @@ export interface ConnectionSummary {
   last4: string;
   status: string;
   repo_count: number;
+  /** New repositories are tracked by the nightly sweep (W20-17, INS-09). */
+  auto_add?: boolean;
 }
 
 export interface ConnectionList {

@@ -19,7 +19,7 @@ import type {
 } from '../types/index.js';
 import { readReportRepos, readSnapshotsAsOf, type BoundedSnapshot } from './read.js';
 import { planSections } from './plans.js';
-import { securityPostureSections } from './security-posture.js';
+import { securityPostureSections, severityWord } from './security-posture.js';
 import { codeHealthSections } from './code-health.js';
 import { axisSection, riskSections } from './risk.js';
 import { readPreviousSnapshotAt } from './previous.js';
@@ -357,7 +357,7 @@ export function createReportAssembler(db: Database): ReportAssembler {
             columns: ['Severity', 'Dimension', 'Finding', 'Where', 'Status', 'Finding #'],
             findingIdColumn: 5,
             rows: openFindings.map((f) => [
-              f.severity,
+              severityWord(f.severity),
               f.dimension,
               f.title,
               // "whole repository" rather than a bare colon, the same words

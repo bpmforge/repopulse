@@ -19,7 +19,7 @@ import { upsertCommitFiles, type RepoScope } from './writers.js';
 export interface EnrichDeps {
   db: Database;
   provider: ForgeProvider;
-  provider_kind?: 'github' | 'gitea';
+  provider_kind?: 'github' | 'gitea' | 'gitlab';
 }
 
 export interface EnrichCommitParams {

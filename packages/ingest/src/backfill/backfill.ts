@@ -3,7 +3,7 @@ import type { CallCtx, ForgeProvider, ForgeRepoFeatures, Lane, SinceQuery } from
 import type { Database } from '@repopulse/shared';
 import { writeCursor } from './cursor.js';
 import { entityErrorText, readEntityError, updateRepoEntityError } from './entity-error.js';
-import { IdentityResolver } from './identity.js';
+import { IdentityResolver, type Provider } from './identity.js';
 import {
   upsertCommits,
   upsertDeployments,
@@ -153,7 +153,7 @@ export interface BackfillDeps {
   provider: ForgeProvider;
   /** ≤N pages per job then re-enqueue (INGESTION §3, default 20). */
   maxPagesPerJob?: number;
-  provider_kind?: 'github' | 'gitea';
+  provider_kind?: 'github' | 'gitea' | 'gitlab';
 }
 
 export interface BackfillParams {
@@ -200,7 +200,10 @@ export async function ingestEntityPages(
   params: BackfillParams,
 ): Promise<BackfillResult> {
   const maxPages = deps.maxPagesPerJob ?? DEFAULT_MAX_PAGES;
-  const kind = deps.provider_kind ?? 'github';
+  // W20-17: the identity's provider is the forge it came from. provider_kind
+  // was never passed by the workers, so every Gitea and GitLab committer was
+  // stored as a GitHub identity.
+  const kind: Provider = deps.provider_kind ?? deps.provider.kind ?? 'github';
   const ctx: CallCtx = { lane: params.lane ?? 'backfill', repoId: String(params.repoId) };
   const scope: RepoScope = { workspaceId: params.workspaceId, repoId: params.repoId };
 

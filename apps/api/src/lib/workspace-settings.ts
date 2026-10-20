@@ -107,6 +107,14 @@ export const workspaceSettingsSchema = z.object({
     .optional(),
   ai_authorship_patterns: aiAuthorshipPatternsSchema.optional(),
   license_policy: licensePolicySchema.optional(),
+  /**
+   * W20-17 (UX_TODO INS-09): connections whose NEW repositories are tracked
+   * automatically. Set by "Track all and auto-add new" in the repository
+   * picker and turned off per connection; the nightly reconcile sweep lists
+   * each one's repositories and tracks any it has not seen. Kept in settings
+   * rather than a column so the choice needs no migration and is easy to move.
+   */
+  auto_add_connection_ids: z.array(z.number().int().positive()).max(200).optional(),
 });
 
 export type WorkspaceSettings = z.infer<typeof workspaceSettingsSchema>;
@@ -236,4 +244,27 @@ export async function readWorkspaceSettings(
   const parsed = workspaceSettingsSchema.safeParse(raw);
   const stored = parsed.success ? parsed.data : {};
   return { stored, effective: applyDefaults(stored), raw };
+}
+
+/**
+ * Turn "auto-add new repositories" on or off for one connection (W20-17,
+ * UX_TODO INS-09). Read-modify-write of the one key, keeping every other key
+ * (known or not) as stored. Returns the list now in effect.
+ */
+export async function setConnectionAutoAdd(
+  db: Database,
+  workspaceId: number,
+  connectionId: number,
+  enabled: boolean,
+): Promise<number[]> {
+  const { raw, stored } = await readWorkspaceSettings(db, workspaceId);
+  const current = new Set(stored.auto_add_connection_ids ?? []);
+  if (enabled) current.add(connectionId);
+  else current.delete(connectionId);
+  const next = [...current].sort((a, b) => a - b);
+  await db
+    .update(core.workspaces)
+    .set({ settings: { ...raw, auto_add_connection_ids: next } })
+    .where(eq(core.workspaces.id, workspaceId));
+  return next;
 }

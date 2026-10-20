@@ -61,6 +61,8 @@ const registerWebhook = vi.fn(
 // Records every construction so tests can assert WHICH forge a stored
 // connection was rebuilt against — a fake that ignores kind/baseUrl would hide
 // a GitHub provider being built for a Gitea row (and its token sent to GitHub).
+// W20-17: DELETE /connections removes the hooks it registered.
+const deleteWebhooks = vi.fn((_ctx: unknown, _repo: string, _url: string) => Promise.resolve(1));
 const providerBuilds: { kind: string | undefined; baseUrl: string | undefined }[] = [];
 function fakeProvider(
   _auth: GitHubAuth,
@@ -72,6 +74,7 @@ function fakeProvider(
     listRepos: (_ctx: unknown, cursor?: string) =>
       pageBehavior ? pageBehavior(cursor) : smokeBehavior().then((items) => ({ items })),
     registerWebhook,
+    deleteWebhooks,
     capabilities: { webhookScheme: kind === 'gitlab' ? 'gitlab-token' : 'hub-signature' },
   } as unknown as ForgeProvider;
 }
@@ -622,13 +625,27 @@ describeIfLiveInfra('connections routes (W2-01, FR-INGEST-1, FR-AUTH-5)', () => 
       cookies: { repopulse_sid: cookie },
       payload: { repo_forge_ids: ['201', '202'] },
     });
+    deleteWebhooks.mockClear();
+    // One hook removal fails: reported, not fatal.
+    deleteWebhooks.mockImplementationOnce(() => Promise.reject(new Error('HTTP 404')));
     const res = await app.inject({
       method: 'DELETE',
       url: `/api/v1/connections/${withRepos}`,
       cookies: { repopulse_sid: cookie },
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ id: withRepos, outcome: 'disconnected', paused_repos: 2 });
+    const body = res.json();
+    expect(body).toMatchObject({
+      id: withRepos,
+      outcome: 'disconnected',
+      paused_repos: 2,
+      webhooks_removed: 1,
+    });
+    expect(body.webhook_failures).toHaveLength(1);
+    expect(body.webhook_failures[0].error).toContain('HTTP 404');
+    // W20-17: the hooks are deleted at the URL they were registered at.
+    expect(deleteWebhooks).toHaveBeenCalledTimes(2);
+    expect(deleteWebhooks.mock.calls[0]![2]).toMatch(/\/webhooks\//);
     const [row] = await db
       .select()
       .from(core.forgeConnections)
@@ -651,13 +668,60 @@ describeIfLiveInfra('connections routes (W2-01, FR-INGEST-1, FR-AUTH-5)', () => 
       url: `/api/v1/connections/${empty}`,
       cookies: { repopulse_sid: cookie },
     });
-    expect(gone.json()).toEqual({ id: empty, outcome: 'deleted', paused_repos: 0 });
+    expect(gone.json()).toEqual({
+      id: empty,
+      outcome: 'deleted',
+      paused_repos: 0,
+      webhooks_removed: 0,
+      webhook_failures: [],
+    });
     expect(
       await db.select().from(core.forgeConnections).where(eq(core.forgeConnections.id, empty)),
     ).toHaveLength(0);
   });
 
   // UX_TODO INS-09.
+  // W20-17 (UX_TODO INS-09): "Track all and auto-add new" is remembered per
+  // connection, shown on the list, and can be turned off.
+  it('remembers auto-add for track-all, lists it and turns it off', async () => {
+    const cookie = await loginAs(app, ADMIN);
+    const connId = await newConnection(cookie);
+    const sel = await app.inject({
+      method: 'POST',
+      url: `/api/v1/connections/${connId}/repos`,
+      cookies: { repopulse_sid: cookie },
+      payload: { all_with_auto_add: true },
+    });
+    expect(sel.statusCode).toBe(200);
+    const autoAddOf = async () => {
+      const list = await app.inject({
+        method: 'GET',
+        url: '/api/v1/connections',
+        cookies: { repopulse_sid: cookie },
+      });
+      return (list.json().items as { id: number; auto_add: boolean }[]).find((c) => c.id === connId)
+        ?.auto_add;
+    };
+    expect(await autoAddOf()).toBe(true);
+    const off = await app.inject({
+      method: 'PUT',
+      url: `/api/v1/connections/${connId}/auto-add`,
+      cookies: { repopulse_sid: cookie },
+      payload: { enabled: false },
+    });
+    expect(off.json()).toEqual({ id: connId, auto_add: false });
+    expect(await autoAddOf()).toBe(false);
+
+    const member = await loginAs(app, MEMBER);
+    const refused = await app.inject({
+      method: 'PUT',
+      url: `/api/v1/connections/${connId}/auto-add`,
+      cookies: { repopulse_sid: member },
+      payload: { enabled: true },
+    });
+    expect(refused.statusCode).toBe(403);
+  });
+
   it('pauses a repo and resumes it with a fresh backfill plan', async () => {
     const cookie = await loginAs(app, ADMIN);
     const connId = await newConnection(cookie);

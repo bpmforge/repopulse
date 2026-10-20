@@ -7,7 +7,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { core, createDb, read, type Database } from '@repopulse/shared';
 import { reportDir, type ReportParams } from '@repopulse/reports';
-import reportsRoutes from './index.js';
+import reportsRoutes, { reportFileName } from './index.js';
 import errorEnvelopePlugin from '../../plugins/error-envelope.js';
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -305,5 +305,18 @@ describeIfLiveInfra('reports API lifecycle (W17-26)', () => {
     expect((await add()).statusCode).toBe(409);
     expect(schedules).toHaveLength(1);
     expect(schedules[0]).toMatchObject({ windowDays: 90 });
+  });
+});
+
+describe('reportFileName (W20-17, UX_TODO ADM-55)', () => {
+  it('names the download by type, generation date and id', () => {
+    expect(
+      reportFileName({ id: 42, type: 'org_exec', generatedAt: new Date('2026-10-19T14:03:00Z') }),
+    ).toBe('org-exec-2026-10-19-42.pdf');
+  });
+  it('keeps only header-safe characters', () => {
+    expect(reportFileName({ id: 7, type: 'a"b/../c', generatedAt: null })).toBe(
+      'a-b-c-undated-7.pdf',
+    );
   });
 });

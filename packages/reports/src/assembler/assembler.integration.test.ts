@@ -272,6 +272,8 @@ describeIfLiveInfra('report assembler', () => {
       // The id column the viewer links back to the finding (X-23).
       expect(section.findingIdColumn).toBe(5);
       expect(typeof section.rows[0]?.[5]).toBe('number');
+      // W20-17: severity in words, as the security posture table prints it.
+      expect(section.rows[0]?.[0]).toBe('critical');
     }
 
     await db.delete(read.findings).where(eq(read.findings.dedupKey, 'w16-54-dedup'));

@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Link } from '@tanstack/react-router';
 import { useUiStore, type Toast } from '../store/uiStore.js';
 
 // Toast host (DASHBOARD §6): SSE emits BATCHED toasts into the store; this
@@ -17,14 +18,39 @@ const TONE_CLASS = {
   crit: 'border-crit/40 bg-crit/10 text-fg',
 } as const;
 
-const AUTO_DISMISS_MS = 6000;
+export const AUTO_DISMISS_MS = 6000;
 
+/**
+ * One toast, with its own timer (W20-17, UX_TODO INS-34). The timer stops
+ * while the pointer is over the toast or focus is inside it (WCAG 2.2.1), so a
+ * person reading it or reaching for its link does not lose it mid-way, and
+ * starts again in full when they leave. Error toasts never time out.
+ */
 function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }) {
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const paused = hovered || focused;
+  // The latest dismiss, without restarting the timer on every parent render.
+  const dismissRef = useRef(onDismiss);
+  dismissRef.current = onDismiss;
+  useEffect(() => {
+    if (toast.tone === 'crit' || paused) return;
+    const timer = setTimeout(() => dismissRef.current(), AUTO_DISMISS_MS);
+    return () => clearTimeout(timer);
+  }, [toast.tone, paused]);
+
   return (
     <div
       className={`pointer-events-auto flex items-start gap-3 rounded-md border px-3 py-2 text-sm shadow ${TONE_CLASS[toast.tone]}`}
       data-testid="toast"
       data-tone={toast.tone}
+      data-paused={paused || undefined}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false);
+      }}
       {...(toast.tone === 'crit' ? { role: 'alert' } : {})}
     >
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -39,11 +65,21 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
             (request {toast.requestId})
           </span>
         ) : null}
+        {toast.action ? (
+          <Link
+            to={toast.action.to}
+            onClick={onDismiss}
+            className="text-xs text-accent underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            data-testid="toast-action"
+          >
+            {toast.action.label}
+          </Link>
+        ) : null}
       </div>
       <button
         type="button"
         onClick={onDismiss}
-        className="text-fg-faint hover:text-fg"
+        className="inline-flex min-h-6 min-w-6 items-center justify-center rounded-sm text-fg-faint hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
         aria-label="Dismiss notification"
       >
         ✕
@@ -55,14 +91,6 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
 export function Toaster() {
   const toasts = useUiStore((s) => s.toasts);
   const dismissToast = useUiStore((s) => s.dismissToast);
-
-  useEffect(() => {
-    // Only the non-error toasts time out; a crit one waits for the person.
-    const passing = toasts.filter((t) => t.tone !== 'crit');
-    if (passing.length === 0) return;
-    const timers = passing.map((t) => setTimeout(() => dismissToast(t.id), AUTO_DISMISS_MS));
-    return () => timers.forEach(clearTimeout);
-  }, [toasts, dismissToast]);
 
   const errors = toasts.filter((t) => t.tone === 'crit');
   const others = toasts.filter((t) => t.tone !== 'crit');

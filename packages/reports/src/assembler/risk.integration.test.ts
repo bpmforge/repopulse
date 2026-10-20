@@ -201,7 +201,7 @@ describeIfLiveInfra('risk opener', () => {
     expect(rows[0]).toEqual([
       'act',
       80,
-      5,
+      'critical',
       'eval on request input',
       'acme/risk-report · src/app.js',
       findingId,

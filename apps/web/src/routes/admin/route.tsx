@@ -28,32 +28,53 @@ const TABS: { to: string; label: string; exact?: boolean }[] = [
   { to: '/admin/models', label: 'Models' },
   // W18-29: the verified-fix attempts, beside the model that drafts them.
   { to: '/admin/patches', label: 'Verified fixes' },
-  { to: '/admin/settings', label: 'Settings' },
+  // W20-17 (UX_TODO ADM-19): "Scoring", not a third "Settings" — the page
+  // read "Overview › Settings › Settings". The URL is unchanged.
+  { to: '/admin/settings', label: 'Scoring' },
   // W20-08 (UX_TODO FND-17): minting a CI token needed curl and a copied cookie.
   { to: '/admin/ci-tokens', label: 'CI tokens' },
   // W20-10 (UX_TODO X-04): who changed what, from the persisted audit trail.
   { to: '/admin/audit', label: 'Audit log' },
-  // W11-02. Its own top-level route rather than an /admin child — the setup
-  // checklist is what an operator opens when something is not working yet, and
-  // burying it under a tab group they are already lost in helps nobody. The
-  // link lives here because this is where they look first.
-  { to: '/setup', label: 'Setup' },
+  // W11-02, moved INSIDE this layout by W20-17 (UX_TODO ADM-20): the tab used
+  // to jump to /setup, outside it, so the tabs vanished and the rail lost its
+  // highlight. /setup still works and redirects here.
+  { to: '/admin/setup', label: 'Setup' },
 ];
 
 function AdminLayout() {
   const search = Route.useSearch();
   const preserved = serializeGlobalSearch(search);
-  const { data: me, isSuccess } = useApiQuery<MeContext>({ endpoint: '/me/context' });
+  const { data: me, isSuccess, isError } = useApiQuery<MeContext>({ endpoint: '/me/context' });
 
-  if (isSuccess && me?.role !== 'admin') {
+  // W20-17 (UX_TODO ADM-21): nothing admin-only renders until the role is
+  // KNOWN. The tabs and their widgets used to mount while /me/context loaded
+  // (or after it failed), fire admin-only requests, and flash "Forbidden"
+  // cards at a member.
+  if (!isSuccess && !isError) {
+    return (
+      <div className="flex flex-col gap-4" data-testid="admin-loading" aria-busy="true">
+        <div className="h-7 w-40 animate-pulse rounded-md bg-surface-2" />
+        <div className="h-9 w-full animate-pulse rounded-md bg-surface-2" />
+        <div className="h-48 w-full animate-pulse rounded-md bg-surface-2" />
+      </div>
+    );
+  }
+
+  // An error is treated as not-admin: the API would refuse the tabs anyway.
+  if (isError || me?.role !== 'admin') {
+    const admins = me?.admin_logins ?? [];
     // W20-04 (UX_TODO ADM-04): the rail no longer sends members here, but a
     // bookmark still can — so the wall points at the page that IS theirs.
     return (
       <div className="flex flex-col gap-2">
         <WidgetFrame
-          title="Admin"
+          title="Settings"
           state="empty"
-          emptyMessage="You need an admin role in this workspace. Ask an admin to connect your organisation or change your role."
+          emptyMessage={
+            admins.length > 0
+              ? `You need an admin role in this workspace. Ask an admin (${admins.join(', ')}) to connect your organisation or change your role.`
+              : 'You need an admin role in this workspace. Ask an admin to connect your organisation or change your role.'
+          }
         />
         <p className="text-sm text-fg-muted">
           Your own theme, home screen and password are in{' '}

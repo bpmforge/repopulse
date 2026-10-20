@@ -2,6 +2,7 @@ import { and, desc, eq, gt, inArray, isNotNull, lte } from 'drizzle-orm';
 import { core, read, type Database } from '@repopulse/shared';
 import { HEALTH_BAND_LABEL, healthBand } from '@repopulse/shared/health-band';
 import type { ReportSection } from '../types/index.js';
+import { severityWord } from './security-posture.js';
 
 // The risk opener (W9-12, RISK_MODEL.md §5, FR-RISK-6).
 //
@@ -88,7 +89,7 @@ export async function riskSections(
           rows: top.map((f) => [
             f.riskBand ?? 'not priced',
             f.effectiveRisk === null ? null : Number(f.effectiveRisk),
-            f.severity,
+            severityWord(f.severity),
             f.title,
             `${repoName.get(f.repoId) ?? f.repoId}${f.file ? ` · ${f.file}` : ''}`,
             f.id,

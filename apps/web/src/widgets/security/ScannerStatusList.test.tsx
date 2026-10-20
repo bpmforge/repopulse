@@ -130,7 +130,7 @@ describe('scanner coverage table', () => {
     );
     const fix = screen.getByTestId('scanner-fix-secrets');
     expect(fix.textContent).toContain('Containerfile.scan');
-    expect(fix.textContent).toContain('RUNNING.md');
+    expect(fix.textContent).toContain('deploy/up.sh');
     // The scanner's own words are still there — the guidance is added, never
     // substituted for the error.
     expect(screen.getByTestId('scanner-error-secrets').textContent).toContain(

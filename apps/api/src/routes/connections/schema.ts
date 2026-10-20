@@ -29,7 +29,13 @@ export const connectionSummarySchema = z.object({
   repo_count: z.number(),
   /** Null on a connection created before W14-02 and not yet resolved. */
   base_url: z.string().nullable(),
+  /** New repositories on this connection are tracked nightly (W20-17, INS-09). */
+  auto_add: z.boolean(),
 });
+
+/** PUT /connections/{id}/auto-add (W20-17, UX_TODO INS-09). */
+export const autoAddBodySchema = z.object({ enabled: z.boolean() });
+export const autoAddResponseSchema = z.object({ id: z.number(), auto_add: z.boolean() });
 
 export const createConnectionResponseSchema = z.object({
   id: z.number(),
@@ -81,6 +87,10 @@ export const removeConnectionResponseSchema = z.object({
   /** `deleted` (it tracked nothing) or `disconnected` (history kept, repos paused). */
   outcome: z.enum(['deleted', 'disconnected']),
   paused_repos: z.number(),
+  /** Push hooks deleted on the forge before the credential was wiped (W20-17). */
+  webhooks_removed: z.number(),
+  /** Repositories whose hook could not be removed, with why. Remove these by hand. */
+  webhook_failures: z.array(z.object({ repo: z.string(), error: z.string() })),
 });
 
 /** PUT /repos/{id}/tracking — pause or resume one repo (W20-07, UX_TODO INS-09). */

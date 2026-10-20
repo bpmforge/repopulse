@@ -107,7 +107,7 @@ describe('RepoPicker (W20-07)', () => {
     renderPicker();
     await user.click(await screen.findByTestId('repo-select-all'));
     await waitFor(() => expect(posts).toEqual([{ all_with_auto_add: true }]));
-    expect(screen.getByTestId('repo-select-all')).toHaveTextContent('Track all 2 untracked');
+    expect(screen.getByTestId('repo-select-all')).toHaveTextContent('Track all 2 and auto-add new');
   });
 });
 

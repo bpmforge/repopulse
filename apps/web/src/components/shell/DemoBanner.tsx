@@ -26,8 +26,10 @@ export function DemoBanner() {
     >
       <span aria-hidden="true">●</span>
       <span>
-        <strong>Demo mode</strong> — fake forge, mocked sign-in, seeded fixture data. Nothing here
-        describes a real organisation.
+        {/* W20-17 (UX_TODO INS-47): sign-in here is a real password; it is the
+            forge sign-in that is mocked. */}
+        <strong>Demo mode</strong> — fake forge, mocked forge sign-in, seeded fixture data. Nothing
+        here describes a real organisation.
       </span>
     </div>
   );

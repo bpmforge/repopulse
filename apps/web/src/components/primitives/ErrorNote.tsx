@@ -1,4 +1,4 @@
-import { errorMessageOf, requestIdOf } from '../../api/client.js';
+import { errorDetailOf, errorMessageOf, requestIdOf } from '../../api/client.js';
 
 // The inline error for a WRITE (W16-18).
 //
@@ -17,17 +17,36 @@ export interface ErrorNoteProps {
   error: unknown;
   testId?: string;
   className?: string;
+  /**
+   * Also show the problem's detail (W20-17). Opt-in because several surfaces
+   * already render the detail beside the note themselves.
+   */
+  withDetail?: boolean;
 }
 
-export function ErrorNote({ error, testId = 'error-note', className = '' }: ErrorNoteProps) {
+export function ErrorNote({
+  error,
+  testId = 'error-note',
+  className = '',
+  withDetail = false,
+}: ErrorNoteProps) {
   if (error === null || error === undefined) return null;
 
   const message = errorMessageOf(error) ?? 'Something went wrong.';
   const requestId = requestIdOf(error);
+  // W20-17: the problem's detail too, when asked. It is usually the half that
+  // says what to do ("rate is a fraction between 0 and 1").
+  const detail = withDetail ? errorDetailOf(error) : undefined;
 
   return (
     <p className={`text-xs text-crit ${className}`} data-testid={testId} role="alert">
       {message}
+      {detail && detail !== message ? (
+        <span className="text-fg-muted" data-testid={`${testId}-detail`}>
+          {' '}
+          — {detail}
+        </span>
+      ) : null}
       {requestId ? (
         <>
           {' '}

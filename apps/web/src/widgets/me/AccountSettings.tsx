@@ -21,6 +21,7 @@ const PERSONA_LABELS: Record<Persona, string> = {
   developer: 'Developer — My Focus',
   security: 'Security — the review queue',
   exec: 'Executive — reports',
+  admin: 'Administrator — Settings → Setup',
 };
 
 export function AccountSettings() {
@@ -52,7 +53,8 @@ export function AccountSettings() {
           Theme
         </h2>
         <div className="flex gap-2" role="radiogroup" aria-label="Theme">
-          {(['dark', 'light'] as const).map((t) => (
+          {/* W20-17 (UX_TODO ADM-38): System follows the OS setting. */}
+          {(['system', 'light', 'dark'] as const).map((t) => (
             <button
               key={t}
               type="button"
@@ -62,7 +64,7 @@ export function AccountSettings() {
               onClick={() => setTheme(t)}
               className="rounded-md border border-border px-3 py-1.5 text-sm aria-checked:border-accent aria-checked:text-fg text-fg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
             >
-              {t === 'dark' ? 'Dark' : 'Light'}
+              {t === 'dark' ? 'Dark' : t === 'light' ? 'Light' : 'System'}
             </button>
           ))}
         </div>
@@ -73,7 +75,7 @@ export function AccountSettings() {
           Home screen
         </h2>
         <div className="flex flex-col gap-1" role="radiogroup" aria-label="Home screen">
-          {PERSONAS.map((persona) => (
+          {PERSONAS.filter((p) => p !== 'admin' || me?.role === 'admin').map((persona) => (
             <label key={persona} className="flex items-center gap-2 text-sm">
               <input
                 type="radio"

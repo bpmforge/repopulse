@@ -86,6 +86,17 @@ export interface SyncStreamCallbacks {
   onToasts(toasts: Toast[]): void;
   /** Debounced flush: which repos + whether org-level views went stale. */
   invalidate(dirty: { repoIds: number[]; org: boolean }): void;
+  /**
+   * A repository's display name for a toast (W20-17, UX_TODO INS-33). The
+   * event carries only an id; without this the toast said "Repo 41".
+   */
+  repoName?(repoId: number): string;
+  /**
+   * The stream reopened after a drop (W20-17, UX_TODO ADM-46). Events sent
+   * while it was down are not replayed, so the caller refetches what failed
+   * and marks the rest stale.
+   */
+  onReconnected?(): void;
 }
 
 const EVENT_NAMES: SyncEventType[] = ['sync.progress', 'sync.done', 'budget.warning', 'sync.repo'];
@@ -95,9 +106,32 @@ function num(v: unknown): number | undefined {
 }
 
 let toastSeq = 0;
-function makeToast(message: string, tone: Toast['tone']): Toast {
+function makeToast(message: string, tone: Toast['tone'], action?: Toast['action']): Toast {
   toastSeq += 1;
-  return { id: `sse-${toastSeq}`, message, tone };
+  return { id: `sse-${toastSeq}`, message, tone, ...(action ? { action } : {}) };
+}
+
+/**
+ * ONE toast for every repository that finished in a batch window (W20-17,
+ * UX_TODO INS-33; UX_SPEC §5 asks for batching): "payments finished syncing",
+ * or "3 repositories finished syncing: a, b, c". Exported for its test.
+ */
+export function syncDoneToast(repoIds: number[], nameOf: (id: number) => string): Toast | null {
+  if (repoIds.length === 0) return null;
+  if (repoIds.length === 1) {
+    const id = repoIds[0]!;
+    return makeToast(`${nameOf(id)} finished syncing`, 'ok', {
+      label: 'Open repository',
+      to: `/repos/${id}`,
+    });
+  }
+  const names = repoIds.slice(0, 3).map(nameOf);
+  const more = repoIds.length > 3 ? ` and ${repoIds.length - 3} more` : '';
+  return makeToast(
+    `${repoIds.length} repositories finished syncing: ${names.join(', ')}${more}`,
+    'ok',
+    { label: 'See repositories', to: '/repos' },
+  );
 }
 
 export interface SyncStream {
@@ -128,6 +162,8 @@ export function createSyncStream(
   let dirtyOrg = false;
   let invalidateTimer: ReturnType<typeof setTimeout> | null = null;
   let toastBuffer: Toast[] = [];
+  // Repositories finished in this batch window, turned into ONE toast (INS-33).
+  let doneBuffer: number[] = [];
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -147,8 +183,10 @@ export function createSyncStream(
     if (toastTimer !== null) return;
     toastTimer = setTimeout(() => {
       toastTimer = null;
-      const batch = toastBuffer;
+      const done = syncDoneToast(doneBuffer, (id) => callbacks.repoName?.(id) ?? `Repo ${id}`);
+      const batch = done ? [done, ...toastBuffer] : toastBuffer;
       toastBuffer = [];
+      doneBuffer = [];
       if (batch.length > 0) callbacks.onToasts(batch);
     }, TOAST_BATCH_MS);
   }
@@ -184,7 +222,7 @@ export function createSyncStream(
         if (repoId !== undefined) {
           callbacks.onRepoDone(repoId);
           dirtyRepos.add(repoId);
-          toastBuffer.push(makeToast(`Repo ${repoId} finished syncing`, 'ok'));
+          if (!doneBuffer.includes(repoId)) doneBuffer.push(repoId);
         }
         dirtyOrg = true;
         scheduleInvalidate();
@@ -217,8 +255,10 @@ export function createSyncStream(
     source = es;
 
     es.onopen = () => {
+      const reconnected = attempt > 0;
       attempt = 0;
       callbacks.onConnection('open');
+      if (reconnected) callbacks.onReconnected?.();
     };
     es.onerror = () => {
       if (stopped) return;
@@ -291,7 +331,17 @@ function repoNameFromCache(queryClient: QueryClient, repoId: number): string {
     const match = data?.items?.find((r) => Number(r.id) === repoId);
     if (match) return match.name;
   }
-  return `repo ${repoId}`;
+  // W20-17 (INS-33): the repositories list is the other cache that names them.
+  const lists = queryClient.getQueriesData<{
+    items?: { id: number; name: string; org?: string }[];
+  }>({
+    predicate: (query) => (query.queryKey as [string?])[0] === '/repos',
+  });
+  for (const [, data] of lists) {
+    const match = data?.items?.find((r) => Number(r.id) === repoId);
+    if (match) return match.org ? `${match.org}/${match.name}` : match.name;
+  }
+  return `Repo ${repoId}`;
 }
 
 /** Mount the single app-wide sync stream (called once, in __root). */
@@ -317,10 +367,22 @@ export function useSyncStream(createEventSource?: EventSourceFactory): void {
             id: `first-insight-${repoId}`,
             tone: 'ok',
             message: `Last 30 days ready for ${repoNameFromCache(queryClient, repoId)} — take a look`,
+            // W20-17 (UX_TODO INS-34): "take a look" now has somewhere to go.
+            action: { label: 'Open repository', to: `/repos/${repoId}` },
           },
         ]),
       onToasts: (toasts) => useUiStore.getState().pushToasts(toasts),
       invalidate: (dirty) => invalidateQueries(queryClient, dirty),
+      repoName: (repoId) => repoNameFromCache(queryClient, repoId),
+      // W20-17 (UX_TODO ADM-46): back after a drop, refetch what failed while
+      // it was down and mark everything else stale (refetched when next seen).
+      onReconnected: () => {
+        void queryClient.refetchQueries({ predicate: (q) => q.state.status === 'error' });
+        void queryClient.invalidateQueries({
+          predicate: (q) => q.state.status !== 'error',
+          refetchType: 'active',
+        });
+      },
     });
 
     return () => stream.stop();

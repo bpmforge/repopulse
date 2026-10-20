@@ -386,7 +386,7 @@ export default async function reportsRoutes(
 
     return reply
       .header('content-type', 'application/pdf')
-      .header('content-disposition', 'attachment; filename="report-' + row.id + '.pdf"')
+      .header('content-disposition', 'attachment; filename="' + reportFileName(row) + '"')
       .send(createReadStream(path));
   });
 
@@ -507,4 +507,25 @@ export default async function reportsRoutes(
       return reply.send({ key: request.params.key, deleted: true });
     },
   );
+}
+
+/**
+ * W20-17 (UX_TODO ADM-55): every download was `report-<id>.pdf`, so a
+ * recipient's downloads could not be told apart. `<type>-<date>-<id>.pdf`,
+ * the date being when it was generated; the id keeps two same-day reports of
+ * one type distinct. Only [a-z0-9-] reaches the header.
+ */
+export function reportFileName(row: {
+  id: number;
+  type: string;
+  generatedAt: Date | string | null;
+}): string {
+  const type =
+    row.type
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '') || 'report';
+  const at = row.generatedAt === null ? new Date(NaN) : new Date(row.generatedAt);
+  const date = Number.isNaN(at.getTime()) ? 'undated' : at.toISOString().slice(0, 10);
+  return `${type}-${date}-${row.id}.pdf`;
 }

@@ -1,3 +1,5 @@
+import { useApiQuery } from '../../api/useApiQuery.js';
+import type { MeContext } from '../org/contracts.js';
 import { useAuthProviders, useIdentityLink } from './contracts.js';
 
 // "Your account is not connected to a committer" (W15-04, D14, FR-AUTH-6).
@@ -25,12 +27,18 @@ import { useAuthProviders, useIdentityLink } from './contracts.js';
 export function ForgeLinkBanner() {
   const { link } = useIdentityLink();
   const { providers } = useAuthProviders();
+  const { data: me } = useApiQuery<MeContext>({ endpoint: '/me/context' });
 
   // Tested against the one state that SPEAKS rather than against 'linked', so
   // an unregistered endpoint, an older API that omits the field, or a state
   // added later all render nothing rather than a banner whose text nobody
   // chose.
   if (link?.state !== 'unlinked') return null;
+  // W20-17 (UX_TODO INS-36): before the first sync there are no committers to
+  // link to, so the warning is premature, and it told the brand-new bootstrap
+  // admin to ask an administrator (themselves).
+  if (me?.repo_count === 0) return null;
+  const isAdmin = me?.role === 'admin';
 
   return (
     <div
@@ -43,9 +51,24 @@ export function ForgeLinkBanner() {
       <span>
         <strong>Not connected to a forge account.</strong> Your personal views are empty because
         RepoPulse does not know which committer is you — not because you have no work.
-        {providers.github
-          ? ' Signing in with GitHub connects it automatically; otherwise ask an administrator to link your forge identity.'
-          : ' Ask an administrator to link your forge identity.'}
+        {isAdmin ? (
+          <>
+            {' '}
+            Link your account to your committer in{' '}
+            <a
+              href="/admin/identities"
+              className="underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              data-testid="forge-link-banner-identities"
+            >
+              Settings → Identities
+            </a>
+            .
+          </>
+        ) : providers.github ? (
+          ' Signing in with GitHub connects it automatically; otherwise ask an administrator to link your forge identity.'
+        ) : (
+          ' Ask an administrator to link your forge identity.'
+        )}
       </span>
     </div>
   );

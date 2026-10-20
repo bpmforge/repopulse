@@ -113,10 +113,10 @@ export function OrgOverview({ search }: Props) {
         state="empty"
         emptyMessage={
           isAdmin
-            ? 'No repositories are connected yet. Connect your organization to start ingesting history.'
+            ? 'No repositories are tracked yet. Connect a forge and choose repositories to start reading their history.'
             : noAdmin
               ? 'This install has no administrator yet, so nobody can connect your organization. Whoever runs the server must set ADMIN_EMAIL and ADMIN_PASSWORD in deploy/.env and restart; that account can then make you an admin in Settings → Members.'
-              : 'No repositories are connected yet. Ask an admin to connect your organization.'
+              : 'No repositories are tracked yet. Ask an admin to connect a forge.'
         }
         // W16-18. The comment above calls this a "role-appropriate CTA", and
         // until now it was only ever role-appropriate COPY: the admin was told
@@ -133,7 +133,7 @@ export function OrgOverview({ search }: Props) {
                   data-testid="welcome-connect"
                   className="rounded-sm border border-border bg-accent-strong px-3 py-1.5 text-sm text-accent-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                 >
-                  Connect an organization
+                  Connect a forge
                 </Link>
               ),
             }

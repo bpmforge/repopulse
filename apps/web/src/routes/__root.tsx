@@ -20,7 +20,7 @@ import { Toaster } from '../components/shell/Toaster.js';
 // (W16-55). Saved views live outside the org overview and cannot rely on it
 // having been visited first.
 import '../widgets/registerAll.js';
-import { useUiStore } from '../components/store/uiStore.js';
+import { resolveTheme, useUiStore } from '../components/store/uiStore.js';
 import { useSyncStream } from '../sse/useSyncStream.js';
 import { SESSION_ENDPOINT, queryKeyFor, useApiQuery, useSession } from '../api/useApiQuery.js';
 import { apiFetch, errorDetailOf } from '../api/client.js';
@@ -30,6 +30,7 @@ import { PersonaPicker } from '../widgets/onboarding/PersonaPicker.js';
 import { SignedOut } from '../widgets/auth/SignedOut.js';
 import { ForgeLinkBanner } from '../widgets/auth/ForgeLinkBanner.js';
 import { Inbox, useInbox } from '../widgets/me/Inbox.js';
+import { FirstRunPanel } from '../widgets/onboarding/FirstRunPanel.js';
 import { mergeGlobalSearch, validateGlobalSearch, type GlobalSearch } from '../api/urlState.js';
 import { serializeGlobalSearch } from '@repopulse/shared/url-state';
 
@@ -194,9 +195,22 @@ function RootShell() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   // Apply the persisted theme to <html data-theme> — flips tokens + charts.
+  // 'system' (W20-17, UX_TODO ADM-38) follows the OS and keeps following it.
+  // Print routes are always light (ADM-24): paper is white, and Ctrl+P of the
+  // viewer printed light text on a dark page.
+  const isPrintRoute = pathname.startsWith('/print/');
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-  }, [theme]);
+    const apply = () =>
+      document.documentElement.setAttribute(
+        'data-theme',
+        isPrintRoute ? 'light' : resolveTheme(theme),
+      );
+    apply();
+    if (theme !== 'system' || isPrintRoute || typeof window.matchMedia !== 'function') return;
+    const media = window.matchMedia('(prefers-color-scheme: light)');
+    media.addEventListener?.('change', apply);
+    return () => media.removeEventListener?.('change', apply);
+  }, [theme, isPrintRoute]);
 
   // Print routes render bare (W5-04). The PDF pipeline injects the report
   // (window.__REPORT_DATA) and has no session, so it neither needs nor wants
@@ -306,23 +320,33 @@ const OUTAGE_POLL_MS = 10_000;
 function OutageGate() {
   const queryClient = useQueryClient();
   const {
-    data: down,
+    data: health,
     isPending,
     refetch,
     isFetching,
-  } = useQuery<string[]>({
+  } = useQuery<{ down: string[]; unreachable: boolean }>({
     queryKey: HEALTH_KEY,
     queryFn: () =>
       apiFetch<unknown>('/healthz').then(
-        () => [],
-        (err: unknown) => downFromHealthDetail(errorDetailOf(err)),
+        () => ({ down: [], unreachable: false }),
+        (err: unknown) => {
+          const down = downFromHealthDetail(errorDetailOf(err));
+          // W20-17 (UX_TODO INS-56): /healthz itself did not answer (still
+          // migrating after up.sh, a proxy 502, the api container down). With
+          // no session behind it, the full shell with an error on every card
+          // explained nothing.
+          return { down, unreachable: down.length === 0 && isServerSideFailure(err) };
+        },
       ),
     retry: false,
     // Keep asking while it is down, so the screen clears itself on recovery.
-    refetchInterval: (q) => ((q.state.data?.length ?? 0) > 0 ? OUTAGE_POLL_MS : false),
+    refetchInterval: (q) =>
+      (q.state.data?.down.length ?? 0) > 0 || q.state.data?.unreachable ? OUTAGE_POLL_MS : false,
   });
 
-  const healthy = down !== undefined && down.length === 0;
+  const down = health?.down;
+  const healthy =
+    health !== undefined && down !== undefined && down.length === 0 && !health.unreachable;
   useEffect(() => {
     // Recovered (or never down): re-ask who this is, so the shell can tell a
     // signed-out visitor from a signed-in one again.
@@ -333,11 +357,41 @@ function OutageGate() {
   // The probe never throws (a failure IS the answer), so no data means pending.
   if (isPending || down === undefined) return <SessionProbe />;
   if (healthy) return <AppShell />;
+  if (health?.unreachable) {
+    return (
+      <div
+        className="flex h-dvh w-full flex-col items-center justify-center gap-3 bg-bg p-6 text-fg"
+        data-testid="server-unreachable"
+      >
+        <div className="panel max-w-lg p-6" role="alert">
+          <h1 className="text-base font-medium">RepoPulse can’t reach its server</h1>
+          <p className="mt-2 text-sm text-fg-muted">
+            It may still be starting up (the first start after an install or upgrade applies
+            database migrations), or a proxy in front of it is not forwarding. This page checks
+            again every {OUTAGE_POLL_MS / 1000} seconds and opens the app by itself.
+          </p>
+          <p className="mt-2 text-xs text-fg-muted">
+            Your admin can check <code className="font-mono">/healthz</code> and the logs of the api
+            container (<code className="font-mono">deploy/up.sh</code> prints how).
+          </p>
+          <button
+            type="button"
+            onClick={() => void refetch()}
+            disabled={isFetching}
+            className="mt-4 rounded-sm border border-border px-2 py-1 text-xs text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            data-testid="server-unreachable-retry"
+          >
+            {isFetching ? 'Checking…' : 'Try again'}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const names = down.map((d) => (d === 'postgres' ? 'its database' : d === 'redis' ? 'Redis' : d));
   return (
     <div
-      className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-bg p-6 text-fg"
+      className="flex h-dvh w-full flex-col items-center justify-center gap-3 bg-bg p-6 text-fg"
       data-testid="outage"
     >
       <div className="panel max-w-lg p-6" role="alert">
@@ -362,6 +416,16 @@ function OutageGate() {
       </div>
     </div>
   );
+}
+
+/**
+ * Install components System health reports as not working (W20-17, UX_TODO
+ * ADM-62). `setup_needed` and `unknown` are not faults: an optional model not
+ * configured must not light a warning on every screen.
+ */
+export function brokenComponentCount(components: { state: string }[] | undefined): number {
+  return (components ?? []).filter((c) => c.state === 'degraded' || c.state === 'unavailable')
+    .length;
 }
 
 /** True for a failure that could mean the server lost a dependency: a 5xx, or no answer at all. */
@@ -500,7 +564,7 @@ function SessionProbe() {
 
   return (
     <div
-      className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-bg text-fg-muted"
+      className="flex h-dvh w-full flex-col items-center justify-center gap-3 bg-bg text-fg-muted"
       data-testid="session-probe"
       aria-busy={!slow}
     >
@@ -584,6 +648,14 @@ function AppShell({ inert = false }: { inert?: boolean }) {
     endpoint: '/me/review-queue',
   });
   const { data: inbox } = useInbox();
+  // W20-17 (UX_TODO ADM-62): admins see, on Settings in the rail, how many
+  // install components are not working, from the System health they would
+  // otherwise only see while it was open. Same request and poll as that panel.
+  const { data: system } = useApiQuery<{ components: { state: string }[] }>(
+    { endpoint: '/admin/system' },
+    { enabled: isAdmin && !inert, refetchInterval: 60_000 },
+  );
+  const notWorking = brokenComponentCount(system?.components);
   // W20-16 (UX_TODO DSH-85/64): only the PRs the forge says ask YOU count —
   // rows listed because their request list is not captured yet do not.
   const railBadges: Record<string, number> = {
@@ -593,6 +665,7 @@ function AppShell({ inert = false }: { inert?: boolean }) {
           '/pull-requests': reviewQueue.items.filter((i) => i.requested === true).length,
         }),
     ...(inbox === undefined ? {} : { '/findings': inbox.findings_count }),
+    ...(isAdmin && notWorking > 0 ? { '/admin': notWorking } : {}),
   };
 
   // WHICH FILTERS THIS SCREEN APPLIES, and the options for the one that needs
@@ -636,12 +709,53 @@ function AppShell({ inert = false }: { inert?: boolean }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const drawerTriggerRef = useRef<HTMLButtonElement>(null);
 
+  // W20-17 (UX_TODO ADM-33, UX_SPEC §7): after a navigation, focus moves to
+  // the new page's heading (else <main>), so keyboard and screen-reader users
+  // start on the page they asked for instead of back at the rail. Not on the
+  // first render: landing on the app is not a navigation.
+  const mainRef = useRef<HTMLElement>(null);
+  const firstPath = useRef(true);
+  useEffect(() => {
+    if (firstPath.current) {
+      firstPath.current = false;
+      return;
+    }
+    const raf = requestAnimationFrame(() => {
+      const main = mainRef.current;
+      if (!main || main.contains(document.activeElement)) return;
+      const heading = main.querySelector<HTMLElement>('h1');
+      const target = heading ?? main;
+      if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+      target.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [pathname]);
+
   return (
     <div
       ref={rootRef}
-      className="flex h-screen w-screen overflow-hidden bg-bg text-fg"
+      // h-dvh (W20-17, UX_TODO ADM-64): 100vh is taller than the visible area
+      // on mobile browsers, so the bottom of each page and the toasts sat
+      // under the browser's toolbar. w-full, not w-screen: 100vw adds a
+      // horizontal scrollbar wherever scrollbars take space.
+      className="flex h-dvh w-full overflow-hidden bg-bg text-fg"
       aria-hidden={inert || undefined}
     >
+      {/* W20-17 (UX_TODO ADM-33): the first Tab stop on every page. */}
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-[70] focus:rounded-md focus:bg-surface focus:px-3 focus:py-2 focus:text-sm focus:text-fg focus:outline focus:outline-2 focus:outline-accent"
+        data-testid="skip-link"
+        onClick={(e) => {
+          e.preventDefault();
+          const main = mainRef.current;
+          if (!main) return;
+          main.setAttribute('tabindex', '-1');
+          main.focus();
+        }}
+      >
+        Skip to content
+      </a>
       {/* W17-14: the rail is DESKTOP only now. Below 768px it used to collapse
           to a column of unlabelled icons that ate 56px of a 390px screen
           permanently; narrow screens get the labelled drawer instead. */}
@@ -680,8 +794,9 @@ function AppShell({ inert = false }: { inert?: boolean }) {
             not connected to a committer — at the shell, because that is true on
             every personalized screen and not just one of them. */}
         <ForgeLinkBanner />
-        {/* Global: ⌘K works from every screen (UX_SPEC §3.3). */}
-        <CommandPalette />
+        {/* Global: ⌘K works from every screen (UX_SPEC §3.3). W20-17: named
+            and gated like the rail, and keeps the global filters. */}
+        <CommandPalette isAdmin={isAdmin} search={preservedSearch} />
         <Topbar
           value={search}
           onChange={onFilterChange}
@@ -693,10 +808,15 @@ function AppShell({ inert = false }: { inert?: boolean }) {
         {outage.down.length > 0 ? <OutageBanner {...outage} /> : null}
         {/* Hidden, not unmounted, during an outage: drafts survive (ADM-43). */}
         <main
-          className="min-h-0 flex-1 overflow-auto p-5"
+          id="main"
+          ref={mainRef}
+          className="min-h-0 flex-1 overflow-auto p-5 focus:outline-none"
           data-testid="main"
           hidden={outage.down.length > 0}
         >
+          {/* W20-17 (UX_TODO INS-17): while nothing is tracked, every persona
+              home gets the way to setup, not only Overview. */}
+          <FirstRunPanel me={me} pathname={pathname} />
           <Outlet />
         </main>
       </div>

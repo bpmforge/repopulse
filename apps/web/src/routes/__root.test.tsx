@@ -323,11 +323,26 @@ describe('unauthenticated visitor (W-FIX)', () => {
     await waitFor(() => expect(screen.getByTestId('home')).toHaveTextContent('ok'));
   });
 
-  it('keeps the shell when the API fails with something that is NOT a 401', async () => {
+  it('says the server is unreachable when nothing answers, not "sign in"', async () => {
     // An outage is not a logged-out user. Turning a 502 into a sign-in wall
-    // would have the product lie about why the screen is empty; the widgets
-    // report it honestly instead, with a request id and a retry.
+    // would have the product lie about why the screen is empty.
+    // W20-17 (UX_TODO INS-56): and with no session behind it, the full shell
+    // with an error on every card explained nothing either: one screen says
+    // the server cannot be reached, with a retry.
     respond = () => ({ status: 502, body: { title: 'Bad gateway', status: 502 } });
+    renderAt('/');
+    expect(
+      await screen.findByTestId('server-unreachable', undefined, { timeout: 8000 }),
+    ).toHaveTextContent(/can’t reach its server/);
+    expect(screen.getByTestId('server-unreachable-retry')).toBeInTheDocument();
+    expect(screen.queryByTestId('signin')).not.toBeInTheDocument();
+  }, 15000);
+
+  it('keeps the shell when only the session probe fails and /healthz is fine', async () => {
+    respond = (url) =>
+      url.includes('/healthz')
+        ? { status: 200, body: { status: 'ok' } }
+        : { status: 502, body: { title: 'Bad gateway', status: 502 } };
     renderAt('/');
     expect(await screen.findByTestId('rail', undefined, { timeout: 8000 })).toBeInTheDocument();
     expect(screen.queryByTestId('signin')).not.toBeInTheDocument();

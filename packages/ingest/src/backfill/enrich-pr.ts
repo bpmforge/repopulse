@@ -26,7 +26,7 @@ import { upsertCheckRuns, upsertReviewComments, upsertReviews, type RepoScope } 
 export interface EnrichPrDeps {
   db: Database;
   provider: ForgeProvider;
-  provider_kind?: 'github' | 'gitea';
+  provider_kind?: 'github' | 'gitea' | 'gitlab';
 }
 
 export interface EnrichPrParams {
@@ -95,7 +95,11 @@ export async function enrichPullRequest(
   const observedAt = new Date();
 
   return deps.db.transaction(async (tx) => {
-    const resolver = new IdentityResolver(tx, params.workspaceId, deps.provider_kind ?? 'github');
+    const resolver = new IdentityResolver(
+      tx,
+      params.workspaceId,
+      deps.provider_kind ?? deps.provider.kind ?? 'github',
+    );
     const r = reviews.refused
       ? 0
       : await upsertReviews(tx, scope, resolver, params.prNumber, reviews.value);

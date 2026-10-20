@@ -3,6 +3,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { SESSION_ENDPOINT, queryKeyFor } from '../../api/useApiQuery.js';
 import { errorDetailOf, requestIdOf } from '../../api/client.js';
 import { LOCAL_SESSION_KEY, abandonPendingSession, changePassword } from './contracts.js';
+import { useUiStore } from '../../components/store/uiStore.js';
+import { RepoPulseWordmark } from '../../components/brand/RepoPulseMark.js';
 
 // The forced password change (W15-04, D14).
 //
@@ -56,6 +58,12 @@ export function PasswordChange({ variant = 'forced' }: PasswordChangeProps = {})
         setNext('');
         setConfirm('');
         setSaved(true);
+      } else {
+        // W20-17 (UX_TODO INS-41): the forced change had no confirmation; the
+        // app simply appeared. The toast survives the switch to the shell.
+        useUiStore
+          .getState()
+          .pushToasts([{ id: 'password-changed', tone: 'ok', message: 'Password updated.' }]);
       }
       // The API regenerated the session and promoted it to a real one. Asking
       // the shell to re-decide is what mounts the app; this screen never
@@ -122,11 +130,18 @@ export function PasswordChange({ variant = 'forced' }: PasswordChangeProps = {})
         </>
       ) : (
         <>
+          {/* W20-17 (UX_TODO INS-41): the mark, as on the sign-in screen. */}
+          <div className="mb-4">
+            <RepoPulseWordmark />
+          </div>
           <h1 className="text-base font-medium">Choose a new password</h1>
           <p className="mt-2 text-sm text-fg-muted">
-            This account was created with a password someone else chose. Until it is replaced, this
-            is the only screen it can reach. Any other device still signed in to it is signed out
-            when you save.
+            {/* W20-17 (UX_TODO INS-41): "someone else chose" was wrong for the
+                bootstrap admin, who chose ADMIN_PASSWORD themselves. */}
+            The password this account started with was set at install or by an admin, and is stored
+            where others may have seen it, so choose a new one. Until you do, this is the only
+            screen the account can reach. Any other device still signed in to it is signed out when
+            you save.
           </p>
         </>
       )}
@@ -165,6 +180,8 @@ export function PasswordChange({ variant = 'forced' }: PasswordChangeProps = {})
             data-testid="password-current"
             type="password"
             autoComplete="current-password"
+            // W20-17 (UX_TODO INS-46): the only thing to do on this screen.
+            autoFocus={variant === 'forced'}
             required
             value={current}
             onChange={(e) => setCurrent(e.target.value)}
@@ -249,7 +266,7 @@ export function PasswordChange({ variant = 'forced' }: PasswordChangeProps = {})
   }
 
   return (
-    <div className="flex min-h-screen w-screen items-center justify-center bg-bg p-6 text-fg">
+    <div className="flex min-h-screen w-full items-center justify-center bg-bg p-6 text-fg">
       <main className="w-full max-w-sm panel p-6" data-testid="password-change">
         {body}
       </main>

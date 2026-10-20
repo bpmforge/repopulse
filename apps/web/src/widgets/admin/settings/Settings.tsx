@@ -1,4 +1,4 @@
-import { Link } from '@tanstack/react-router';
+import { Link, useBlocker } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { WidgetFrame, errorToast, frameState, useUiStore } from '../../../components/index.js';
 import { docsUrl } from '../../../lib/docs.js';
@@ -8,7 +8,7 @@ import {
   isDefaulted,
   weightsSumOk,
   type HealthWeights,
-  type StoredSettings,
+  type SettingsPatch,
   type WorkspaceSettingsResponse,
 } from './contracts.js';
 import { AiAuthorshipPatternsPanel } from './AiAuthorshipPatterns.js';
@@ -34,7 +34,7 @@ export function Settings() {
   const pushToasts = useUiStore((s) => s.pushToasts);
   const { data, isLoading, isError, error, refetch } =
     useApiQuery<WorkspaceSettingsResponse>(SETTINGS);
-  const save = useApiMutation<StoredSettings, WorkspaceSettingsResponse>(
+  const save = useApiMutation<SettingsPatch, WorkspaceSettingsResponse>(
     { ...SETTINGS, method: 'PATCH' },
     { invalidate: [queryKeyFor(SETTINGS)] },
   );
@@ -42,6 +42,7 @@ export function Settings() {
   const [weights, setWeights] = useState<HealthWeights | null>(null);
   const [bots, setBots] = useState<string | null>(null);
   const [staleDays, setStaleDays] = useState<string | null>(null);
+  const [staleProblem, setStaleProblem] = useState<string | null>(null);
 
   // Seed the form from the server ONCE per load. Deriving the inputs from
   // `data` on every render would overwrite what the admin is typing each time
@@ -55,6 +56,41 @@ export function Settings() {
 
   const stored = data?.stored ?? {};
   const sumOk = weights ? weightsSumOk(weights) : true;
+
+  // W20-17 (UX_TODO ADM-17): leaving with unsaved edits asked nothing and
+  // lost them. Dirty = the form differs from what the server says is in effect.
+  const eff = data?.effective;
+  const dirty =
+    eff !== undefined &&
+    ((weights !== null && WEIGHT_KEYS.some(({ key }) => weights[key] !== eff.healthWeights[key])) ||
+      (bots !== null && bots !== eff.botLoginGlobs.join('\n')) ||
+      (staleDays !== null && staleDays !== String(eff.stalePrDays)));
+  useBlocker({
+    shouldBlockFn: () =>
+      !window.confirm('You have unsaved settings on this page. Leave without saving them?'),
+    disabled: !dirty,
+    enableBeforeUnload: () => dirty,
+  });
+
+  /**
+   * Restore defaults for one group (W20-17, UX_TODO ADM-56): `null` removes the
+   * stored override, the default badge returns, and the form shows the
+   * documented values again.
+   */
+  function restore(keys: (keyof SettingsPatch)[], label: string) {
+    const patch: SettingsPatch = {};
+    for (const k of keys) patch[k] = null;
+    save.mutate(patch, {
+      onSuccess: (res) => {
+        if (keys.includes('health_weights')) setWeights(res.effective.healthWeights);
+        if (keys.includes('bot_login_globs')) setBots(res.effective.botLoginGlobs.join('\n'));
+        if (keys.includes('stale_pr_days')) setStaleDays(String(res.effective.stalePrDays));
+        setStaleProblem(null);
+        onSaved(`${label} restored to defaults`);
+      },
+      onError: onFailed,
+    });
+  }
 
   function onSaved(message: string) {
     pushToasts([{ id: `settings-${Date.now()}`, tone: 'ok', message }]);
@@ -93,7 +129,7 @@ export function Settings() {
               {isDefaulted(stored, 'health_weights') && (
                 <>
                   {' '}
-                  <DefaultBadge /> METRICS.md §3 values.
+                  <DefaultBadge /> The documented starting values.
                 </>
               )}
             </p>
@@ -117,7 +153,7 @@ export function Settings() {
             {/* role=alert so the reason is announced, not just coloured. */}
             {!sumOk && (
               <p role="alert" className="text-xs text-crit" data-testid="weights-sum-error">
-                Weights must sum to 1.00 (METRICS.md §3). Currently{' '}
+                Weights must add up to 1.00. Currently{' '}
                 {(
                   weights.activity +
                   weights.reviewHygiene +
@@ -127,7 +163,7 @@ export function Settings() {
                 .
               </p>
             )}
-            <div>
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 type="submit"
                 disabled={save.isPending || !sumOk}
@@ -136,6 +172,17 @@ export function Settings() {
               >
                 Save weights
               </button>
+              {!isDefaulted(stored, 'health_weights') && (
+                <button
+                  type="button"
+                  className="text-xs text-accent hover:underline disabled:opacity-50"
+                  data-testid="restore-weights"
+                  disabled={save.isPending}
+                  onClick={() => restore(['health_weights'], 'Health weights')}
+                >
+                  Restore defaults
+                </button>
+              )}
             </div>
           </form>
         )}
@@ -154,7 +201,12 @@ export function Settings() {
               .map((g) => g.trim())
               .filter((g) => g.length > 0);
             const days = Number(staleDays);
-            if (!Number.isInteger(days) || days < 1) return;
+            if (!Number.isInteger(days) || days < 1 || days > 365) {
+              // W20-17 (UX_TODO ADM-17): it refused without a word.
+              setStaleProblem('Enter a whole number of days from 1 to 365.');
+              return;
+            }
+            setStaleProblem(null);
             save.mutate(
               { bot_login_globs: globs, stale_pr_days: days },
               {
@@ -192,10 +244,19 @@ export function Settings() {
               className="panel px-2 py-1 text-sm tabular-nums"
               data-testid="stale-days"
               value={staleDays ?? ''}
-              onChange={(e) => setStaleDays(e.target.value)}
+              aria-invalid={staleProblem !== null}
+              onChange={(e) => {
+                setStaleDays(e.target.value);
+                setStaleProblem(null);
+              }}
             />
           </label>
-          <div>
+          {staleProblem && (
+            <p role="alert" className="text-xs text-crit" data-testid="stale-days-error">
+              {staleProblem}
+            </p>
+          )}
+          <div className="flex flex-wrap items-center gap-3">
             <button
               type="submit"
               disabled={save.isPending}
@@ -204,10 +265,21 @@ export function Settings() {
             >
               Save
             </button>
+            {(!isDefaulted(stored, 'bot_login_globs') || !isDefaulted(stored, 'stale_pr_days')) && (
+              <button
+                type="button"
+                className="text-xs text-accent hover:underline disabled:opacity-50"
+                data-testid="restore-activity"
+                disabled={save.isPending}
+                onClick={() => restore(['bot_login_globs', 'stale_pr_days'], 'Activity settings')}
+              >
+                Restore defaults
+              </button>
+            )}
           </div>
+          {/* W20-17 (UX_TODO ADM-18): plain words; the table name meant nothing. */}
           <p className="text-xs text-fg-muted">
-            Existing snapshots are not rewritten — metric_snapshots is an append-only series, so
-            these apply from the next recompute onward.
+            Past scores are not recalculated; changes apply from the next daily update.
           </p>
         </form>
       </WidgetFrame>
@@ -266,11 +338,13 @@ export function Settings() {
             </Link>
             . Add a local or hosted OpenAI-compatible endpoint, test it, and see what answered.
           </li>
+          {/* W20-17 (UX_TODO ADM-18): what each knob does first; the variable
+              name is for whoever edits deploy/.env. */}
           <li>
-            <span className="text-fg">Per-host concurrency</span> — the{' '}
-            <code className="font-mono text-xs">LMSTUDIO_CONCURRENCY</code> environment variable on
-            the worker (default 1). Not a workspace setting: it describes the machine the model runs
-            on, not the organisation being measured.
+            <span className="text-fg">How many requests one model machine handles at once</span> —
+            set at install time, not here (default 1), because it describes the machine the model
+            runs on, not the organisation being measured. Your operator changes it with the{' '}
+            <code className="font-mono text-xs">LMSTUDIO_CONCURRENCY</code> setting.
           </li>
           <li>
             <span className="text-fg">AI spend</span> — estimated per month and model on the{' '}

@@ -28,7 +28,10 @@ import {
   resolveConnectionBaseUrl,
   type ForgeKind,
 } from './provider-factory.js';
+import { readWorkspaceSettings, setConnectionAutoAdd } from '../../lib/workspace-settings.js';
 import {
+  autoAddBodySchema,
+  autoAddResponseSchema,
   availableReposResponseSchema,
   connectionIdParamsSchema,
   connectionListResponseSchema,
@@ -43,7 +46,14 @@ import {
   selectReposResponseSchema,
 } from './schema.js';
 
-const WEBHOOK_EVENTS = ['pull_request', 'push', 'check_run', 'check_suite', 'issues', 'deployment'];
+export const WEBHOOK_EVENTS = [
+  'pull_request',
+  'push',
+  'check_run',
+  'check_suite',
+  'issues',
+  'deployment',
+];
 const CTX: CallCtx = { lane: 'user' };
 
 /**
@@ -301,6 +311,9 @@ export default async function connectionsRoutes(
         })
         .from(core.forgeConnections)
         .where(eq(core.forgeConnections.workspaceId, ctx.workspaceId));
+      const autoAdd = new Set(
+        (await readWorkspaceSettings(db, ctx.workspaceId)).stored.auto_add_connection_ids ?? [],
+      );
       return reply.send({
         items: rows.map((r) => ({
           id: r.id,
@@ -312,6 +325,7 @@ export default async function connectionsRoutes(
           status: r.status,
           repo_count: r.repoCount,
           base_url: r.baseUrl,
+          auto_add: r.status === 'active' && autoAdd.has(r.id),
         })),
       });
     },
@@ -447,6 +461,11 @@ export default async function connectionsRoutes(
           },
         },
       );
+      // W20-17 (UX_TODO INS-09): "Track all and auto-add new" also tracks
+      // repositories created later; the nightly reconcile sweep adds them.
+      if (request.body.all_with_auto_add) {
+        await setConnectionAutoAdd(db, ctx.workspaceId, request.params.id, true);
+      }
       // INS-29: name the repos whose webhook the forge refused. activateRepos
       // records that on the row rather than failing the batch, so the screen
       // used to report success with no hint that live updates were missing.
@@ -637,6 +656,38 @@ export default async function connectionsRoutes(
     },
   );
 
+  // PUT /connections/{id}/auto-add — track this connection's NEW repositories
+  // automatically, or stop doing so (👑) (W20-17, UX_TODO INS-09). Discovery
+  // runs in the nightly reconcile sweep through the budgeted client; turning
+  // it off never untracks anything already tracked.
+  typedApp.put(
+    '/connections/:id/auto-add',
+    {
+      preHandler: requireAdmin,
+      schema: {
+        params: connectionIdParamsSchema,
+        body: autoAddBodySchema,
+        response: { 200: autoAddResponseSchema },
+      },
+    },
+    async (request, reply) => {
+      const ctx = ctxOf(request);
+      if (!ctx) return fail(request, reply, 401, 'No active session');
+      const row = await loadConnection(request.params.id, ctx.workspaceId);
+      if (!row) return fail(request, reply, 404, 'Not Found');
+      if (request.body.enabled && row.status !== 'active') return removedConnection(request, reply);
+      const list = await setConnectionAutoAdd(db, ctx.workspaceId, row.id, request.body.enabled);
+      auditLog(request.log, {
+        event: 'connection.auto_add',
+        actorUserId: ctx.userId,
+        ...auditContext(request, ctx.workspaceId),
+        connectionId: row.id,
+        enabled: request.body.enabled,
+      });
+      return reply.send({ id: row.id, auto_add: list.includes(row.id) });
+    },
+  );
+
   // DELETE /connections/{id} — remove a connection (👑) (W20-07, UX_TODO INS-08).
   //
   // What happens to the tracked repositories is the whole question, so the
@@ -646,8 +697,9 @@ export default async function connectionsRoutes(
   //    are wiped, every repo is paused, and their history stays on every
   //    dashboard. Deleting the row would take `repos` and the whole warehouse
   //    with it (W16-59), which is a purge, not a disconnect, and is not offered.
-  // Webhooks are not deregistered on the forge (no provider can delete a hook
-  // yet); with the secret gone every delivery they send is refused with 401.
+  // The push webhooks it registered are deleted on the forge first (W20-17);
+  // any that cannot be are listed in the response, and with the secret gone
+  // every delivery they still send is refused with 401.
   typedApp.delete(
     '/connections/:id',
     {
@@ -662,6 +714,59 @@ export default async function connectionsRoutes(
       if (!ctx) return fail(request, reply, 401, 'No active session');
       const row = await loadConnection(request.params.id, ctx.workspaceId);
       if (!row) return fail(request, reply, 404, 'Not Found');
+
+      // W20-17: remove the push hooks this connection registered BEFORE the
+      // credential is wiped (afterwards nothing could authenticate the
+      // delete). Matched by delivery URL, like deploy/uninstall.sh (X-27), one
+      // repository at a time through the budgeted provider (Law 7). Paused
+      // repositories are included: pausing never removed their hook. A
+      // failure is reported, never fatal: the person asked to remove the
+      // connection, and an orphan hook only collects refused deliveries.
+      const hookRepos = await db
+        .select({ id: core.repos.id, org: core.repos.org, name: core.repos.name })
+        .from(core.repos)
+        .where(
+          and(eq(core.repos.workspaceId, ctx.workspaceId), eq(core.repos.connectionId, row.id)),
+        );
+      let webhooksRemoved = 0;
+      const webhookFailures: { repo: string; error: string }[] = [];
+      if (row.status === 'active' && hookRepos.length > 0) {
+        let forge: ForgeProvider | null = null;
+        try {
+          forge = await providerForConnection(row);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          for (const repo of hookRepos) {
+            webhookFailures.push({
+              repo: `${repo.org}/${repo.name}`,
+              error: message.slice(0, 300),
+            });
+          }
+        }
+        if (forge) {
+          const url = webhookUrlFor(opts.webhookUrl, forge.capabilities.webhookScheme);
+          for (const repo of hookRepos) {
+            const fullName = `${repo.org}/${repo.name}`;
+            if (!forge.deleteWebhooks) {
+              webhookFailures.push({
+                repo: fullName,
+                error: 'this forge cannot remove hooks here',
+              });
+              continue;
+            }
+            try {
+              webhooksRemoved += await forge.deleteWebhooks(
+                { lane: 'user', repoId: String(repo.id) },
+                fullName,
+                url,
+              );
+            } catch (err) {
+              const message = err instanceof Error ? err.message : String(err);
+              webhookFailures.push({ repo: fullName, error: message.slice(0, 300) });
+            }
+          }
+        }
+      }
 
       const outcome = await db.transaction(async (tx) => {
         const paused = await tx
@@ -699,6 +804,9 @@ export default async function connectionsRoutes(
         return { outcome: 'disconnected' as const, paused: paused.length };
       });
 
+      // A removed connection discovers nothing; drop its auto-add choice.
+      await setConnectionAutoAdd(db, ctx.workspaceId, row.id, false);
+
       auditLog(request.log, {
         event: 'connection.removed',
         actorUserId: ctx.userId,
@@ -706,11 +814,15 @@ export default async function connectionsRoutes(
         connectionId: row.id,
         outcome: outcome.outcome,
         pausedRepos: outcome.paused,
+        webhooksRemoved,
+        webhookFailures: webhookFailures.length,
       });
       return reply.send({
         id: row.id,
         outcome: outcome.outcome,
         paused_repos: outcome.paused,
+        webhooks_removed: webhooksRemoved,
+        webhook_failures: webhookFailures,
       });
     },
   );

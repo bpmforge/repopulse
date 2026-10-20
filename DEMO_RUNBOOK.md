@@ -2,10 +2,20 @@
 
 **Goal:** one-command customer-facing demo of clone-free GitHub org health / DD.
 
-## Packaged demo (preferred)
+Two different things are called "demo"; they are not interchangeable:
+
+| | Trial stack (packaged) | DEMO_MODE (dev) |
+|---|---|---|
+| Started by | `./deploy/demo.sh up` | `DEMO_MODE=1 pnpm dev` |
+| Address | http://localhost:8090 | http://localhost:5273 |
+| Password | `demo-password-change-me` (forced change) | `demo-password` |
+| Demo banner | no (it is the real product on fixture data) | yes ("mocked forge sign-in") |
+
+## Trial stack (packaged, preferred)
+
+From the root of a RepoPulse checkout:
 
 ```bash
-cd ~/code/repopulse
 ./deploy/demo.sh up
 ```
 
@@ -14,7 +24,7 @@ cd ~/code/repopulse
 - Stop: `./deploy/demo.sh down`
 - Reset: `./deploy/demo.sh reset`
 
-Sign-in (packaged demo): `demo@repopulse.local` / `demo-password-change-me` (forced password change on first login is real product behaviour).
+Sign-in (trial stack): `demo@repopulse.local` / `demo-password-change-me` (forced password change on first login is real product behaviour).
 
 Fixture forge token for Connections:
 
@@ -22,15 +32,16 @@ Fixture forge token for Connections:
 
 Then: Settings → Connections → Track repos → Settings → Sync → Org Overview fills as warehouse backfills.
 
-## Dev demo (alternate)
+## DEMO_MODE (dev, alternate)
 
 ```bash
-pnpm bootstrap   # if documented
+pnpm bootstrap   # writes .env, applies migrations, seeds the warehouse
 DEMO_MODE=1 pnpm dev
 ```
 
 - UI: http://localhost:5273
-- Creds (when seeded): `demo@repopulse.local` / `demo-password` (dev seed; packaged demo uses `demo-password-change-me`)
+- Creds (when seeded): `demo@repopulse.local` / `demo-password` (dev seed; the trial stack uses `demo-password-change-me`)
+- The banner says "mocked forge sign-in": the RepoPulse password sign-in is real, the forge behind it is a fake.
 
 ## Evidence
 

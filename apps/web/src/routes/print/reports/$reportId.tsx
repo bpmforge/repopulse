@@ -218,6 +218,22 @@ function PrintReport() {
     }
   }, [report]);
 
+  // W20-17 (UX_TODO ADM-55): the tab, and a browser "Save as PDF", were named
+  // after whatever page came before. Restored on leaving.
+  const docTitle = report
+    ? `${TITLES[report.params.type] ?? report.params.type} · ${new Date(report.params.windowEnd)
+        .toISOString()
+        .slice(0, 10)} · RepoPulse`
+    : null;
+  useEffect(() => {
+    if (!docTitle) return;
+    const before = document.title;
+    document.title = docTitle;
+    return () => {
+      document.title = before;
+    };
+  }, [docTitle]);
+
   if (!report) {
     // W20-04 (UX_TODO ADM-09). Only success was ever checked, so a 403, a 404
     // or an outage read "Loading…" for ever; and a report that was still

@@ -80,10 +80,31 @@ export async function providerForRepo(
   // cursors they left.
   if (repo.syncStatus === 'paused' && !opts.includePaused) return null;
 
+  const provider = await providerForConnection(deps, workspaceId, repo.connectionId);
+  if (!provider) return null;
+  return { provider, repoFullName: `${repo.org}/${repo.name}` };
+}
+
+/**
+ * The budgeted provider for one ACTIVE connection, or null when it is gone,
+ * removed, or has no usable base URL. Split out of providerForRepo (W20-17) so
+ * the nightly auto-add discovery (UX_TODO INS-09) lists a connection's
+ * repositories through the same budgeted client and credential path.
+ */
+export async function providerForConnection(
+  deps: WorkerProviderDeps,
+  workspaceId: number,
+  connectionId: number,
+): Promise<ForgeProvider | null> {
   const [conn] = await deps.db
     .select()
     .from(core.forgeConnections)
-    .where(eq(core.forgeConnections.id, repo.connectionId))
+    .where(
+      and(
+        eq(core.forgeConnections.id, connectionId),
+        eq(core.forgeConnections.workspaceId, workspaceId),
+      ),
+    )
     .limit(1);
   if (!conn || conn.status !== 'active') return null;
 
@@ -142,20 +163,17 @@ export async function providerForRepo(
     ...(conn.appInstallationId ? { installationId: conn.appInstallationId } : {}),
   });
 
-  return {
-    // BY THE CONNECTION'S DECLARED FORGE, not always GitHub. Until W14-02 this
-    // built a GitHubProvider for every connection, so a Gitea connection would
-    // have ingested through GitHub's API shapes and failed in ways that read
-    // as a broken instance rather than as the wrong adapter.
-    // Through the SINGLE construction site in routes/connections rather than a
-    // second switch here: the capability gate allows exactly one file to
-    // branch on the forge kind, and two construction sites are two places for
-    // a new forge to be half-added.
-    provider: providerForKind(conn.provider as ForgeKind, {
-      client,
-      auth: createAuthHeaderProvider(auth),
-      baseUrl: base,
-    }),
-    repoFullName: `${repo.org}/${repo.name}`,
-  };
+  // BY THE CONNECTION'S DECLARED FORGE, not always GitHub. Until W14-02 this
+  // built a GitHubProvider for every connection, so a Gitea connection would
+  // have ingested through GitHub's API shapes and failed in ways that read
+  // as a broken instance rather than as the wrong adapter.
+  // Through the SINGLE construction site in routes/connections rather than a
+  // second switch here: the capability gate allows exactly one file to
+  // branch on the forge kind, and two construction sites are two places for
+  // a new forge to be half-added.
+  return providerForKind(conn.provider as ForgeKind, {
+    client,
+    auth: createAuthHeaderProvider(auth),
+    baseUrl: base,
+  });
 }

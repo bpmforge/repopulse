@@ -10,11 +10,11 @@ import type { MeContext, UserPrefs } from '../org/contracts.js';
 // users.prefs (per-user) rather than workspaces.settings — a workspace-scoped
 // dismissal would hide one member's checklist for everyone.
 //
-// Steps are LINKS, not checkboxes. Nothing here tracks completion, and a
-// checkbox that never ticks itself is worse than no checkbox: it implies the
-// app is watching progress it is not watching. Connecting is the exception —
-// the caller already knows whether repos exist, so that one can honestly show
-// as done.
+// Steps are LINKS. A step shows as done only where the data says so (W20-17,
+// UX_TODO INS-39): connected (repositories exist), the first sync landed (a
+// repository is live) and roles assigned (anyone besides you is a member). The
+// review step has no fact behind it and never ticks. Dismissed, it comes back
+// from Settings → Setup ("Show the setup checklist again").
 
 const ME = { endpoint: '/me/context' } as const;
 
@@ -41,10 +41,18 @@ export function OnboardingChecklist({ hasRepos }: Props) {
   const isAdmin = me.role === 'admin';
   const steps: Step[] = isAdmin
     ? [
-        { label: 'Connect your organisation', to: '/admin', done: hasRepos },
+        { label: 'Connect a forge and choose repositories', to: '/admin', done: hasRepos },
+        {
+          label: 'Watch the first sync land',
+          to: '/admin/sync',
+          done: (me.live_repo_count ?? 0) > 0,
+        },
         { label: 'Review the bot list and stale-PR window', to: '/admin/settings' },
-        { label: 'Assign workspace roles', to: '/admin/members' },
-        { label: 'Watch the first sync land', to: '/admin/sync' },
+        {
+          label: 'Add people and assign roles',
+          to: '/admin/members',
+          done: (me.member_count ?? 0) > 1,
+        },
       ]
     : [
         { label: 'See what needs you today', to: '/me' },
@@ -83,6 +91,9 @@ export function OnboardingChecklist({ hasRepos }: Props) {
           >
             Dismiss
           </button>
+          <span className="ml-2 text-xs text-fg-faint">
+            You can bring it back from Settings → Setup.
+          </span>
         </div>
       </div>
     </WidgetFrame>

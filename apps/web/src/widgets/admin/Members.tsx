@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   DataTable,
   WidgetFrame,
@@ -241,16 +241,63 @@ function RoleButton({
  * agreements and triage history stay, with their login preserved beside each,
  * because the work was done and removing a login does not un-do it.
  */
-function RemoveButton({ row, onToast }: { row: MemberRow; onToast: (t: Toast[]) => void }) {
+function RemoveButton({
+  row,
+  blockedReason,
+  onToast,
+}: {
+  row: MemberRow;
+  /**
+   * Why this row cannot be removed, when the API would refuse it (W20-17,
+   * UX_TODO ADM-35): yourself, or the last admin. It used to refuse only after
+   * the consequences had been read and confirmed.
+   */
+  blockedReason?: string | null;
+  onToast: (t: Toast[]) => void;
+}) {
   const [confirming, setConfirming] = useState(false);
   const remove = useApiMutation<undefined, { user_id: number; removed: boolean }>(
     { endpoint: '/admin/members/{userId}', path: { userId: row.user_id }, method: 'DELETE' },
     { invalidate: [queryKeyFor(LIST)] },
   );
+  // W20-17 (UX_TODO ADM-69): focus follows the swap both ways, so a keyboard
+  // or screen-reader user hears the consequences and lands back on the button.
+  const textRef = useRef<HTMLParagraphElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const wasConfirming = useRef(false);
+  useEffect(() => {
+    if (confirming) textRef.current?.focus();
+    else if (wasConfirming.current) buttonRef.current?.focus();
+    wasConfirming.current = confirming;
+  }, [confirming]);
+
+  if (blockedReason) {
+    return (
+      <span className="flex flex-col gap-0.5">
+        <button
+          type="button"
+          className="w-fit rounded-md border border-border px-2 py-1 text-xs opacity-50"
+          data-testid={`member-remove-${row.user_id}`}
+          disabled
+          aria-describedby={`member-remove-why-${row.user_id}`}
+        >
+          Remove…
+        </button>
+        <span
+          id={`member-remove-why-${row.user_id}`}
+          className="text-xs text-fg-faint"
+          data-testid={`member-remove-why-${row.user_id}`}
+        >
+          {blockedReason}
+        </span>
+      </span>
+    );
+  }
 
   if (!confirming) {
     return (
       <button
+        ref={buttonRef}
         type="button"
         className="rounded-md border border-border px-2 py-1 text-xs hover:border-crit"
         data-testid={`member-remove-${row.user_id}`}
@@ -263,7 +310,7 @@ function RemoveButton({ row, onToast }: { row: MemberRow; onToast: (t: Toast[]) 
 
   return (
     <div className="flex flex-col gap-1" data-testid={`member-remove-confirm-${row.user_id}`}>
-      <p className="max-w-md text-xs text-fg-muted">
+      <p ref={textRef} tabIndex={-1} className="max-w-md text-xs text-fg-muted outline-none">
         Remove <span className="text-fg">{row.login}</span>? Their saved views go with the account.
         Reports, plans, agreements and triage history stay, still showing their name.
       </p>
@@ -314,9 +361,34 @@ export function Members() {
   const { data: me } = useApiQuery<MeContext>({ endpoint: '/me/context' });
 
   const items = data?.items ?? [];
+  const adminCount = items.filter((m) => m.role === 'admin').length;
+  /** What the API would refuse (ADM-35), said before anyone confirms. */
+  const removeBlocked = (row: MemberRow): string | null =>
+    me?.user_id === row.user_id
+      ? 'You cannot remove yourself; another admin can.'
+      : row.role === 'admin' && adminCount <= 1
+        ? 'The only admin cannot be removed; make someone else admin first.'
+        : null;
 
   const columns: DataTableColumn<MemberRow>[] = [
-    { id: 'login', header: 'Member', cell: (row) => row.login },
+    {
+      id: 'login',
+      header: 'Member',
+      // W20-17 (UX_TODO ADM-35): which row is you, and when each joined.
+      cell: (row) => (
+        <span className="flex flex-col">
+          <span data-testid={`member-login-${row.user_id}`}>
+            {row.login}
+            {me?.user_id === row.user_id && <span className="ml-1 text-fg-muted">(you)</span>}
+          </span>
+          {row.joined_at && (
+            <span className="text-xs text-fg-faint">
+              joined {new Date(row.joined_at).toLocaleDateString()}
+            </span>
+          )}
+        </span>
+      ),
+    },
     { id: 'role', header: 'Role', cell: (row) => row.role },
     {
       id: 'action',
@@ -333,7 +405,9 @@ export function Members() {
     {
       id: 'remove',
       header: 'Remove',
-      cell: (row) => <RemoveButton row={row} onToast={pushToasts} />,
+      cell: (row) => (
+        <RemoveButton row={row} blockedReason={removeBlocked(row)} onToast={pushToasts} />
+      ),
     },
   ];
 
