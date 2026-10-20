@@ -1,10 +1,11 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { oidc } from '@repopulse/auth';
 import { core, security, type Database } from '@repopulse/shared';
 import { requireAdmin } from '../../lib/rbac.js';
 import { sendProblem } from '../../lib/problem.js';
 import { ENV_REGISTRY, validateEnv } from './env-registry.js';
+import { isScheduledOnly, readWorkspaceSettings } from '../../lib/workspace-settings.js';
 
 // Setup status (W11-02, E1.2; reframed by W15-05 for D14).
 //
@@ -103,7 +104,10 @@ export function authProvidersCheck(env: NodeJS.ProcessEnv): SetupCheck {
       `Live: ${doors.join(', ')}. ` +
       (github
         ? 'A forge App is not required to sign in — it is what lets people use their forge account instead of a password.'
-        : 'No forge App is configured, and none is needed to sign in. Everyone signs in with an account created here.'),
+        : 'No forge App is configured, and none is needed to sign in. Everyone signs in with an account created here.') +
+      // W20-19 (UX_TODO INS-70, INS-61; decisions 2026-10-20).
+      ' Sign in with GitHub works with github.com only; GitHub Enterprise Server users sign in with OIDC.' +
+      ' Each sign-in method makes its own account: signing in a second way with the same email does not join the first account. Link people to their forge identity in Settings → Identities.',
     docs: 'docs/INSTALL.md#sign-in',
     blocking: true,
     action: { label: 'Open Members', to: '/admin/members' },
@@ -200,13 +204,32 @@ export default async function setupRoutes(
       .orderBy(sql`${core.webhookDelivery.receivedAt} desc`)
       .limit(1);
 
+    // W20-19 (UX_TODO INS-69): when every active connection is set to
+    // "scheduled sync only", no delivery is ever expected, and "expected
+    // before your first push" would be wrong for ever.
+    const activeConnections = await db
+      .select({ id: core.forgeConnections.id })
+      .from(core.forgeConnections)
+      .where(
+        and(
+          eq(core.forgeConnections.workspaceId, workspaceId),
+          eq(core.forgeConnections.status, 'active'),
+        ),
+      );
+    const settings = (await readWorkspaceSettings(db, workspaceId)).stored;
+    const allScheduled =
+      activeConnections.length > 0 &&
+      activeConnections.every((c) => isScheduledOnly(settings, c.id));
+
     checks.push({
       id: 'webhook',
       label: 'Webhook deliveries',
-      status: delivery ? 'ok' : 'unknown',
+      status: delivery || allScheduled ? 'ok' : 'unknown',
       detail: delivery
         ? `Last delivery received ${delivery.receivedAt.toISOString()}.`
-        : 'No webhook delivery has arrived yet. That is expected before your first push — it is not proof the webhook is wrong, and not proof it is right.',
+        : allScheduled
+          ? 'Scheduled sync only: no webhooks are registered, so none arrive. Changes appear after the nightly sync.'
+          : 'No webhook delivery has arrived yet. That is expected before your first push — it is not proof the webhook is wrong, and not proof it is right.',
       docs: 'docs/INSTALL.md#webhooks',
       blocking: false,
       action: { label: 'Open Sync', to: '/admin/sync' },

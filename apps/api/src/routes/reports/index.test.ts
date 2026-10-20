@@ -1,11 +1,11 @@
 import 'dotenv/config';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { eq, inArray } from 'drizzle-orm';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { core, createDb, read, type Database } from '@repopulse/shared';
+import { core, createDb, plans, read, type Database } from '@repopulse/shared';
 import { reportDir, type ReportParams } from '@repopulse/reports';
 import reportsRoutes, { reportFileName } from './index.js';
 import errorEnvelopePlugin from '../../plugins/error-envelope.js';
@@ -52,12 +52,15 @@ describeIfLiveInfra('reports API lifecycle (W17-26)', () => {
     windowDays?: number | null;
   }[] = [];
 
-  const mount = async (ws: () => number): Promise<FastifyInstance> => {
+  const mount = async (
+    ws: () => number,
+    role: 'admin' | 'member' = 'admin',
+  ): Promise<FastifyInstance> => {
     const f = Fastify();
     await f.register(errorEnvelopePlugin);
     f.addHook('onRequest', async (request) => {
       request.workspace = { id: ws(), slug: 't', name: 't' };
-      request.role = 'admin';
+      request.role = role;
       (request as unknown as { session: { get: (k: string) => unknown } }).session = {
         get: (k: string) => (k === 'userId' ? userId : undefined),
       };
@@ -305,6 +308,92 @@ describeIfLiveInfra('reports API lifecycle (W17-26)', () => {
     expect((await add()).statusCode).toBe(409);
     expect(schedules).toHaveLength(1);
     expect(schedules[0]).toMatchObject({ windowDays: 90 });
+  });
+
+  // W20-19 (UX_TODO ADM-61; decision 2026-10-20).
+  it('a retry keeps generated_at and moves queued_at', async () => {
+    const id = await generate();
+    const lastMonth = new Date('2026-09-15T09:00:00.000Z');
+    await db
+      .update(read.reports)
+      .set({ status: 'failed', error: 'boom', generatedAt: lastMonth, queuedAt: lastMonth })
+      .where(eq(read.reports.id, id));
+
+    const retry = await app.inject({ method: 'POST', url: `/reports/${id}/retry`, headers: CSRF });
+    expect(retry.statusCode).toBe(202);
+
+    const item = (await get('/reports')).json() as {
+      items: { id: number; generated_at: string; queued_at: string }[];
+    };
+    const row = item.items.find((i) => i.id === id)!;
+    expect(row.generated_at).toBe(lastMonth.toISOString());
+    expect(Date.parse(row.queued_at)).toBeGreaterThan(Date.now() - 60_000);
+    const one = (await get(`/reports/${id}`)).json() as { generated_at: string; queued_at: string };
+    expect(one.generated_at).toBe(lastMonth.toISOString());
+    expect(one.queued_at).toBe(row.queued_at);
+  });
+
+  // W20-19 (UX_TODO ADM-72; decision 2026-10-20: admins only).
+  it('an admin deletes a report: row, files and audit; a plan made from it keeps its items', async () => {
+    const id = await generate();
+    const pdfPath = await workerFinishes(id);
+    const [plan] = await db
+      .insert(plans.improvementPlans)
+      .values({
+        workspaceId,
+        repoIds: [],
+        window: '30d',
+        catalogVersion: 'v1',
+        createdFromReportId: id,
+      })
+      .returning();
+
+    // A member is refused, and another workspace's admin gets a 404.
+    const member = await mount(() => workspaceId, 'member');
+    const foreign = await mount(() => otherWorkspaceId);
+    try {
+      expect(
+        (await member.inject({ method: 'DELETE', url: `/reports/${id}`, headers: CSRF }))
+          .statusCode,
+      ).toBe(403);
+      expect(
+        (await foreign.inject({ method: 'DELETE', url: `/reports/${id}`, headers: CSRF }))
+          .statusCode,
+      ).toBe(404);
+    } finally {
+      await member.close();
+      await foreign.close();
+    }
+    expect(await listItem(id)).toMatchObject({ status: 'ready', has_pdf: true });
+
+    const res = await app.inject({ method: 'DELETE', url: `/reports/${id}`, headers: CSRF });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ id, deleted: true, files_removed: 2 });
+    expect((await get(`/reports/${id}`)).statusCode).toBe(404);
+    await expect(stat(pdfPath)).rejects.toThrow();
+    await expect(stat(reportDir(dataDir, workspaceId, id))).rejects.toThrow();
+
+    const [kept] = await db
+      .select()
+      .from(plans.improvementPlans)
+      .where(eq(plans.improvementPlans.id, plan!.id));
+    expect(kept).toMatchObject({ createdFromReportId: null });
+    await db.delete(plans.improvementPlans).where(eq(plans.improvementPlans.id, plan!.id));
+  });
+
+  it('a report being generated cannot be deleted; a failed one can', async () => {
+    const id = await generate();
+    await db.update(read.reports).set({ status: 'running' }).where(eq(read.reports.id, id));
+    const refused = await app.inject({ method: 'DELETE', url: `/reports/${id}`, headers: CSRF });
+    expect(refused.statusCode).toBe(409);
+
+    await db
+      .update(read.reports)
+      .set({ status: 'failed', error: 'x' })
+      .where(eq(read.reports.id, id));
+    const ok = await app.inject({ method: 'DELETE', url: `/reports/${id}`, headers: CSRF });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json()).toMatchObject({ files_removed: 0 });
   });
 });
 

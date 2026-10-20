@@ -136,7 +136,7 @@ export function buildApp(opts: BuildAppOptions) {
 
   // Local accounts are always available: they are what makes this product
   // installable without registering an App with anybody (D14).
-  app.register(localAuthRoutes, { db: opts.db });
+  app.register(localAuthRoutes, { db: opts.db, signInUrl: opts.loginRedirectUrl });
 
   app.register(authProviderRoutes, {
     db: opts.db,

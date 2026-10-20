@@ -158,12 +158,17 @@ export interface CreatedUser {
   user: { id: number; login: string; email: string | null };
   /** Present ONLY when the API generated it, and never retrievable again. */
   temporary_password?: string;
+  /** The role they start with (W20-19, UX_TODO INS-62); absent from an older API. */
+  role?: 'admin' | 'member';
+  /** PUBLIC_BASE_URL + '/', where they sign in (INS-62). */
+  sign_in_url?: string;
 }
 
 export function createLocalUser(body: {
   email: string;
   name?: string;
   password?: string;
+  role?: 'admin' | 'member';
 }): Promise<CreatedUser> {
   return apiFetch<CreatedUser>('/auth/local/users', {
     method: 'POST',

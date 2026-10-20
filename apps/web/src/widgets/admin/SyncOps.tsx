@@ -132,6 +132,123 @@ export function TrackingButton({ row }: { row: RepoSyncStatus }) {
   );
 }
 
+interface PurgeResult {
+  repo: string;
+  deleted: Record<string, number>;
+  ci_tokens_revoked: number;
+  webhooks_removed: number;
+  webhook_failures: { repo: string; error: string }[];
+}
+
+/** What a purge did, in one sentence for the toast (W20-19, INS-09). */
+export function purgedMessage(res: PurgeResult): string {
+  const rows = Object.entries(res.deleted)
+    .filter(([table]) => table !== 'repos')
+    .reduce((n, [, c]) => n + c, 0);
+  const parts = [`${res.repo} removed and ${rows} stored record${rows === 1 ? '' : 's'} deleted`];
+  if (res.ci_tokens_revoked > 0) {
+    parts.push(
+      `${res.ci_tokens_revoked} CI token${res.ci_tokens_revoked === 1 ? '' : 's'} for it alone revoked`,
+    );
+  }
+  if (res.webhook_failures.length > 0) {
+    parts.push(
+      `its webhook could not be removed (${res.webhook_failures[0]!.error}); delete it in the forge`,
+    );
+  }
+  return parts.join('; ') + '.';
+}
+
+/**
+ * Remove a repository AND delete its stored history (W20-19, UX_TODO INS-09;
+ * decision 2026-10-20). Admins only (this whole screen is), behind a typed
+ * confirmation of the repository's org/name, and deliberately the second
+ * choice: Pause, beside it, keeps every chart.
+ */
+export function PurgeButton({ row }: { row: RepoSyncStatus }) {
+  const pushToasts = useUiStore((s) => s.pushToasts);
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState('');
+  const purge = useApiMutation<{ confirm: string }, PurgeResult>(
+    { endpoint: '/repos/{id}', path: { id: row.repoId }, method: 'DELETE' },
+    { invalidate: [queryKeyFor(STATUS)] },
+  );
+  const name = row.repoName ?? row.repoId;
+  if (!open) {
+    return (
+      <button
+        type="button"
+        className="rounded-md border border-border px-2 py-1 text-xs hover:border-crit"
+        data-testid={`sync-purge-${row.repoId}`}
+        title="Stop tracking it and delete everything stored about it"
+        onClick={() => setOpen(true)}
+      >
+        Remove…
+      </button>
+    );
+  }
+  const matches = typed.trim() === name;
+  const inputId = `sync-purge-input-${row.repoId}`;
+  return (
+    <div className="flex max-w-xs flex-col gap-1" data-testid={`sync-purge-confirm-${row.repoId}`}>
+      <p className="text-xs text-fg-muted">
+        Remove <span className="text-fg">{name}</span> and delete its history? Its pull requests,
+        commits, findings, scans and metrics are deleted for good, and its webhook is removed. To
+        stop syncing and keep the history, use Pause instead.
+      </p>
+      <label htmlFor={inputId} className="text-xs text-fg-muted">
+        Type <span className="font-mono text-fg">{name}</span> to confirm
+      </label>
+      <input
+        id={inputId}
+        className="panel px-2 py-1 font-mono text-xs"
+        autoComplete="off"
+        // The one thing to answer (ADM-69's rule).
+        autoFocus
+        value={typed}
+        onChange={(e) => setTyped(e.target.value)}
+        data-testid={`sync-purge-input-${row.repoId}`}
+      />
+      <div className="flex gap-1.5">
+        <button
+          type="button"
+          disabled={!matches || purge.isPending}
+          className="rounded-md border border-crit px-2 py-1 text-xs text-crit hover:bg-crit/10 disabled:opacity-50"
+          data-testid={`sync-purge-do-${row.repoId}`}
+          onClick={() =>
+            purge.mutate(
+              { confirm: typed.trim() },
+              {
+                onError: (err: Error) => pushToasts([errorToast(`purge-${row.repoId}-err`, err)]),
+                onSuccess: (res) =>
+                  pushToasts([
+                    {
+                      id: `purge-${row.repoId}-ok`,
+                      tone: res.webhook_failures.length > 0 ? 'warn' : 'ok',
+                      message: purgedMessage(res),
+                    },
+                  ]),
+              },
+            )
+          }
+        >
+          {purge.isPending ? 'Deleting…' : 'Delete history'}
+        </button>
+        <button
+          type="button"
+          className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent"
+          onClick={() => {
+            setOpen(false);
+            setTyped('');
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /**
  * Retry an errored repository now (W20-14, UX_TODO INS-30): a fresh plan from
  * its cursors, the same thing the nightly sweep does for it at 03:17.
@@ -302,9 +419,10 @@ export function SyncOps() {
       id: 'tracking',
       header: 'Tracking',
       cell: (row) => (
-        <div className="flex gap-1.5">
+        <div className="flex flex-wrap gap-1.5">
           {row.phase === 'error' && <RetryButton row={row} />}
           <TrackingButton row={row} />
+          <PurgeButton row={row} />
         </div>
       ),
     },

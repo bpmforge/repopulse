@@ -52,7 +52,10 @@ describe('CreateUser (W15-04)', () => {
     await waitFor(() => {
       const post = requests.find((r) => r.url === '/auth/local/users');
       expect(post).toBeDefined();
-      expect(JSON.parse(String(post!.init?.body))).toEqual({ email: 'dana@example.com' });
+      expect(JSON.parse(String(post!.init?.body))).toEqual({
+        email: 'dana@example.com',
+        role: 'member',
+      });
     });
   });
 

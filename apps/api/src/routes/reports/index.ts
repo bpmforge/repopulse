@@ -2,11 +2,12 @@ import { createReadStream } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { auditLog, core, read, type Database } from '@repopulse/shared';
+import { auditLog, core, plans, read, type Database } from '@repopulse/shared';
 import { requireAdmin } from '../../lib/rbac.js';
 import {
   artifactPresent,
   diffReports,
+  removeReportArtifacts,
   uriToPath,
   type ReportData,
   type ReportParams,
@@ -221,6 +222,9 @@ export default async function reportsRoutes(
           status: r.status,
           params: r.params,
           generated_at: r.generatedAt.toISOString(),
+          // W20-19 (UX_TODO ADM-61): when it was last queued; differs from
+          // generated_at only after a Retry.
+          queued_at: r.queuedAt.toISOString(),
           // W20-09 (UX_TODO ADM-05): "By" in the history, so two rows of one
           // type can be told apart by who asked for them as well as by scope.
           generated_by: generatedByLogin ?? null,
@@ -274,11 +278,12 @@ export default async function reportsRoutes(
     // same failed row queue ONE job — the second UPDATE matches nothing.
     const [requeued] = await db
       .update(read.reports)
-      // generated_at moves to now: it is when this row was last queued, which
-      // is what the history sorts by and what the screen's stale-job cutoff
-      // measures from. The pinned window and snapshot live in params and do
-      // not move — that is the point of retrying rather than regenerating.
-      .set({ status: 'queued', error: null, pdfUri: null, generatedAt: new Date() })
+      // W20-19 (UX_TODO ADM-61): queued_at moves to now and generated_at does
+      // NOT. It used to, so last month's report retried today sorted and read
+      // as today's in History while its cover said last month. The screen's
+      // stale-job cutoff measures from queued_at; the pinned window and
+      // snapshot live in params and do not move either.
+      .set({ status: 'queued', error: null, pdfUri: null, queuedAt: new Date() })
       .where(and(eq(read.reports.id, id), eq(read.reports.status, row.status)))
       .returning({ id: read.reports.id });
     if (!requeued)
@@ -334,11 +339,99 @@ export default async function reportsRoutes(
       status: row.status,
       params: row.params,
       generated_at: row.generatedAt.toISOString(),
+      queued_at: row.queuedAt.toISOString(),
       error: row.error,
       ...(await artifactFields(row)),
       data,
     });
   });
+
+  /**
+   * DELETE /reports/:id — remove a report and its files (👑) (W20-19, UX_TODO
+   * ADM-72).
+   *
+   * A report made with the wrong type or window, or with a mistyped or too
+   * sensitive Context note, stayed in the History every member can open, and
+   * failed attempts piled up there too. Admins only (decision 2026-10-20). A
+   * report still being generated is refused: the worker would write its files
+   * after the row was gone. A plan made from the report keeps its items; only
+   * its link back to the report is cleared.
+   */
+  app.delete<{ Params: { id: string } }>(
+    '/reports/:id',
+    { preHandler: requireAdmin },
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      const userId = request.session.get('userId');
+      if (workspaceId === undefined || userId === undefined) {
+        return fail(request, reply, 401, 'No active session');
+      }
+      const id = Number(request.params.id);
+      if (!Number.isInteger(id)) return fail(request, reply, 400, 'Invalid report id');
+
+      const [row] = await db
+        .select()
+        .from(read.reports)
+        .where(and(eq(read.reports.id, id), eq(read.reports.workspaceId, workspaceId)))
+        .limit(1);
+      // Tenancy (Law 5): another workspace's report is a 404.
+      if (!row) return fail(request, reply, 404, 'Not Found');
+      if (row.status === 'running') {
+        return fail(
+          request,
+          reply,
+          409,
+          'This report is being generated',
+          'Delete it once it is ready or has failed; deleting now would leave its files behind.',
+        );
+      }
+
+      const deleted = await db.transaction(async (tx) => {
+        await tx
+          .update(plans.improvementPlans)
+          .set({ createdFromReportId: null })
+          .where(
+            and(
+              eq(plans.improvementPlans.workspaceId, workspaceId),
+              eq(plans.improvementPlans.createdFromReportId, id),
+            ),
+          );
+        return tx
+          .delete(read.reports)
+          .where(
+            and(
+              eq(read.reports.id, id),
+              eq(read.reports.workspaceId, workspaceId),
+              // The status that was read: a worker that just picked it up wins.
+              eq(read.reports.status, row.status),
+            ),
+          )
+          .returning({ id: read.reports.id });
+      });
+      if (deleted.length === 0) {
+        return fail(request, reply, 409, 'Report cannot be deleted', 'Its status just changed.');
+      }
+
+      const filesRemoved = await removeReportArtifacts({
+        id,
+        workspaceId,
+        uris: [row.pdfUri, row.jsonUri, row.htmlUri],
+      });
+
+      auditLog(request.log, {
+        event: 'report.deleted',
+        actorUserId: userId,
+        workspaceId,
+        ip: request.ip,
+        ua: request.headers['user-agent'] ?? null,
+        reportId: id,
+        reportType: row.type,
+        status: row.status,
+        filesRemoved,
+      });
+      return reply.send({ id, deleted: true, files_removed: filesRemoved });
+    },
+  );
 
   /** GET /reports/:id/download — streamed, session-checked, audited. */
   app.get<{ Params: { id: string } }>('/reports/:id/download', async (request, reply) => {

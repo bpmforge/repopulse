@@ -190,9 +190,12 @@ configuration problems, whether a forge is connected, whether any repositories
 are selected, and whether any webhook delivery has arrived. It reports whether
 each variable is *set*, never its value.
 
-Add further people from **Settings → Members**. The bootstrap is idempotent on "a
-local account with a password exists", so editing `ADMIN_EMAIL` afterwards
-creates nothing.
+Add further people from **Settings → Members**. Choose their role there
+(member or admin); the result shows a one-time password once, and a ready-to-send
+invite with the sign-in address (`PUBLIC_BASE_URL`) and their email. The invite
+deliberately leaves the password out: send that separately, so a chat or mail
+log never holds both. The bootstrap is idempotent on "a local account with a
+password exists", so editing `ADMIN_EMAIL` afterwards creates nothing.
 
 **`ADMIN_EMAIL` is required even if everyone will use single sign-on.** A first
 OIDC or GitHub sign-in is never made administrator — an identity provider's
@@ -216,6 +219,18 @@ The other two doors, if you want them:
   people sign in with their forge account instead of a password, and because
   the account then carries a forge identity, personalised screens ("my open
   PRs") can find their work without anyone linking it by hand.
+  **github.com only.** The sign-in always talks to github.com, even when your
+  data connection is a GitHub Enterprise Server (`FORGE_BASE_URL` does not
+  move it). A GitHub Enterprise company signs people in with OIDC instead and
+  links them to their forge identity as below.
+
+**One account per sign-in method.** RepoPulse never joins accounts by email.
+Someone who signs in with a password and later with OIDC or GitHub gets a
+second, separate account (a federated account is keyed on the provider's
+subject, not on an email the provider may not have verified). Pick one method
+per person; if a duplicate appears, remove the one they do not use in
+Settings → Members and link the remaining account to their forge identity in
+Settings → Identities.
 
 **Who can join through single sign-on.** By default, anyone your identity
 provider accepts — and, with GitHub sign-in, anyone with any GitHub account —
@@ -359,6 +374,8 @@ database.
 (or an OAuth App) under **Settings → Developer settings** with
 Callback URL `<API_BASE_URL>/auth/callback`, copy the client id and secret in,
 and restart the stack. Leave them blank and nothing is lost but the button.
+Register it on **github.com**: GitHub Enterprise Server sign-in is not
+supported (use OIDC for that).
 `GITHUB_APP_ID` is accepted and stored; installation-token flows are not part
 of this release, and a private key variable is read by nothing, so do not put
 one in the file.
@@ -439,6 +456,23 @@ events with `X-GitHub-Event`, `X-GitHub-Delivery` and a valid
 in the test suite. GitLab deliveries are tested against GitLab's documented
 headers but have **not** been received from a live GitLab. On any forge the
 nightly reconcile still repairs whatever a missed delivery left behind.
+
+**Scheduled sync only.** If the forge cannot reach this install (a private
+server behind a firewall, an internal `PUBLIC_BASE_URL`), tick **Scheduled
+sync only (no webhooks)** when you connect, or switch it on later per
+connection in Settings → Connections. RepoPulse then registers no hooks on
+that connection's repositories, so the forge's admins do not see a growing
+list of failed deliveries; switching it on removes the hooks it already
+registered. The nightly reconcile keeps those repositories current, so
+changes appear the next morning rather than within a minute. Switching it off
+registers the hooks again.
+
+**Removing a repository.** Settings → Sync offers **Pause** (stop syncing,
+keep its history; the usual choice) and, for admins, **Remove and delete
+history…**, which asks you to type the repository's `org/name`, removes its
+webhook, and deletes everything stored about it. It cannot be undone. A
+repository whose code was ever sent to an off-network model keeps its history:
+that record is append-only.
 
 ## Connect a model (optional)
 

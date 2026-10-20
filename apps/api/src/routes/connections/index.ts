@@ -28,7 +28,14 @@ import {
   resolveConnectionBaseUrl,
   type ForgeKind,
 } from './provider-factory.js';
-import { readWorkspaceSettings, setConnectionAutoAdd } from '../../lib/workspace-settings.js';
+import {
+  isScheduledOnly,
+  readWorkspaceSettings,
+  setConnectionAutoAdd,
+  setConnectionScheduledOnly,
+  skipAutoAdd,
+} from '../../lib/workspace-settings.js';
+import { egressRecordCount, purgeRepoHistory } from '../../lib/purge-repo.js';
 import {
   autoAddBodySchema,
   autoAddResponseSchema,
@@ -37,11 +44,15 @@ import {
   connectionListResponseSchema,
   createConnectionBodySchema,
   createConnectionResponseSchema,
+  purgeRepoBodySchema,
+  purgeRepoResponseSchema,
   removeConnectionResponseSchema,
   replaceCredentialBodySchema,
   replaceCredentialResponseSchema,
   repoTrackingBodySchema,
   repoTrackingResponseSchema,
+  scheduledSyncBodySchema,
+  scheduledSyncResponseSchema,
   selectReposBodySchema,
   selectReposResponseSchema,
 } from './schema.js';
@@ -209,6 +220,107 @@ export default async function connectionsRoutes(
     return row;
   }
 
+  type HookRepo = { id: number; org: string; name: string };
+  type HookFailure = { repo: string; error: string };
+
+  /**
+   * Delete the push hooks this install registered on each repository, matched
+   * by delivery URL (W20-17), one at a time through the budgeted provider
+   * (Law 7). Never throws: a failure is reported per repository.
+   */
+  async function removeHooks(
+    row: Parameters<typeof providerForConnection>[0],
+    repos: HookRepo[],
+  ): Promise<{ removed: number; failures: HookFailure[] }> {
+    const failures: HookFailure[] = [];
+    let removed = 0;
+    if (repos.length === 0) return { removed, failures };
+    let forge: ForgeProvider;
+    try {
+      forge = await providerForConnection(row);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        removed,
+        failures: repos.map((r) => ({ repo: `${r.org}/${r.name}`, error: message.slice(0, 300) })),
+      };
+    }
+    const url = webhookUrlFor(opts.webhookUrl, forge.capabilities.webhookScheme);
+    for (const repo of repos) {
+      const fullName = `${repo.org}/${repo.name}`;
+      if (!forge.deleteWebhooks) {
+        failures.push({ repo: fullName, error: 'this forge cannot remove hooks here' });
+        continue;
+      }
+      try {
+        removed += await forge.deleteWebhooks(
+          { lane: 'user', repoId: String(repo.id) },
+          fullName,
+          url,
+        );
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        failures.push({ repo: fullName, error: message.slice(0, 300) });
+      }
+    }
+    return { removed, failures };
+  }
+
+  /** The connection's webhook secret, or null when it has none it can open. */
+  function openWebhookSecret(row: { webhookSecretCiphertext: Buffer | null }): string | null {
+    if (!row.webhookSecretCiphertext) return null;
+    try {
+      return credentials.openSecret(row.webhookSecretCiphertext, tokenKey);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Register a push hook at today's address on each repository, signed with
+   * the connection's secret (W20-10), one at a time through the budgeted
+   * provider (a burst of hook creations is what a secondary rate limit
+   * punishes). Clears a repository's earlier "live updates unavailable" note
+   * when its hook goes in. Never throws for a single repository.
+   */
+  async function registerHooks(
+    row: Parameters<typeof providerForConnection>[0],
+    repos: HookRepo[],
+    secret: string,
+    workspaceId: number,
+  ): Promise<{
+    url: string;
+    registered: number;
+    failed: { repo_id: number; repo: string; error: string }[];
+  }> {
+    const forge = await providerForConnection(row);
+    const url = webhookUrlFor(opts.webhookUrl, forge.capabilities.webhookScheme);
+    const failed: { repo_id: number; repo: string; error: string }[] = [];
+    let registered = 0;
+    for (const repo of repos) {
+      const fullName = `${repo.org}/${repo.name}`;
+      try {
+        await forge.registerWebhook(CTX, fullName, url, secret, WEBHOOK_EVENTS);
+        registered += 1;
+        // Clears only the note an earlier failed registration left.
+        await db
+          .update(core.repos)
+          .set({ lastError: null })
+          .where(
+            and(
+              eq(core.repos.id, repo.id),
+              eq(core.repos.workspaceId, workspaceId),
+              sql`${core.repos.lastError} like 'live updates unavailable%'`,
+            ),
+          );
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        failed.push({ repo_id: repo.id, repo: fullName, error: message.slice(0, 300) });
+      }
+    }
+    return { url, registered, failed };
+  }
+
   // POST /connections — smoke-test the credential, persist encrypted (👑).
   typedApp.post(
     '/connections',
@@ -222,7 +334,8 @@ export default async function connectionsRoutes(
     async (request, reply) => {
       const ctx = ctxOf(request);
       if (!ctx) return fail(request, reply, 401, 'No active session');
-      const { provider, auth_kind, credential, installation_id, base_url } = request.body;
+      const { provider, auth_kind, credential, installation_id, base_url, scheduled_sync_only } =
+        request.body;
 
       // Gitea is self-hosted and has no host worth guessing. Refusing here, by
       // name, beats the alternative: a connection that stores fine and then
@@ -270,10 +383,16 @@ export default async function connectionsRoutes(
             ...(baseUrl ? { baseUrl } : {}),
           },
         );
+        // W20-19 (UX_TODO INS-69): chosen on the connect form, before any
+        // repository is tracked, so no hook is ever registered for it.
+        if (scheduled_sync_only) {
+          await setConnectionScheduledOnly(db, ctx.workspaceId, result.connectionId, true);
+        }
         return reply.code(201).send({
           id: result.connectionId,
           status: 'active',
           fingerprint: credentials.credentialFingerprint(credential),
+          scheduled_sync_only: scheduled_sync_only === true,
         });
       } catch (err) {
         if (err instanceof ConnectValidationError) {
@@ -311,9 +430,8 @@ export default async function connectionsRoutes(
         })
         .from(core.forgeConnections)
         .where(eq(core.forgeConnections.workspaceId, ctx.workspaceId));
-      const autoAdd = new Set(
-        (await readWorkspaceSettings(db, ctx.workspaceId)).stored.auto_add_connection_ids ?? [],
-      );
+      const { stored } = await readWorkspaceSettings(db, ctx.workspaceId);
+      const autoAdd = new Set(stored.auto_add_connection_ids ?? []);
       return reply.send({
         items: rows.map((r) => ({
           id: r.id,
@@ -326,6 +444,7 @@ export default async function connectionsRoutes(
           repo_count: r.repoCount,
           base_url: r.baseUrl,
           auto_add: r.status === 'active' && autoAdd.has(r.id),
+          scheduled_sync_only: isScheduledOnly(stored, r.id),
         })),
       });
     },
@@ -408,6 +527,11 @@ export default async function connectionsRoutes(
       if (row.status !== 'active') return removedConnection(request, reply);
 
       const forge = await providerForConnection(row);
+      // W20-19 (UX_TODO INS-69): no hook for a "scheduled sync only" connection.
+      const scheduledOnly = isScheduledOnly(
+        (await readWorkspaceSettings(db, ctx.workspaceId)).stored,
+        row.id,
+      );
       let listed: Awaited<ReturnType<typeof listAllRepos>>;
       try {
         // Every page (W20-07, INS-52): a repo past the first page must be
@@ -437,13 +561,15 @@ export default async function connectionsRoutes(
           db,
           sealSecret: (pt) => credentials.sealSecret(pt, tokenKey),
           registerWebhook: (repoFullName, secret) =>
-            forge.registerWebhook(
-              CTX,
-              repoFullName,
-              webhookUrlFor(opts.webhookUrl, forge.capabilities.webhookScheme),
-              secret,
-              WEBHOOK_EVENTS,
-            ),
+            scheduledOnly
+              ? Promise.resolve('')
+              : forge.registerWebhook(
+                  CTX,
+                  repoFullName,
+                  webhookUrlFor(opts.webhookUrl, forge.capabilities.webhookScheme),
+                  secret,
+                  WEBHOOK_EVENTS,
+                ),
           enqueuePlan: (repoId) =>
             opts.enqueueBackfillPlan({ workspaceId: ctx.workspaceId, repoId }),
           generateSecret: () => randomBytes(32).toString('hex'),
@@ -585,15 +711,17 @@ export default async function connectionsRoutes(
       const row = await loadConnection(id, ctx.workspaceId);
       if (!row) return fail(request, reply, 404, 'Not Found');
       if (row.status !== 'active') return removedConnection(request, reply);
-
-      let secret: string | null = null;
-      if (row.webhookSecretCiphertext) {
-        try {
-          secret = credentials.openSecret(row.webhookSecretCiphertext, tokenKey);
-        } catch {
-          secret = null;
-        }
+      if (isScheduledOnly((await readWorkspaceSettings(db, ctx.workspaceId)).stored, row.id)) {
+        return fail(
+          request,
+          reply,
+          409,
+          'This connection is set to scheduled sync only',
+          'It registers no webhooks. Turn "Scheduled sync only" off in Settings → Connections to register them.',
+        );
       }
+
+      const secret = openWebhookSecret(row);
       if (secret === null) {
         return fail(
           request,
@@ -615,33 +743,7 @@ export default async function connectionsRoutes(
           ),
         );
 
-      const forge = await providerForConnection(row);
-      const url = webhookUrlFor(opts.webhookUrl, forge.capabilities.webhookScheme);
-      const failed: { repo_id: number; repo: string; error: string }[] = [];
-      let registered = 0;
-      // One at a time, through the budgeted provider (Law 7): a burst of hook
-      // creations is exactly what a secondary rate limit punishes.
-      for (const repo of repos) {
-        const fullName = `${repo.org}/${repo.name}`;
-        try {
-          await forge.registerWebhook(CTX, fullName, url, secret, WEBHOOK_EVENTS);
-          registered += 1;
-          // Clears only the note an earlier failed registration left.
-          await db
-            .update(core.repos)
-            .set({ lastError: null })
-            .where(
-              and(
-                eq(core.repos.id, repo.id),
-                eq(core.repos.workspaceId, ctx.workspaceId),
-                sql`${core.repos.lastError} like 'live updates unavailable%'`,
-              ),
-            );
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          failed.push({ repo_id: repo.id, repo: fullName, error: message.slice(0, 300) });
-        }
-      }
+      const { url, registered, failed } = await registerHooks(row, repos, secret, ctx.workspaceId);
 
       auditLog(request.log, {
         event: 'connection.webhooks_reregistered',
@@ -653,6 +755,95 @@ export default async function connectionsRoutes(
         failed: failed.length,
       });
       return reply.send({ url, repos: repos.length, registered, failed });
+    },
+  );
+
+  // PUT /connections/{id}/scheduled-sync — "scheduled sync only" on or off (👑)
+  // (W20-19, UX_TODO INS-69; decision 2026-10-20).
+  //
+  // A private install the forge cannot reach still registered a push hook on
+  // every repository, pointing at an internal PUBLIC_BASE_URL; each one then
+  // collected failed deliveries the org's forge admins could see. On: the
+  // hooks this install registered are deleted (deleteWebhooks, the D9a
+  // allowed write) and none are registered from then on. Off: a hook is
+  // registered again on each repository that is not paused. The nightly
+  // reconcile sweep syncs these repositories either way.
+  typedApp.put(
+    '/connections/:id/scheduled-sync',
+    {
+      preHandler: requireAdmin,
+      schema: {
+        params: connectionIdParamsSchema,
+        body: scheduledSyncBodySchema,
+        response: { 200: scheduledSyncResponseSchema },
+      },
+    },
+    async (request, reply) => {
+      const ctx = ctxOf(request);
+      if (!ctx) return fail(request, reply, 401, 'No active session');
+      const row = await loadConnection(request.params.id, ctx.workspaceId);
+      if (!row) return fail(request, reply, 404, 'Not Found');
+      if (row.status !== 'active') return removedConnection(request, reply);
+      const { enabled } = request.body;
+      const was = isScheduledOnly(
+        (await readWorkspaceSettings(db, ctx.workspaceId)).stored,
+        row.id,
+      );
+
+      let webhooksRemoved = 0;
+      let webhooksRegistered = 0;
+      const failures: HookFailure[] = [];
+      if (enabled && !was) {
+        // Every repository on the connection, paused ones included: pausing
+        // never removed a hook.
+        const repos = await db
+          .select({ id: core.repos.id, org: core.repos.org, name: core.repos.name })
+          .from(core.repos)
+          .where(
+            and(eq(core.repos.workspaceId, ctx.workspaceId), eq(core.repos.connectionId, row.id)),
+          );
+        const out = await removeHooks(row, repos);
+        webhooksRemoved = out.removed;
+        failures.push(...out.failures);
+      } else if (!enabled && was) {
+        const secret = openWebhookSecret(row);
+        const repos = await db
+          .select({ id: core.repos.id, org: core.repos.org, name: core.repos.name })
+          .from(core.repos)
+          .where(
+            and(
+              eq(core.repos.workspaceId, ctx.workspaceId),
+              eq(core.repos.connectionId, row.id),
+              sql`${core.repos.syncStatus} <> 'paused'`,
+            ),
+          );
+        // No secret means nothing was ever tracked on it: the next track call
+        // makes one and registers hooks as usual.
+        if (secret !== null && repos.length > 0) {
+          const out = await registerHooks(row, repos, secret, ctx.workspaceId);
+          webhooksRegistered = out.registered;
+          failures.push(...out.failed.map((f) => ({ repo: f.repo, error: f.error })));
+        }
+      }
+      const list = await setConnectionScheduledOnly(db, ctx.workspaceId, row.id, enabled);
+
+      auditLog(request.log, {
+        event: 'connection.scheduled_sync_only',
+        actorUserId: ctx.userId,
+        ...auditContext(request, ctx.workspaceId),
+        connectionId: row.id,
+        enabled,
+        webhooksRemoved,
+        webhooksRegistered,
+        webhookFailures: failures.length,
+      });
+      return reply.send({
+        id: row.id,
+        scheduled_sync_only: list.includes(row.id),
+        webhooks_removed: webhooksRemoved,
+        webhooks_registered: webhooksRegistered,
+        webhook_failures: failures,
+      });
     },
   );
 
@@ -729,43 +920,11 @@ export default async function connectionsRoutes(
           and(eq(core.repos.workspaceId, ctx.workspaceId), eq(core.repos.connectionId, row.id)),
         );
       let webhooksRemoved = 0;
-      const webhookFailures: { repo: string; error: string }[] = [];
+      const webhookFailures: HookFailure[] = [];
       if (row.status === 'active' && hookRepos.length > 0) {
-        let forge: ForgeProvider | null = null;
-        try {
-          forge = await providerForConnection(row);
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          for (const repo of hookRepos) {
-            webhookFailures.push({
-              repo: `${repo.org}/${repo.name}`,
-              error: message.slice(0, 300),
-            });
-          }
-        }
-        if (forge) {
-          const url = webhookUrlFor(opts.webhookUrl, forge.capabilities.webhookScheme);
-          for (const repo of hookRepos) {
-            const fullName = `${repo.org}/${repo.name}`;
-            if (!forge.deleteWebhooks) {
-              webhookFailures.push({
-                repo: fullName,
-                error: 'this forge cannot remove hooks here',
-              });
-              continue;
-            }
-            try {
-              webhooksRemoved += await forge.deleteWebhooks(
-                { lane: 'user', repoId: String(repo.id) },
-                fullName,
-                url,
-              );
-            } catch (err) {
-              const message = err instanceof Error ? err.message : String(err);
-              webhookFailures.push({ repo: fullName, error: message.slice(0, 300) });
-            }
-          }
-        }
+        const out = await removeHooks(row, hookRepos);
+        webhooksRemoved = out.removed;
+        webhookFailures.push(...out.failures);
       }
 
       const outcome = await db.transaction(async (tx) => {
@@ -804,8 +963,10 @@ export default async function connectionsRoutes(
         return { outcome: 'disconnected' as const, paused: paused.length };
       });
 
-      // A removed connection discovers nothing; drop its auto-add choice.
+      // A removed connection discovers nothing; drop its auto-add choice. A
+      // re-keyed one starts with webhooks again, so scheduled-only goes too.
       await setConnectionAutoAdd(db, ctx.workspaceId, row.id, false);
+      await setConnectionScheduledOnly(db, ctx.workspaceId, row.id, false);
 
       auditLog(request.log, {
         event: 'connection.removed',
@@ -904,6 +1065,111 @@ export default async function connectionsRoutes(
         repoId: repo.id,
       });
       return reply.send({ repo_id: repo.id, sync_status: 'pending_backfill' });
+    },
+  );
+
+  // DELETE /repos/{id} — stop tracking a repository AND delete its stored
+  // history (👑) (W20-19, UX_TODO INS-09; decision 2026-10-20).
+  //
+  // Pause stays the default way to stop tracking: it keeps every chart. This
+  // is the other one, behind a typed confirmation: the body must carry the
+  // repository's `org/name` exactly. Its push hook is removed on the forge
+  // first (deleteWebhooks, while the connection can still authenticate), then
+  // every workspace-scoped row about it is deleted in one transaction (see
+  // lib/purge-repo.ts for what is kept and why). A repository whose code was
+  // ever sent to an off-network model is refused: that record is append-only.
+  typedApp.delete(
+    '/repos/:id',
+    {
+      preHandler: requireAdmin,
+      schema: {
+        params: connectionIdParamsSchema,
+        body: purgeRepoBodySchema,
+        response: { 200: purgeRepoResponseSchema },
+      },
+    },
+    async (request, reply) => {
+      const ctx = ctxOf(request);
+      if (!ctx) return fail(request, reply, 401, 'No active session');
+      const [repo] = await db
+        .select({
+          id: core.repos.id,
+          workspaceId: core.repos.workspaceId,
+          connectionId: core.repos.connectionId,
+          forgeRepoId: core.repos.forgeRepoId,
+          org: core.repos.org,
+          name: core.repos.name,
+        })
+        .from(core.repos)
+        .where(
+          and(eq(core.repos.id, request.params.id), eq(core.repos.workspaceId, ctx.workspaceId)),
+        )
+        .limit(1);
+      // Tenancy (Law 5): another workspace's repository is a 404.
+      if (!repo) return fail(request, reply, 404, 'Not Found');
+      const fullName = `${repo.org}/${repo.name}`;
+      if (request.body.confirm.trim() !== fullName) {
+        return fail(
+          request,
+          reply,
+          400,
+          'Type the repository name to confirm',
+          `Type ${fullName} exactly to delete its history. To stop syncing and keep the history, pause it instead.`,
+        );
+      }
+      const egress = await egressRecordCount(db, repo);
+      if (egress > 0) {
+        return fail(
+          request,
+          reply,
+          409,
+          'This repository’s history cannot be deleted',
+          `Its code was sent to an off-network model ${egress} time${egress === 1 ? '' : 's'}, and that record is kept for good (it cannot be edited or deleted). Pause the repository instead.`,
+        );
+      }
+
+      // The hook first, while the connection still has its credential. A
+      // failure is reported, not fatal, exactly as DELETE /connections does.
+      let webhooksRemoved = 0;
+      const webhookFailures: HookFailure[] = [];
+      const conn = await loadConnection(repo.connectionId, ctx.workspaceId);
+      if (conn && conn.status === 'active') {
+        const out = await removeHooks(conn, [repo]);
+        webhooksRemoved = out.removed;
+        webhookFailures.push(...out.failures);
+      }
+
+      const counts = await db.transaction((tx) => purgeRepoHistory(tx, repo, ctx.userId));
+      // "Auto-add new" must not track it again tonight.
+      const { stored } = await readWorkspaceSettings(db, ctx.workspaceId);
+      if ((stored.auto_add_connection_ids ?? []).includes(repo.connectionId)) {
+        await skipAutoAdd(db, ctx.workspaceId, repo.connectionId, repo.forgeRepoId);
+      }
+
+      auditLog(request.log, {
+        event: 'repo.purged',
+        actorUserId: ctx.userId,
+        ...auditContext(request, ctx.workspaceId),
+        repoId: repo.id,
+        // The name, because after this there is no row to resolve the id with.
+        repo: fullName,
+        connectionId: repo.connectionId,
+        deleted: counts.deleted,
+        narrowed: counts.narrowed,
+        ciTokensRevoked: counts.ciTokensRevoked,
+        webhooksRemoved,
+        webhookFailures: webhookFailures.length,
+      });
+      return reply.send({
+        repo_id: repo.id,
+        repo: fullName,
+        purged: true as const,
+        deleted: counts.deleted,
+        narrowed: counts.narrowed,
+        ci_tokens_revoked: counts.ciTokensRevoked,
+        webhooks_removed: webhooksRemoved,
+        webhook_failures: webhookFailures,
+      });
     },
   );
 }

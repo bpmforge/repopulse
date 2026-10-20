@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { and, desc, eq, isNull } from 'drizzle-orm';
-import { auditLog, core, type Database } from '@repopulse/shared';
+import { and, count, desc, eq, isNull } from 'drizzle-orm';
+import { auditLog, core, read, type Database } from '@repopulse/shared';
 import { QUEUE, createQueue, createRedisConnection } from '@repopulse/ingest';
 import type { Queue } from 'bullmq';
 import { local } from '@repopulse/auth';
@@ -32,6 +32,57 @@ export interface AdminRoutesOptions {
 
 const ROLES = ['admin', 'member'] as const;
 type Role = (typeof ROLES)[number];
+
+/**
+ * What a member leaves behind (W20-19, UX_TODO ADM-48/49), counted for the
+ * Remove confirmation and acted on by the delete: their unrevoked CI tokens are
+ * revoked, their SHARED saved views move to the admin removing them (other
+ * people use those), their private views go with the account, and the forge
+ * connections they created stay with the workspace untouched.
+ */
+export async function memberHoldings(
+  db: Database,
+  workspaceId: number,
+  userId: number,
+): Promise<{
+  ci_tokens: number;
+  shared_views: number;
+  private_views: number;
+  connections: number;
+}> {
+  const [tokens] = await db
+    .select({ n: count() })
+    .from(core.ciTokens)
+    .where(
+      and(
+        eq(core.ciTokens.workspaceId, workspaceId),
+        eq(core.ciTokens.createdBy, userId),
+        isNull(core.ciTokens.revokedAt),
+      ),
+    );
+  const views = await db
+    .select({ shared: read.savedViews.isShared, n: count() })
+    .from(read.savedViews)
+    .where(
+      and(eq(read.savedViews.workspaceId, workspaceId), eq(read.savedViews.ownerUserId, userId)),
+    )
+    .groupBy(read.savedViews.isShared);
+  const [conns] = await db
+    .select({ n: count() })
+    .from(core.forgeConnections)
+    .where(
+      and(
+        eq(core.forgeConnections.workspaceId, workspaceId),
+        eq(core.forgeConnections.createdBy, userId),
+      ),
+    );
+  return {
+    ci_tokens: tokens?.n ?? 0,
+    shared_views: views.find((v) => v.shared)?.n ?? 0,
+    private_views: views.find((v) => !v.shared)?.n ?? 0,
+    connections: conns?.n ?? 0,
+  };
+}
 
 /** Send a problem response and hand Fastify the reply, in one expression. */
 function problem(
@@ -294,6 +345,33 @@ export default async function adminRoutes(
    * person, because ownership there gates visibility and editing: an unowned
    * view would sit in nobody's list, editable by nobody.
    */
+  /**
+   * GET /admin/members/:userId/holdings — what removing this member would do
+   * (W20-19, UX_TODO ADM-48/49): the counts the Remove confirmation states.
+   */
+  app.get<{ Params: { userId: string } }>(
+    '/admin/members/:userId/holdings',
+    { preHandler: requireAdmin },
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      if (workspaceId === undefined) return problem(request, reply, 401, 'No active session');
+      const userId = Number(request.params.userId);
+      if (!Number.isInteger(userId)) return problem(request, reply, 400, 'Invalid user id');
+      const [member] = await opts.db
+        .select({ userId: core.workspaceMembers.userId })
+        .from(core.workspaceMembers)
+        .where(
+          and(
+            eq(core.workspaceMembers.workspaceId, workspaceId),
+            eq(core.workspaceMembers.userId, userId),
+          ),
+        )
+        .limit(1);
+      if (!member) return problem(request, reply, 404, 'Member not found');
+      return reply.send(await memberHoldings(opts.db, workspaceId, userId));
+    },
+  );
+
   app.delete<{ Params: { userId: string } }>(
     '/admin/members/:userId',
     { preHandler: requireAdmin },
@@ -365,7 +443,41 @@ export default async function adminRoutes(
         .where(eq(core.users.id, userId))
         .limit(1);
 
-      await opts.db.delete(core.users).where(eq(core.users.id, userId));
+      // W20-19 (UX_TODO ADM-48/49, decision 2026-10-20). In one transaction
+      // with the delete, so a failure leaves the person, their tokens and
+      // their views exactly as they were.
+      const outcome = await opts.db.transaction(async (tx) => {
+        // Their CI tokens stop working. They were only orphaned before
+        // (created_by set null), so a pipeline kept reading findings with the
+        // credential of someone who had left.
+        const revoked = await tx
+          .update(core.ciTokens)
+          .set({ revokedAt: new Date(), revokedBy: callerId })
+          .where(
+            and(
+              eq(core.ciTokens.workspaceId, workspaceId),
+              eq(core.ciTokens.createdBy, userId),
+              isNull(core.ciTokens.revokedAt),
+            ),
+          )
+          .returning({ id: core.ciTokens.id });
+        // Shared views stay with the workspace: the removing admin becomes
+        // their owner, so the team views others use are not cascade-deleted
+        // with the account. Never anyone's default by accident.
+        const moved = await tx
+          .update(read.savedViews)
+          .set({ ownerUserId: callerId, isDefaultForOwner: false, updatedAt: new Date() })
+          .where(
+            and(
+              eq(read.savedViews.workspaceId, workspaceId),
+              eq(read.savedViews.ownerUserId, userId),
+              eq(read.savedViews.isShared, true),
+            ),
+          )
+          .returning({ id: read.savedViews.id });
+        await tx.delete(core.users).where(eq(core.users.id, userId));
+        return { revokedTokenIds: revoked.map((r) => r.id), movedViews: moved.length };
+      });
 
       auditLog(request.log, {
         event: 'admin.member.removed',
@@ -375,9 +487,27 @@ export default async function adminRoutes(
         ua: request.headers['user-agent'] ?? null,
         targetUserId: userId,
         targetLogin: target?.login ?? null,
+        ciTokensRevoked: outcome.revokedTokenIds.length,
+        sharedViewsTransferred: outcome.movedViews,
       });
+      for (const tokenId of outcome.revokedTokenIds) {
+        auditLog(request.log, {
+          event: 'ci_token.revoked',
+          actorUserId: callerId,
+          workspaceId,
+          ip: request.ip,
+          ua: request.headers['user-agent'] ?? null,
+          tokenId,
+          reason: 'member removed',
+        });
+      }
 
-      return reply.send({ user_id: userId, removed: true });
+      return reply.send({
+        user_id: userId,
+        removed: true,
+        ci_tokens_revoked: outcome.revokedTokenIds.length,
+        shared_views_transferred: outcome.movedViews,
+      });
     },
   );
 

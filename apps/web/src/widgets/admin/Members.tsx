@@ -226,6 +226,50 @@ function RoleButton({
   );
 }
 
+/** What removing a member leaves behind (W20-19, UX_TODO ADM-48/49). */
+export interface MemberHoldings {
+  ci_tokens: number;
+  shared_views: number;
+  private_views: number;
+  connections: number;
+}
+
+/**
+ * The Remove confirmation's consequence sentence (W20-19, UX_TODO ADM-48/49;
+ * decision 2026-10-20): CI tokens are revoked; connections and shared views
+ * stay with the workspace (the shared views move to you); private views go.
+ * Without counts (still loading, or an older API) it says the rule anyway.
+ */
+export function removeConsequenceText(h: MemberHoldings | undefined): string {
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  if (!h || typeof h.ci_tokens !== 'number') {
+    return 'Their CI tokens are revoked. Forge connections and shared views stay with the workspace (shared views move to you); their private saved views go with the account. Reports, plans, agreements and triage history stay, still showing their name.';
+  }
+  const parts: string[] = [];
+  parts.push(
+    h.ci_tokens > 0
+      ? `${plural(h.ci_tokens, 'CI token', 'CI tokens')} they created ${h.ci_tokens === 1 ? 'is' : 'are'} revoked, so any pipeline using ${h.ci_tokens === 1 ? 'it' : 'them'} stops reading findings.`
+      : 'They have no active CI tokens.',
+  );
+  if (h.connections > 0) {
+    parts.push(
+      `${plural(h.connections, 'forge connection', 'forge connections')} they added ${h.connections === 1 ? 'stays' : 'stay'} with the workspace and keep${h.connections === 1 ? 's' : ''} syncing.`,
+    );
+  }
+  if (h.shared_views > 0) {
+    parts.push(
+      `${plural(h.shared_views, 'shared view', 'shared views')} ${h.shared_views === 1 ? 'stays' : 'stay'} with the workspace and ${h.shared_views === 1 ? 'moves' : 'move'} to you.`,
+    );
+  }
+  if (h.private_views > 0) {
+    parts.push(
+      `${plural(h.private_views, 'private saved view', 'private saved views')} ${h.private_views === 1 ? 'goes' : 'go'} with the account.`,
+    );
+  }
+  parts.push('Reports, plans, agreements and triage history stay, still showing their name.');
+  return parts.join(' ');
+}
+
 /**
  * Remove a member (W16-59).
  *
@@ -256,7 +300,20 @@ function RemoveButton({
   onToast: (t: Toast[]) => void;
 }) {
   const [confirming, setConfirming] = useState(false);
-  const remove = useApiMutation<undefined, { user_id: number; removed: boolean }>(
+  // Counted only once someone asks to remove (W20-19, ADM-48/49).
+  const { data: holdings } = useApiQuery<MemberHoldings>(
+    { endpoint: '/admin/members/{userId}/holdings', path: { userId: row.user_id } },
+    { enabled: confirming },
+  );
+  const remove = useApiMutation<
+    undefined,
+    {
+      user_id: number;
+      removed: boolean;
+      ci_tokens_revoked?: number;
+      shared_views_transferred?: number;
+    }
+  >(
     { endpoint: '/admin/members/{userId}', path: { userId: row.user_id }, method: 'DELETE' },
     { invalidate: [queryKeyFor(LIST)] },
   );
@@ -310,9 +367,13 @@ function RemoveButton({
 
   return (
     <div className="flex flex-col gap-1" data-testid={`member-remove-confirm-${row.user_id}`}>
-      <p ref={textRef} tabIndex={-1} className="max-w-md text-xs text-fg-muted outline-none">
-        Remove <span className="text-fg">{row.login}</span>? Their saved views go with the account.
-        Reports, plans, agreements and triage history stay, still showing their name.
+      <p
+        ref={textRef}
+        tabIndex={-1}
+        className="max-w-md text-xs text-fg-muted outline-none"
+        data-testid={`member-remove-consequence-${row.user_id}`}
+      >
+        Remove <span className="text-fg">{row.login}</span>? {removeConsequenceText(holdings)}
       </p>
       <div className="flex gap-1.5">
         <button
@@ -326,13 +387,22 @@ function RemoveButton({
               // with 409 and both with a reason someone can act on. Surface the
               // reason rather than a generic failure.
               onError: (err: Error) => onToast([errorToast(`member-rm-${row.user_id}-err`, err)]),
-              onSuccess: () => {
+              onSuccess: (res) => {
                 setConfirming(false);
+                const revoked = res.ci_tokens_revoked ?? 0;
+                const moved = res.shared_views_transferred ?? 0;
                 onToast([
                   {
                     id: `member-rm-${row.user_id}-ok`,
                     tone: 'ok',
-                    message: `${row.login} was removed from this workspace`,
+                    message:
+                      `${row.login} was removed from this workspace` +
+                      (revoked > 0
+                        ? `; ${revoked} CI token${revoked === 1 ? '' : 's'} revoked`
+                        : '') +
+                      (moved > 0
+                        ? `; ${moved} shared view${moved === 1 ? '' : 's'} moved to you`
+                        : ''),
                   },
                 ]);
               },
@@ -419,6 +489,14 @@ export function Members() {
       onRetry={() => void refetch()}
       emptyMessage="No members yet."
     >
+      {/* W20-19 (UX_TODO INS-61; decision 2026-10-20): accounts are never
+          joined by email, so say what a second sign-in route does. */}
+      <p className="mb-2 max-w-3xl text-xs text-fg-muted" data-testid="members-one-account-note">
+        Each sign-in method makes its own account: someone who signs in with a password and later
+        with SSO or GitHub appears here twice, because RepoPulse never joins accounts by email.
+        Remove the one they do not use, and link the other to their forge identity in the Identities
+        tab.
+      </p>
       <div data-testid="members-table">
         <DataTable
           name="admin-members"

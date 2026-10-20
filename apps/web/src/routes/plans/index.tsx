@@ -3,6 +3,8 @@ import { WidgetFrame, frameState, PageHeader } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 import { PlanItemCard } from '../../widgets/plans/PlanItemCard.js';
 import { GeneratePlanButton } from '../../widgets/plans/GeneratePlanButton.js';
+import { Agreements } from '../../widgets/agreements/Agreements.js';
+import type { MeContext } from '../../widgets/org/contracts.js';
 import {
   planProgress,
   planScopeLabel,
@@ -26,6 +28,7 @@ function PlansPage() {
   // a 30-day plan labelled 30d: the control moved nothing and the result
   // quietly disagreed with it.
   const search = Route.useSearch();
+  const { data: me } = useApiQuery<MeContext>({ endpoint: '/me/context' });
   const { data, isLoading, isError, error, refetch } = useApiQuery<{
     items: Plan[];
     truncated?: boolean;
@@ -240,6 +243,22 @@ function PlansPage() {
           ) : null}
         </div>
       </WidgetFrame>
+
+      {/* W20-19 (UX_TODO ADM-15; decision 2026-10-20): every member reads the
+          team's working agreements here, beside the plans that act on them;
+          Overview links to this section. Admins manage them in Settings. */}
+      <section id="agreements" className="flex flex-col gap-2" data-testid="plans-agreements">
+        <Agreements readOnly />
+        {me?.role === 'admin' && (
+          <Link
+            to="/admin/agreements"
+            className="text-xs text-accent hover:underline"
+            data-testid="plans-agreements-manage"
+          >
+            Add or change agreements in Settings → Agreements →
+          </Link>
+        )}
+      </section>
     </div>
   );
 }
