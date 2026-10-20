@@ -33,6 +33,13 @@ export interface ReviewQueueItem {
   repo: RepoRef;
   author: string;
   opened_at: string;
+  /**
+   * W20-16 (UX_TODO DSH-85). true: the forge says you were asked to review.
+   * null: this PR's request list is not captured yet (ingested before the
+   * reviewers were), so it is listed by the older rule — open, by someone
+   * else, not reviewed by you.
+   */
+  requested?: boolean | null;
   links: { self: string };
 }
 

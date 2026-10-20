@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router';
 import { ErrorNote, WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import { localDateTime } from '../findings/aiContracts.js';
+import { AiSpend, type Spend } from './AiSpend.js';
 
 // Admin → Analysis (W7-08, UX_SPEC §4.i).
 //
@@ -177,6 +178,8 @@ export function AnalysisPolicy() {
   const filtered = logRepo !== '' || before !== undefined;
   const { data, isLoading, isError, error, refetch } = useApiQuery<{
     gateway?: GatewayState;
+    /** W20-16 (UX_TODO AI-08): spend per month and model. */
+    spend?: Spend;
     repos: RepoPolicy[];
     egress_log: EgressRow[];
     egress_total?: number;
@@ -291,6 +294,8 @@ export function AnalysisPolicy() {
           opt-in above records the choice and sends nothing.
         </p>
       </WidgetFrame>
+
+      <AiSpend spend={data?.spend} />
 
       <WidgetFrame
         title="Egress audit"

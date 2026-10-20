@@ -111,6 +111,38 @@ interface ClaudeCliInfo {
     reportsLoggedIn: boolean | null;
     reason: string | null;
   };
+  /**
+   * W20-16 (UX_TODO AI-73): what the WORKER found — the container that runs
+   * every pass. null when no worker has reported a check (an older worker,
+   * or none running). Absent from an older API.
+   */
+  worker_cli?: {
+    found: boolean;
+    version: string | null;
+    reportsLoggedIn: boolean | null;
+    reason: string | null;
+    checked_at: string;
+  } | null;
+}
+
+/** "Found 2.1 (Claude Code); it reports being signed in" — one container's check. */
+function cliSentence(
+  where: string,
+  c: {
+    found: boolean;
+    version: string | null;
+    reportsLoggedIn: boolean | null;
+    reason: string | null;
+  },
+): string {
+  if (!c.found) return `${where}: ${c.reason ?? 'the Claude Code CLI was not found'}.`;
+  const login =
+    c.reportsLoggedIn === true
+      ? 'it reports being signed in'
+      : c.reportsLoggedIn === false
+        ? 'it reports being signed out'
+        : 'it did not say whether it is signed in';
+  return `${where}: found ${c.version ?? 'the CLI'}; ${login}.`;
 }
 
 interface TestResult {
@@ -325,15 +357,26 @@ export function ClaudeCliPanel({
           </li>
         ))}
       </ol>
-      <p className="text-fg-muted" data-testid="claude-cli-status">
-        {d.cli.found
-          ? `Found ${d.cli.version ?? 'the CLI'} on this server. It ${d.cli.reportsLoggedIn === true ? 'reports being signed in (only Test connection proves it works)' : d.cli.reportsLoggedIn === false ? 'reports being signed out' : 'did not say whether it is signed in'}.`
-          : (d.cli.reason ?? 'The Claude Code CLI was not found on this server.')}{' '}
-        {/* W20-11 (UX_TODO AI-73, partial): which container this looked in. */}
-        This check and Test connection run in the API container. With the documented compose overlay
-        the CLI is installed in the worker container instead, so &ldquo;not found&rdquo; here does
-        not prove the worker lacks it.
-      </p>
+      <div className="flex flex-col gap-0.5 text-fg-muted" data-testid="claude-cli-status">
+        {/* W20-16 (UX_TODO AI-73): both containers, each named. The worker
+            runs every pass; the API container runs this check and Test
+            connection, and the overlay now gives it the same CLI volume. */}
+        <p data-testid="claude-cli-status-worker">
+          {d.worker_cli
+            ? cliSentence('Worker container (runs every pass)', d.worker_cli)
+            : 'Worker container (runs every pass): no check reported yet — the worker publishes one within a minute of starting.'}
+        </p>
+        <p data-testid="claude-cli-status-api">
+          {cliSentence('API container (runs this check and Test connection)', d.cli)} Only Test
+          connection proves a signed-in CLI actually answers.
+        </p>
+        {d.worker_cli && d.worker_cli.found !== d.cli.found && (
+          <p className="text-warn" role="status" data-testid="claude-cli-status-mismatch">
+            The two containers disagree. Start the stack with{' '}
+            <code>deploy/up.sh --with-claude-cli</code> so both mount the CLI volume.
+          </p>
+        )}
+      </div>
       {switchedOff && !on ? (
         <div
           role="status"

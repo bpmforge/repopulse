@@ -73,6 +73,8 @@ describeIfLiveInfra('Admin → Analysis gateway line (W20-06)', () => {
     app.addHook('onRequest', async (request) => {
       request.workspace = { id: workspaceId, slug: WS_SLUG, name: 'W20-06 analysis' };
       request.role = 'admin';
+      // W20-16: the price route records who changed it.
+      (request as unknown as { session: { get: () => number } }).session = { get: () => 1 };
     });
     await app.register(analysisAdminRoutes, { db });
     await app.ready();
@@ -81,6 +83,10 @@ describeIfLiveInfra('Admin → Analysis gateway line (W20-06)', () => {
   const clear = async () => {
     await db.delete(core.llmProviders).where(eq(core.llmProviders.workspaceId, workspaceId));
     await db.delete(read.egressAudit).where(eq(read.egressAudit.workspaceId, workspaceId));
+    await db
+      .update(core.workspaces)
+      .set({ settings: {} })
+      .where(eq(core.workspaces.id, workspaceId));
   };
 
   beforeEach(clear);
@@ -203,5 +209,66 @@ describeIfLiveInfra('Admin → Analysis gateway line (W20-06)', () => {
     expect((await app.inject({ method: 'GET', url: '/admin/analysis?before=x' })).statusCode).toBe(
       400,
     );
+  });
+
+  // W20-16 (UX_TODO AI-08): spend per month and model, priced by the admin.
+  it('estimates spend from audited tokens once a model is priced, and not before', async () => {
+    const row = (v: Partial<typeof read.egressAudit.$inferInsert>) => ({
+      workspaceId,
+      repoId,
+      modelId: 'gpt-x',
+      bytesSent: 100,
+      contentSha256: 'sha',
+      destinationHost: 'api.example.com',
+      tier: 2,
+      ...v,
+    });
+    await db.insert(read.egressAudit).values([
+      row({ attemptId: 'p1', outcome: 'attempted' }),
+      row({
+        attemptId: 'p1',
+        outcome: 'succeeded',
+        tokensSent: 2_000_000,
+        tokensReceived: 500_000,
+      }),
+      row({ attemptId: 'p2', outcome: 'attempted' }),
+      row({ attemptId: 'p2', outcome: 'succeeded' }),
+    ]);
+    const before = (await app.inject({ method: 'GET', url: '/admin/analysis' })).json();
+    expect(before.spend.rows).toEqual([
+      expect.objectContaining({
+        model: 'gpt-x',
+        calls: 2,
+        tokens_sent: 2_000_000,
+        tokens_received: 500_000,
+        unmeasured_calls: 1,
+        estimated_usd: null,
+      }),
+    ]);
+
+    const bad = await app.inject({
+      method: 'PUT',
+      url: '/admin/analysis/prices',
+      payload: { model: 'gpt-x', input_per_mtok: -1, output_per_mtok: 2 },
+    });
+    expect(bad.statusCode).toBe(400);
+    const set = await app.inject({
+      method: 'PUT',
+      url: '/admin/analysis/prices',
+      payload: { model: 'gpt-x', input_per_mtok: 3, output_per_mtok: 10 },
+    });
+    expect(set.statusCode).toBe(200);
+    const after = (await app.inject({ method: 'GET', url: '/admin/analysis' })).json();
+    // 2M in at $3 + 0.5M out at $10 = $11.
+    expect(after.spend.rows[0].estimated_usd).toBe(11);
+    expect(after.spend.prices).toEqual({ 'gpt-x': { input_per_mtok: 3, output_per_mtok: 10 } });
+
+    await app.inject({
+      method: 'PUT',
+      url: '/admin/analysis/prices',
+      payload: { model: 'gpt-x', clear: true },
+    });
+    const cleared = (await app.inject({ method: 'GET', url: '/admin/analysis' })).json();
+    expect(cleared.spend.rows[0].estimated_usd).toBeNull();
   });
 });

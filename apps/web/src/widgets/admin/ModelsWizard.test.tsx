@@ -100,6 +100,7 @@ let testBody: unknown;
 let createStatus = 201;
 let putStatus = 204;
 let putBody: unknown = null;
+let createdId: number | null = 7;
 const requests: { url: string; init: RequestInit | undefined }[] = [];
 
 const json = (b: unknown, status = 200) =>
@@ -111,6 +112,7 @@ const json = (b: unknown, status = 200) =>
 beforeEach(() => {
   requests.length = 0;
   createStatus = 201;
+  createdId = 7;
   putStatus = 204;
   putBody = null;
   testBody = {
@@ -154,7 +156,7 @@ beforeEach(() => {
       if (init?.method === 'PUT') return Promise.resolve(json(putBody, putStatus));
       if (init?.method === 'POST' && url.endsWith('/test')) return Promise.resolve(json(testBody));
       if (init?.method === 'POST')
-        return Promise.resolve(json({ id: 7, capabilities: null }, createStatus));
+        return Promise.resolve(json({ id: createdId, capabilities: null }, createStatus));
       if (url.includes('/kinds')) return Promise.resolve(json(KINDS));
       if (url.includes('/claude-cli'))
         return Promise.resolve(
@@ -374,6 +376,26 @@ describe('steps 3 and 4: roles and the review', () => {
         patch: [{ provider_id: 7, model: null }],
       },
     });
+  });
+
+  it('AI-55: a create that returned no id says so and points to Routing, instead of doing nothing', async () => {
+    createdId = null;
+    await toRoles();
+    await userEvent.click(screen.getByTestId('wizard-assign'));
+    expect(await screen.findByTestId('wizard-assign-noid')).toHaveTextContent(/Routing section/);
+    expect(requests.some((r) => r.init?.method === 'PUT')).toBe(false);
+  });
+
+  it('AI-54: finished steps say "(done)" to a screen reader, and Choose roles can be gone back to', async () => {
+    await toRoles();
+    await userEvent.click(screen.getByTestId('wizard-skip'));
+    await screen.findByTestId('wizard-review');
+    const steps = screen.getByTestId('wizard-steps');
+    expect(steps).toHaveTextContent('1. Where it runs ✓ (done)');
+    // The connection is saved: going back to step 1 or 2 would add another.
+    expect(screen.queryByTestId('wizard-step-0')).toBeNull();
+    await userEvent.click(screen.getByTestId('wizard-step-2'));
+    expect(screen.getByRole('heading', { name: /Which kinds of analysis/ })).toBeInTheDocument();
   });
 
   it("prints the server's local-only refusal, naming the role and connection", async () => {

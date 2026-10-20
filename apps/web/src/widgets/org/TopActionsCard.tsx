@@ -41,6 +41,9 @@ const KIND_LABEL: Record<TopActionItem['kind'], string> = {
  * configured produce a byte-identical sentence, so the notices are what make
  * the partial-failure and no-AI states distinguishable on screen.
  */
+/** The Plans page's own effort words (W20-16, UX_TODO DSH-49). */
+const EFFORT_LABEL: Record<string, string> = { S: 'Small', M: 'Medium', L: 'Large' };
+
 const NOTICE_LABEL: Record<string, string> = {
   failed: 'failing',
   not_configured: 'not configured',
@@ -73,7 +76,7 @@ function ActionRow({ action, search }: { action: TopActionItem; search: Record<s
       <span className="text-xs text-fg-muted">
         {action.reason}
         {action.repo_name ? ` · ${action.repo_name}` : ''}
-        {action.effort ? ` · effort ${action.effort}` : ''}
+        {action.effort ? ` · ${EFFORT_LABEL[action.effort] ?? action.effort} effort` : ''}
       </span>
     </>
   );
@@ -93,6 +96,7 @@ function ActionRow({ action, search }: { action: TopActionItem; search: Record<s
         <Link
           to="/plans"
           search={search as never}
+          hash={`plan-item-${action.target.plan_item_id}`}
           className={className}
           data-testid={`top-action-${action.id}`}
         >

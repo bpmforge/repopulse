@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { ErrorNote } from '../../components/primitives/ErrorNote.js';
-import { createFileRoute, useBlocker, useNavigate } from '@tanstack/react-router';
+import { Link, createFileRoute, useBlocker, useNavigate } from '@tanstack/react-router';
 import { WidgetFrame, WidgetGrid, frameState } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import type { Widget } from '../../components/widget/types.js';
 import {
   fromWidgets,
+  isFindingsView,
   scopeLabel,
   scopeWidgets,
   toWidgets,
@@ -37,7 +38,7 @@ const PRIMARY =
 const DANGER =
   'rounded-md border border-crit/40 px-3 py-1.5 text-sm text-crit hover:border-crit focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50';
 
-const WINDOWS: ViewWindow[] = ['7d', '30d', '90d', '365d'];
+const WINDOWS: ViewWindow[] = ['7d', '14d', '30d', '90d', '365d'];
 
 /** Everything the editor can change, as one value (W20-05, DSH-05/06). */
 interface Draft {
@@ -94,6 +95,16 @@ export function ViewDetail({ viewId }: { viewId: string }) {
     enableBeforeUnload: dirty,
   });
 
+  // W20-16 (UX_TODO DSH-66): every mutation is owner-only, so a colleague
+  // opening a shared view gets "Duplicate to my views" instead of buttons that
+  // answer 403. An older API without the flag is treated as the owner's.
+  const isOwner = data?.is_owner !== false;
+  const findingsView = data ? isFindingsView(data.config) : false;
+  const duplicate = useApiMutation<{ name: string; config: ViewConfig }, ViewResponse>(
+    { endpoint: '/views', method: 'POST' },
+    { invalidate: [LIST] },
+  );
+
   const save = useApiMutation<{ name: string; config: ViewConfig }, ViewResponse>(
     { ...descriptor, method: 'PATCH' },
     { invalidate: [queryKeyFor(descriptor), LIST] },
@@ -139,6 +150,9 @@ export function ViewDetail({ viewId }: { viewId: string }) {
           repo_ids: draft.repoIds,
           window: draft.window,
           layout: fromWidgets(draft.widgets),
+          // A Reviews view keeps what it opens (W20-16, FND-03).
+          ...(data.config.target ? { target: data.config.target } : {}),
+          ...(data.config.search ? { search: data.config.search } : {}),
         },
       },
       { onSuccess: () => setDraft(null) },
@@ -193,6 +207,33 @@ export function ViewDetail({ viewId }: { viewId: string }) {
               onClick={() => setDraft(null)}
             >
               Cancel
+            </button>
+          </>
+        ) : !isOwner ? (
+          <>
+            <span className="text-xs text-fg-muted" data-testid="view-not-owner">
+              Shared with you — only its owner can change it.
+            </span>
+            <button
+              type="button"
+              className={BUTTON}
+              data-testid="duplicate-view"
+              disabled={duplicate.isPending || !data}
+              onClick={() =>
+                data &&
+                duplicate.mutate(
+                  { name: `${data.name} (copy)`, config: data.config },
+                  {
+                    onSuccess: (view) =>
+                      void navigate({
+                        to: '/views/$viewId',
+                        params: { viewId: String(view.id) },
+                      }),
+                  },
+                )
+              }
+            >
+              Duplicate to my views
             </button>
           </>
         ) : (
@@ -307,6 +348,7 @@ export function ViewDetail({ viewId }: { viewId: string }) {
           remove.error ??
           setHome.error ??
           clearHome.error ??
+          duplicate.error ??
           save.error
         }
         testId="view-action-error"
@@ -317,32 +359,111 @@ export function ViewDetail({ viewId }: { viewId: string }) {
           <ScopeEditor
             draft={draft}
             repos={repos}
+            nameOnly={findingsView}
             onName={(name) => patchDraft({ name })}
             onWindow={(window) => patchDraft({ window })}
             onRepos={(repoIds) => patchDraft({ repoIds })}
           />
-          <ViewEditor
-            widgets={draft.widgets}
-            repos={repos}
-            onChange={(next) => patchDraft({ widgets: next })}
-          />
+          {!findingsView && (
+            <ViewEditor
+              widgets={draft.widgets}
+              repos={repos}
+              onChange={(next) => patchDraft({ widgets: next })}
+            />
+          )}
         </>
       )}
 
-      <WidgetFrame
-        title={dirty ? 'Layout — preview, not saved' : 'Layout'}
-        state={frameState({
-          isLoading,
-          isError,
-          isEmpty: data !== undefined && widgets.length === 0,
-        })}
-        {...(error ? { errorMessage: error.message, error } : {})}
-        onRetry={() => void refetch()}
-        emptyMessage="This view has no widgets yet — use Edit to add some."
-      >
-        <WidgetGrid widgets={widgets} />
-      </WidgetFrame>
+      {data && findingsView ? (
+        <FindingsViewPanel search={data.config.search ?? {}} />
+      ) : (
+        <WidgetFrame
+          title={dirty ? 'Layout — preview, not saved' : 'Layout'}
+          state={frameState({
+            isLoading,
+            isError,
+            isEmpty: data !== undefined && widgets.length === 0,
+          })}
+          {...(error ? { errorMessage: error.message, error } : {})}
+          onRetry={() => void refetch()}
+          emptyMessage="This view has no widgets yet — use Edit to add some."
+        >
+          <WidgetGrid
+            widgets={widgets}
+            {...(isOwner && data
+              ? {
+                  // Opens the editor without it: the removal is a draft the
+                  // owner saves (or cancels), never an instant change.
+                  onRemoveUnknown: (id: string) => {
+                    const base = draft ?? draftOf(data);
+                    setDraft({ ...base, widgets: base.widgets.filter((w) => w.id !== id) });
+                  },
+                }
+              : {})}
+          />
+        </WidgetFrame>
+      )}
     </div>
+  );
+}
+
+/** Plain words for a Reviews view's stored filters (W20-16, FND-03). */
+const FILTER_WORDS: Record<string, string> = {
+  dimension: 'Kind',
+  status: 'Status',
+  severity_min: 'Severity at least',
+  verify_status: 'Verification',
+  scanner_key: 'Scanner',
+  in_chain: 'In an attack chain',
+  rule_id: 'Rule',
+  experimental: 'Rules in trial',
+  sort: 'Sorted by',
+  q: 'Search',
+  kev: 'Known exploited only',
+  risk_band: 'Risk band',
+  cve_id: 'CVE',
+  confidence_min: 'Confidence at least',
+  chain_id: 'Attack chain',
+  repos: 'Repositories',
+};
+
+/**
+ * A Reviews view has no widgets: it is a set of explorer filters. Its page
+ * says which, and opens the explorer with them.
+ */
+export function FindingsViewPanel({
+  search,
+}: {
+  search: Record<string, string | number | boolean>;
+}) {
+  const entries = Object.entries(search);
+  return (
+    <WidgetFrame title="Reviews filters" state="ready">
+      <div className="flex flex-col gap-2 text-sm" data-testid="findings-view-panel">
+        {entries.length === 0 ? (
+          <p className="text-fg-muted">
+            No filters: the explorer&rsquo;s default list (findings still to fix).
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-0.5" data-testid="findings-view-filters">
+            {entries.map(([key, value]) => (
+              <li key={key}>
+                <span className="text-fg-muted">{FILTER_WORDS[key] ?? key}:</span>{' '}
+                {value === true ? 'yes' : String(value)}
+              </li>
+            ))}
+          </ul>
+        )}
+        <Link
+          to="/findings"
+          search={search as never}
+          className="self-start rounded-md border border-accent bg-accent/10 px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          data-testid="open-findings-view"
+        >
+          Open in Reviews
+        </Link>
+      </div>
+    </WidgetFrame>
   );
 }
 
@@ -405,12 +526,15 @@ function ConfirmStrip({
 function ScopeEditor({
   draft,
   repos,
+  nameOnly = false,
   onName,
   onWindow,
   onRepos,
 }: {
   draft: Draft;
   repos: { id: number; org: string; name: string }[];
+  /** A Reviews view: its filters are its scope, so only the name is editable here. */
+  nameOnly?: boolean;
   onName: (name: string) => void;
   onWindow: (window: ViewWindow) => void;
   onRepos: (repoIds: number[]) => void;
@@ -430,46 +554,50 @@ function ScopeEditor({
             onChange={(e) => onName(e.target.value)}
           />
         </label>
-        <label className="flex flex-col gap-1 text-xs text-fg-muted">
-          Window
-          <select
-            className="rounded-sm border border-border bg-surface-2 px-2 py-1 text-sm text-fg"
-            data-testid="view-window"
-            value={draft.window}
-            onChange={(e) => onWindow(e.target.value as ViewWindow)}
-          >
-            {WINDOWS.map((w) => (
-              <option key={w} value={w}>
-                {w}
-              </option>
-            ))}
-          </select>
-        </label>
+        {!nameOnly && (
+          <label className="flex flex-col gap-1 text-xs text-fg-muted">
+            Window
+            <select
+              className="rounded-sm border border-border bg-surface-2 px-2 py-1 text-sm text-fg"
+              data-testid="view-window"
+              value={draft.window}
+              onChange={(e) => onWindow(e.target.value as ViewWindow)}
+            >
+              {WINDOWS.map((w) => (
+                <option key={w} value={w}>
+                  {w}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
-      <fieldset className="flex flex-col gap-1">
-        <legend className="text-xs text-fg-muted">
-          Repositories {draft.repoIds.length === 0 ? '(none ticked = every repository)' : ''}
-        </legend>
-        <div className="max-h-40 overflow-y-auto" data-testid="view-repos">
-          {repos.map((r) => (
-            <label key={r.id} className="flex items-center gap-1.5 text-sm">
-              <input
-                type="checkbox"
-                data-testid={`view-repo-${r.id}`}
-                checked={selected.has(r.id)}
-                onChange={(e) =>
-                  onRepos(
-                    e.target.checked
-                      ? [...draft.repoIds, r.id]
-                      : draft.repoIds.filter((id) => id !== r.id),
-                  )
-                }
-              />
-              {r.org}/{r.name}
-            </label>
-          ))}
-        </div>
-      </fieldset>
+      {!nameOnly && (
+        <fieldset className="flex flex-col gap-1">
+          <legend className="text-xs text-fg-muted">
+            Repositories {draft.repoIds.length === 0 ? '(none ticked = every repository)' : ''}
+          </legend>
+          <div className="max-h-40 overflow-y-auto" data-testid="view-repos">
+            {repos.map((r) => (
+              <label key={r.id} className="flex items-center gap-1.5 text-sm">
+                <input
+                  type="checkbox"
+                  data-testid={`view-repo-${r.id}`}
+                  checked={selected.has(r.id)}
+                  onChange={(e) =>
+                    onRepos(
+                      e.target.checked
+                        ? [...draft.repoIds, r.id]
+                        : draft.repoIds.filter((id) => id !== r.id),
+                    )
+                  }
+                />
+                {r.org}/{r.name}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
     </div>
   );
 }

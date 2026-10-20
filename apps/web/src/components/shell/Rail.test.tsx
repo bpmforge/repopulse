@@ -29,7 +29,13 @@ async function railItem(label: string): Promise<HTMLElement> {
 describe('rail badges', () => {
   it('renders a real count', async () => {
     renderRail({ '/pull-requests': 4 });
-    expect((await railItem('pull-requests')).textContent).toContain('4');
+    // W20-16 (UX_TODO DSH-64): the review-queue count is its own link, beside
+    // the Pull Requests item, to the queue it counts - and says so in words.
+    const badge = await screen.findByTestId('rail-badge-pull-requests');
+    expect(badge.textContent).toContain('4');
+    expect(badge.getAttribute('href')).toBe('/me#review-queue');
+    expect(badge).toHaveAccessibleName('4 reviews waiting on you — open your review queue');
+    expect((await railItem('pull-requests')).textContent).not.toContain('4');
   });
 
   it('renders NOTHING for a zero count, not a zero', async () => {

@@ -52,6 +52,8 @@ export interface RiskAxesResponse {
   axes: RiskAxis[];
   /** Repositories the scope covered; 0 means nothing is tracked yet. */
   repos_in_scope?: number;
+  /** W20-16 (UX_TODO DSH-82): the preset window the sub-scores were read over. */
+  window?: string;
 }
 
 /**

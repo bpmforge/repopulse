@@ -31,6 +31,8 @@ import {
   type ShadowMode,
 } from '../../widgets/findings/contracts.js';
 import { FindingSeverityBadge } from '../../widgets/findings/FindingSeverity.js';
+import { SaveAsViewButton } from '../../views/SaveAsViewButton.js';
+import type { ViewConfig } from '../../views/contracts.js';
 import { ShadowBadge } from '../../widgets/findings/ShadowBadge.js';
 
 // Findings Explorer (W6-04, UX_SPEC §4.e, FR-WEB-9).
@@ -133,6 +135,26 @@ function validateFilterSearch(search: Record<string, unknown>): Omit<FindingsSea
   const chain = str(search.chain_id);
   if (chain) out.chain_id = chain;
   return out;
+}
+
+/**
+ * The explorer's filters as a saved view (W20-16, UX_TODO FND-03).
+ *
+ * Every filter has been in the URL since W20-03; what was missing was a way
+ * to KEEP a set of them. A view of target `findings` stores exactly what
+ * validateFilterSearch accepts (plus the topbar's repository filter), so
+ * opening it later lands on the same list. The open finding is left out: a
+ * view is a list, not one row.
+ */
+export function findingsViewConfig(search: Record<string, unknown>): ViewConfig {
+  const filters: Record<string, string | number | boolean> = { ...validateFilterSearch(search) };
+  const repos = typeof search.repos === 'string' && search.repos !== 'all' ? search.repos : '';
+  if (repos) filters.repos = repos;
+  const repoIds = repos
+    .split(',')
+    .map(Number)
+    .filter((n) => Number.isInteger(n) && n > 0);
+  return { repo_ids: repoIds, window: '30d', layout: [], target: 'findings', search: filters };
 }
 
 export const Route = createFileRoute('/findings/')({
@@ -534,6 +556,15 @@ function FindingsExplorer() {
             >
               Sensitive changes
             </Link>
+            <SaveAsViewButton
+              widgets={[]}
+              window="30d"
+              repos={undefined}
+              defaultName="Reviews — my filters"
+              label="Save filters as view…"
+              stay
+              config={findingsViewConfig(search as Record<string, unknown>)}
+            />
             {/* W20-03 (UX_TODO FND-10): the queue holds this page, at most
                 fifty, and was labelled as though it were the whole queue. */}
             <button

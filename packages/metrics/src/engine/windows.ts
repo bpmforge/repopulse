@@ -1,5 +1,5 @@
 // METRICS.md header: every metric is parameterized by window W, default 30d.
-export const WINDOW_DAYS = [7, 30, 90, 365] as const;
+export const WINDOW_DAYS = [7, 14, 30, 90, 365] as const;
 export type WindowDays = (typeof WINDOW_DAYS)[number];
 export const DEFAULT_WINDOW_DAYS: WindowDays = 30;
 

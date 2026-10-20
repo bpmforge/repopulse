@@ -259,6 +259,65 @@ describeIfLiveInfra('views routes (W5-01)', () => {
       });
     });
 
+    it('a Reviews view keeps its filters through a rename, and lists under Shared with me (W20-16, FND-03 / DSH-66)', async () => {
+      const created = await app.inject({
+        method: 'POST',
+        url: '/api/v1/views',
+        cookies: { repopulse_sid: ownerCookie },
+        payload: {
+          name: 'Open criticals',
+          config: {
+            repo_ids: [],
+            window: '30d',
+            layout: [],
+            target: 'findings',
+            search: { severity_min: 5, dimension: 'secrets', kev: true },
+          },
+        },
+      });
+      expect(created.statusCode).toBe(201);
+      const id = created.json().id as number;
+      expect(created.json().is_owner).toBe(true);
+
+      const renamed = await app.inject({
+        method: 'PATCH',
+        url: `/api/v1/views/${id}`,
+        cookies: { repopulse_sid: ownerCookie },
+        payload: { name: 'Criticals', config: { window: '7d' } },
+      });
+      expect(renamed.json().config).toMatchObject({
+        target: 'findings',
+        search: { severity_min: 5, dimension: 'secrets', kev: true },
+      });
+
+      await app.inject({
+        method: 'POST',
+        url: `/api/v1/views/${id}/share`,
+        cookies: { repopulse_sid: ownerCookie },
+      });
+      const sharedForOther = await app.inject({
+        method: 'GET',
+        url: '/api/v1/views?scope=shared',
+        cookies: { repopulse_sid: otherCookie },
+      });
+      const mine = sharedForOther
+        .json()
+        .items.find((v: { id: number; is_owner: boolean }) => v.id === id);
+      expect(mine?.is_owner).toBe(false);
+      const sharedForOwner = await app.inject({
+        method: 'GET',
+        url: '/api/v1/views?scope=shared',
+        cookies: { repopulse_sid: ownerCookie },
+      });
+      expect(sharedForOwner.json().items.some((v: { id: number }) => v.id === id)).toBe(false);
+      const byId = await app.inject({
+        method: 'GET',
+        url: `/api/v1/views/${id}`,
+        cookies: { repopulse_sid: otherCookie },
+      });
+      expect(byId.json()).toMatchObject({ is_owner: false, is_default: false });
+    });
+
     it('foreign-workspace row -> 404 on PATCH/DELETE/share (Law 5)', async () => {
       const patchRes = await app.inject({
         method: 'PATCH',

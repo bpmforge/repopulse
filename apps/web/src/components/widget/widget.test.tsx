@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { WidgetFrame, frameState } from './WidgetFrame.js';
@@ -65,10 +65,17 @@ describe('WidgetRegistry + WidgetGrid', () => {
       { id: 'w1', type: 'text', layout: { x: 0, y: 0, w: 4, h: 2 }, options: { text: 'hello' } },
       { id: 'w2', type: 'treemap', layout: { x: 4, y: 0, w: 8, h: 4 } },
     ];
-    render(<WidgetGrid widgets={widgets} />);
+    const { unmount } = render(<WidgetGrid widgets={widgets} />);
     expect(screen.getByTestId('widget-grid')).toBeInTheDocument();
     expect(screen.getByTestId('widget-text-w1')).toHaveTextContent('hello');
-    expect(screen.getByTestId('widget-treemap-w2')).toHaveTextContent(/not available yet/i);
+    // W20-16 (UX_TODO DSH-53): in words, with a Remove for whoever may edit.
+    expect(screen.getByTestId('widget-treemap-w2')).toHaveTextContent(/no longer available/i);
+    expect(screen.getByTestId('widget-treemap-w2')).toHaveTextContent(/owner can remove it/);
+    unmount();
+    const removed: string[] = [];
+    render(<WidgetGrid widgets={widgets} onRemoveUnknown={(id) => removed.push(id)} />);
+    fireEvent.click(screen.getByTestId('remove-unknown-w2'));
+    expect(removed).toEqual(['w2']);
   });
 });
 

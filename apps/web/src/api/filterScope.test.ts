@@ -49,6 +49,32 @@ describe('which global filters a screen applies (W16-50)', () => {
     expect(filterScopeFor('/plans')).toEqual({ window: true, repos: true, person: false });
   });
 
+  it('offers the window only on repository tabs that read it (DSH-62), and governance both (DSH-61)', () => {
+    for (const path of [
+      '/repos/12',
+      '/repos/12/',
+      '/repos/12/activity',
+      '/repos/12/hotspots',
+      '/repos/12/pr-flow',
+      '/repos/12/ai-reviewers',
+      '/repos/12/ci',
+      '/repos/12/prs',
+    ]) {
+      expect(filterScopeFor(path).window, path).toBe(true);
+    }
+    for (const path of [
+      '/repos/12/security',
+      '/repos/12/findings',
+      '/repos/12/code-health',
+      '/repos/12/performance',
+      '/repos/12/files/src/a.ts',
+      '/repos/12/prs/3',
+    ]) {
+      expect(filterScopeFor(path).window, path).toBe(false);
+    }
+    expect(filterScopeFor('/governance')).toEqual({ window: true, repos: true, person: false });
+  });
+
   it('gives an unrecognised path nothing at all', () => {
     // A screen nobody has checked has not earned a filter. Defaulting the other
     // way is how all three came to be offered everywhere in the first place.

@@ -153,7 +153,7 @@ test('the org overview composes through WidgetGrid with 2x2 heroes (W4-21, R-D2)
   await expect(page.getByTestId('kpi-row')).toBeVisible();
   await expect(page.getByTestId('health-tile-grid')).toBeVisible();
   await expect(page.getByTestId('hotspot-leaderboard')).toBeVisible();
-  await expect(page.getByText(/widget is not available yet/i)).toHaveCount(0);
+  await expect(page.getByText(/widget no longer available/i)).toHaveCount(0);
 });
 
 test('the Top Risks card shows its denominator, not just a top five (W9-11)', async ({ page }) => {

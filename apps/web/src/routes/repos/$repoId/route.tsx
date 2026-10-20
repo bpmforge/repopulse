@@ -11,6 +11,8 @@ import { HealthWhy } from '../../../widgets/repo/HealthWhy.js';
 import { RiskAxisStrip } from '../../../widgets/risk/RiskAxisStrip.js';
 import { forgeLabel, type RepoDetail } from '../../../widgets/repo/contracts.js';
 import { asOfLabel } from '../../../widgets/org/contracts.js';
+import { orgWidgets } from '../../../widgets/org/OrgOverview.js';
+import { SaveAsViewButton } from '../../../views/SaveAsViewButton.js';
 
 /**
  * The repository's sync state in words (W20-12, UX_TODO DSH-24, UX_SPEC
@@ -304,8 +306,21 @@ function RepoLayout() {
           )}
         </div>
         <div className="flex flex-wrap items-center gap-4">
-          <RiskAxisStrip repoId={repoId} />
+          <RiskAxisStrip repoId={repoId} window={search.window} />
           {fresh && <HealthWhy health={fresh.health} repoId={repoId} search={preserved} />}
+          {/* W20-16 (UX_TODO DSH-07): "Save as view…" on the repository pages.
+              They are not widget grids, so the view this saves is the
+              Overview's dashboard scoped to THIS repository (every tile
+              follows a view's repositories since W20-09), without the
+              one-tile health grid the header above already answers. */}
+          {fresh && (
+            <SaveAsViewButton
+              widgets={orgWidgets(search.window, preserved).filter((w) => w.type !== 'health-grid')}
+              window={search.window}
+              repos={String(fresh.id)}
+              defaultName={`${fresh.org}/${fresh.name}`}
+            />
+          )}
         </div>
       </header>
 

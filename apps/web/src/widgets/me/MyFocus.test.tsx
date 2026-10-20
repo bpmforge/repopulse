@@ -95,13 +95,15 @@ describe('My Focus row identity across repositories', () => {
     expect(text.join('|')).toContain('acme/worker');
   });
 
-  it('calls the queue what it is, not "awaiting my review" (W20-09, DSH-85)', () => {
-    renderWith({ queue: [review(1, 'web', 4)] });
-    expect(
-      within(table('review-queue')).getByRole('columnheader', { name: 'Open PRs by others' }),
-    ).toBeTruthy();
-    expect(screen.queryByText('Awaiting my review')).toBeNull();
-    expect(screen.getByText(/Open PRs by others you haven't reviewed/)).toBeTruthy();
+  it('is the PRs that ask me, marking rows whose request is not known yet (W20-16, DSH-85)', () => {
+    renderWith({
+      queue: [
+        { ...review(1, 'web', 4), requested: true },
+        { ...review(2, 'api', 4), requested: null },
+      ],
+    });
+    expect(screen.getByText(/Awaiting my review \(over/)).toBeTruthy();
+    expect(within(table('review-queue')).getAllByTestId('queue-request-unknown')).toHaveLength(1);
   });
 
   it('tells apart two owned files with the same path', () => {

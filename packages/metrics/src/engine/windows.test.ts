@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_WINDOW_DAYS, WINDOW_DAYS, daysBetween, windowStart } from './windows.js';
 
 describe('window constants', () => {
-  it('matches the four documented windows, default 30d', () => {
-    expect(WINDOW_DAYS).toEqual([7, 30, 90, 365]);
+  // W20-16 (UX_TODO DSH-56): a 14-day preset for two-week sprints.
+  it('matches the five documented windows, default 30d', () => {
+    expect(WINDOW_DAYS).toEqual([7, 14, 30, 90, 365]);
     expect(DEFAULT_WINDOW_DAYS).toBe(30);
   });
 });

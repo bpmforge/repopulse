@@ -129,14 +129,14 @@ describe('top action deep links (W17-16, W16-49)', () => {
     expect(action?.target).toEqual({ kind: 'finding', findingId: 77, repoId: 10 });
   });
 
-  it('a plan item links to /plans with no invented search param', () => {
+  it('a plan item links to its anchor on /plans, with no invented search param', () => {
     // The plans route validates no per-item param, and TanStack REPLACES the
     // search object — an unknown key would be stripped and open nothing.
     const [action] = selectTopActions({
       findings: [],
       planItems: [planItem({ planItemId: 42, planId: 7 })],
     });
-    expect(action?.href).toBe('/plans');
+    expect(action?.href).toBe('/plans#plan-item-42');
     expect(action?.target).toEqual({ kind: 'plan_item', planId: 7, planItemId: 42 });
   });
 

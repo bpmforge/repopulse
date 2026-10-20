@@ -72,6 +72,10 @@ export function TopRisksCard({ repoId, repos }: { repoId?: string; repos?: strin
           {/* Unpriced is called out rather than folded into `track`, which
               would claim the nightly job had judged them low risk. */}
           {data.counts.unpriced > 0 ? `, ${data.counts.unpriced} not yet priced` : ''}
+          {/* W20-16 (UX_TODO DSH-52): the SSVC verbs, in words. */}
+          <span className="block text-fg-faint" data-testid="top-risks-legend">
+            act = fix now · schedule = plan it for this sprint · track = watch it, no work yet
+          </span>
         </p>
       )}
     </WidgetFrame>

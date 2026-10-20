@@ -49,6 +49,23 @@ export interface WorkerHeartbeat {
   host: string;
   /** Queue names this instance actually consumes. */
   queues: string[];
+  /**
+   * W20-16 (UX_TODO AI-73/74). What THIS worker finds when it looks for the
+   * customer-supplied Claude Code CLI — the container that actually runs it.
+   * The api container's own check could only speak for the api, which the
+   * documented overlay used not to give the CLI. Absent from older workers.
+   */
+  claudeCli?: WorkerCliStatus;
+}
+
+/** The worker's view of the Claude Code CLI. No login detail beyond the boolean. */
+export interface WorkerCliStatus {
+  found: boolean;
+  version: string | null;
+  reportsLoggedIn: boolean | null;
+  reason: string | null;
+  /** ISO. When the worker last looked. */
+  checkedAt: string;
 }
 
 export interface HeartbeatHandle {
@@ -68,6 +85,8 @@ export interface StartHeartbeatOptions {
   ttlSeconds?: number;
   /** Reported rather than thrown: a failed beat must not kill the worker. */
   onError?: (err: unknown) => void;
+  /** The latest Claude Code CLI check, read on every beat (W20-16). */
+  claudeCli?: () => WorkerCliStatus | undefined;
 }
 
 /**
@@ -95,6 +114,8 @@ export function startWorkerHeartbeat(opts: StartHeartbeatOptions): HeartbeatHand
       host: hostname(),
       queues: opts.queues,
     };
+    const cli = opts.claudeCli?.();
+    if (cli) payload.claudeCli = cli;
     try {
       // SET with EX rather than SET then EXPIRE: one round trip, and no window
       // in which the key exists without a TTL. A key that lost its TTL would

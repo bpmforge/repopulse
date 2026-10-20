@@ -255,7 +255,7 @@ export default async function apiV1(app: FastifyInstance, opts: ApiV1Options): P
   // W16-07: the configuration surface for bring-your-own-LLM. Needs tokenKey —
   // provider API keys go through the same vault as forge tokens (Law 9).
   await app.register(llmProviderRoutes, { db: opts.db, tokenKey: opts.tokenKey });
-  await app.register(claudeCliRoutes, { db: opts.db });
+  await app.register(claudeCliRoutes, { db: opts.db, redisUrl: opts.redisUrl });
   await app.register(llmRoutingRoutes, { db: opts.db });
   await app.register(modelEvalRoutes, { db: opts.db });
   // W16-10 (F15): nothing in this product could be started by hand until now.

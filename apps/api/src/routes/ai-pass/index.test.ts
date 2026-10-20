@@ -576,6 +576,33 @@ describeIfLiveInfra('AI pass routes (W19-09)', () => {
       expect((await row()).decision).toBe('accepted');
     });
 
+    // W20-16 (UX_TODO AI-40): an optional "why", kept with the answer and
+    // cleared when the answer is withdrawn.
+    it('keeps an optional why note with the answer, and drops it on undo', async () => {
+      const fid = await finding();
+      const vid = await verdict(fid);
+      const post = (payload: Record<string, unknown>) =>
+        app.inject({
+          method: 'POST',
+          url: `/findings/${fid}/ai-verdicts/${vid}/decide`,
+          headers: CSRF,
+          payload,
+        });
+      expect((await post({ decision: 'dismissed', note: 'x'.repeat(501) })).statusCode).toBe(400);
+      expect((await post({ decision: 'dismissed', note: 7 })).statusCode).toBe(400);
+      expect(
+        (await post({ decision: 'dismissed', note: '  validated two lines up  ' })).statusCode,
+      ).toBe(200);
+      const ai = await app.inject({ method: 'GET', url: `/findings/${fid}/ai` });
+      expect(ai.json().suggestions[0].decision_note).toBe('validated two lines up');
+      expect((await post({ undo: true })).statusCode).toBe(200);
+      const [row] = await db
+        .select()
+        .from(read.aiTriageVerdicts)
+        .where(eq(read.aiTriageVerdicts.id, vid));
+      expect(row!.decisionNote).toBeNull();
+    });
+
     it('accepts only accepted or dismissed - "superseded" is the system\'s, never a person\'s', async () => {
       const fid = await finding();
       const vid = await verdict(fid);

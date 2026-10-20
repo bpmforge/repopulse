@@ -432,17 +432,31 @@ export default async function systemRoutes(
         .where(eq(core.llmProviders.workspaceId, workspaceId));
 
       const enabled = providers.filter((p) => p.enabled);
+      // W20-16 (UX_TODO AI-74): an enabled Claude Code CLI connection whose
+      // CLI the WORKER cannot find. A restart without the CLI overlay drops
+      // its volume and every pass then fails; the worker's own check (in its
+      // heartbeat) is the one that can see it. No heartbeat check = unknown,
+      // never "gone".
+      const cliConns = enabled.filter((p) => p.kind === 'claude_cli');
+      const workerCli = beats.find((b) => b.claudeCli)?.claudeCli;
+      const cliGone = cliConns.length > 0 && workerCli !== undefined && !workerCli.found;
       components.push({
         id: 'models',
         label: 'AI review models',
         state:
-          providers.length === 0 ? 'setup_needed' : enabled.length === 0 ? 'degraded' : 'ready',
+          providers.length === 0
+            ? 'setup_needed'
+            : enabled.length === 0 || cliGone
+              ? 'degraded'
+              : 'ready',
         reason:
           providers.length === 0
             ? 'No model configured. This is OPTIONAL — delivery metrics, hotspots and deterministic scanners all work without one. Only AI code review is unavailable.'
             : enabled.length === 0
               ? `${providers.length} configured, none enabled. AI review will not run.`
-              : `${enabled.length} of ${providers.length} enabled (${[...new Set(enabled.map((p) => p.kind))].join(', ')}).`,
+              : cliGone
+                ? `The worker cannot find the Claude Code CLI (${workerCli.reason ?? 'not found'}), so ${cliConns.map((c) => c.name).join(', ')} will fail. If the stack was restarted without the CLI overlay, start it again with it (deploy/up.sh --with-claude-cli).`
+                : `${enabled.length} of ${providers.length} enabled (${[...new Set(enabled.map((p) => p.kind))].join(', ')}).`,
         lastSuccessAt: null,
         action: SYSTEM_ACTIONS.models,
       });

@@ -42,6 +42,19 @@ export interface ReadSourcesOptions {
   maxFileBytes?: number;
   /** Total bytes read, the guard that actually bounds memory. */
   maxTotalBytes?: number;
+  /**
+   * W20-16 (UX_TODO AI-85). Which file NAMES are read; the scanners' list
+   * (READABLE) by default. A model review reads more languages than the
+   * deterministic scanners can say anything about.
+   */
+  readable?: RegExp;
+  /**
+   * Walk only what this accepts (relative path, and whether it is a
+   * directory). An AI pass over `src/app` must not spend its file cap on the
+   * rest of a monorepo that sorts before it. A directory is entered only when
+   * accepted; a file is considered only when accepted.
+   */
+  include?: (relPath: string, isDir: boolean) => boolean;
 }
 
 export interface ReadSourcesResult {
@@ -49,6 +62,12 @@ export interface ReadSourcesResult {
   /** Files skipped for size or count — reported, never silent. */
   skipped: number;
   truncated: boolean;
+  /** W20-16: in scope but larger than maxFileBytes (the first 50 paths). */
+  tooLarge: string[];
+  /** W20-16: in scope but of a type `readable` does not accept. */
+  unsupported: number;
+  /** W20-16: up to five of those, so a refusal can name one. */
+  unsupportedExamples: string[];
 }
 
 /**
@@ -65,8 +84,13 @@ export function readSnapshotSources(
   const maxFiles = opts.maxFiles ?? 2000;
   const maxFileBytes = opts.maxFileBytes ?? 512 * 1024;
   const maxTotalBytes = opts.maxTotalBytes ?? 64 * 1024 * 1024;
+  const readable = opts.readable ?? READABLE;
+  const include = opts.include ?? (() => true);
 
   const files: SourceFile[] = [];
+  const tooLarge: string[] = [];
+  const unsupportedExamples: string[] = [];
+  let unsupported = 0;
   let skipped = 0;
   let totalBytes = 0;
   let truncated = false;
@@ -95,13 +119,20 @@ export function readSnapshotSources(
         continue;
       }
 
+      const rel = path.relative(root, full);
       if (stats.isDirectory()) {
-        walk(full);
+        if (include(rel, true)) walk(full);
         continue;
       }
-      if (!READABLE.test(entry)) continue;
+      if (!include(rel, false)) continue;
+      if (!readable.test(entry)) {
+        unsupported += 1;
+        if (unsupportedExamples.length < 5) unsupportedExamples.push(rel);
+        continue;
+      }
       if (stats.size > maxFileBytes) {
         skipped += 1;
+        if (tooLarge.length < 50) tooLarge.push(rel);
         continue;
       }
       if (files.length >= maxFiles || totalBytes + stats.size > maxTotalBytes) {
@@ -110,7 +141,7 @@ export function readSnapshotSources(
       }
 
       try {
-        files.push({ path: path.relative(root, full), source: readFileSync(full, 'utf8') });
+        files.push({ path: rel, source: readFileSync(full, 'utf8') });
         totalBytes += stats.size;
       } catch {
         skipped += 1;
@@ -119,7 +150,7 @@ export function readSnapshotSources(
   };
 
   walk(root);
-  return { files, skipped, truncated };
+  return { files, skipped, truncated, tooLarge, unsupported, unsupportedExamples };
 }
 
 /**

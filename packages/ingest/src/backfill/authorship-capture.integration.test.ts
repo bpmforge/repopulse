@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { core, createDb, facts, type Database } from '@repopulse/shared';
 import type { ForgeCommit, ForgePR } from '@repopulse/forge';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -146,5 +146,47 @@ describeIfLiveInfra('ingest keeps authorship signals (W18-20)', () => {
       .from(facts.pullRequests)
       .where(eq(facts.pullRequests.repoId, repoId));
     expect(row!.headRef).toBe('claude/fix-it');
+  });
+
+  // W20-16 (UX_TODO DSH-85): requested reviewers as identity ids.
+  it('stores requested reviewers, keeps them when a listing omits them, and clears to {}', async () => {
+    const scope = { workspaceId, repoId };
+    const resolver = new IdentityResolver(db, workspaceId, 'github');
+    const pr: ForgePR = {
+      number: 2,
+      externalId: 'x2',
+      title: 't',
+      body: null,
+      authorLogin: 'alice',
+      isBot: false,
+      isDraft: false,
+      state: 'open',
+      createdAt: '2026-09-01T00:00:00Z',
+      updatedAt: '2026-09-01T00:00:00Z',
+      mergedAt: null,
+      closedAt: null,
+      mergedByLogin: null,
+      baseRef: 'main',
+      headSha: 'h',
+      requestedReviewerLogins: ['bob'],
+    };
+    const read = async () =>
+      (
+        await db
+          .select({ ids: facts.pullRequests.requestedReviewerIdentityIds })
+          .from(facts.pullRequests)
+          .where(and(eq(facts.pullRequests.repoId, repoId), eq(facts.pullRequests.number, 2)))
+      )[0]!.ids;
+    await upsertPullRequests(db, scope, resolver, [pr]);
+    const bob = await resolver.resolve({ login: 'bob' });
+    expect(await read()).toEqual([bob]);
+
+    const silent: ForgePR = { ...pr };
+    delete silent.requestedReviewerLogins;
+    await upsertPullRequests(db, scope, resolver, [silent]);
+    expect(await read()).toEqual([bob]);
+
+    await upsertPullRequests(db, scope, resolver, [{ ...pr, requestedReviewerLogins: [] }]);
+    expect(await read()).toEqual([]);
   });
 });

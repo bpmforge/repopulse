@@ -91,6 +91,13 @@ export interface ForgePR {
    * branch-prefix rule could match against.
    */
   headRef?: string;
+  /**
+   * Logins of the PEOPLE asked to review (W20-16, UX_TODO DSH-85). Teams are
+   * left out: a team request names nobody in particular. Absent means the
+   * forge payload did not say (an older fixture, a trimmed listing), which is
+   * NOT the same as an empty list ("nobody is requested").
+   */
+  requestedReviewerLogins?: string[];
   additions?: number;
   deletions?: number;
   changedFiles?: number; // absent on GitHub REST list items (research §3)

@@ -28,6 +28,12 @@ export interface PulseInput {
   newFindingsThisWindow: number;
   /** Plan items that closed in the window, from the audit trail. */
   planItemsVerified: number;
+  /**
+   * W20-16 (UX_TODO DSH-84): whether any scan has ever finished in scope.
+   * Without one, zero open findings is "not measured", not good news.
+   * Omitted means yes (callers from before this field).
+   */
+  scansCompleted?: boolean;
 }
 
 export interface PulseBullet {
@@ -113,13 +119,15 @@ export function buildPulse(input: PulseInput): PulseBullet[] {
     },
   );
 
+  const unscanned = input.openFindings === 0 && input.scansCompleted === false;
   bullets.push({
     id: 'findings',
-    text:
-      input.openFindings === 0
+    text: unscanned
+      ? 'No scans have run yet, so open findings are not measured.'
+      : input.openFindings === 0
         ? 'No findings are open.'
         : `${input.openFindings} findings are open${input.newFindingsThisWindow > 0 ? `, ${input.newFindingsThisWindow} raised this window` : ' (none new this window)'}.`,
-    direction: input.newFindingsThisWindow > 0 ? 'worse' : 'flat',
+    direction: unscanned ? 'unknown' : input.newFindingsThisWindow > 0 ? 'worse' : 'flat',
   });
 
   bullets.push({

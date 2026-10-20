@@ -1,3 +1,4 @@
+import { READABLE_SOURCES } from '../findings/aiContracts.js';
 import { useState, type ReactNode } from 'react';
 import { Link } from '@tanstack/react-router';
 import { ErrorNote } from '../../components/index.js';
@@ -57,8 +58,9 @@ function parsePaths(text: string): string[] {
  * of Vue or Terraform files was quietly reviewed as its TypeScript alone. Mirrors
  * READABLE in packages/security/src/snapshot/sources.ts.
  */
-export const READABLE_SOURCES =
-  'JavaScript and TypeScript (.js, .jsx, .ts, .tsx, .mjs, .cjs), Python, Go (and go.mod), Ruby, Java, Kotlin, C#, PHP and Rust';
+// The file types a pass reads live with the AI contracts (W20-16) so the
+// schedule form can say the same thing without importing this panel.
+export { READABLE_SOURCES } from '../findings/aiContracts.js';
 
 /** Minutes after which a queued pass no worker took is called stalled (as "Run scans now" does). */
 export const STALLED_AFTER_MIN = 5;
@@ -153,6 +155,7 @@ function RunRow({
   // written are real findings on the repository; the row now says so.
   const savedBeforeFailure = raised.reduce((n, [, u]) => n + (u.findings ?? 0), 0);
   const filesRead = run.specialists?.filesRead;
+  const filesSkipped = run.specialists?.filesSkipped;
   const skippedTop = funnel?.skipped?.below_top_n ?? 0;
   const skippedBudget = funnel?.skipped?.budget_exhausted ?? 0;
   return (
@@ -270,8 +273,22 @@ function RunRow({
           ) : null}
           {typeof filesRead === 'number' && (run.mode ?? 'paths') === 'paths' ? (
             <li data-testid="ai-pass-files-read">
-              {filesRead} file{filesRead === 1 ? '' : 's'} read. Only {READABLE_SOURCES} files are
-              read; other file types in these paths were not reviewed.
+              {filesRead} file{filesRead === 1 ? '' : 's'} read
+              {filesSkipped && filesSkipped.unsupported + filesSkipped.tooLarge > 0 ? (
+                <>
+                  ; {filesSkipped.unsupported + filesSkipped.tooLarge} skipped (
+                  {[
+                    filesSkipped.unsupported > 0
+                      ? `${filesSkipped.unsupported} of a type the pass does not read`
+                      : null,
+                    filesSkipped.tooLarge > 0 ? `${filesSkipped.tooLarge} over 512 KB` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(', ')}
+                  )
+                </>
+              ) : null}
+              . Only {READABLE_SOURCES} files are read.
             </li>
           ) : null}
           {funnel ? (

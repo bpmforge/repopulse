@@ -580,12 +580,18 @@ function AppShell({ inert = false }: { inert?: boolean }) {
   // The Reviews badge (W20-10, UX_TODO X-03) counts NEW serious findings
   // since this person last looked — the same request as the top-bar Inbox, so
   // the two cannot disagree. Absent until it has answered, never a fake 0.
-  const { data: reviewQueue } = useApiQuery<{ items: unknown[] }>({
+  const { data: reviewQueue } = useApiQuery<{ items: { requested?: boolean | null }[] }>({
     endpoint: '/me/review-queue',
   });
   const { data: inbox } = useInbox();
+  // W20-16 (UX_TODO DSH-85/64): only the PRs the forge says ask YOU count —
+  // rows listed because their request list is not captured yet do not.
   const railBadges: Record<string, number> = {
-    ...(reviewQueue === undefined ? {} : { '/pull-requests': reviewQueue.items.length }),
+    ...(reviewQueue === undefined
+      ? {}
+      : {
+          '/pull-requests': reviewQueue.items.filter((i) => i.requested === true).length,
+        }),
     ...(inbox === undefined ? {} : { '/findings': inbox.findings_count }),
   };
 

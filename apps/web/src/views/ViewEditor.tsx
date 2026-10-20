@@ -136,7 +136,7 @@ export function ViewEditor({ widgets, onChange, repos = [] }: ViewEditorProps) {
             data-testid={`edit-widget-${widget.id}`}
           >
             <span className="min-w-0 flex-1 truncate text-sm">
-              {getWidget(widget.type)?.title ?? widget.type}
+              {getWidget(widget.type)?.title ?? `Widget no longer available (${widget.type})`}
             </span>
 
             {/* The trend widget's options (DSH-60): it always charted M5 and
@@ -236,7 +236,7 @@ export function ViewEditor({ widgets, onChange, repos = [] }: ViewEditorProps) {
               data-testid={`move-up-${widget.id}`}
               disabled={index === 0}
               onClick={() => move(index, -1)}
-              aria-label={`Move ${widget.type} earlier`}
+              aria-label={`Move ${getWidget(widget.type)?.title ?? 'unavailable widget'} earlier`}
             >
               ↑
             </button>
@@ -246,7 +246,7 @@ export function ViewEditor({ widgets, onChange, repos = [] }: ViewEditorProps) {
               data-testid={`move-down-${widget.id}`}
               disabled={index === widgets.length - 1}
               onClick={() => move(index, 1)}
-              aria-label={`Move ${widget.type} later`}
+              aria-label={`Move ${getWidget(widget.type)?.title ?? 'unavailable widget'} later`}
             >
               ↓
             </button>
@@ -255,7 +255,7 @@ export function ViewEditor({ widgets, onChange, repos = [] }: ViewEditorProps) {
               className="rounded-sm border border-border px-1.5 py-0.5 text-xs text-crit"
               data-testid={`remove-${widget.id}`}
               onClick={() => onChange(widgets.filter((w) => w.id !== widget.id))}
-              aria-label={`Remove ${widget.type}`}
+              aria-label={`Remove ${getWidget(widget.type)?.title ?? 'unavailable widget'}`}
             >
               Remove
             </button>

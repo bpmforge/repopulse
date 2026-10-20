@@ -125,6 +125,8 @@ export interface RawPR {
   merged_by?: RawUser | null;
   base: { ref: string };
   head: { sha: string; ref?: string };
+  /** Users asked to review; GitHub drops a user from it once they review. */
+  requested_reviewers?: (RawUser | null)[] | null;
   additions?: number;
   deletions?: number;
   changed_files?: number;
@@ -149,6 +151,13 @@ export function normalizePR(p: RawPR): ForgePR {
     baseRef: p.base.ref,
     headSha: p.head.sha,
     ...(p.head.ref ? { headRef: p.head.ref } : {}),
+    ...(Array.isArray(p.requested_reviewers)
+      ? {
+          requestedReviewerLogins: p.requested_reviewers
+            .map((u) => u?.login)
+            .filter((l): l is string => typeof l === 'string' && l.length > 0),
+        }
+      : {}),
     ...(p.additions !== undefined ? { additions: p.additions } : {}),
     ...(p.deletions !== undefined ? { deletions: p.deletions } : {}),
     ...(p.changed_files !== undefined ? { changedFiles: p.changed_files } : {}),

@@ -45,12 +45,15 @@ const HOTSPOT_FILES_KEPT = 500;
 // to re-run (append-only snapshots — two nightly runs = two rows, by design).
 
 export interface SnapshotWindow {
-  key: string; // '7d' | '30d' | '90d' | '365d'
+  key: string; // '7d' | '14d' | '30d' | '90d' | '365d'
   days: number;
 }
 
 export const DEFAULT_WINDOWS: SnapshotWindow[] = [
   { key: '7d', days: 7 },
+  // W20-16 (UX_TODO DSH-56): a two-week sprint is the period a retro asks
+  // about, and it had to be read through the 30-day numbers.
+  { key: '14d', days: 14 },
   { key: '30d', days: 30 },
   { key: '90d', days: 90 },
   { key: '365d', days: 365 },

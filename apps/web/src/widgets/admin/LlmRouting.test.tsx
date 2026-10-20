@@ -5,6 +5,14 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { createQueryClient } from '../../api/queryClient.js';
 import { LlmRouting } from './LlmRouting.js';
 
+// The leave-with-unsaved-changes guard (W20-16, AI-24) is the router's.
+const blocker = vi.hoisted(() => ({ last: undefined as unknown }));
+vi.mock('@tanstack/react-router', () => ({
+  useBlocker: (opts: unknown) => {
+    blocker.last = opts;
+  },
+}));
+
 // W19-02. The assertions that matter: the chain a person builds is what is
 // sent, and the API's local-only sentence reaches the screen verbatim.
 
@@ -224,7 +232,10 @@ describe('Routing friction (W20-11)', () => {
     expect(screen.queryByTestId('routing-unsaved')).toBeNull();
     await userEvent.click(screen.getByTestId('routing-local-only'));
     expect(screen.getByTestId('routing-unsaved')).toHaveTextContent(/nothing above applies/);
+    // Leaving now asks, inside the app as well as on closing the tab (AI-24).
+    expect(blocker.last).toMatchObject({ disabled: false, enableBeforeUnload: true });
     await userEvent.click(screen.getByTestId('routing-discard'));
+    expect(blocker.last).toMatchObject({ disabled: true, enableBeforeUnload: false });
     expect(screen.queryByTestId('routing-unsaved')).toBeNull();
     expect(screen.getByTestId('routing-local-only')).not.toBeChecked();
   });

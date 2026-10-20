@@ -148,6 +148,72 @@ describe('AiSuggestions', () => {
     });
   });
 
+  it('sends an optional why note with the answer and shows it afterwards (AI-40)', () => {
+    respond({ raised_by: null, suggestions: [suggestion()] });
+    const { unmount } = render(<AiSuggestions findingId={7} onOfferDismiss={() => {}} />);
+    fireEvent.change(screen.getByTestId('ai-decision-note'), {
+      target: { value: '  input is validated above  ' },
+    });
+    fireEvent.click(screen.getByTestId('ai-disagree'));
+    expect(state.mutate).toHaveBeenLastCalledWith({
+      decision: 'dismissed',
+      note: 'input is validated above',
+    });
+    unmount();
+    respond({
+      raised_by: null,
+      suggestions: [
+        suggestion({
+          decision: 'dismissed',
+          decided_by: 'ada',
+          decided_at: '2026-10-18T11:00:00Z',
+          decision_note: 'input is validated above',
+        }),
+      ],
+    });
+    render(<AiSuggestions findingId={7} onOfferDismiss={() => {}} />);
+    expect(screen.getByTestId('ai-decision-note-shown')).toHaveTextContent(
+      'Why: input is validated above',
+    );
+  });
+
+  it('says it is loading rather than rendering nothing (AI-51)', () => {
+    state.data = undefined;
+    render(<AiSuggestions findingId={7} onOfferDismiss={() => {}} />);
+    expect(screen.getByTestId('ai-loading')).toHaveTextContent('Loading AI review');
+  });
+
+  it('a citation in the finding file jumps to the evidence (AI-52)', () => {
+    respond({
+      raised_by: null,
+      suggestions: [suggestion({ citations: [{ file: 'src/a.ts', line: 3, text: 'x' }] })],
+    });
+    const target = document.createElement('div');
+    target.id = 'finding-evidence';
+    const scroll = vi.fn();
+    target.scrollIntoView = scroll;
+    document.body.appendChild(target);
+    render(
+      <AiSuggestions
+        findingId={7}
+        onOfferDismiss={() => {}}
+        finding={{
+          repoId: 1,
+          file: 'src/a.ts',
+          line: 3,
+          status: 'open',
+          experimental: false,
+          scannerKey: 's',
+          ruleId: 'r',
+          hasContext: true,
+        }}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('ai-citation-jump'));
+    expect(scroll).toHaveBeenCalled();
+    target.remove();
+  });
+
   it('after accepting a false-positive suggestion, the finding is still open and dismissing is offered, not done', () => {
     const offer = vi.fn();
     respond({

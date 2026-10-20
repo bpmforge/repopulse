@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useBlocker } from '@tanstack/react-router';
 import { ErrorNote, WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import { summarizeRole, type EgressLink, type EgressProvider } from './egress.js';
@@ -157,15 +158,14 @@ export function LlmRouting() {
     currentKey !== JSON.stringify([query.data.local_only, norm(serverChains)]) &&
     currentKey !== savedKey;
   const saved = savedKey !== null && savedKey === currentKey;
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = '';
-    };
-    window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
-  }, [dirty]);
+  // W20-16 (re-walk of UX_TODO AI-24): the warning covered closing the tab
+  // only; moving to another screen inside the app dropped the edits silently.
+  // The router's blocker asks on both, like a saved view's editor does.
+  useBlocker({
+    shouldBlockFn: () => !window.confirm('Leave Routing? Your unsaved changes will be lost.'),
+    disabled: !dirty,
+    enableBeforeUnload: dirty,
+  });
   const discard = () => {
     if (!query.data) return;
     setLocalOnly(query.data.local_only);

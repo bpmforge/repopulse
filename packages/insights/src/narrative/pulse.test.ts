@@ -31,7 +31,16 @@ describe('deterministic bullets', () => {
   });
 
   it('reads a DROP in a lower-is-better metric as an improvement', () => {
-    const bullet = deltaBullet(delta({ key: 'M8', label: 'Stale PRs', current: 3, previous: 9, higherBetter: false, unit: 'count' }));
+    const bullet = deltaBullet(
+      delta({
+        key: 'M8',
+        label: 'Stale PRs',
+        current: 3,
+        previous: 9,
+        higherBetter: false,
+        unit: 'count',
+      }),
+    );
     expect(bullet.direction).toBe('better');
     expect(bullet.text).toContain('improved');
   });
@@ -56,7 +65,17 @@ describe('the five-bullet pulse', () => {
   const input = {
     repoLabel: 'acme',
     windowDays: 7,
-    deltas: [delta(), delta({ key: 'M8', label: 'Stale PRs', current: 3, previous: 9, higherBetter: false, unit: 'count' })],
+    deltas: [
+      delta(),
+      delta({
+        key: 'M8',
+        label: 'Stale PRs',
+        current: 3,
+        previous: 9,
+        higherBetter: false,
+        unit: 'count',
+      }),
+    ],
     openFindings: 4,
     newFindingsThisWindow: 2,
     planItemsVerified: 1,
@@ -74,7 +93,10 @@ describe('the five-bullet pulse', () => {
   });
 
   it('leads with movement, not with "not computed"', () => {
-    const pulse = buildPulse({ ...input, deltas: [delta({ current: null }), delta({ key: 'M8' })] });
+    const pulse = buildPulse({
+      ...input,
+      deltas: [delta({ current: null }), delta({ key: 'M8' })],
+    });
     expect(pulse[0]?.direction).not.toBe('unknown');
   });
 
@@ -83,17 +105,37 @@ describe('the five-bullet pulse', () => {
     expect(pulse[1]?.text).toMatch(/4 findings are open/);
     expect(pulse[2]?.text).toMatch(/1 plan item verified/);
   });
+
+  // W20-16 (UX_TODO DSH-84): zero before any scan is "not measured".
+  it('says no scans have run rather than "no findings are open" before the first scan', () => {
+    const none = { ...input, openFindings: 0, newFindingsThisWindow: 0 };
+    expect(buildPulse({ ...none, scansCompleted: false })[1]).toMatchObject({
+      text: 'No scans have run yet, so open findings are not measured.',
+      direction: 'unknown',
+    });
+    expect(buildPulse({ ...none, scansCompleted: true })[1]?.text).toBe('No findings are open.');
+    expect(buildPulse(none)[1]?.text).toBe('No findings are open.');
+  });
 });
 
 describe('optional T2 polish', () => {
   it('tells the model the numbers are already correct', () => {
-    const prompt = buildNarratePrompt([{ id: 'a', text: 'Review coverage is 80%.', direction: 'better' }], 'acme');
+    const prompt = buildNarratePrompt(
+      [{ id: 'a', text: 'Review coverage is 80%.', direction: 'better' }],
+      'acme',
+    );
     expect(prompt).toMatch(/Reproduce each one EXACTLY/);
     expect(prompt).toMatch(/Do not add any number/);
   });
 
   it('accepts a rewording that preserves every number', () => {
-    const original = [{ id: 'a', text: 'Review coverage improved by 20%, from 60% to 80%.', direction: 'better' as const }];
+    const original = [
+      {
+        id: 'a',
+        text: 'Review coverage improved by 20%, from 60% to 80%.',
+        direction: 'better' as const,
+      },
+    ];
     const out = applyNarration(original, ['Coverage climbed from 60% to 80% — a 20% gain.']);
     expect(out[0]?.text).toMatch(/climbed/);
   });
@@ -101,7 +143,13 @@ describe('optional T2 polish', () => {
   it('DISCARDS a rewording that invents or changes a number', () => {
     // The whole reason the template comes first. A stiff sentence beats a
     // fluent one with a fabricated figure, because the fluent one gets quoted.
-    const original = [{ id: 'a', text: 'Review coverage improved by 20%, from 60% to 80%.', direction: 'better' as const }];
+    const original = [
+      {
+        id: 'a',
+        text: 'Review coverage improved by 20%, from 60% to 80%.',
+        direction: 'better' as const,
+      },
+    ];
     const out = applyNarration(original, ['Coverage surged from 60% to 95%.']);
     expect(out[0]?.text).toBe(original[0]!.text);
   });

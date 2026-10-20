@@ -2,7 +2,7 @@ import { and, eq, gte, inArray, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { core, plans, read, type Database } from '@repopulse/shared';
+import { core, plans, read, security, type Database } from '@repopulse/shared';
 import { buildPulse, computeMetricTrend } from '@repopulse/insights';
 import { computeAiGovernance, readMetricTrend } from '@repopulse/metrics';
 import { healthBand } from '@repopulse/shared/health-band';
@@ -18,7 +18,9 @@ export interface OrgRoutesOptions {
   db: Database;
 }
 
-const windowQuery = z.object({ window: z.enum(['7d', '30d', '90d', '365d']).default('30d') });
+const windowQuery = z.object({
+  window: z.enum(['7d', '14d', '30d', '90d', '365d']).default('30d'),
+});
 // The global filter's `repos` csv (or `all`).
 const reposCsv = z
   .string()
@@ -391,6 +393,20 @@ export default async function orgRoutes(
           ),
         );
 
+      // W20-16 (UX_TODO DSH-84): has any scan finished in this scope? Zero
+      // open findings before the first scan is "not measured".
+      const [scanned] = await opts.db
+        .select({ id: security.scanRuns.id })
+        .from(security.scanRuns)
+        .where(
+          and(
+            eq(security.scanRuns.workspaceId, workspaceId),
+            eq(security.scanRuns.status, 'succeeded'),
+            repoIds.length > 0 ? inArray(security.scanRuns.repoId, repoIds) : undefined,
+          ),
+        )
+        .limit(1);
+
       const [planVerified] = await opts.db
         .select({ n: sql<number>`count(*)::int` })
         .from(plans.planItemEvents)
@@ -417,6 +433,7 @@ export default async function orgRoutes(
         openFindings: findingCounts?.open ?? 0,
         newFindingsThisWindow: findingCounts?.recent ?? 0,
         planItemsVerified: planVerified?.n ?? 0,
+        scansCompleted: scanned !== undefined,
       });
 
       return reply.send({

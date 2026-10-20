@@ -243,20 +243,22 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
     });
   });
 
-  // GET /me/review-queue — open PRs by others that I have not reviewed (age-sorted).
+  // GET /me/review-queue — open PRs waiting on MY review (age-sorted).
   //
-  // W20-09 (UX_TODO DSH-85). This is NOT "PRs where I am a requested
-  // reviewer": requested reviewers are not ingested, so the list cannot know
-  // who was asked. It used to be every open PR in the workspace that someone
-  // else wrote — drafts, bot PRs and PRs already reviewed included — under the
-  // heading "Awaiting my review", so on a real team everyone saw the whole
-  // org's open PRs as their own overdue queue. It now leaves out drafts, bot
-  // PRs and PRs this person has already reviewed, and the screen calls it what
-  // it is ("Open PRs by others"). The requested-reviewer list is what remains.
+  // W20-16 (UX_TODO DSH-85). Requested reviewers are ingested since 0049, so
+  // a PR whose request list is known is listed only when I am on it
+  // (`requested: true`). GitHub and Gitea drop a reviewer from the list once
+  // they review and add them back on a re-request, so the list itself is the
+  // "since the last push" answer. A PR whose list is NOT captured yet (NULL:
+  // ingested before 0049, filled on its next sync) falls back to the W20-09
+  // heuristic — open, not a draft, not a bot, by someone else, not reviewed by
+  // me — and comes back as `requested: null` so the screen can say so rather
+  // than claim I was asked.
   app.get('/me/review-queue', async (request, reply) => {
     const ctx = await myIdentity(request);
     if (!ctx) return fail(request, reply, 401, 'No active session');
     if (ctx.identityId === null) return reply.send({ items: [] });
+    const me = ctx.identityId;
     const rows = await db
       .select({
         number: facts.pullRequests.number,
@@ -266,6 +268,7 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
         repoName: core.repos.name,
         createdAt: facts.pullRequests.createdAt,
         author: core.identities.forgeLogin,
+        requested: facts.pullRequests.requestedReviewerIdentityIds,
       })
       .from(facts.pullRequests)
       .innerJoin(core.identities, eq(facts.pullRequests.authorIdentityId, core.identities.id))
@@ -273,14 +276,19 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
       .where(
         and(
           eq(facts.pullRequests.workspaceId, ctx.workspaceId),
+          eq(core.repos.workspaceId, ctx.workspaceId),
           eq(facts.pullRequests.state, 'open'),
-          ne(facts.pullRequests.authorIdentityId, ctx.identityId),
+          ne(facts.pullRequests.authorIdentityId, me),
           // A draft is not asking for review yet; a bot PR is nobody's queue.
           eq(facts.pullRequests.isDraft, false),
           eq(facts.pullRequests.isBot, false),
-          // Already reviewed by me: done from my side until it is re-requested,
-          // which is the part requested-reviewer ingestion would add.
-          sql`not exists (select 1 from ${facts.prReviews} where ${facts.prReviews.pullRequestId} = ${facts.pullRequests.id} and ${facts.prReviews.reviewerIdentityId} = ${ctx.identityId})`,
+          or(
+            sql`${me} = any(${facts.pullRequests.requestedReviewerIdentityIds})`,
+            and(
+              sql`${facts.pullRequests.requestedReviewerIdentityIds} is null`,
+              sql`not exists (select 1 from ${facts.prReviews} where ${facts.prReviews.pullRequestId} = ${facts.pullRequests.id} and ${facts.prReviews.reviewerIdentityId} = ${me})`,
+            ),
+          ),
         ),
       )
       .orderBy(facts.pullRequests.createdAt); // oldest first (age-sorted review load)
@@ -292,6 +300,8 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
         repo: { id: p.repoId, org: p.repoOrg, name: p.repoName },
         author: p.author,
         opened_at: p.createdAt.toISOString(),
+        // true: the forge says I was asked. null: not captured for this PR yet.
+        requested: p.requested === null ? null : true,
         links: { self: `/api/v1/repos/${p.repoId}/prs/${p.number}` },
       })),
     });
@@ -454,9 +464,11 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
       since: since.toISOString(),
       first_visit: false,
       // W20-12 (UX_TODO DSH-87): these are reviews the user SUBMITTED, not
-      // requests made to them (requested reviewers are not ingested). Sent
-      // under the honest name; `review_requests` stays as an alias for an
-      // older client and is no longer read by this web app.
+      // requests made to them. Requested reviewers are ingested since 0049
+      // (W20-16), but not WHEN each request was made, so "requests since your
+      // last visit" still cannot be counted. Sent under the honest name;
+      // `review_requests` stays as an alias for an older client and is no
+      // longer read by this web app.
       reviews_given: reviewRequests?.n ?? 0,
       review_requests: reviewRequests?.n ?? 0,
       prs_advanced: advanced?.n ?? 0,

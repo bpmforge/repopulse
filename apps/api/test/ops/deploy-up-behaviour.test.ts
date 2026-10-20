@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -73,7 +73,8 @@ if [ "$1" = "compose" ]; then
     echo "stub compose 1.0"
     exit ${opts.providerRc ?? 0}
   fi
-  # any 'compose ... up -d ...'
+  # any 'compose ... up -d ...'; the arguments are kept for W20-16's overlay test.
+  echo "$*" >> "${path.join(dir, 'compose-args.txt')}"
   echo "${opts.composeUpOut ?? 'stub: compose up ran'}"
   exit ${opts.composeUpRc ?? 0}
 fi
@@ -120,7 +121,15 @@ exit 1
   /** Run up.sh with a scratch deploy dir so the repo's own .env is untouched. */
   async function runUp(
     env: Record<string, string>,
-    opts: { withEnvFile?: boolean; envFile?: string; bin?: string; bundle?: boolean } = {},
+    opts: {
+      withEnvFile?: boolean;
+      envFile?: string;
+      bin?: string;
+      bundle?: boolean;
+      /** W20-16: arguments to up.sh, and the CLI overlay copied beside it. */
+      args?: string[];
+      withCliOverlay?: boolean;
+    } = {},
   ): Promise<{ code: number; out: string }> {
     const deployDir = path.join(dir, 'deploy');
     mkdirSync(deployDir, { recursive: true });
@@ -145,6 +154,12 @@ exit 1
     // W17-27: a real install always has SCAN_RUNNER_TOKEN (configure.mjs
     // generates it); the fixture mirrors that so the token refusal, tested on
     // its own below, does not mask the migrate/health behaviour under test.
+    if (opts.withCliOverlay) {
+      await run('cp', [
+        path.join(repoRoot, 'deploy/compose.claude-cli.yaml'),
+        path.join(deployDir, 'compose.claude-cli.yaml'),
+      ]);
+    }
     if (opts.withEnvFile !== false)
       writeFileSync(
         path.join(deployDir, '.env'),
@@ -152,14 +167,18 @@ exit 1
       );
 
     try {
-      const { stdout, stderr } = await run('bash', [path.join(deployDir, 'up.sh')], {
-        env: {
-          ...process.env,
-          PATH: `${opts.bin ?? path.join(dir, 'bin')}:${runtimeFreeSystemPath()}`,
-          REPOPULSE_UP_TIMEOUT: '2',
-          ...env,
+      const { stdout, stderr } = await run(
+        'bash',
+        [path.join(deployDir, 'up.sh'), ...(opts.args ?? [])],
+        {
+          env: {
+            ...process.env,
+            PATH: `${opts.bin ?? path.join(dir, 'bin')}:${runtimeFreeSystemPath()}`,
+            REPOPULSE_UP_TIMEOUT: '2',
+            ...env,
+          },
         },
-      });
+      );
       return { code: 0, out: stdout + stderr };
     } catch (e) {
       const err = e as { code?: number; stdout?: string; stderr?: string };
@@ -290,6 +309,36 @@ exit 1
       expect(elapsed).toBeGreaterThan(2500);
     },
   );
+
+  // W20-16 (UX_TODO AI-74): the CLI overlay survives a plain restart.
+  it('--with-claude-cli records the overlay in .env, and a later plain run keeps it', async () => {
+    stubRuntime('podman', { services: allHealthy });
+    const first = await runUp({}, { args: ['--with-claude-cli'], withCliOverlay: true });
+    expect(first.code).toBe(0);
+    const envText = readFileSync(path.join(dir, 'deploy', '.env'), 'utf8');
+    expect(envText).toContain('COMPOSE_EXTRA_FILES=compose.claude-cli.yaml');
+    expect(envText).toContain('SCAN_RUNNER_TOKEN=test-token-not-a-secret');
+
+    // Second start: no flag; runUp writes back the .env the first run left.
+    const second = await runUp({}, { withCliOverlay: true, envFile: envText });
+    expect(second.code).toBe(0);
+    const calls = readFileSync(path.join(dir, 'compose-args.txt'), 'utf8').trim().split('\n');
+    const ups = calls.filter((c) => c.includes(' up -d'));
+    expect(ups).toHaveLength(2);
+    for (const c of ups) expect(c).toContain('-f compose.yaml -f compose.claude-cli.yaml');
+    // The flag itself never reaches compose.
+    expect(calls.join('\n')).not.toContain('--with-claude-cli');
+  });
+
+  it('refuses a COMPOSE_EXTRA_FILES entry that is not in deploy/', async () => {
+    stubRuntime('podman', { services: allHealthy });
+    const { code, out } = await runUp(
+      {},
+      { envFile: 'SCAN_RUNNER_TOKEN=t\nCOMPOSE_EXTRA_FILES=../evil.yaml\n' },
+    );
+    expect(code).not.toBe(0);
+    expect(out).toContain('must be a file name inside deploy/');
+  });
 
   it('starts cleanly, from a path containing a space, and honours the project name', async () => {
     stubRuntime('podman', { services: allHealthy });

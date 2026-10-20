@@ -270,18 +270,27 @@ describeIfDb('repo-scoped endpoints and plans (W20-09)', () => {
         pr(3, botIdentity, { isBot: true }),
         pr(4, otherIdentity),
         pr(5, meIdentity),
+        // W20-16 (DSH-85): request lists captured. #6 asks me (listed even
+        // though I reviewed it once: a re-request puts me back on the list),
+        // #7 asks someone else, #8 asks nobody.
+        pr(6, otherIdentity, { requestedReviewerIdentityIds: [meIdentity] }),
+        pr(7, otherIdentity, { requestedReviewerIdentityIds: [otherIdentity] }),
+        pr(8, otherIdentity, { requestedReviewerIdentityIds: [] }),
       ])
       .returning();
     // Already reviewed by me: #4.
-    await db.insert(facts.prReviews).values({
-      workspaceId,
-      repoId: repoA,
-      pullRequestId: prs[3]!.id,
-      forgeReviewId: `${TAG}-r1`,
-      reviewerIdentityId: meIdentity,
-      state: 'APPROVED',
-      submittedAt: new Date(),
-    });
+    // And #6, before it was re-requested from me.
+    await db.insert(facts.prReviews).values(
+      [prs[3]!, prs[5]!].map((p, i) => ({
+        workspaceId,
+        repoId: repoA,
+        pullRequestId: p.id,
+        forgeReviewId: `${TAG}-r${i + 1}`,
+        reviewerIdentityId: meIdentity,
+        state: 'APPROVED',
+        submittedAt: new Date(),
+      })),
+    );
 
     app = Fastify();
     app.setValidatorCompiler(validatorCompiler);
@@ -367,9 +376,14 @@ describeIfDb('repo-scoped endpoints and plans (W20-09)', () => {
 
   it('the pulse speaks for the view’s repositories (DSH-02)', async () => {
     const body = (await get(`/org/pulse?window=${W}&repos=${repoB}`)) as {
-      bullets: { text: string }[];
+      bullets: { id: string; text: string }[];
     };
     expect(body.bullets.length).toBeGreaterThan(0);
+    // W20-16 (UX_TODO DSH-84): no scan has finished for repoB, so its zero
+    // open findings are "not measured", not "no findings are open".
+    expect(body.bullets.find((b) => b.id === 'findings')?.text).toBe(
+      'No scans have run yet, so open findings are not measured.',
+    );
   });
 
   it('feeds open security findings into the health score (DSH-73)', async () => {
@@ -444,6 +458,11 @@ describeIfDb('repo-scoped endpoints and plans (W20-09)', () => {
     expect(one.axes.find((a) => a.axis === 'security')!.basis).toMatch(
       /no scanner or analysis run/,
     );
+    // W20-16 (UX_TODO DSH-82): the window the header's health badge uses;
+    // anything else reads as the 30-day default, and says which it used.
+    expect(((await get('/risk/axes?window=90d')) as { window: string }).window).toBe('90d');
+    expect(((await get('/risk/axes?window=bogus')) as { window: string }).window).toBe('30d');
+    expect(((await get('/risk/axes')) as { window: string }).window).toBe('30d');
   });
 
   it('top risks, security and next actions take a view’s repositories (DSH-02)', async () => {
@@ -465,9 +484,17 @@ describeIfDb('repo-scoped endpoints and plans (W20-09)', () => {
     expect(Array.isArray(wire.actions)).toBe(true);
   });
 
-  it('the review queue is open PRs by others I have not reviewed — no drafts, no bots (DSH-85)', async () => {
-    const body = (await get('/me/review-queue')) as { items: { number: number }[] };
-    expect(body.items.map((i) => i.number)).toEqual([1]);
+  it('the review queue lists PRs that ask me, and uncaptured ones by the old rule (DSH-85)', async () => {
+    const body = (await get('/me/review-queue')) as {
+      items: { number: number; requested: boolean | null }[];
+    };
+    // Oldest first: #6 (asked me) then #1 (request list not captured, not
+    // reviewed by me). Drafts, bots, mine, reviewed-uncaptured (#4), asked
+    // someone else (#7) and asked nobody (#8) are all left out.
+    expect(body.items.map((i) => [i.number, i.requested])).toEqual([
+      [6, true],
+      [1, null],
+    ]);
   });
 
   async function generate(repoIds: number[]) {
