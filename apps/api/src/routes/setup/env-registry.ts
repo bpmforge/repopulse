@@ -134,7 +134,7 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     scope: 'api',
     required: false,
     purpose:
-      'OAuth client id of YOUR GitHub App. OPTIONAL since D14 — set it only if you want "Sign in with GitHub" offered alongside local accounts and OIDC.',
+      'OAuth client id of YOUR GitHub App. OPTIONAL since D14 — set it only if you want "Sign in with GitHub" offered alongside local accounts and OIDC. GitHub sign-in works with github.com only: on GitHub Enterprise Server, sign people in with OIDC instead (FORGE_BASE_URL does not move sign-in).',
     ifWrong:
       'Forge sign-in is not offered at all when it is absent, which is a supported deployment. Set but wrong, login fails at GitHub with an unhelpful "application not found".',
   },

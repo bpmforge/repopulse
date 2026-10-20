@@ -1,6 +1,13 @@
 import 'dotenv/config';
 import Fastify, { type FastifyInstance } from 'fastify';
-import { createDb, deleteAllLocalUsers } from '@repopulse/shared';
+import { eq } from 'drizzle-orm';
+import {
+  core,
+  createDb,
+  deleteAllLocalUsers,
+  setAuditSink,
+  type AuditRecord,
+} from '@repopulse/shared';
 import { local } from '@repopulse/auth';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import authRoutes from './index.js';
@@ -50,7 +57,7 @@ describeIfLiveInfra('local sign-in routes (W15-02)', () => {
       absoluteLifetimeMs: 12 * 60 * 60 * 1000,
       cookieSecure: false,
     });
-    await app.register(localAuthRoutes, { db });
+    await app.register(localAuthRoutes, { db, signInUrl: 'https://repopulse.example/' });
     // The real guarded scope, so "cannot reach anything else" is tested against
     // an actual product route rather than a stand-in that agrees with us.
     // NOTE: plugins/rate-limits is deliberately NOT registered — this suite
@@ -336,6 +343,54 @@ describeIfLiveInfra('local sign-in routes (W15-02)', () => {
         payload: { email: 'newbie@example.com' },
       });
       expect(again.statusCode).toBe(409);
+    });
+
+    // W20-19 (UX_TODO INS-62; decision 2026-10-20).
+    it('lets the admin choose the role, returns the sign-in address, and audits without the password', async () => {
+      const audits: AuditRecord[] = [];
+      setAuditSink((r) => audits.push(r));
+      try {
+        const res = await app.inject({
+          method: 'POST',
+          url: '/auth/local/users',
+          headers: CSRF,
+          cookies: { repopulse_sid: adminCookie },
+          payload: { email: 'second-admin@example.com', role: 'admin' },
+        });
+        expect(res.statusCode).toBe(201);
+        const body = res.json();
+        expect(body).toMatchObject({ role: 'admin', sign_in_url: 'https://repopulse.example/' });
+        const [membership] = await db
+          .select({ role: core.workspaceMembers.role })
+          .from(core.workspaceMembers)
+          .where(eq(core.workspaceMembers.userId, body.user.id as number));
+        expect(membership?.role).toBe('admin');
+
+        const entry = audits.find((a) => a.event === 'admin.member.created');
+        expect(entry).toMatchObject({ role: 'admin', targetUserId: body.user.id });
+        // The one-time password is in the response and nowhere else.
+        expect(JSON.stringify(audits)).not.toContain(body.temporary_password as string);
+
+        const bad = await app.inject({
+          method: 'POST',
+          url: '/auth/local/users',
+          headers: CSRF,
+          cookies: { repopulse_sid: adminCookie },
+          payload: { email: 'bad-role@example.com', role: 'owner' },
+        });
+        expect(bad.statusCode).toBe(400);
+
+        const plain = await app.inject({
+          method: 'POST',
+          url: '/auth/local/users',
+          headers: CSRF,
+          cookies: { repopulse_sid: adminCookie },
+          payload: { email: 'plain-member@example.com' },
+        });
+        expect(plain.json()).toMatchObject({ role: 'member' });
+      } finally {
+        setAuditSink(undefined);
+      }
     });
 
     it('does not echo a password the admin supplied', async () => {

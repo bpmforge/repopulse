@@ -13,6 +13,7 @@ import {
   canRetry,
   isStalled,
   pollInterval,
+  retriedAt,
   Route as reportsIndexRoute,
   STALE_AFTER_MS,
   type ReportRow,
@@ -407,5 +408,50 @@ describe('Report scope, regenerate, plan and schedules (W20-09)', () => {
     await screen.findByTestId('report-center');
     await waitFor(() => expect(requests.some((r) => r.url.includes('/me/context'))).toBe(true));
     expect(screen.queryByTestId('report-schedules')).toBeNull();
+  });
+});
+
+// W20-19 (UX_TODO ADM-61, ADM-72; decision 2026-10-20).
+describe('Retried and deleted reports (W20-19)', () => {
+  it('a retry is dated by its queueing, not by the original request', () => {
+    const old = new Date(NOW - 30 * 24 * 3600_000).toISOString();
+    const fresh = new Date(NOW - 60_000).toISOString();
+    const retried = row({
+      id: 1,
+      status: 'queued',
+      has_pdf: false,
+      generated_at: old,
+      queued_at: fresh,
+    });
+    expect(isStalled(retried, NOW)).toBe(false);
+    expect(retriedAt(retried)).toBe(fresh);
+    const same = row({ id: 2 });
+    expect(retriedAt({ ...same, queued_at: same.generated_at })).toBeNull();
+    expect(retriedAt(row({ id: 3 }))).toBeNull();
+  });
+
+  it('an admin deletes a report after confirming; never one being printed', async () => {
+    listResponse = {
+      items: [row({ id: 21 }), row({ id: 22, status: 'running', has_pdf: false })],
+    };
+    renderCenter();
+    await userEvent.click(await screen.findByTestId('report-delete-21'));
+    expect(screen.queryByTestId('report-delete-22')).toBeNull();
+    expect(screen.getByTestId('report-delete-confirm-21')).toHaveTextContent(/cannot be undone/);
+    await userEvent.click(screen.getByTestId('report-delete-do-21'));
+    await waitFor(() =>
+      expect(requests.some((r) => r.method === 'DELETE' && /\/reports\/21$/.test(r.url))).toBe(
+        true,
+      ),
+    );
+  });
+
+  it('a member is offered no Delete', async () => {
+    role = 'member';
+    listResponse = { items: [row({ id: 23 })] };
+    renderCenter();
+    await screen.findByTestId('report-23');
+    await waitFor(() => expect(requests.some((r) => r.url.includes('/me/context'))).toBe(true));
+    expect(screen.queryByTestId('report-delete-23')).toBeNull();
   });
 });

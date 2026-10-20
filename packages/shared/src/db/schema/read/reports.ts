@@ -31,7 +31,13 @@ export const reports = pgTable(
     generatedBy: bigint('generated_by', { mode: 'number' }).references(() => users.id, {
       onDelete: 'set null',
     }),
+    // Set once, when the report is first asked for (W20-19, UX_TODO ADM-61).
     generatedAt: timestamp('generated_at', { withTimezone: true }).notNull().defaultNow(),
+    // When the row was last queued: equal to generated_at until a Retry moves
+    // it. The stalled-worker hint measures from here; History sorts and dates
+    // by generated_at, so a retried report keeps its place and its date
+    // (W20-19, UX_TODO ADM-61, migration 0052).
+    queuedAt: timestamp('queued_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index('reports_workspace_id_idx').on(t.workspaceId),

@@ -271,6 +271,84 @@ function AutoAddToggle({ row, onToast }: { row: Row; onToast: (t: Toast[]) => vo
   );
 }
 
+/** What switching "scheduled sync only" did, for the toast (W20-19, INS-69). */
+export function scheduledSyncMessage(res: {
+  scheduled_sync_only: boolean;
+  webhooks_removed: number;
+  webhooks_registered: number;
+  webhook_failures: { repo: string; error: string }[];
+}): string {
+  const failed = res.webhook_failures;
+  const tail =
+    failed.length === 0
+      ? ''
+      : ` Not done for ${failed
+          .slice(0, 3)
+          .map((f) => `${f.repo} (${f.error})`)
+          .join(', ')}${failed.length > 3 ? ` and ${failed.length - 3} more` : ''}.`;
+  if (res.scheduled_sync_only) {
+    return `Scheduled sync only: ${res.webhooks_removed} webhook${res.webhooks_removed === 1 ? '' : 's'} removed. These repositories now update with the nightly sync.${tail}`;
+  }
+  return `Webhooks on: ${res.webhooks_registered} registered, so changes arrive within a minute again.${tail}`;
+}
+
+/**
+ * "Scheduled sync only" per connection (W20-19, UX_TODO INS-69; decision
+ * 2026-10-20). For an install the forge cannot reach: no webhooks are
+ * registered (switching it on removes the ones already there) and the nightly
+ * reconcile keeps the repositories current.
+ */
+function ScheduledSyncToggle({ row, onToast }: { row: Row; onToast: (t: Toast[]) => void }) {
+  const toggle = useApiMutation<
+    { enabled: boolean },
+    {
+      id: number;
+      scheduled_sync_only: boolean;
+      webhooks_removed: number;
+      webhooks_registered: number;
+      webhook_failures: { repo: string; error: string }[];
+    }
+  >(
+    { endpoint: '/connections/{id}/scheduled-sync', path: { id: row.id }, method: 'PUT' },
+    { invalidate: [queryKeyFor(LIST)] },
+  );
+  if (row.status !== 'active') return <span className="text-fg-muted">—</span>;
+  const on = row.scheduled_sync_only === true;
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      disabled={toggle.isPending}
+      title={
+        on
+          ? 'No webhooks: changes arrive with the nightly sync. Click to register webhooks again.'
+          : 'For an install the forge cannot reach: remove this connection’s webhooks and rely on the nightly sync.'
+      }
+      className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+      data-testid={`connection-scheduled-${row.id}`}
+      onClick={() =>
+        toggle.mutate(
+          { enabled: !on },
+          {
+            onError: (err: Error) => onToast([errorToast(`conn-sched-${row.id}-err`, err)]),
+            onSuccess: (res) =>
+              onToast([
+                {
+                  id: `conn-sched-${row.id}`,
+                  tone: res.webhook_failures.length === 0 ? 'ok' : 'warn',
+                  message: scheduledSyncMessage(res),
+                },
+              ]),
+          },
+        )
+      }
+    >
+      {on ? 'Scheduled sync only' : 'Webhooks'}
+    </button>
+  );
+}
+
 /**
  * Replace token / Remove, per connection row (W20-07, UX_TODO INS-08).
  *
@@ -467,7 +545,7 @@ function ConnectionActions({
       >
         {row.status === 'removed' ? 'Reconnect…' : 'Replace token…'}
       </button>
-      {row.status === 'active' && row.repo_count > 0 && (
+      {row.status === 'active' && row.repo_count > 0 && row.scheduled_sync_only !== true && (
         <button
           type="button"
           disabled={rehook.isPending}
@@ -503,6 +581,8 @@ export function Connections() {
   // github.com can now be two connections in one workspace; the server-level
   // FORGE_BASE_URL is the default, not the only answer.
   const [baseUrl, setBaseUrl] = useState('');
+  // W20-19 (UX_TODO INS-69): no webhooks for an install the forge cannot reach.
+  const [scheduledOnly, setScheduledOnly] = useState(false);
   const [submitted, setSubmitted] = useState<string | null>(null);
   // INS-75: which connections' pickers are open, and which one just connected
   // (INS-27: it opens by itself and takes focus).
@@ -520,7 +600,13 @@ export function Connections() {
   const { data, isLoading, isError, error, refetch } = useApiQuery<ConnectionList>(LIST);
 
   const create = useApiMutation<
-    { provider: string; auth_kind: string; credential: string; base_url?: string },
+    {
+      provider: string;
+      auth_kind: string;
+      credential: string;
+      base_url?: string;
+      scheduled_sync_only?: boolean;
+    },
     { id: number; status: string; fingerprint: string }
   >({ endpoint: '/connections' }, { invalidate: [queryKeyFor(LIST)] });
 
@@ -568,6 +654,11 @@ export function Connections() {
       cell: (row) => <AutoAddToggle row={row} onToast={pushToasts} />,
     },
     {
+      id: 'updates',
+      header: 'Updates',
+      cell: (row) => <ScheduledSyncToggle row={row} onToast={pushToasts} />,
+    },
+    {
       id: 'actions',
       header: 'Manage',
       cell: (row) => (
@@ -600,12 +691,14 @@ export function Connections() {
                 auth_kind: 'pat',
                 credential: credential.trim(),
                 ...(baseUrl.trim() ? { base_url: baseUrl.trim() } : {}),
+                ...(scheduledOnly ? { scheduled_sync_only: true } : {}),
               },
               {
                 onSuccess: (res) => {
                   // Clear immediately: a token left in a form field survives in
                   // the DOM and in any screenshot the operator takes next.
                   setCredential('');
+                  setScheduledOnly(false);
                   // INS-27 / INS-44: say what comes next instead of the raw
                   // status, open the new connection's picker and move focus
                   // there. The toast duplicated this line, so it is gone.
@@ -701,6 +794,20 @@ export function Connections() {
             className="panel px-2 py-1 text-sm"
             data-testid="connection-credential"
           />
+          <label className="flex items-start gap-2 text-xs text-fg-muted">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={scheduledOnly}
+              onChange={(e) => setScheduledOnly(e.target.checked)}
+              data-testid="connection-scheduled-only"
+            />
+            <span>
+              Scheduled sync only (no webhooks). Choose this when the forge cannot reach this
+              install, e.g. a private server: no webhooks are registered on your repositories, and
+              changes appear after the nightly sync instead of within a minute.
+            </span>
+          </label>
           <div className="flex items-center gap-3">
             <button
               type="submit"

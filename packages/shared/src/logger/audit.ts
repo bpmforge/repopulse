@@ -168,6 +168,15 @@ export type AuditEvent =
   | 'connection.webhooks_reregistered'
   // W20-17 (UX_TODO INS-09): "track new repositories automatically" on or off.
   | 'connection.auto_add'
+  // W20-19 (UX_TODO INS-09, INS-62, INS-69, ADM-72). Purging a repository
+  // deletes its stored history for good; a report deletion removes evidence
+  // every member could read; "scheduled sync only" removes or restores the
+  // connection's webhooks; an admin-made account may start as an admin. The
+  // one-time password is never part of any entry.
+  | 'repo.purged'
+  | 'report.deleted'
+  | 'connection.scheduled_sync_only'
+  | 'admin.member.created'
   // W20-10 (UX_TODO ADM-13). Written by deploy/backup.sh straight into
   // audit_events (it has psql, not this function); listed so the name is
   // owned here. System health reads the newest one as "last backup".

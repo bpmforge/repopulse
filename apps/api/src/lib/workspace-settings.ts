@@ -115,6 +115,21 @@ export const workspaceSettingsSchema = z.object({
    * rather than a column so the choice needs no migration and is easy to move.
    */
   auto_add_connection_ids: z.array(z.number().int().positive()).max(200).optional(),
+  /**
+   * W20-19 (UX_TODO INS-09): repositories an admin removed and purged, per
+   * connection id, by forge repository id. The nightly auto-add sweep skips
+   * them, or "auto-add new" would track a purged repository again that night.
+   * Tracking one again by hand in the picker still works.
+   */
+  auto_add_skip: z.record(z.string(), z.array(z.string().min(1)).max(2000)).optional(),
+  /**
+   * W20-19 (UX_TODO INS-69): connections set to "scheduled sync only". Their
+   * repositories get no push webhook (the forge cannot reach this install, or
+   * the org does not want hooks); the nightly reconcile sweep keeps them
+   * current. Per connection in settings, like auto-add, so it needs no
+   * migration.
+   */
+  scheduled_sync_only_connection_ids: z.array(z.number().int().positive()).max(200).optional(),
 });
 
 export type WorkspaceSettings = z.infer<typeof workspaceSettingsSchema>;
@@ -246,25 +261,87 @@ export async function readWorkspaceSettings(
   return { stored, effective: applyDefaults(stored), raw };
 }
 
+type ConnectionListKey = 'auto_add_connection_ids' | 'scheduled_sync_only_connection_ids';
+
 /**
- * Turn "auto-add new repositories" on or off for one connection (W20-17,
- * UX_TODO INS-09). Read-modify-write of the one key, keeping every other key
- * (known or not) as stored. Returns the list now in effect.
+ * Add or remove one connection id in a per-connection settings list.
+ * Read-modify-write of the one key, keeping every other key (known or not) as
+ * stored. Returns the list now in effect.
  */
-export async function setConnectionAutoAdd(
+async function setConnectionFlag(
   db: Database,
   workspaceId: number,
+  key: ConnectionListKey,
   connectionId: number,
   enabled: boolean,
 ): Promise<number[]> {
   const { raw, stored } = await readWorkspaceSettings(db, workspaceId);
-  const current = new Set(stored.auto_add_connection_ids ?? []);
+  const current = new Set(stored[key] ?? []);
   if (enabled) current.add(connectionId);
   else current.delete(connectionId);
   const next = [...current].sort((a, b) => a - b);
   await db
     .update(core.workspaces)
-    .set({ settings: { ...raw, auto_add_connection_ids: next } })
+    .set({ settings: { ...raw, [key]: next } })
     .where(eq(core.workspaces.id, workspaceId));
   return next;
+}
+
+/**
+ * Turn "auto-add new repositories" on or off for one connection (W20-17,
+ * UX_TODO INS-09). Returns the list now in effect.
+ */
+export function setConnectionAutoAdd(
+  db: Database,
+  workspaceId: number,
+  connectionId: number,
+  enabled: boolean,
+): Promise<number[]> {
+  return setConnectionFlag(db, workspaceId, 'auto_add_connection_ids', connectionId, enabled);
+}
+
+/**
+ * Turn "scheduled sync only" (no webhooks) on or off for one connection
+ * (W20-19, UX_TODO INS-69). Returns the list now in effect.
+ */
+export function setConnectionScheduledOnly(
+  db: Database,
+  workspaceId: number,
+  connectionId: number,
+  enabled: boolean,
+): Promise<number[]> {
+  return setConnectionFlag(
+    db,
+    workspaceId,
+    'scheduled_sync_only_connection_ids',
+    connectionId,
+    enabled,
+  );
+}
+
+/** True when this connection registers no webhooks (W20-19, UX_TODO INS-69). */
+export function isScheduledOnly(stored: WorkspaceSettings, connectionId: number): boolean {
+  return (stored.scheduled_sync_only_connection_ids ?? []).includes(connectionId);
+}
+
+/**
+ * Remember that a purged repository must not be auto-added again (W20-19,
+ * UX_TODO INS-09).
+ */
+export async function skipAutoAdd(
+  db: Database,
+  workspaceId: number,
+  connectionId: number,
+  forgeRepoId: string,
+): Promise<void> {
+  const { raw, stored } = await readWorkspaceSettings(db, workspaceId);
+  const skip = { ...(stored.auto_add_skip ?? {}) };
+  const key = String(connectionId);
+  const list = new Set(skip[key] ?? []);
+  list.add(forgeRepoId);
+  skip[key] = [...list].slice(-2000);
+  await db
+    .update(core.workspaces)
+    .set({ settings: { ...raw, auto_add_skip: skip } })
+    .where(eq(core.workspaces.id, workspaceId));
 }

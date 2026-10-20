@@ -13,6 +13,8 @@ export interface ConnectionSummary {
   repo_count: number;
   /** New repositories are tracked by the nightly sweep (W20-17, INS-09). */
   auto_add?: boolean;
+  /** No webhooks; updates arrive with the nightly sync (W20-19, INS-69). */
+  scheduled_sync_only?: boolean;
 }
 
 export interface ConnectionList {

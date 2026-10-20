@@ -124,6 +124,15 @@ async function alreadyComplete(deps: ReportProcessorDeps, reportId: number): Pro
   return (await artifactPresent(row.pdfUri)) && (await artifactPresent(row.jsonUri));
 }
 
+async function reportExists(deps: ReportProcessorDeps, reportId: number): Promise<boolean> {
+  const [row] = await deps.db
+    .select({ id: read.reports.id })
+    .from(read.reports)
+    .where(eq(read.reports.id, reportId))
+    .limit(1);
+  return row !== undefined;
+}
+
 export function reportProcessor(deps: ReportProcessorDeps) {
   return async function process(job: Job<ReportJobData | ScheduledReportJobData>): Promise<void> {
     const data = job.data;
@@ -134,6 +143,9 @@ export function reportProcessor(deps: ReportProcessorDeps) {
       'scheduled' in data ? await createScheduledReport(deps, data) : data;
 
     if (await alreadyComplete(deps, reportId)) return;
+    // W20-19 (UX_TODO ADM-72): an admin may delete a queued report before the
+    // worker reaches it. Rendering it anyway would write files no row points at.
+    if (!(await reportExists(deps, reportId))) return;
 
     await deps.db
       .update(read.reports)

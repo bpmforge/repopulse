@@ -1,5 +1,5 @@
-import { mkdir, rename, rm, stat, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { mkdir, rename, rm, rmdir, stat, writeFile } from 'node:fs/promises';
+import { basename, dirname, join, resolve } from 'node:path';
 import type { ReportData } from '../types/index.js';
 
 // PDF pipeline (W5-04, REPORTS.md §3).
@@ -167,4 +167,48 @@ export async function artifactPresent(uri: string | null | undefined): Promise<b
   } catch {
     return false;
   }
+}
+
+/**
+ * Delete a report's files from disk (W20-19, UX_TODO ADM-72): the PDF, the
+ * stored ReportData and any HTML, then the report's own directory once it is
+ * empty. Returns how many files were removed.
+ *
+ * Only files inside a `reports/<workspaceId>/<reportId>` directory are touched,
+ * the layout reportDir() writes. A URI pointing anywhere else (a hand-edited
+ * row, a restored database on a different volume layout) is left alone rather
+ * than trusted as a path to delete. A file already gone is not an error.
+ */
+export async function removeReportArtifacts(row: {
+  id: number;
+  workspaceId: number;
+  uris: readonly (string | null | undefined)[];
+}): Promise<number> {
+  let removed = 0;
+  const dirs = new Set<string>();
+  for (const uri of row.uris) {
+    if (!uri) continue;
+    const path = resolve(uriToPath(uri));
+    const dir = dirname(path);
+    const ownDir =
+      basename(dir) === String(row.id) &&
+      basename(dirname(dir)) === String(row.workspaceId) &&
+      basename(dirname(dirname(dir))) === 'reports';
+    if (!ownDir) continue;
+    try {
+      await rm(path);
+      removed += 1;
+    } catch {
+      // Already gone (the artifact_missing case) or unreadable: nothing to do.
+    }
+    dirs.add(dir);
+  }
+  for (const dir of dirs) {
+    try {
+      await rmdir(dir);
+    } catch {
+      // Not empty (a temp file from an interrupted write) or already gone.
+    }
+  }
+  return removed;
 }

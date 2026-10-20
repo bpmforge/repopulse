@@ -4,7 +4,7 @@ import { and, eq, ne } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Writable } from 'node:stream';
 import pino from 'pino';
-import { core, createDb, redactLine, type Database, type Logger } from '@repopulse/shared';
+import { core, createDb, read, redactLine, type Database, type Logger } from '@repopulse/shared';
 import type { Job, Queue } from 'bullmq';
 import { local } from '@repopulse/auth';
 import { buildApp } from '../../app.js';
@@ -349,6 +349,122 @@ describeIfLiveInfra('admin routes (W4-20, FR-AUTH-4 / NFR-11)', () => {
       .from(core.workspaceMembers)
       .where(eq(core.workspaceMembers.userId, doomed!.id));
     expect(membership).toEqual([]);
+  });
+
+  // W20-19 (UX_TODO ADM-48/49; decision 2026-10-20): removing a member revokes
+  // their CI tokens; connections and shared views stay with the workspace.
+  it('removing a member revokes their CI tokens, keeps shared views and connections, says so first', async () => {
+    const cookie = await adminSession();
+    const [leaver] = await db
+      .insert(core.users)
+      .values({
+        authProvider: 'github',
+        authSubject: 'w20-19-leaver',
+        forgeUserId: 'w20-19-leaver',
+        login: 'w20-19-leaver',
+      })
+      .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w20-19-leaver' } })
+      .returning();
+    await db
+      .insert(core.workspaceMembers)
+      .values({ workspaceId, userId: leaver!.id, role: 'member' })
+      .onConflictDoUpdate({
+        target: [core.workspaceMembers.workspaceId, core.workspaceMembers.userId],
+        set: { role: 'member' },
+      });
+    const [token] = await db
+      .insert(core.ciTokens)
+      .values({
+        workspaceId,
+        name: 'w20-19 pipeline',
+        tokenHash: `w20-19-${Date.now()}`,
+        tokenPrefix: 'w2019',
+        repoIds: [1],
+        createdBy: leaver!.id,
+      })
+      .returning();
+    const [shared] = await db
+      .insert(read.savedViews)
+      .values({
+        workspaceId,
+        ownerUserId: leaver!.id,
+        name: 'team view',
+        config: {},
+        isShared: true,
+        isDefaultForOwner: true,
+      })
+      .returning();
+    const [mine] = await db
+      .insert(read.savedViews)
+      .values({ workspaceId, ownerUserId: leaver!.id, name: 'my view', config: {} })
+      .returning();
+    const [conn] = await db
+      .insert(core.forgeConnections)
+      .values({
+        workspaceId,
+        provider: 'github',
+        authKind: 'pat',
+        credentialCiphertext: Buffer.alloc(1),
+        credentialIv: Buffer.alloc(1),
+        keyVersion: 1,
+        credentialFingerprint: 'w20-19-leaver',
+        status: 'active',
+        createdBy: leaver!.id,
+      })
+      .returning();
+
+    try {
+      const holdings = await app.inject({
+        method: 'GET',
+        url: `/api/v1/admin/members/${leaver!.id}/holdings`,
+        cookies: { repopulse_sid: cookie },
+      });
+      expect(holdings.statusCode).toBe(200);
+      expect(holdings.json()).toEqual({
+        ci_tokens: 1,
+        shared_views: 1,
+        private_views: 1,
+        connections: 1,
+      });
+
+      audit.reset();
+      const res = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/admin/members/${leaver!.id}`,
+        cookies: { repopulse_sid: cookie },
+        headers: CSRF,
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toMatchObject({ ci_tokens_revoked: 1, shared_views_transferred: 1 });
+
+      const [t] = await db.select().from(core.ciTokens).where(eq(core.ciTokens.id, token!.id));
+      expect(t!.revokedAt).not.toBeNull();
+      expect(t!.revokedBy).toBe(adminUserId);
+      const [v] = await db.select().from(read.savedViews).where(eq(read.savedViews.id, shared!.id));
+      expect(v).toMatchObject({
+        ownerUserId: adminUserId,
+        isShared: true,
+        isDefaultForOwner: false,
+      });
+      expect(
+        await db.select().from(read.savedViews).where(eq(read.savedViews.id, mine!.id)),
+      ).toEqual([]);
+      const [c] = await db
+        .select()
+        .from(core.forgeConnections)
+        .where(eq(core.forgeConnections.id, conn!.id));
+      expect(c).toMatchObject({ status: 'active', createdBy: null });
+
+      const removed = audit.lines().find((l) => l.event === 'admin.member.removed') as
+        (AuditLine & { ciTokensRevoked?: number; sharedViewsTransferred?: number }) | undefined;
+      expect(removed).toMatchObject({ ciTokensRevoked: 1, sharedViewsTransferred: 1 });
+      expect(audit.lines().some((l) => l.event === 'ci_token.revoked')).toBe(true);
+    } finally {
+      await db.delete(read.savedViews).where(eq(read.savedViews.id, shared!.id));
+      await db.delete(core.ciTokens).where(eq(core.ciTokens.id, token!.id));
+      await db.delete(core.forgeConnections).where(eq(core.forgeConnections.id, conn!.id));
+      await db.delete(core.users).where(eq(core.users.id, leaver!.id));
+    }
   });
 
   it('refuses to remove the LAST admin', async () => {

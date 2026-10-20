@@ -17,6 +17,11 @@ export const createConnectionBodySchema = z.object({
    * install) for GitHub. Resolved and STORED at creation (W20-07, INS-73).
    */
   base_url: z.string().url().optional(),
+  /**
+   * W20-19 (UX_TODO INS-69): register no webhooks for this connection's
+   * repositories; the nightly reconcile keeps them current instead.
+   */
+  scheduled_sync_only: z.boolean().optional(),
 });
 
 export const connectionSummarySchema = z.object({
@@ -31,16 +36,50 @@ export const connectionSummarySchema = z.object({
   base_url: z.string().nullable(),
   /** New repositories on this connection are tracked nightly (W20-17, INS-09). */
   auto_add: z.boolean(),
+  /** No webhooks; updates arrive with the nightly sync (W20-19, INS-69). */
+  scheduled_sync_only: z.boolean(),
 });
 
 /** PUT /connections/{id}/auto-add (W20-17, UX_TODO INS-09). */
 export const autoAddBodySchema = z.object({ enabled: z.boolean() });
 export const autoAddResponseSchema = z.object({ id: z.number(), auto_add: z.boolean() });
 
+/** PUT /connections/{id}/scheduled-sync (W20-19, UX_TODO INS-69). */
+export const scheduledSyncBodySchema = z.object({ enabled: z.boolean() });
+export const scheduledSyncResponseSchema = z.object({
+  id: z.number(),
+  scheduled_sync_only: z.boolean(),
+  /** Hooks deleted on the forge (turning it on) or registered (turning it off). */
+  webhooks_removed: z.number(),
+  webhooks_registered: z.number(),
+  /** Repositories whose hook could not be removed or registered, with why. */
+  webhook_failures: z.array(z.object({ repo: z.string(), error: z.string() })),
+});
+
+/** DELETE /repos/{id} — remove a repository and purge its history (W20-19, INS-09). */
+export const purgeRepoBodySchema = z.object({
+  /** The repository's `org/name`, typed by the admin as the confirmation. */
+  confirm: z.string(),
+});
+
+export const purgeRepoResponseSchema = z.object({
+  repo_id: z.number(),
+  repo: z.string(),
+  purged: z.literal(true),
+  /** Rows deleted per table. */
+  deleted: z.record(z.string(), z.number()),
+  /** Multi-repository agreements, plans and CI tokens this one was taken out of. */
+  narrowed: z.record(z.string(), z.number()),
+  ci_tokens_revoked: z.number(),
+  webhooks_removed: z.number(),
+  webhook_failures: z.array(z.object({ repo: z.string(), error: z.string() })),
+});
+
 export const createConnectionResponseSchema = z.object({
   id: z.number(),
   status: z.string(),
   fingerprint: z.string(),
+  scheduled_sync_only: z.boolean().optional(),
 });
 
 export const connectionListResponseSchema = z.object({

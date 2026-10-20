@@ -123,6 +123,55 @@ describeIfLiveInfra('auto-add new repositories (W20-17, INS-09)', () => {
     expect(rows.find((r) => r.name === 'old')?.status).toBe('paused');
   });
 
+  // W20-19 (UX_TODO INS-09 purge, INS-69; decision 2026-10-20).
+  it('skips purged repositories and registers no hook on a scheduled-sync-only connection', async () => {
+    await db
+      .update(core.workspaces)
+      .set({
+        settings: {
+          auto_add_connection_ids: [optedIn],
+          scheduled_sync_only_connection_ids: [optedIn],
+          auto_add_skip: { [String(optedIn)]: ['4'] },
+        },
+      })
+      .where(eq(core.workspaces.id, workspaceId));
+    const registerWebhook = vi.fn(() => Promise.resolve('hook'));
+    const provider = {
+      listRepos: () =>
+        Promise.resolve({ items: [forgeRepo('4', 'purged'), forgeRepo('5', 'quiet')] }),
+      registerWebhook,
+      capabilities: { webhookScheme: 'hub-signature' },
+    } as unknown as ForgeProvider;
+    try {
+      const result = await autoAddNewRepos(
+        {
+          db,
+          webhookUrl: 'https://rp.example.com/api/v1/webhooks/github',
+          tokenKeySeal: (pt) => Buffer.from(pt),
+          tokenKeyOpen: (b) => b.toString(),
+          providerFor: () => Promise.resolve(provider),
+          enqueuePlan: () => Promise.resolve(),
+        },
+        workspaceId,
+      );
+      expect(result).toMatchObject({ added: 1, failed: [] });
+      expect(registerWebhook).not.toHaveBeenCalled();
+      const names = (
+        await db
+          .select({ name: core.repos.name })
+          .from(core.repos)
+          .where(eq(core.repos.workspaceId, workspaceId))
+      ).map((r) => r.name);
+      expect(names).toContain('quiet');
+      expect(names).not.toContain('purged');
+    } finally {
+      await db
+        .update(core.workspaces)
+        .set({ settings: { auto_add_connection_ids: [optedIn], unrelated: 'kept' } })
+        .where(eq(core.workspaces.id, workspaceId));
+    }
+  });
+
   it('reports a failing connection without throwing', async () => {
     const result = await autoAddNewRepos(
       {

@@ -120,7 +120,14 @@ function shownValue(kind: Kind | undefined, a: Agreement): string {
   return kind?.percent ? String(Math.round(stored * 1000) / 10) : String(stored);
 }
 
-export function Agreements() {
+/**
+ * W20-19 (UX_TODO ADM-15; decision 2026-10-20): members read the agreements on
+ * Improvement plans. The Settings tab is admin-only, so the exception lists the
+ * API serves to every member were unreachable for them. `readOnly` drops the
+ * form and every edit, pause and delete control; the API refuses those to a
+ * member anyway.
+ */
+export function Agreements({ readOnly = false }: { readOnly?: boolean } = {}) {
   const { data, isLoading, isError, error, refetch } = useApiQuery<{ items: Agreement[] }>(LIST);
   const [kind, setKind] = useState(KINDS[0]!.id);
   const [value, setValue] = useState('');
@@ -133,6 +140,28 @@ export function Agreements() {
 
   const chosen = KINDS.find((k) => k.id === kind)!;
   const items = data?.items ?? [];
+
+  if (readOnly) {
+    return (
+      <WidgetFrame
+        title="Working agreements"
+        state={frameState({
+          isLoading,
+          isError,
+          isEmpty: data !== undefined && items.length === 0,
+        })}
+        {...(error ? { errorMessage: error.message, error } : {})}
+        onRetry={() => void refetch()}
+        emptyMessage="No working agreements yet. An admin adds them in Settings → Agreements; they are your team's own thresholds."
+      >
+        <ul className="flex flex-col gap-3" data-testid="agreement-list-readonly">
+          {items.map((a) => (
+            <AgreementItem key={a.id} agreement={a} readOnly />
+          ))}
+        </ul>
+      </WidgetFrame>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4" data-testid="agreements">
@@ -234,7 +263,13 @@ export function Agreements() {
   );
 }
 
-function AgreementItem({ agreement: a }: { agreement: Agreement }) {
+function AgreementItem({
+  agreement: a,
+  readOnly = false,
+}: {
+  agreement: Agreement;
+  readOnly?: boolean;
+}) {
   const meta = KINDS.find((k) => k.id === a.kind);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -275,106 +310,108 @@ function AgreementItem({ agreement: a }: { agreement: Agreement }) {
 
       {/* W20-17 (UX_TODO ADM-14): edit, pause and delete. The API had PATCH
           and DELETE all along; a typo meant a permanent extra agreement. */}
-      <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
-        {editing && meta ? (
-          <>
-            <label className="flex items-center gap-1 text-fg-muted">
-              New value ({meta.unit})
-              <input
-                type="number"
-                step="any"
-                className="w-24 panel px-2 py-0.5 text-sm"
-                data-testid={`agreement-edit-value-${a.id}`}
-                placeholder={String(meta.placeholder)}
-                value={draft}
-                onChange={(e) => {
-                  setDraft(e.target.value);
-                  setProblem(null);
+      {!readOnly && (
+        <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
+          {editing && meta ? (
+            <>
+              <label className="flex items-center gap-1 text-fg-muted">
+                New value ({meta.unit})
+                <input
+                  type="number"
+                  step="any"
+                  className="w-24 panel px-2 py-0.5 text-sm"
+                  data-testid={`agreement-edit-value-${a.id}`}
+                  placeholder={String(meta.placeholder)}
+                  value={draft}
+                  onChange={(e) => {
+                    setDraft(e.target.value);
+                    setProblem(null);
+                  }}
+                />
+              </label>
+              <button
+                type="button"
+                className="text-accent hover:underline disabled:opacity-50"
+                data-testid={`agreement-save-${a.id}`}
+                disabled={patch.isPending}
+                onClick={() => {
+                  const parsed = parseThreshold(meta, draft);
+                  if ('problem' in parsed) {
+                    setProblem(parsed.problem);
+                    return;
+                  }
+                  patch.mutate(
+                    { threshold: parsed.threshold },
+                    { onSuccess: () => setEditing(false) },
+                  );
                 }}
-              />
-            </label>
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                className="text-fg-muted hover:underline"
+                onClick={() => setEditing(false)}
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
             <button
               type="button"
-              className="text-accent hover:underline disabled:opacity-50"
-              data-testid={`agreement-save-${a.id}`}
-              disabled={patch.isPending}
+              className="text-accent hover:underline"
+              data-testid={`agreement-edit-${a.id}`}
               onClick={() => {
-                const parsed = parseThreshold(meta, draft);
-                if ('problem' in parsed) {
-                  setProblem(parsed.problem);
-                  return;
-                }
-                patch.mutate(
-                  { threshold: parsed.threshold },
-                  { onSuccess: () => setEditing(false) },
-                );
+                setDraft(shownValue(meta, a).replace(/ \(default\)$/, ''));
+                setEditing(true);
               }}
             >
-              Save
+              Edit
             </button>
-            <button
-              type="button"
-              className="text-fg-muted hover:underline"
-              onClick={() => setEditing(false)}
-            >
-              Cancel
-            </button>
-          </>
-        ) : (
+          )}
           <button
             type="button"
-            className="text-accent hover:underline"
-            data-testid={`agreement-edit-${a.id}`}
-            onClick={() => {
-              setDraft(shownValue(meta, a).replace(/ \(default\)$/, ''));
-              setEditing(true);
-            }}
+            className="text-accent hover:underline disabled:opacity-50"
+            data-testid={`agreement-toggle-${a.id}`}
+            disabled={patch.isPending}
+            onClick={() => patch.mutate({ active: !a.active })}
           >
-            Edit
+            {a.active ? 'Pause' : 'Resume'}
           </button>
-        )}
-        <button
-          type="button"
-          className="text-accent hover:underline disabled:opacity-50"
-          data-testid={`agreement-toggle-${a.id}`}
-          disabled={patch.isPending}
-          onClick={() => patch.mutate({ active: !a.active })}
-        >
-          {a.active ? 'Pause' : 'Resume'}
-        </button>
-        {confirmDelete ? (
-          <span role="group" aria-label="Confirm delete" className="flex items-center gap-2">
-            <span className="text-fg-muted">Delete this agreement for everyone?</span>
+          {confirmDelete ? (
+            <span role="group" aria-label="Confirm delete" className="flex items-center gap-2">
+              <span className="text-fg-muted">Delete this agreement for everyone?</span>
+              <button
+                type="button"
+                className="text-crit hover:underline disabled:opacity-50"
+                data-testid={`agreement-delete-confirm-${a.id}`}
+                disabled={remove.isPending}
+                onClick={() => remove.mutate(undefined)}
+                // The confirmation is the one thing to answer (ADM-69's rule).
+                autoFocus
+              >
+                Delete
+              </button>
+              <button
+                type="button"
+                className="text-fg-muted hover:underline"
+                onClick={() => setConfirmDelete(false)}
+              >
+                Cancel
+              </button>
+            </span>
+          ) : (
             <button
               type="button"
-              className="text-crit hover:underline disabled:opacity-50"
-              data-testid={`agreement-delete-confirm-${a.id}`}
-              disabled={remove.isPending}
-              onClick={() => remove.mutate(undefined)}
-              // The confirmation is the one thing to answer (ADM-69's rule).
-              autoFocus
+              className="text-crit hover:underline"
+              data-testid={`agreement-delete-${a.id}`}
+              onClick={() => setConfirmDelete(true)}
             >
-              Delete
+              Delete…
             </button>
-            <button
-              type="button"
-              className="text-fg-muted hover:underline"
-              onClick={() => setConfirmDelete(false)}
-            >
-              Cancel
-            </button>
-          </span>
-        ) : (
-          <button
-            type="button"
-            className="text-crit hover:underline"
-            data-testid={`agreement-delete-${a.id}`}
-            onClick={() => setConfirmDelete(true)}
-          >
-            Delete…
-          </button>
-        )}
-      </div>
+          )}
+        </div>
+      )}
       {problem && (
         <p className="mt-1 text-xs text-crit" role="alert">
           {problem}

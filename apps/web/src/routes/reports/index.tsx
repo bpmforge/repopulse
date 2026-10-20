@@ -30,6 +30,11 @@ export interface ReportRow {
    */
   status: 'queued' | 'running' | 'ready' | 'failed' | (string & {});
   generated_at: string;
+  /**
+   * When the row was last queued (W20-19, UX_TODO ADM-61): equal to
+   * generated_at until a Retry. Optional so an older API still renders.
+   */
+  queued_at?: string;
   error: string | null;
   has_pdf: boolean;
   /** The row says ready, the PDF on disk is gone (W17-26). */
@@ -103,7 +108,18 @@ export function isPending(r: ReportRow): boolean {
 }
 
 export function isStalled(r: ReportRow, now: number = Date.now()): boolean {
-  return isPending(r) && now - Date.parse(r.generated_at) > STALE_AFTER_MS;
+  // From the last queueing, not the first request (ADM-61): a report from
+  // last month retried a minute ago is not stalled.
+  return isPending(r) && now - Date.parse(r.queued_at ?? r.generated_at) > STALE_AFTER_MS;
+}
+
+/**
+ * When a Retry queued the row again, or null when it never was (W20-19,
+ * UX_TODO ADM-61). A minute's slack: the two are written by one INSERT.
+ */
+export function retriedAt(r: ReportRow): string | null {
+  if (!r.queued_at) return null;
+  return Date.parse(r.queued_at) - Date.parse(r.generated_at) > 60_000 ? r.queued_at : null;
 }
 
 /** The poll interval for a list: 3s while any young job is in flight, else off. */
@@ -274,7 +290,12 @@ function ReportCenter() {
               placeholder="e.g. this quarter includes the payments migration"
               value={annotation}
               onChange={(e) => setAnnotation(e.target.value)}
+              aria-describedby="report-annotation-note"
             />
+            {/* W20-19 (UX_TODO ADM-72): the note is printed in the report. */}
+            <span id="report-annotation-note" className="text-fg-faint">
+              Printed in the report; every member of the workspace can read it.
+            </span>
           </label>
           <button
             type="button"
@@ -354,6 +375,7 @@ function ReportCenter() {
                     )
                   }
                   onRefresh={() => void refetch()}
+                  isAdmin={me?.role === 'admin'}
                 />
               ))}
             </tbody>
@@ -530,13 +552,22 @@ function HistoryRow({
   compared,
   onCompare,
   onRefresh,
+  isAdmin = false,
 }: {
   row: ReportRow;
   repoNames: Record<number, string>;
   compared: boolean;
   onCompare: (checked: boolean) => void;
   onRefresh: () => void;
+  /** Admins may delete a report (W20-19, UX_TODO ADM-72). */
+  isAdmin?: boolean;
 }) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const remove = useApiMutation<undefined, { id: number; deleted: boolean }>(
+    { endpoint: '/reports/{id}', path: { id: r.id }, method: 'DELETE' },
+    { invalidate: [queryKeyFor(LIST)] },
+  );
+  const retried = retriedAt(r);
   // Same row, queued again (W17-26): the pinned params travel with the id, so
   // a retry measures the same moment the failed run was asked to measure.
   const retry = useApiMutation<Record<string, never>, { id: number; status: string }>(
@@ -568,6 +599,16 @@ function HistoryRow({
       <td className="py-1 text-xs" data-testid={`report-generated-${r.id}`}>
         <span title={r.generated_at}>{localDateTime(r.generated_at)}</span>
         <span className="block text-fg-faint">{relativeTime(r.generated_at)}</span>
+        {/* W20-19 (UX_TODO ADM-61): a retry keeps the original date above. */}
+        {retried && (
+          <span
+            className="block text-fg-faint"
+            title={retried}
+            data-testid={`report-retried-${r.id}`}
+          >
+            retried {relativeTime(retried)}
+          </span>
+        )}
       </td>
       <td className="py-1 text-xs" data-testid={`report-by-${r.id}`}>
         {r.generated_by ?? '—'}
@@ -691,7 +732,50 @@ function HistoryRow({
               Refresh
             </button>
           )}
+          {/* W20-19 (UX_TODO ADM-72): admins only; not while it is printing. */}
+          {isAdmin &&
+            r.status !== 'running' &&
+            (confirmDelete ? (
+              <span
+                role="group"
+                aria-label="Confirm delete"
+                className="flex flex-wrap items-center gap-2"
+                data-testid={`report-delete-confirm-${r.id}`}
+              >
+                <span className="text-xs text-fg-muted">
+                  Delete this report and its PDF for everyone? This cannot be undone.
+                </span>
+                <button
+                  type="button"
+                  className="text-xs text-crit hover:underline disabled:opacity-50"
+                  data-testid={`report-delete-do-${r.id}`}
+                  disabled={remove.isPending}
+                  // The confirmation is the one thing to answer (ADM-69's rule).
+                  autoFocus
+                  onClick={() => remove.mutate(undefined)}
+                >
+                  Delete
+                </button>
+                <button
+                  type="button"
+                  className="text-xs text-fg-muted hover:underline"
+                  onClick={() => setConfirmDelete(false)}
+                >
+                  Cancel
+                </button>
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="text-xs text-crit hover:underline"
+                data-testid={`report-delete-${r.id}`}
+                onClick={() => setConfirmDelete(true)}
+              >
+                Delete…
+              </button>
+            ))}
         </div>
+        <ErrorNote error={remove.error} testId={`report-delete-error-${r.id}`} withDetail />
       </td>
     </tr>
   );

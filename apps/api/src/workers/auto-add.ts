@@ -9,7 +9,7 @@ import {
   type ForgeProvider,
   type ForgeRepo,
 } from '@repopulse/forge';
-import { readWorkspaceSettings } from '../lib/workspace-settings.js';
+import { isScheduledOnly, readWorkspaceSettings } from '../lib/workspace-settings.js';
 import { WEBHOOK_EVENTS, webhookUrlFor } from '../routes/connections/index.js';
 
 // Auto-add new repositories (W20-17, UX_TODO INS-09).
@@ -47,7 +47,8 @@ export async function autoAddNewRepos(
   workspaceId: number,
 ): Promise<AutoAddResult> {
   const result: AutoAddResult = { connections: 0, added: 0, failed: [] };
-  const ids = (await readWorkspaceSettings(deps.db, workspaceId)).stored.auto_add_connection_ids;
+  const { stored } = await readWorkspaceSettings(deps.db, workspaceId);
+  const ids = stored.auto_add_connection_ids;
   if (!ids || ids.length === 0) return result;
 
   const active = await deps.db
@@ -69,10 +70,13 @@ export async function autoAddNewRepos(
       const listed = await collectAllPages<ForgeRepo, ForgeCursor>((cursor) =>
         forge.listRepos(CTX, cursor),
       );
+      // W20-19 (UX_TODO INS-09): a repository an admin removed and purged is
+      // not "new"; tracking it again is a choice made in the picker.
+      const skipped = new Set(stored.auto_add_skip?.[String(conn.id)] ?? []);
       const candidates = listed.items
         // An archived repository is not "new work to watch"; the picker still
         // offers it by hand.
-        .filter((r) => !r.isArchived)
+        .filter((r) => !r.isArchived && !skipped.has(r.externalId))
         .map((r) => {
           const { org, name } = splitRepoFullName(r.fullName, r.name);
           return {
@@ -86,13 +90,18 @@ export async function autoAddNewRepos(
           };
         });
       const url = webhookUrlFor(deps.webhookUrl, forge.capabilities.webhookScheme);
+      // W20-19 (UX_TODO INS-69): a "scheduled sync only" connection gets no
+      // hooks; this sweep is what keeps its repositories current.
+      const scheduledOnly = isScheduledOnly(stored, conn.id);
       const added = await activateRepos(
         {
           db: deps.db,
           sealSecret: deps.tokenKeySeal,
           openSecret: deps.tokenKeyOpen,
           registerWebhook: (repoFullName, secret) =>
-            forge.registerWebhook(CTX, repoFullName, url, secret, WEBHOOK_EVENTS),
+            scheduledOnly
+              ? Promise.resolve('')
+              : forge.registerWebhook(CTX, repoFullName, url, secret, WEBHOOK_EVENTS),
           enqueuePlan: (repoId) => deps.enqueuePlan(workspaceId, repoId),
           generateSecret: () => randomBytes(32).toString('hex'),
         },

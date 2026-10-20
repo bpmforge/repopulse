@@ -10320,7 +10320,7 @@
           "A packaged-install smoke test generates one report and downloads its PDF; verified on the Mac with a real docker or podman build"
         ],
         "points": 5,
-        "status": "in_progress",
+        "status": "done",
         "notes": [
           "From docs/work/UX_TODO.md ADM-42, found by code reading on 2026-10-19 and not yet reproduced in a running install.",
           "2026-10-19 reproduced on the Mac (podman, compose project rp-w2002, images built from d167bb0): Generate ended failed with browserType.launch: Executable doesn't exist at /home/app/.cache/ms-playwright/chromium_headless_shell-1228; api and worker shared no mount (worker wrote /app/.data in its own filesystem); from the worker, PUBLIC_BASE_URL http://localhost:8311 was ECONNREFUSED while http://web:8080 answered 200.",
@@ -11072,6 +11072,51 @@
           "Defaults chosen (cheap to change): second opinions are admin-only and only offer connections whose model differs from the first answer's; at most 2 model calls each (one answer, one corrective retry); one second opinion per model per suggestion; a second opinion runs no patch proof; run windows are whole hours, end exclusive, default suggestion 01:00-06:00; the AI switch lives on ai_pass_settings (ai_paused, ai_paused_by, ai_paused_at); an export is capped at 5000 findings; the finding link in exports uses PUBLIC_BASE_URL when set; any member may set a ticket link (it records, it decides nothing); a ticket link keeps a lower-case scheme and is at most 2048 characters.",
           "Migration 0051_ai_decisions_ticket_url (journal when 1793300000000): findings.external_ticket_url + CHECK; ai_triage_verdicts.second_opinion_of (self FK, cascade) with the one-open index leaving second opinions out; ai_pass_runs mode second_opinion; ai_pass_schedules run window + CHECK; ai_pass_settings ai_paused/_by/_at.",
           "Bugs noticed, not fixed: an off-network second opinion is audited by the gateway as tier 2 (the same openai-compatible transport hosted Tier-2 calls use); there is no separate Tier-3 Claude transport in the gateway, so 'hosted' means any enabled connection off the network. Second-opinion runs appear in the repository's pass list, labelled 'for a second opinion'."
+        ]
+      },
+      {
+        "id": "W20-19",
+        "title": "Install and admin product decisions: repo purge, invite role, scheduled sync, member removal, report queue time and delete",
+        "phase": 20,
+        "module": "web",
+        "stories": [],
+        "write_scope": [
+          "apps/web/**",
+          "apps/api/**",
+          "packages/reports/src/**",
+          "packages/shared/drizzle/**",
+          "packages/shared/src/db/schema/read/reports.ts",
+          "packages/shared/src/logger/audit.ts",
+          "docs/INSTALL.md",
+          "docs/CONFIG.md",
+          "docs/work/UX_TODO.md",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W20-17"
+        ],
+        "acceptance": [
+          "UX_TODO INS-09 purge: DELETE /repos/:id (admin-only, typed org/name confirmation, workspace-filtered) deletes every workspace-scoped row for the repository, removes its webhook through deleteWebhooks, keeps auto-add from re-tracking it, and audits repo.purged; Sync offers it beside Pause; w20-19.test.ts checks table coverage against information_schema and that another workspace's and another repository's rows survive",
+          "UX_TODO INS-61/INS-70: no auto-join by verified email and GitHub sign-in is github.com only (GitHub Enterprise Server uses OIDC), stated in INSTALL.md, CONFIG.md (GITHUB_APP_CLIENT_ID), the setup sign-in row and the Members screen",
+          "UX_TODO INS-62: POST /auth/local/users takes role (member|admin), returns sign_in_url (PUBLIC_BASE_URL) and audits admin.member.created without the password; Create account has a role select and a copyable invite message that never contains the temporary password, which is still shown once",
+          "UX_TODO INS-69: per-connection scheduled_sync_only in workspace settings (no migration); PUT /connections/:id/scheduled-sync removes hooks through deleteWebhooks when switched on and re-registers when off; connect, track, auto-add and Re-register register no hooks while on; the nightly reconcile still syncs; audited",
+          "UX_TODO ADM-15/48/49/61/72: members read working agreements on Improvement plans (linked from Overview); removing a member revokes their CI tokens, moves shared views to the removing admin and says so in the confirm dialog (GET /admin/members/:userId/holdings), audited; reports carry queued_at (migration 0052) so a retry keeps generated_at; admins delete reports with a confirm, an audit event and the artifact files removed"
+        ],
+        "points": 8,
+        "status": "done",
+        "notes": [
+          "decision 2026-10-20: INS-09 purge - admins may remove a repository and delete its history, behind a typed org/name confirmation; Pause stays the default action.",
+          "decision 2026-10-20: INS-61 - no auto-join by verified email; an admin links identities instead.",
+          "decision 2026-10-20: INS-62 - the admin chooses the role when creating the account, and the result carries a ready-to-send message with the sign-in URL; the temporary password is never in that message and is shown once as before.",
+          "decision 2026-10-20: INS-69 - 'scheduled sync only' per connection, stored in workspace settings like auto-add; no hooks while on, existing hooks removed through deleteWebhooks when switched on; the nightly reconcile still syncs.",
+          "decision 2026-10-20: INS-70 - GitHub sign-in is github.com only; GitHub Enterprise Server users sign in with OIDC.",
+          "decision 2026-10-20: ADM-15 - members read working agreements on Improvement plans, linked from Overview.",
+          "decision 2026-10-20: ADM-48/49 - removing a member revokes their CI tokens; connections and shared views stay with the workspace (said in the confirm dialog); audited.",
+          "decision 2026-10-20: ADM-61 - reports get queued_at; a retry keeps the original generated_at and History shows both.",
+          "decision 2026-10-20: ADM-72 - admins may delete reports, with a confirm dialog, an audit event and the artifact file removed from disk.",
+          "Defaults chosen (cheap to change): purge is refused (409) while egress_audit rows exist for the repository, because that table is append-only (NFR-9/SC-15) - Pause remains; agreements, plans and CI tokens scoped to the purged repository alone are deleted (agreements, plans) or revoked (tokens), multi-repository ones are narrowed with array_remove; a purged repository is added to auto_add_skip so auto-add does not re-track it; shared views of a removed member move to the removing admin, private views go with the account; report delete is refused while the report is running and the worker skips a row deleted under it; settings keys scheduled_sync_only_connection_ids and auto_add_skip; migration 0052_report_queued_at at journal idx 50, when 1793400000000 (backfills queued_at = generated_at).",
+          "Kept on purge, by design: egress_audit (append-only), audit_events (the purge is itself audited), reports (workspace documents; their repo ids are history), forge_etag (keyed by URL, expires on its own) and org-level snapshots (not per repository).",
+          "Bugs noticed, not fixed: forge_etag rows and org-level snapshots that mention a purged repository are left behind; a sync job already queued for a repository when it is purged fails on its foreign key and lands in the DLQ (hard to trigger, harmless)."
         ]
       }
   ]

@@ -26,6 +26,23 @@ export function planForScope(plans: readonly Plan[], repoIds: readonly number[])
   return repoIds.length === 0 ? active[0] : active.find((p) => sameScope(p.repo_ids, repoIds));
 }
 
+/**
+ * Where members read the team's working agreements (W20-19, UX_TODO ADM-15;
+ * decision 2026-10-20): Improvement plans, linked from the Overview here.
+ */
+function AgreementsLink() {
+  return (
+    <Link
+      to="/plans"
+      hash="agreements"
+      className="text-xs text-accent hover:underline"
+      data-testid="plan-tile-agreements-link"
+    >
+      Working agreements →
+    </Link>
+  );
+}
+
 export function PlanTile({ widget }: WidgetComponentProps) {
   const { data, isLoading, isError, error, refetch } = useApiQuery<{ items: Plan[] }>({
     endpoint: '/plans',
@@ -46,14 +63,17 @@ export function PlanTile({ widget }: WidgetComponentProps) {
       // A way there, not directions to it (W18-28; UX_SPEC §4: "empty = one
       // line + next action"). The copy used to name the Plans page and stop.
       emptyAction={
-        <Link
-          to="/plans"
-          search={(scopeIds.length > 0 ? { repos: scopeIds.join(',') } : {}) as never}
-          className="text-sm text-accent hover:underline"
-          data-testid="plan-tile-empty-link"
-        >
-          Generate a plan →
-        </Link>
+        <span className="flex flex-col gap-1">
+          <Link
+            to="/plans"
+            search={(scopeIds.length > 0 ? { repos: scopeIds.join(',') } : {}) as never}
+            className="text-sm text-accent hover:underline"
+            data-testid="plan-tile-empty-link"
+          >
+            Generate a plan →
+          </Link>
+          <AgreementsLink />
+        </span>
       }
     >
       {plan && progress && (
@@ -82,6 +102,7 @@ export function PlanTile({ widget }: WidgetComponentProps) {
           >
             Open plan →
           </Link>
+          <AgreementsLink />
         </div>
       )}
     </WidgetFrame>

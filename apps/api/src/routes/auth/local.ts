@@ -4,6 +4,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { auditLog, type Database } from '@repopulse/shared';
 import { findUserById, workspace as workspaceModule, local } from '@repopulse/auth';
 import { core } from '@repopulse/shared';
+import { and, eq } from 'drizzle-orm';
 import { sendProblem } from './problem.js';
 import { AUTH_FLOW_RATE_LIMIT } from '../../plugins/rate-limits.js';
 
@@ -24,6 +25,11 @@ import { AUTH_FLOW_RATE_LIMIT } from '../../plugins/rate-limits.js';
 
 export interface LocalAuthRoutesOptions {
   db: Database;
+  /**
+   * Where people sign in: PUBLIC_BASE_URL + '/' (W20-19, UX_TODO INS-62). Sent
+   * back with a new account so the admin's invite names the right address.
+   */
+  signInUrl?: string;
 }
 
 /** What a user looks like on the wire. Never the hash, never the flag's absence. */
@@ -274,6 +280,12 @@ async function localAuthRoutes(app: FastifyInstance, opts: LocalAuthRoutesOption
 
     const email = readString(request.body, 'email');
     if (email === undefined) return problem(request, reply, 400, 'email is required');
+    // W20-19 (UX_TODO INS-62): the admin may choose the role up front, rather
+    // than create a member and then find the row to promote.
+    const role = readString(request.body, 'role') ?? 'member';
+    if (role !== 'member' && role !== 'admin') {
+      return problem(request, reply, 400, 'Invalid role', 'role must be one of admin, member');
+    }
 
     // An admin may set the first password or let us pick one. Picking one is
     // the better default — a human-chosen "temporary" password is usually a
@@ -312,10 +324,37 @@ async function localAuthRoutes(app: FastifyInstance, opts: LocalAuthRoutesOption
     // Auto-membership normally happens on the new user's first authenticated
     // request; doing it now means the admin's Members list shows them straight
     // away instead of after they first sign in.
-    await workspaceModule.ensureMembership(opts.db, created.user.id);
+    const joined = await workspaceModule.ensureMembership(opts.db, created.user.id);
+    if (role === 'admin' && joined.role !== 'admin') {
+      await opts.db
+        .update(core.workspaceMembers)
+        .set({ role: 'admin' })
+        .where(
+          and(
+            eq(core.workspaceMembers.workspaceId, joined.workspace.id),
+            eq(core.workspaceMembers.userId, created.user.id),
+          ),
+        );
+    }
+
+    // Who added whom, as what. NEVER the password: audit entries are logged
+    // and persisted, and the one-time password exists only in this response.
+    auditLog(request.log, {
+      event: 'admin.member.created',
+      actorUserId: actorId,
+      ip: request.ip,
+      ua: request.headers['user-agent'] ?? null,
+      workspaceId: joined.workspace.id,
+      targetUserId: created.user.id,
+      targetLogin: created.user.login,
+      role,
+      passwordGenerated: supplied === undefined,
+    });
 
     return reply.code(201).send({
       user: publicUser(created.user),
+      role,
+      ...(opts.signInUrl ? { sign_in_url: opts.signInUrl } : {}),
       // Present only when WE generated it. Echoing back a password the admin
       // supplied would put it in a second place for no benefit.
       ...(supplied === undefined ? { temporary_password: password } : {}),
