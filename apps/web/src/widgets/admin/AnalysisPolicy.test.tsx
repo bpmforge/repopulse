@@ -113,7 +113,7 @@ describe('Admin → Analysis (W20-06)', () => {
     expect(cell).toHaveTextContent(/saved but has no effect.*not built yet/s);
   });
 
-  it('AI-10 and AI-72: opting in asks first, says what would go where and that Tier 3 sends nothing yet', async () => {
+  it('AI-10, AI-72 and AI-14: opting in asks first, says what would go where and what it allows today', async () => {
     renderIt();
     await userEvent.click(await screen.findByTestId('tier3-5'));
     expect(patches()).toHaveLength(0);
@@ -122,7 +122,9 @@ describe('Admin → Analysis (W20-06)', () => {
       /diff, the pull-request description and the review checklist to Anthropic/,
     );
     expect(confirm).toHaveTextContent(/egress audit/);
-    expect(confirm).toHaveTextContent(/Tier 3 is not available yet.*sends nothing today/s);
+    // W20-18 (UX_TODO AI-14): the opt-in now allows hosted second opinions.
+    expect(confirm).toHaveTextContent(/second opinion.*stored lines of code.*daily AI-pass limit/s);
+    expect(confirm).toHaveTextContent(/deep review itself is not available yet and sends nothing/);
 
     await userEvent.click(screen.getByTestId('tier3-confirm-cancel-5'));
     expect(screen.queryByTestId('tier3-confirm-5')).toBeNull();
@@ -133,11 +135,11 @@ describe('Admin → Analysis (W20-06)', () => {
     await waitFor(() => expect(patches()).toEqual([{ tier3_opt_in: true }]));
   });
 
-  it('AI-72: an opted-in repository says nothing is sent, and opting out needs no confirmation', async () => {
+  it('AI-72 and AI-14: an opted-in repository says what the opt-in allows, and opting out needs no confirmation', async () => {
     body = { ...(body as object), repos: [repo({ tier3_opt_in: true })] };
     renderIt();
     expect(await screen.findByTestId('analysis-repo-5')).toHaveTextContent(
-      'opted in (nothing is sent yet)',
+      'opted in (hosted second opinions allowed)',
     );
     expect(screen.getByTestId('analysis-repo-5')).not.toHaveTextContent(/diffs may be sent/);
     await userEvent.click(screen.getByTestId('tier3-5'));

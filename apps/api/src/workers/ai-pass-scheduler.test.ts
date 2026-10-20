@@ -7,7 +7,10 @@ import {
   MIN_CALLS_TO_START,
   PR_REVIEW_ATTEMPTS,
   SCHEDULED_PASSES_PER_DAY,
+  inRunWindow,
+  intoRunWindow,
   monthStart,
+  nextWindowStart,
   runScheduleTick,
 } from './ai-pass-scheduler.js';
 import { digestOf, type PassEgress, type EgressDestination } from '../lib/ai-pass-egress.js';
@@ -41,6 +44,33 @@ const egressOf = (localOnly: boolean, dests: EgressDestination[]): PassEgress =>
   leaves_network: dests.some((d) => d.leaves_network),
   digest: digestOf(localOnly, dests),
   sentence: 'x',
+});
+
+// W20-18 (UX_TODO AI-53; decision 2026-10-20): a run window is whole hours in the
+// server's own time zone. These read local hours, as the scheduler does.
+describe('run windows (AI-53)', () => {
+  const at = (h: number, m = 0) => new Date(2026, 9, 20, h, m, 0, 0);
+  it('no window is any time', () => {
+    expect(inRunWindow(at(13), null, null)).toBe(true);
+    expect(intoRunWindow(at(13), null, null)).toEqual(at(13));
+  });
+  it('a same-day window includes its start hour and excludes its end hour', () => {
+    expect(inRunWindow(at(1), 1, 6)).toBe(true);
+    expect(inRunWindow(at(5, 59), 1, 6)).toBe(true);
+    expect(inRunWindow(at(6), 1, 6)).toBe(false);
+    expect(inRunWindow(at(0, 30), 1, 6)).toBe(false);
+  });
+  it('a window across midnight wraps', () => {
+    expect(inRunWindow(at(23), 22, 4)).toBe(true);
+    expect(inRunWindow(at(3), 22, 4)).toBe(true);
+    expect(inRunWindow(at(12), 22, 4)).toBe(false);
+  });
+  it('outside the window, the next run is the next start hour (today or tomorrow)', () => {
+    expect(nextWindowStart(at(0, 30), 1)).toEqual(at(1));
+    expect(nextWindowStart(at(12), 1)).toEqual(new Date(2026, 9, 21, 1, 0, 0, 0));
+    expect(intoRunWindow(at(12), 1, 6)).toEqual(new Date(2026, 9, 21, 1, 0, 0, 0));
+    expect(intoRunWindow(at(2), 1, 6)).toEqual(at(2));
+  });
 });
 
 describeIfLiveInfra('the AI-pass scheduler (W19-12)', () => {
@@ -570,5 +600,37 @@ describeIfLiveInfra('the AI-pass scheduler (W19-12)', () => {
     expect(r).toMatchObject({ started: 1, skipped: 0 });
     expect((await runsOf()).filter((x) => x.trigger === 'scheduled')).toHaveLength(1);
     expect(await runsOf(OTHER)).toHaveLength(1); // still just its own running pass
+  });
+
+  // W20-18 (UX_TODO AI-77): off means off. A paused workspace's schedules are not
+  // even considered - no pass and no skipped row piling up every tick.
+  it('starts nothing, and records nothing, while AI is switched off for the workspace', async () => {
+    await db.insert(read.aiPassSettings).values({ workspaceId: WS, aiPaused: true });
+    const s = await schedule();
+    expect(await tick()).toMatchObject({ considered: 0, started: 0, skipped: 0 });
+    expect(await runsOf()).toEqual([]);
+    expect(enqueue).not.toHaveBeenCalled();
+    expect((await schedOf(s.id)).nextRunAt?.toISOString()).toBe(
+      new Date(NOW.getTime() - 60_000).toISOString(),
+    );
+  });
+
+  // W20-18 (UX_TODO AI-53): a due schedule outside its window waits for the
+  // window to open, quietly (not a skipped pass), then runs.
+  it('a due schedule outside its run window moves to the window start, then runs inside it', async () => {
+    const h = NOW.getHours();
+    const start = (h + 2) % 24;
+    const end = (h + 4) % 24;
+    const s = await schedule({ windowStartHour: start, windowEndHour: end });
+    expect(await tick()).toMatchObject({ started: 0, skipped: 0 });
+    expect(await runsOf()).toEqual([]);
+    const moved = (await schedOf(s.id)).nextRunAt!;
+    expect(moved.getHours()).toBe(start);
+    expect(moved.getTime()).toBeGreaterThan(NOW.getTime());
+
+    const inside = new Date(moved.getTime() + 60_000);
+    expect(await tick(inside)).toMatchObject({ started: 1 });
+    const next = (await schedOf(s.id)).nextRunAt!;
+    expect(inRunWindow(next, start, end)).toBe(true);
   });
 });

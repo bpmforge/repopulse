@@ -125,6 +125,7 @@ describe('ScheduledPasses', () => {
       enabled: true,
       frequency: 'daily',
       scope: { kind: 'paths', paths: ['src/payments', 'lib'] },
+      window: null,
       acknowledged_egress: 'digest-1',
     });
   });
@@ -320,6 +321,47 @@ describe('ScheduledPasses', () => {
     render(<ScheduledPasses repoId="3" isAdmin />);
     expect(screen.getByTestId('schedule-run-retry')).toHaveTextContent(
       'PR #12: review failed. A later scheduled run tries it again, up to 3 times',
+    );
+  });
+
+  // W20-18 (UX_TODO AI-53): a run window in the SERVER's hours, the zone named.
+  it('AI-53: a run window is chosen in the server time zone, shown beside it, and sent', () => {
+    state.data = resp({ server_time_zone: 'Europe/London' });
+    render(<ScheduledPasses repoId="3" isAdmin />);
+    fireEvent.click(screen.getByTestId('schedule-edit'));
+    fireEvent.change(screen.getByTestId('schedule-paths'), { target: { value: 'src' } });
+    fireEvent.click(screen.getByTestId('schedule-window-between'));
+    expect(screen.getByTestId('schedule-window-zone')).toHaveTextContent(
+      'Europe/London (the server’s time zone)',
+    );
+    fireEvent.change(screen.getByTestId('schedule-window-start'), { target: { value: '22' } });
+    fireEvent.change(screen.getByTestId('schedule-window-end'), { target: { value: '22' } });
+    fireEvent.click(screen.getByTestId('schedule-ack'));
+    expect(screen.getByTestId('schedule-enable')).toHaveProperty('disabled', true);
+    expect(screen.getByTestId('schedule-enable-hint')).toHaveTextContent('start and end differ');
+    fireEvent.change(screen.getByTestId('schedule-window-end'), { target: { value: '5' } });
+    fireEvent.click(screen.getByTestId('schedule-enable'));
+    expect(state.put.mock.calls[0]![0]).toMatchObject({
+      window: { start_hour: 22, end_hour: 5 },
+    });
+  });
+
+  it('AI-53: an enabled schedule says its window and the zone', () => {
+    state.data = resp({
+      server_time_zone: 'America/New_York',
+      schedule: { ...on(), window: { start_hour: 1, end_hour: 6 } },
+    });
+    render(<ScheduledPasses repoId="3" isAdmin />);
+    expect(screen.getByTestId('schedule-window')).toHaveTextContent(
+      'Runs only between 01:00–06:00, America/New_York (the server’s time zone).',
+    );
+  });
+
+  it('AI-77: says no schedule runs while AI is switched off', () => {
+    state.data = resp({ ai_paused: { paused: true, paused_by: 'ada', paused_at: null } });
+    render(<ScheduledPasses repoId="3" isAdmin />);
+    expect(screen.getByTestId('schedule-paused')).toHaveTextContent(
+      'switched off for this workspace by ada, so no scheduled pass runs',
     );
   });
 });

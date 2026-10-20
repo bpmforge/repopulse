@@ -609,6 +609,122 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
 
   // W20-11 (UX_TODO AI-60): a pass that fails partway keeps what it had done:
   // the specialists' model calls (they count toward the cap) and their usage.
+  // W20-18 (UX_TODO AI-77): a pass queued just before AI was switched off sends
+  // nothing; it is recorded as skipped with the reason.
+  it('AI switched off after the pass was queued: skipped, nothing sent', async () => {
+    await ruleFinding();
+    const runId = await newRun();
+    await db.insert(read.aiPassSettings).values({ workspaceId: WS, aiPaused: true });
+    try {
+      const gatewayFor = vi.fn(deps().d.gatewayFor);
+      await aiPassProcessor(deps({ gatewayFor }).d)(job(runId));
+      expect(gatewayFor).not.toHaveBeenCalled();
+      expect(await runOf(runId)).toMatchObject({ status: 'skipped', reasonCode: 'ai_paused' });
+    } finally {
+      await db.delete(read.aiPassSettings).where(eq(read.aiPassSettings.workspaceId, WS));
+    }
+  });
+
+  describe('a second opinion (W20-18, UX_TODO AI-14)', () => {
+    async function setUp(baseUrl: string) {
+      const findingId = await ruleFinding();
+      const firstRun = await newRun();
+      await db
+        .update(read.aiPassRuns)
+        .set({ status: 'succeeded' })
+        .where(eq(read.aiPassRuns.id, firstRun));
+      const [v] = await db
+        .insert(read.aiTriageVerdicts)
+        .values({
+          workspaceId: WS,
+          findingId,
+          aiPassRunId: firstRun,
+          verdict: 'likely_false_positive',
+          confidence: 3,
+          model: 'first-model',
+          checklistVersion: 'triage.v1',
+          rationale: 'r',
+          citations: [],
+        })
+        .returning({ id: read.aiTriageVerdicts.id });
+      const [prov] = await db
+        .insert(core.llmProviders)
+        .values({
+          workspaceId: WS,
+          name: 'Second',
+          kind: 'openai_compatible',
+          baseUrl,
+          model: 'second-model',
+          allowPublicHost: !baseUrl.startsWith('http://10.'),
+        })
+        .returning({ id: core.llmProviders.id });
+      const [run] = await db
+        .insert(read.aiPassRuns)
+        .values({
+          workspaceId: WS,
+          repoId: REPO,
+          paths: ['src/routes/users.ts'],
+          mode: 'second_opinion',
+          plan: {
+            second_opinion: {
+              verdict_id: v!.id,
+              finding_id: findingId,
+              provider_id: prov!.id,
+              model: 'second-model',
+            },
+          },
+        })
+        .returning({ id: read.aiPassRuns.id });
+      return { findingId, verdictId: v!.id, runId: run!.id };
+    }
+    const cleanProviders = () =>
+      db.delete(core.llmProviders).where(eq(core.llmProviders.workspaceId, WS));
+
+    it('asks the pinned model once, stores the answer beside the first, and changes nothing else', async () => {
+      try {
+        const { findingId, verdictId, runId } = await setUp('http://10.0.0.6:1234/v1');
+        const gw = scripted({ triageVerdict: 'real' });
+        const pinned = vi.fn(async () => ({
+          gateway: gw.gateway,
+          hosts: [{ baseUrl: 'http://10.0.0.6:1234/v1', contextWindow: 32768 } as T2Host],
+        }));
+        const { d } = deps({ secondOpinionGatewayFor: pinned });
+        const gatewayFor = vi.fn(d.gatewayFor);
+        await aiPassProcessor({ ...d, gatewayFor })(job(runId));
+        expect(pinned).toHaveBeenCalledWith(WS, expect.objectContaining({ model: 'second-model' }));
+        expect(gatewayFor).not.toHaveBeenCalled();
+        expect(gw.calls.map((c) => c.role)).toEqual(['triage']);
+        expect(await runOf(runId)).toMatchObject({ status: 'succeeded', calls: 1 });
+        const answers = await db
+          .select()
+          .from(read.aiTriageVerdicts)
+          .where(eq(read.aiTriageVerdicts.findingId, findingId));
+        expect(answers).toHaveLength(2);
+        const second = answers.find((x) => x.secondOpinionOf === verdictId)!;
+        expect(second).toMatchObject({ verdict: 'real', aiPassRunId: runId, decision: null });
+        const [f] = await db.select().from(read.findings).where(eq(read.findings.id, findingId));
+        expect(f!.status).toBe('open');
+      } finally {
+        await cleanProviders();
+      }
+    });
+
+    it('re-checks the destination when it runs: off the network needs the Tier-3 opt-in', async () => {
+      try {
+        const { runId } = await setUp('https://api.example.com/v1');
+        const pinned = vi.fn();
+        await aiPassProcessor(deps({ secondOpinionGatewayFor: pinned }).d)(job(runId));
+        expect(pinned).not.toHaveBeenCalled();
+        expect(await runOf(runId)).toMatchObject({
+          status: 'failed',
+          reasonCode: 'tier3_not_opted_in',
+        });
+      } finally {
+        await cleanProviders();
+      }
+    });
+  });
+
   it('a pass that fails after the specialists ran keeps their calls and usage on the row', async () => {
     let modelCalled = false;
     let thrown = false;

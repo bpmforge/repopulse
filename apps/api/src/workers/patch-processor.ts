@@ -4,6 +4,7 @@ import { read, type Database } from '@repopulse/shared';
 import type { AnalysisGateway } from '@repopulse/analysis';
 import type { ForgeProvider } from '@repopulse/forge';
 import { runPatchDraft, type PatchDraftResult } from '@repopulse/security';
+import { isAiPaused } from '../lib/ai-pause.js';
 
 // patches.draft processor (W18-19, D16 "Verified + CI pull").
 //
@@ -50,6 +51,23 @@ export function patchProcessor(deps: PatchProcessorDeps) {
     if (!row) return { status: 'skipped', code: 'not_found', reason: 'No such patch request.' };
     if (row.status !== 'pending') {
       return { status: 'skipped', code: 'already_decided', reason: `Already ${row.status}.` };
+    }
+
+    // W20-18 (UX_TODO AI-77): AI switched off after this was queued. No model
+    // is called; the row says why, in words a member may read.
+    if (await isAiPaused(deps.db, workspaceId)) {
+      const reason =
+        'AI analysis was switched off for this workspace before the fix was drafted, so no model was asked.';
+      await deps.db
+        .update(read.verifiedPatches)
+        .set({ status: 'failed', reasonCode: 'ai_paused', reason, finishedAt: new Date() })
+        .where(
+          and(
+            eq(read.verifiedPatches.id, patchId),
+            eq(read.verifiedPatches.workspaceId, workspaceId),
+          ),
+        );
+      return { status: 'failed', code: 'ai_paused', reason };
     }
 
     let forge: Awaited<ReturnType<PatchProcessorDeps['forgeFor']>>;

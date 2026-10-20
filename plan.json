@@ -11036,6 +11036,43 @@
           "Fixed in passing: the agreements PATCH update is now workspace-filtered as well as id-filtered (Law 5); providerForConnection in the worker is workspace-filtered; ErrorNote can show the problem detail (withDetail), used by agreements.",
           "Bugs noticed, not fixed: ErrorNote shows only the problem title on most write surfaces (detail is opt-in now; several surfaces render it themselves); report retry overwrites generated_at by design (ADM-61)."
         ]
+      },
+      {
+        "id": "W20-18",
+        "title": "AI and findings product decisions: second opinion, AI switch, run windows, export and ticket links",
+        "phase": 20,
+        "module": "web",
+        "stories": [],
+        "write_scope": [
+          "apps/web/**",
+          "apps/api/**",
+          "packages/shared/drizzle/**",
+          "packages/shared/src/db/schema/read/ai-pass.ts",
+          "packages/shared/src/db/schema/read/findings.ts",
+          "packages/shared/src/logger/audit.ts",
+          "docs/work/UX_TODO.md",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W20-17"
+        ],
+        "acceptance": [
+          "UX_TODO AI-14: an admin can ask a DIFFERENT model for a second opinion on an AI triage suggestion (POST /findings/:id/ai-verdicts/:verdictId/second-opinion); it is an ai_pass_runs row (mode second_opinion) so it counts against the daily pass limit; a model off the network is offered only when the repository is opted in to Tier 3 and local-only is off, and the worker re-checks both before sending; the call goes through the analysis gateway (pinned to the chosen connection) so an off-network call writes the egress audit row; the answer is stored beside the first (ai_triage_verdicts.second_opinion_of, migration 0051), shown as agrees/disagrees, and cannot be accepted or dismissed on its own",
+          "UX_TODO AI-77: one workspace-wide AI switch (PUT /ai-pass/pause, admin-only, audited ai.paused_changed) stored on ai_pass_settings; while off the API refuses AI passes, second opinions and verified-fix drafts (including ones a person asks for) with 409 urn:repopulse:problem:ai-paused, the workers skip/fail queued jobs with reason ai_paused, the scheduler leaves paused workspaces out (no skipped rows), and the checklist / anti-slop / rule-draft judgement passes get no gateway; Admin > Analysis has the switch, a list of every schedule (GET /ai-pass/schedules) with Turn off and Turn off every schedule (POST /ai-pass/schedules/disable-all, audited); the fix, pass and schedule screens say AI is off",
+          "UX_TODO AI-53: a schedule can carry a run window in whole hours of the SERVER's time zone (window_start_hour/window_end_hour, CHECK in 0051, wraps across midnight); the API names the zone (server_time_zone from Intl) and the UI shows it beside the window; a due schedule outside its window moves to the next window start without a skipped row",
+          "UX_TODO AI-48: decided that the AI spend table is the record of RepoPulse's own AI use; /governance says so and links admins to Admin > Analysis",
+          "UX_TODO X-08: GET /findings/export?format=csv|sarif under the list's own filters and sort, workspace-filtered, capped at 5000 with the cut stated in the file and a header, audited finding.bulk_export (format, count, filters); CSV cells are formula-safe; SARIF 2.1.0 has one run per repository and suppressions for dismissed/won't-fix; an optional external-ticket URL on a finding (findings.external_ticket_url, http/https only, validated in the API and by a CHECK, no credentials) is set from the drawer (PUT /findings/:id/external-ticket, any member, audited finding.external_ticket_set), shown as a link in the drawer and the list, and included in the copied summary and the exports"
+        ],
+        "points": 8,
+        "status": "done",
+        "notes": [
+          "Requested 2026-10-20: build the product decisions recorded in W20_DECISIONS.md for AI-14, AI-48, AI-53, AI-77 and X-08.",
+          "decision 2026-10-20: AI-14 a second opinion may go to a hosted Tier-3 model ONLY on repositories already opted in to Tier 3, and counts against the daily AI-pass limit. AI-48 the AI spend table is enough. AI-77 off means off, including verified-fix drafts a person asks for. AI-53 run windows use the server's time zone, shown next to the window. X-08 build CSV + SARIF export (current filters) and an optional external-ticket URL field.",
+          "Fixed: AI-14, AI-48, AI-53, AI-77, X-08.",
+          "Defaults chosen (cheap to change): second opinions are admin-only and only offer connections whose model differs from the first answer's; at most 2 model calls each (one answer, one corrective retry); one second opinion per model per suggestion; a second opinion runs no patch proof; run windows are whole hours, end exclusive, default suggestion 01:00-06:00; the AI switch lives on ai_pass_settings (ai_paused, ai_paused_by, ai_paused_at); an export is capped at 5000 findings; the finding link in exports uses PUBLIC_BASE_URL when set; any member may set a ticket link (it records, it decides nothing); a ticket link keeps a lower-case scheme and is at most 2048 characters.",
+          "Migration 0051_ai_decisions_ticket_url (journal when 1793300000000): findings.external_ticket_url + CHECK; ai_triage_verdicts.second_opinion_of (self FK, cascade) with the one-open index leaving second opinions out; ai_pass_runs mode second_opinion; ai_pass_schedules run window + CHECK; ai_pass_settings ai_paused/_by/_at.",
+          "Bugs noticed, not fixed: an off-network second opinion is audited by the gateway as tier 2 (the same openai-compatible transport hosted Tier-2 calls use); there is no separate Tier-3 Claude transport in the gateway, so 'hosted' means any enabled connection off the network. Second-opinion runs appear in the repository's pass list, labelled 'for a second opinion'."
+        ]
       }
   ]
 }

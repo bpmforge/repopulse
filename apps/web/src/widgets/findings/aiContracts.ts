@@ -18,7 +18,8 @@ export interface AiCitation {
   text: string;
 }
 
-export type PassMode = 'paths' | 'pull_request' | 'commit_range';
+/** W20-18 (UX_TODO AI-14): 'second_opinion' is another model asked about one finding. */
+export type PassMode = 'paths' | 'pull_request' | 'commit_range' | 'second_opinion';
 
 /** What a pass reviewed, as the API reports it next to an answer. */
 export interface PassInfo {
@@ -37,6 +38,9 @@ export function passLabel(
   if (!p) return 'an unrecorded scope';
   if (p.mode === 'pull_request') {
     return `the diff of pull request #${p.pr_number ?? '?'}${p.base_ref ? ` (base ${p.base_ref}${p.head_ref ? `, head ${p.head_ref.slice(0, 8)}` : ''})` : ''}`;
+  }
+  if (p.mode === 'second_opinion') {
+    return `one finding in ${p.paths[0] ?? 'a file'}, for a second opinion`;
   }
   if (p.mode === 'commit_range') {
     return `the commits ${(p.base_ref ?? '?').slice(0, 8)}..${(p.head_ref ?? '?').slice(0, 8)}`;
@@ -65,6 +69,40 @@ export interface AiSuggestion {
   decision_note?: string | null;
   /** W20-11 (UX_TODO AI-40): the caller answered it, recently enough to change the answer. */
   can_undo?: boolean;
+  /** W20-18 (UX_TODO AI-14): set on a second opinion, to the suggestion it checks. */
+  second_opinion_of?: number | null;
+}
+
+/** W20-18 (UX_TODO AI-77): the workspace-wide "AI off" switch, as the API reports it. */
+export interface AiPause {
+  paused: boolean;
+  paused_by: string | null;
+  paused_at: string | null;
+}
+
+/** W20-18 (UX_TODO AI-14): who could give a second opinion, and where it would send code. */
+export interface SecondOpinionInfo {
+  of: number;
+  local_only: boolean;
+  tier3_opt_in: boolean;
+  choices: {
+    provider_id: number;
+    provider_name: string;
+    host: string | null;
+    model: string;
+    leaves_network: boolean;
+  }[];
+  blocked: { provider_name: string; model: string; reason: string }[];
+  sends: string;
+  passes_today: number;
+  passes_per_day: number;
+  latest: {
+    id: number;
+    status: PassStatus;
+    reason: string | null;
+    created_at: string;
+    destination?: { provider_name?: string; model?: string; leaves_network?: boolean } | null;
+  } | null;
 }
 
 export interface FindingAi {
@@ -77,6 +115,16 @@ export interface FindingAi {
     pass?: PassInfo | null;
   } | null;
   suggestions: AiSuggestion[];
+  /** W20-18 (UX_TODO AI-77). */
+  ai_paused?: AiPause;
+  /** W20-18 (UX_TODO AI-14): null when there is no suggestion to check. */
+  second_opinion?: SecondOpinionInfo | null;
+}
+
+/** "AI is switched off for this workspace (by alice)": one sentence for every AI screen. */
+export function pausedLine(p: AiPause | undefined, what: string): string | null {
+  if (!p?.paused) return null;
+  return `AI analysis is switched off for this workspace${p.paused_by ? ` by ${p.paused_by}` : ''}, so ${what}. An admin can switch it back on in Admin → Analysis.`;
 }
 
 export const VERDICT_SENTENCE: Record<AiVerdict, string> = {
@@ -215,6 +263,14 @@ export interface ScheduleView {
   enabled_at: string | null;
   last_run_at: string | null;
   next_run_at: string | null;
+  /** W20-18 (UX_TODO AI-53): whole hours of the SERVER's time zone; null = any time. */
+  window?: { start_hour: number; end_hour: number } | null;
+}
+
+/** "02:00–06:00", hours of the server's zone. */
+export function windowLabel(w: { start_hour: number; end_hour: number }): string {
+  const h = (n: number) => `${String(n).padStart(2, '0')}:00`;
+  return `${h(w.start_hour)}–${h(w.end_hour)}`;
 }
 
 export interface ScheduleResponse {
@@ -223,6 +279,10 @@ export interface ScheduleResponse {
   acknowledgement_stale: boolean;
   monthly: { cap: number; used: number; remaining: number };
   limits: { passes_per_day: number; tick_minutes: number };
+  /** W20-18 (UX_TODO AI-53): the zone run windows are in, e.g. Europe/London. */
+  server_time_zone?: string;
+  /** W20-18 (UX_TODO AI-77). */
+  ai_paused?: AiPause;
   runs: {
     id: number;
     status: PassStatus;

@@ -125,6 +125,12 @@ export const findings = pgTable(
      */
     contextLines: text('context_lines'),
     contextStartLine: integer('context_start_line'),
+    /**
+     * W20-18 (UX_TODO X-08): the issue tracking this finding in another tool
+     * (Jira, Linear, ...), as a link. Optional; http/https only (the CHECK and
+     * the API both say so), so it is always safe to render as a link.
+     */
+    externalTicketUrl: text('external_ticket_url'),
   },
   (t) => [
     unique('findings_workspace_repo_dedup_key').on(t.workspaceId, t.repoId, t.dedupKey),
@@ -192,6 +198,10 @@ export const findings = pgTable(
       // question anyone asks of a security finding.
       'findings_run_parent_check',
       sql`(${t.analysisRunId} is not null) <> (${t.scanRunId} is not null)`,
+    ),
+    check(
+      'findings_external_ticket_url_check',
+      sql`${t.externalTicketUrl} is null or (${t.externalTicketUrl} ~* '^https?://[^[:space:]]+$' and length(${t.externalTicketUrl}) <= 2048)`,
     ),
     check(
       'findings_status_check',

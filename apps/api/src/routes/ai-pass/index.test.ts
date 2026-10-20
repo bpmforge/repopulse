@@ -359,7 +359,11 @@ describeIfLiveInfra('AI pass routes (W19-09)', () => {
   describe('watching passes', () => {
     it('a repository nobody has run a pass on returns NO runs - "not yet run", never an empty success', async () => {
       const res = await app.inject({ method: 'GET', url: `/repos/${REPO}/ai-pass` });
-      expect(res.json()).toEqual({ runs: [], more: false });
+      expect(res.json()).toEqual({
+        runs: [],
+        more: false,
+        ai_paused: { paused: false, paused_by: null, paused_at: null },
+      });
     });
 
     it('lists the recent passes with their status and reason, newest first', async () => {
@@ -436,6 +440,9 @@ describeIfLiveInfra('AI pass routes (W19-09)', () => {
       expect((await app.inject({ method: 'GET', url: `/findings/${id}/ai` })).json()).toEqual({
         raised_by: null,
         suggestions: [],
+        // W20-18: nothing to give a second opinion on, and AI is on.
+        second_opinion: null,
+        ai_paused: { paused: false, paused_by: null, paused_at: null },
       });
     });
 

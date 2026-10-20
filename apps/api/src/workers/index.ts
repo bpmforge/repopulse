@@ -29,7 +29,8 @@ import { forgeDiffSources } from './ai-pass-diff.js';
 import { SCHEDULER_TICK_MS, runScheduleTick } from './ai-pass-scheduler.js';
 import { providerForRepo } from './forge-provider.js';
 import { runKnowledgeRegister, runTestGapRegister } from '@repopulse/insights';
-import { createGatewayResolver, reportGatewayHealth } from './gateway.js';
+import { buildWorkerGateway, createGatewayResolver, reportGatewayHealth } from './gateway.js';
+import { isAiPaused } from '../lib/ai-pause.js';
 import {
   jsonFetcher,
   readComponents,
@@ -226,6 +227,8 @@ async function main(): Promise<void> {
     // THIS workspace's model (W16-19). A checklist with no gateway cannot run
     // at all — it is the judgement, not a deterministic pass with a judgement
     // half — so this is a skip with a name, not a quiet zero.
+    // W20-18 (UX_TODO AI-77): the workspace's "AI off" switch, said by name.
+    if (await isAiPaused(db, workspaceId)) return nothing('ai_paused');
     const analysisGateway = await gateways.for(workspaceId);
     if (!analysisGateway) return nothing('no_gateway');
 
@@ -483,7 +486,10 @@ async function main(): Promise<void> {
             // where the workspace is known. Cached by the resolver, so the two
             // scanners below share one build rather than each paying for a
             // credential decrypt.
-            const analysisGateway = await gateways.for(workspaceId);
+            // W20-18 (UX_TODO AI-77): with AI off only the deterministic half runs.
+            const analysisGateway = (await isAiPaused(db, workspaceId))
+              ? null
+              : await gateways.for(workspaceId);
             const resolved = await providerForRepo(scanForgeDeps, workspaceId, repoId);
             if (!resolved) {
               return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_connection' };
@@ -743,7 +749,10 @@ async function main(): Promise<void> {
             // THIS WORKSPACE'S gateway (W16-19). The pass clusters one
             // workspace's dismissals, so borrowing another's model to judge
             // them would be both wrong and a cross-tenant use of a credential.
-            const analysisGateway = await gateways.for(workspaceId);
+            // W20-18 (UX_TODO AI-77): with AI off no model drafts a rule.
+            const analysisGateway = (await isAiPaused(db, workspaceId))
+              ? null
+              : await gateways.for(workspaceId);
             const result = await runRuleDraftPass({
               db,
               workspaceId,
@@ -944,6 +953,19 @@ async function main(): Promise<void> {
           db,
           forgeFor: (workspaceId, repoId) => providerForRepo(scanForgeDeps, workspaceId, repoId),
         }),
+        // W20-18 (UX_TODO AI-14): a second opinion runs on the ONE connection and
+        // model the person chose, built fresh (not cached) so a just-edited
+        // connection is what is used.
+        secondOpinionGatewayFor: async (workspaceId, pin) => {
+          const built = await buildWorkerGateway(
+            db,
+            process.env,
+            credentials.loadTokenKey(),
+            workspaceId,
+            pin,
+          );
+          return built ? { gateway: built.gateway, hosts: built.hosts } : null;
+        },
       }),
     },
     // Structured, so an aggregator can alert on it: this is the callback that

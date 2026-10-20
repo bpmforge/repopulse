@@ -1,11 +1,13 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Queue } from 'bullmq';
-import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 import { auditLog, core, isConstraintViolation, read, type Database } from '@repopulse/shared';
 import { QUEUE, createQueue, createRedisConnection, type QueueName } from '@repopulse/ingest';
 import { requireAdmin } from '../../lib/rbac.js';
 import { sendProblem } from '../../lib/problem.js';
 import { AI_PASS_MAX_PATHS } from '../../workers/ai-pass-processor.js';
+import { aiPauseState, refuseWhenAiPaused } from '../../lib/ai-pause.js';
+import { SECOND_OPINION_SENDS, secondOpinionOptions } from '../../lib/ai-second-opinion.js';
 import scheduleRoutes from './schedule.js';
 
 // The AI pass: start one, watch it, and read what it suggested (W19-09).
@@ -14,6 +16,7 @@ import scheduleRoutes from './schedule.js';
 //   GET  /repos/:id/ai-pass                 the repository's recent passes
 //   GET  /findings/:id/ai                   how the finding was raised, and its AI suggestions
 //   POST /findings/:id/ai-verdicts/:v/decide  a person accepts or dismisses a SUGGESTION
+//   POST /findings/:id/ai-verdicts/:v/second-opinion  admin - ask another model (W20-18)
 //
 // NOTHING HERE CHANGES A FINDING. Deciding a suggestion stores the decision on the
 // suggestion row and stops there; moving the finding is the existing
@@ -26,6 +29,30 @@ export const AI_PASSES_PER_DAY = 10;
 export const AI_DECISION_UNDO_MINUTES = 15;
 /** W20-16 (UX_TODO AI-40): longest "why" note kept with an answer. */
 export const AI_DECISION_NOTE_MAX = 500;
+
+/**
+ * Passes that RAN in this workspace in the last 24 hours (W20-11, UX_TODO
+ * AI-61): skipped scheduled ticks are left out, failed passes count. Second
+ * opinions are pass rows, so they count too (decision 2026-10-20).
+ */
+export async function passesInLastDay(
+  db: Database,
+  workspaceId: number,
+  now: Date,
+): Promise<number> {
+  const since = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const [{ n } = { n: 0 }] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(read.aiPassRuns)
+    .where(
+      and(
+        eq(read.aiPassRuns.workspaceId, workspaceId),
+        gte(read.aiPassRuns.createdAt, since),
+        sql`${read.aiPassRuns.status} <> 'skipped'`,
+      ),
+    );
+  return n;
+}
 
 export interface AiPassRoutesOptions {
   db: Database;
@@ -203,6 +230,10 @@ export default async function aiPassRoutes(
 
       const scope = parseScope(request.body);
       if (typeof scope === 'string') return fail(request, reply, 400, 'Name what to review', scope);
+      // W20-18 (UX_TODO AI-77): the workspace's "AI off" switch.
+      if (await refuseWhenAiPaused(db, request, reply, workspaceId, 'no AI pass can start')) {
+        return reply;
+      }
 
       // One active pass per repository: a second click returns the first.
       const [active] = await db
@@ -223,17 +254,7 @@ export default async function aiPassRoutes(
       // quiet schedules block every manual pass with "10 passes started" while
       // the panel listed fewer. Failed passes did run (and spent calls), so
       // they still count, and the message says so.
-      const since = new Date(now().getTime() - 24 * 60 * 60 * 1000);
-      const [{ n } = { n: 0 }] = await db
-        .select({ n: sql<number>`count(*)::int` })
-        .from(read.aiPassRuns)
-        .where(
-          and(
-            eq(read.aiPassRuns.workspaceId, workspaceId),
-            gte(read.aiPassRuns.createdAt, since),
-            sql`${read.aiPassRuns.status} <> 'skipped'`,
-          ),
-        );
+      const n = await passesInLastDay(db, workspaceId, now());
       if (n >= AI_PASSES_PER_DAY) {
         return fail(
           request,
@@ -341,6 +362,8 @@ export default async function aiPassRoutes(
       return reply.send({
         runs: rows.slice(0, limit).map((r) => runView(r.run, r.login ?? null)),
         more: rows.length > limit,
+        // W20-18 (UX_TODO AI-77): the panel says why Start is off.
+        ai_paused: await aiPauseState(db, workspaceId),
       });
     },
   );
@@ -351,7 +374,7 @@ export default async function aiPassRoutes(
     const findingId = Number(request.params.id);
     if (!Number.isInteger(findingId)) return fail(request, reply, 400, 'Invalid finding id');
     const [finding] = await db
-      .select({ id: read.findings.id })
+      .select({ id: read.findings.id, repoId: read.findings.repoId })
       .from(read.findings)
       .where(and(eq(read.findings.id, findingId), eq(read.findings.workspaceId, workspaceId)))
       .limit(1);
@@ -412,7 +435,46 @@ export default async function aiPassRoutes(
         : null;
     };
 
+    // W20-18 (UX_TODO AI-14): who could give a second opinion on the newest
+    // first-opinion suggestion, where that would send code, and the latest ask.
+    const firstOpinion = verdicts.find((x) => x.v.secondOpinionOf === null)?.v;
+    const askedRows = await db
+      .select()
+      .from(read.aiPassRuns)
+      .where(
+        and(
+          eq(read.aiPassRuns.workspaceId, workspaceId),
+          eq(read.aiPassRuns.repoId, finding.repoId),
+          eq(read.aiPassRuns.mode, 'second_opinion'),
+          sql`${read.aiPassRuns.plan} -> 'second_opinion' ->> 'finding_id' = ${String(findingId)}`,
+        ),
+      )
+      .orderBy(desc(read.aiPassRuns.createdAt))
+      .limit(1);
+    const asked = askedRows[0];
+    const paused = await aiPauseState(db, workspaceId);
+    const secondOpinion = firstOpinion
+      ? {
+          of: firstOpinion.id,
+          ...(await secondOpinionOptions(db, workspaceId, finding.repoId, firstOpinion.model)),
+          sends: SECOND_OPINION_SENDS,
+          passes_today: await passesInLastDay(db, workspaceId, now()),
+          passes_per_day: AI_PASSES_PER_DAY,
+          latest: asked
+            ? {
+                id: asked.id,
+                status: asked.status,
+                reason: asked.reason,
+                created_at: asked.createdAt,
+                destination: (asked.plan as { second_opinion?: unknown } | null)?.second_opinion,
+              }
+            : null,
+        }
+      : null;
+
     return reply.send({
+      ai_paused: paused,
+      second_opinion: secondOpinion,
       // Raised by a model (a specialist), and how - or null for a rule-raised finding.
       raised_by: prov
         ? {
@@ -445,6 +507,9 @@ export default async function aiPassRoutes(
         decided_by: login ?? null,
         decided_at: v.decidedAt,
         decision_note: v.decisionNote,
+        // W20-18 (UX_TODO AI-14): another model's answer about the same
+        // finding, checking suggestion `second_opinion_of`. Not answered alone.
+        second_opinion_of: v.secondOpinionOf,
         // W20-11 (UX_TODO AI-40): whether the caller may still withdraw the answer.
         can_undo:
           v.decidedBy !== null &&
@@ -553,12 +618,18 @@ export default async function aiPassRoutes(
           eq(read.aiTriageVerdicts.findingId, findingId),
           eq(read.aiTriageVerdicts.workspaceId, workspaceId),
           sql`decision is null`,
+          // W20-18: a second opinion is read beside the suggestion it checks;
+          // the person answers the original.
+          isNull(read.aiTriageVerdicts.secondOpinionOf),
         ),
       )
       .returning({ id: read.aiTriageVerdicts.id, verdict: read.aiTriageVerdicts.verdict });
     if (rows.length === 0) {
       const [exists] = await db
-        .select({ decision: read.aiTriageVerdicts.decision })
+        .select({
+          decision: read.aiTriageVerdicts.decision,
+          secondOpinionOf: read.aiTriageVerdicts.secondOpinionOf,
+        })
         .from(read.aiTriageVerdicts)
         .where(
           and(
@@ -568,6 +639,15 @@ export default async function aiPassRoutes(
           ),
         )
         .limit(1);
+      if (exists && exists.secondOpinionOf !== null) {
+        return fail(
+          request,
+          reply,
+          409,
+          'A second opinion is not answered on its own',
+          'Answer the suggestion it checks; the second opinion is shown beside it.',
+        );
+      }
       return exists
         ? fail(
             request,
@@ -595,4 +675,203 @@ export default async function aiPassRoutes(
     // through PATCH /findings/:id, with a note.
     return reply.send({ id: verdictId, decision });
   });
+
+  /**
+   * POST /findings/:id/ai-verdicts/:verdictId/second-opinion (W20-18, UX_TODO
+   * AI-14). Asks ANOTHER model to triage the same finding from the same stored
+   * evidence, and stores its answer beside the first. Admin-only, like starting
+   * a pass: it sends code to a model. A hosted (off-network) model only on a
+   * repository opted in to Tier 3, never under local-only; it is a pass row, so
+   * it counts toward the daily pass limit (decision 2026-10-20). Nothing about
+   * the finding changes.
+   */
+  app.post<{
+    Params: { id: string; verdictId: string };
+    Body: { provider_id?: unknown } | undefined;
+  }>(
+    '/findings/:id/ai-verdicts/:verdictId/second-opinion',
+    { preHandler: requireAdmin },
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      const userId = request.session?.get('userId');
+      if (workspaceId === undefined || userId === undefined)
+        return fail(request, reply, 401, 'No active session');
+      const findingId = Number(request.params.id);
+      const verdictId = Number(request.params.verdictId);
+      if (!Number.isInteger(findingId) || !Number.isInteger(verdictId))
+        return fail(request, reply, 400, 'Invalid id');
+      const rawProvider = request.body?.provider_id;
+      if (
+        rawProvider !== undefined &&
+        (typeof rawProvider !== 'number' || !Number.isInteger(rawProvider))
+      ) {
+        return fail(request, reply, 400, 'Invalid model', 'provider_id must be a connection id.');
+      }
+
+      const [row] = await db
+        .select({ v: read.aiTriageVerdicts, f: read.findings })
+        .from(read.aiTriageVerdicts)
+        .innerJoin(read.findings, eq(read.findings.id, read.aiTriageVerdicts.findingId))
+        .where(
+          and(
+            eq(read.aiTriageVerdicts.id, verdictId),
+            eq(read.aiTriageVerdicts.findingId, findingId),
+            eq(read.aiTriageVerdicts.workspaceId, workspaceId),
+            eq(read.findings.workspaceId, workspaceId),
+          ),
+        )
+        .limit(1);
+      if (!row) return fail(request, reply, 404, 'No such suggestion');
+      if (row.v.secondOpinionOf !== null) {
+        return fail(
+          request,
+          reply,
+          409,
+          'Ask about the original suggestion',
+          'This is already a second opinion. Ask another model about the suggestion it checks.',
+        );
+      }
+      const f = row.f;
+      if (!f.scannerKey || !f.ruleId || !f.file || f.lineStart === null || !f.contextLines) {
+        return fail(
+          request,
+          reply,
+          409,
+          'No stored evidence to ask about',
+          'A second opinion reads the same stored lines of code as the first, and this finding no longer has them.',
+        );
+      }
+
+      if (
+        await refuseWhenAiPaused(db, request, reply, workspaceId, 'no second opinion can be asked')
+      ) {
+        return reply;
+      }
+
+      const options = await secondOpinionOptions(db, workspaceId, f.repoId, row.v.model);
+      const choice =
+        rawProvider === undefined
+          ? options.choices[0]
+          : options.choices.find((c) => c.provider_id === rawProvider);
+      if (!choice) {
+        const why = options.blocked.map((b) => `${b.provider_name} (${b.reason})`).join('; ');
+        return fail(
+          request,
+          reply,
+          409,
+          'No other model can give a second opinion',
+          rawProvider !== undefined
+            ? 'That connection cannot be asked for a second opinion here.' +
+                (why ? ` Not available: ${why}.` : '')
+            : `A second opinion needs a model other than ${row.v.model}.` +
+                (why ? ` Not available: ${why}.` : ' Add one in Admin → Models.'),
+        );
+      }
+
+      // One answer per model: asking the same model twice is shopping for a nicer answer.
+      const [already] = await db
+        .select({ id: read.aiTriageVerdicts.id })
+        .from(read.aiTriageVerdicts)
+        .where(
+          and(
+            eq(read.aiTriageVerdicts.workspaceId, workspaceId),
+            eq(read.aiTriageVerdicts.secondOpinionOf, verdictId),
+            eq(read.aiTriageVerdicts.model, choice.model),
+          ),
+        )
+        .limit(1);
+      if (already) {
+        return fail(
+          request,
+          reply,
+          409,
+          'That model already gave a second opinion',
+          `${choice.model} has already answered about this suggestion; it is shown beside it.`,
+        );
+      }
+
+      const n = await passesInLastDay(db, workspaceId, now());
+      if (n >= AI_PASSES_PER_DAY) {
+        return fail(
+          request,
+          reply,
+          429,
+          'Daily AI-pass limit reached',
+          `${n} passes ran in this workspace in the last 24 hours (limit ${AI_PASSES_PER_DAY}). A second opinion counts as a pass.`,
+        );
+      }
+
+      const queue = queueFor(QUEUE.aiPass);
+      if (!queue) {
+        return fail(
+          request,
+          reply,
+          503,
+          'The job queue is unavailable',
+          'Redis is not reachable from the API, so nothing can be started right now.',
+        );
+      }
+
+      const destination = {
+        verdict_id: verdictId,
+        finding_id: findingId,
+        provider_id: choice.provider_id,
+        provider_name: choice.provider_name,
+        host: choice.host,
+        model: choice.model,
+        leaves_network: choice.leaves_network,
+      };
+      let run: typeof read.aiPassRuns.$inferSelect;
+      try {
+        const [inserted] = await db
+          .insert(read.aiPassRuns)
+          .values({
+            workspaceId,
+            repoId: f.repoId,
+            requestedBy: userId,
+            paths: [f.file],
+            mode: 'second_opinion',
+            plan: { second_opinion: destination },
+            createdAt: now(),
+          })
+          .returning();
+        run = inserted!;
+      } catch (err) {
+        if (isConstraintViolation(err, 'ai_pass_runs_one_active_key')) {
+          return fail(
+            request,
+            reply,
+            409,
+            'A pass is already running for this repository',
+            'Ask again when it has finished.',
+          );
+        }
+        throw err;
+      }
+
+      await queue.add(
+        'ai.pass',
+        { workspaceId, runId: run.id, requestId: request.id },
+        { jobId: `ai-pass-${run.id}` },
+      );
+      auditLog(request.log, {
+        event: 'ai_verdict.second_opinion_requested',
+        actorUserId: userId,
+        workspaceId,
+        ip: request.ip,
+        ua: request.headers['user-agent'] ?? null,
+        detail: {
+          run_id: run.id,
+          repo_id: f.repoId,
+          finding_id: findingId,
+          verdict_id: verdictId,
+          provider_id: choice.provider_id,
+          host: choice.host,
+          model: choice.model,
+          leaves_network: choice.leaves_network,
+        },
+      });
+      return reply.code(202).send({ run: runView(run, null), destination });
+    },
+  );
 }

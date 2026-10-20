@@ -1,15 +1,18 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq } from 'drizzle-orm';
 import { auditLog, core, read, type Database } from '@repopulse/shared';
 import { requireAdmin } from '../../lib/rbac.js';
 import { sendProblem } from '../../lib/problem.js';
 import { passEgress, PASS_SENDS } from '../../lib/ai-pass-egress.js';
 import {
+  intoRunWindow,
   monthlyCallsUsed,
   monthlyCap,
   SCHEDULED_PASSES_PER_DAY,
   SCHEDULER_TICK_MS,
+  serverTimeZone,
 } from '../../workers/ai-pass-scheduler.js';
+import { aiPauseState } from '../../lib/ai-pause.js';
 import { cleanPaths } from './index.js';
 
 // Scheduled AI passes (W19-12), the API side. STRICTLY OPT-IN: a schedule is off
@@ -20,6 +23,26 @@ import { cleanPaths } from './index.js';
 // audited. Nothing here starts a pass: the worker's scheduler does, within the caps.
 
 const FREQUENCY_MS = { daily: 86_400_000, weekly: 7 * 86_400_000 } as const;
+
+/**
+ * A run window from a request body (W20-18, UX_TODO AI-53): null / absent = any
+ * time; otherwise two different whole hours 0-23 of the SERVER's time zone.
+ */
+export function parseRunWindow(
+  raw: unknown,
+): { start: number | null; end: number | null } | string {
+  if (raw === undefined || raw === null) return { start: null, end: null };
+  if (typeof raw !== 'object') return 'window must be { start_hour, end_hour } or null.';
+  const { start_hour: start, end_hour: end } = raw as { start_hour?: unknown; end_hour?: unknown };
+  const hour = (v: unknown) => typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 23;
+  if (!hour(start) || !hour(end)) {
+    return 'start_hour and end_hour must be whole hours from 0 to 23 (server time).';
+  }
+  if (start === end) {
+    return 'The window must have a start and an end that differ. Leave it out to run at any time.';
+  }
+  return { start: start as number, end: end as number };
+}
 
 function fail(
   req: FastifyRequest,
@@ -61,6 +84,11 @@ export default async function scheduleRoutes(
     enabled_at: r.enabledAt,
     last_run_at: r.lastRunAt,
     next_run_at: r.nextRunAt,
+    // W20-18 (UX_TODO AI-53): hours of the server's time zone; null = any time.
+    window:
+      r.windowStartHour === null || r.windowEndHour === null
+        ? null
+        : { start_hour: r.windowStartHour, end_hour: r.windowEndHour },
     acknowledged: r.egressAck,
   });
 
@@ -107,6 +135,10 @@ export default async function scheduleRoutes(
       acknowledgement_stale: row?.s.enabled === true && row.s.egressDigest !== egress.digest,
       monthly: { cap, used, remaining: Math.max(0, cap - used) },
       limits: { passes_per_day: SCHEDULED_PASSES_PER_DAY, tick_minutes: SCHEDULER_TICK_MS / 60000 },
+      // W20-18 (UX_TODO AI-53): run windows are in this zone, named on screen.
+      server_time_zone: serverTimeZone(),
+      // W20-18 (UX_TODO AI-77): while AI is off no schedule runs.
+      ai_paused: await aiPauseState(db, workspaceId),
       runs: runs.map((r) => ({
         id: r.id,
         status: r.status,
@@ -127,6 +159,7 @@ export default async function scheduleRoutes(
     frequency?: unknown;
     scope?: { kind?: unknown; paths?: unknown };
     acknowledged_egress?: unknown;
+    window?: unknown;
   }
 
   app.put<{ Params: { id: string }; Body: PutBody }>(
@@ -217,6 +250,10 @@ export default async function scheduleRoutes(
           return fail(request, reply, 400, 'Name what to review', cleaned);
         paths = cleaned;
       }
+      const window = parseRunWindow(body.window);
+      if (typeof window === 'string') {
+        return fail(request, reply, 400, 'Choose a run window', window);
+      }
 
       // The acknowledgement: what leaves the network, as the server sees it NOW.
       const egress = await passEgress(db, workspaceId);
@@ -258,8 +295,15 @@ export default async function scheduleRoutes(
         enabledBy: userId,
         enabledAt: at,
         // Never at once: the first run is one interval away. A person who wants a
-        // pass now starts one by hand.
-        nextRunAt: new Date(at.getTime() + FREQUENCY_MS[frequency as 'daily' | 'weekly']),
+        // pass now starts one by hand. With a run window, the first run is the
+        // window's next opening after that (server time).
+        nextRunAt: intoRunWindow(
+          new Date(at.getTime() + FREQUENCY_MS[frequency as 'daily' | 'weekly']),
+          window.start,
+          window.end,
+        ),
+        windowStartHour: window.start,
+        windowEndHour: window.end,
         updatedAt: at,
       };
       const [saved] = existing
@@ -286,6 +330,8 @@ export default async function scheduleRoutes(
           frequency,
           scope: kind,
           paths,
+          window: window.start === null ? null : { start_hour: window.start, end_hour: window.end },
+          time_zone: serverTimeZone(),
           egress_digest: egress.digest,
           leaves_network: egress.leaves_network,
           destinations: egress.destinations.map((d) => ({
@@ -311,6 +357,8 @@ export default async function scheduleRoutes(
       used,
       remaining: Math.max(0, cap - used),
       default_cap: read.AI_PASS_DEFAULT_MONTHLY_CAP,
+      ai_paused: await aiPauseState(db, workspaceId),
+      server_time_zone: serverTimeZone(),
     });
   });
 
@@ -355,6 +403,113 @@ export default async function scheduleRoutes(
         remaining: Math.max(0, cap - used),
         default_cap: read.AI_PASS_DEFAULT_MONTHLY_CAP,
       });
+    },
+  );
+
+  // ---- the whole workspace (W20-18, UX_TODO AI-77) --------------------------------
+
+  /**
+   * GET /ai-pass/schedules - every repository's schedule in one list, so an
+   * admin turning AI off does not have to open each repository's Security tab.
+   */
+  app.get('/ai-pass/schedules', { preHandler: requireAdmin }, async (request, reply) => {
+    const workspaceId = request.workspace?.id;
+    if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
+    const rows = await db
+      .select({ s: read.aiPassSchedules, login: core.users.login, repo: core.repos })
+      .from(read.aiPassSchedules)
+      .innerJoin(core.repos, eq(core.repos.id, read.aiPassSchedules.repoId))
+      .leftJoin(core.users, eq(core.users.id, read.aiPassSchedules.enabledBy))
+      .where(
+        and(
+          eq(read.aiPassSchedules.workspaceId, workspaceId),
+          eq(core.repos.workspaceId, workspaceId),
+        ),
+      )
+      .orderBy(asc(core.repos.org), asc(core.repos.name));
+    const egress = await passEgress(db, workspaceId);
+    return reply.send({
+      server_time_zone: serverTimeZone(),
+      ai_paused: await aiPauseState(db, workspaceId),
+      schedules: rows.map((r) => ({
+        repo: { id: r.repo.id, org: r.repo.org, name: r.repo.name },
+        ...view(r.s, r.login ?? null),
+        acknowledgement_stale: r.s.enabled && r.s.egressDigest !== egress.digest,
+      })),
+    });
+  });
+
+  /** POST /ai-pass/schedules/disable-all - turn every schedule off; settings are kept. */
+  app.post(
+    '/ai-pass/schedules/disable-all',
+    { preHandler: requireAdmin },
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      const userId = request.session?.get('userId');
+      if (workspaceId === undefined || userId === undefined)
+        return fail(request, reply, 401, 'No active session');
+      const off = await db
+        .update(read.aiPassSchedules)
+        .set({ enabled: false, nextRunAt: null, updatedAt: now() })
+        .where(
+          and(
+            eq(read.aiPassSchedules.workspaceId, workspaceId),
+            eq(read.aiPassSchedules.enabled, true),
+          ),
+        )
+        .returning({ id: read.aiPassSchedules.id, repoId: read.aiPassSchedules.repoId });
+      auditLog(request.log, {
+        event: 'ai_pass_schedule.disabled_all',
+        actorUserId: userId,
+        workspaceId,
+        ip: request.ip,
+        ua: request.headers['user-agent'] ?? null,
+        detail: { disabled: off.length, repo_ids: off.map((o) => o.repoId) },
+      });
+      return reply.send({ disabled: off.length });
+    },
+  );
+
+  /**
+   * PUT /ai-pass/pause - the workspace-wide "AI off" switch (decision
+   * 2026-10-20: off means off). While on, no pass starts (by hand or on a
+   * schedule), no second opinion is asked and no verified fix is drafted, even
+   * one a person asks for. Schedules keep their settings and resume afterwards.
+   */
+  app.put<{ Body: { paused?: unknown } }>(
+    '/ai-pass/pause',
+    { preHandler: requireAdmin },
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      const userId = request.session?.get('userId');
+      if (workspaceId === undefined || userId === undefined)
+        return fail(request, reply, 401, 'No active session');
+      const paused = request.body?.paused;
+      if (typeof paused !== 'boolean') {
+        return fail(request, reply, 400, 'Say whether AI is off', 'paused must be true or false.');
+      }
+      const before = await aiPauseState(db, workspaceId);
+      const at = now();
+      const set = {
+        aiPaused: paused,
+        aiPausedBy: paused ? userId : null,
+        aiPausedAt: paused ? at : null,
+      };
+      await db
+        .insert(read.aiPassSettings)
+        .values({ workspaceId, ...set, updatedAt: at })
+        .onConflictDoUpdate({ target: read.aiPassSettings.workspaceId, set });
+      if (before.paused !== paused) {
+        auditLog(request.log, {
+          event: 'ai.paused_changed',
+          actorUserId: userId,
+          workspaceId,
+          ip: request.ip,
+          ua: request.headers['user-agent'] ?? null,
+          detail: { paused },
+        });
+      }
+      return reply.send({ ai_paused: await aiPauseState(db, workspaceId) });
     },
   );
 }

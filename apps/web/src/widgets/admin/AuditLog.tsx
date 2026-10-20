@@ -56,6 +56,12 @@ const EVENT_LABELS: Record<string, string> = {
   'ci_token.created': 'CI token created',
   'ci_token.revoked': 'CI token revoked',
   'finding.status_changed': 'Finding status changed',
+  // W20-18 (UX_TODO X-08, AI-14, AI-77).
+  'finding.bulk_export': 'Findings exported',
+  'finding.external_ticket_set': 'Finding ticket link changed',
+  'ai_verdict.second_opinion_requested': 'Second opinion asked of another model',
+  'ai.paused_changed': 'AI switched off or on',
+  'ai_pass_schedule.disabled_all': 'Every AI schedule turned off',
   'ops.backup.taken': 'Backup taken',
 };
 

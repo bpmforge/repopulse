@@ -184,6 +184,13 @@ export async function buildWorkerGateway(
    * workspace analyses on its own providers" true rather than aspirational.
    */
   workspaceId?: number,
+  /**
+   * W20-18 (UX_TODO AI-14): ONE configured connection and model, for a second
+   * opinion. Only that connection is used (no environment fallback, no shared
+   * pool), routed as the triage role, with the workspace's local-only switch and
+   * the same egress audit for any call that leaves the network.
+   */
+  pin?: { providerId: number; model: string },
 ): Promise<WorkerGateway | null> {
   // Configured providers first. The env path is kept so an existing install
   // does not lose its model the moment it upgrades, but it is documented as
@@ -198,7 +205,11 @@ export async function buildWorkerGateway(
     skipped = fromDb.skipped;
   }
 
-  if (hosts.length === 0) {
+  if (pin) {
+    hosts = hosts
+      .filter((h) => h.providerId === pin.providerId)
+      .map((h) => ({ ...h, modelSlot: pin.model }));
+  } else if (hosts.length === 0) {
     hosts = hostsFromEnv(env);
     source = 'env';
   }
@@ -245,12 +256,20 @@ export async function buildWorkerGateway(
     source === 'providers' && workspaceId !== undefined
       ? await loadStoredRouting(db, workspaceId)
       : null;
+  const policy: RoutingPolicy | null = routing
+    ? pin
+      ? {
+          localOnly: routing.localOnly,
+          chains: {
+            triage: [{ host: hosts[0]!, providerName: hosts[0]!.name ?? hosts[0]!.baseUrl }],
+          },
+        }
+      : { localOnly: routing.localOnly, chains: chainsFor(routing, hosts) }
+    : null;
 
   const gateway = createAnalysisGateway({
     hosts,
-    ...(routing
-      ? { routing: { localOnly: routing.localOnly, chains: chainsFor(routing, hosts) } }
-      : {}),
+    ...(policy ? { routing: policy } : {}),
     egressAuditor,
     /**
      * The gateway speaks in the string repoId its callers use; the audit table
@@ -284,9 +303,7 @@ export async function buildWorkerGateway(
   return {
     gateway,
     hosts,
-    ...(routing
-      ? { routing: { localOnly: routing.localOnly, chains: chainsFor(routing, hosts) } }
-      : {}),
+    ...(policy ? { routing: policy } : {}),
     source,
     skipped,
   };

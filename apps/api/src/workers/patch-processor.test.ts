@@ -9,11 +9,12 @@ import { patchProcessor, type PatchJobData } from './patch-processor.js';
 // left alone, and a resolution error lands on the ROW rather than only in the
 // dead-letter queue.
 
-function stubDb(row: { repoId: number; status: string } | undefined) {
+function stubDb(row: { repoId: number; status: string } | undefined, paused = false) {
   const updates: Record<string, unknown>[] = [];
+  // One stub row answers both reads: the patch row and the AI switch (`paused`).
   const db = {
     select: () => ({
-      from: () => ({ where: () => ({ limit: async () => (row ? [row] : []) }) }),
+      from: () => ({ where: () => ({ limit: async () => (row ? [{ ...row, paused }] : []) }) }),
     }),
     update: () => ({
       set: (values: Record<string, unknown>) => ({
@@ -76,5 +77,19 @@ describe('patchProcessor', () => {
     })(job({ workspaceId: 3, patchId: 11 }));
     expect(result.status).toBe('failed');
     expect(updates[0]).toMatchObject({ status: 'failed', reason: 'ciphertext too short' });
+  });
+
+  // W20-18 (UX_TODO AI-77): off means off, for a fix a person asked for too.
+  it('AI switched off after the draft was queued: no model is asked, the row says why', async () => {
+    const { db, updates } = stubDb({ repoId: 7, status: 'pending' }, true);
+    const gatewayFor = vi.fn();
+    const run = vi.fn();
+    const result = await patchProcessor({ db, gatewayFor, forgeFor: vi.fn(), run })(
+      job({ workspaceId: 3, patchId: 11 }),
+    );
+    expect(result).toMatchObject({ status: 'failed', code: 'ai_paused' });
+    expect(gatewayFor).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+    expect(updates[0]).toMatchObject({ status: 'failed', reasonCode: 'ai_paused' });
   });
 });

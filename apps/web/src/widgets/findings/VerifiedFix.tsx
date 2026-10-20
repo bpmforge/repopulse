@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ErrorNote } from '../../components/index.js';
 import { useApiMutation, useApiQuery, queryKeyFor } from '../../api/useApiQuery.js';
+import { pausedLine, type AiPause } from './aiContracts.js';
 
 // "Verified fix" in the finding drawer (W18-19, D16 "Verified + CI pull").
 //
@@ -54,6 +55,8 @@ export interface PatchResponse {
   commit_sha?: string;
   patch: PatchView | null;
   drafter?: Drafter;
+  /** W20-18 (UX_TODO AI-77): the workspace's "AI off" switch. */
+  ai_paused?: AiPause;
 }
 
 /** "Drafted by X (model) · stays on your network", said before anyone asks. */
@@ -125,6 +128,7 @@ export const FAILED_PATCH_WORDS: Record<string, string> = {
   source_unavailable:
     'the file could not be read at the scanned commit (missing, binary or too large).',
   tier3_not_opted_in: 'this repository is not opted in to Tier 3. Ask an admin.',
+  ai_paused: 'AI analysis was switched off for this workspace before it ran.',
 };
 
 /** Minutes after which a draft no worker took is called stalled. */
@@ -155,6 +159,14 @@ export function VerifiedFix({ findingId }: { findingId: number }) {
   const [copied, setCopied] = useState<'idle' | 'copied' | 'failed'>('idle');
 
   const heading = <h3 className="text-xs tracking-wide text-fg-muted uppercase">Verified fix</h3>;
+  // W20-18 (UX_TODO AI-77; decision 2026-10-20: off means off). With AI off a
+  // person cannot ask for a draft either; said here, and no button is offered.
+  const off = pausedLine(data?.ai_paused, 'no fix can be drafted');
+  const pausedNote = off ? (
+    <p className="mt-1 text-xs text-fg-muted" data-testid="verified-fix-paused">
+      {off}
+    </p>
+  ) : null;
 
   if (!data) return null;
   // Not eligible (a secret, a dependency CVE, a model finding, nothing scanned).
@@ -206,14 +218,16 @@ export function VerifiedFix({ findingId }: { findingId: number }) {
           </details>
         ) : null}
         <DrafterNote drafter={data.drafter} />
-        <button
-          type="button"
-          className={`mt-2 ${ACTION_BUTTON}`}
-          data-testid="verified-fix-retry"
-          onClick={() => request.mutate({ tier: 't2', retry: true })}
-        >
-          Try again
-        </button>
+        {pausedNote ?? (
+          <button
+            type="button"
+            className={`mt-2 ${ACTION_BUTTON}`}
+            data-testid="verified-fix-retry"
+            onClick={() => request.mutate({ tier: 't2', retry: true })}
+          >
+            Try again
+          </button>
+        )}
         <ErrorNote error={request.error} testId="verified-fix-error" className="mt-1" />
       </div>
     );
@@ -337,7 +351,7 @@ export function VerifiedFix({ findingId }: { findingId: number }) {
           {patch.reason && failedWords ? (
             <span className="block text-fg-faint">Admin only: {patch.reason}</span>
           ) : null}
-          {noModel ? '' : ' You can try again.'}
+          {noModel || off ? '' : ' You can try again.'}
         </p>
       ) : (
         <p className="mt-1 text-xs text-fg-muted">
@@ -347,9 +361,10 @@ export function VerifiedFix({ findingId }: { findingId: number }) {
         </p>
       )}
       <DrafterNote drafter={data.drafter} />
+      {pausedNote}
       {/* W20-11 (UX_TODO AI-65): with no model at all, a request can only fail,
           so there is no button to press; the note above says who can fix it. */}
-      {noModel ? null : (
+      {noModel || off ? null : (
         <button
           type="button"
           className={`mt-2 ${ACTION_BUTTON}`}

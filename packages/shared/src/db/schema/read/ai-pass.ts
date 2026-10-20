@@ -1,4 +1,5 @@
 import {
+  type AnyPgColumn,
   bigint,
   boolean,
   check,
@@ -28,7 +29,12 @@ import { findings } from './findings.js';
 // suggestion, and the finding's own status moves only when that person uses the
 // existing PATCH /findings/:id (D9a: the AI never suppresses, closes or merges).
 
-export const AI_PASS_MODES = ['paths', 'pull_request', 'commit_range'] as const;
+/**
+ * W20-18 (UX_TODO AI-14): 'second_opinion' asks another model to triage ONE
+ * finding that already has a suggestion. It is a pass row so it counts toward
+ * the daily pass limit and the monthly call count like any other.
+ */
+export const AI_PASS_MODES = ['paths', 'pull_request', 'commit_range', 'second_opinion'] as const;
 export type AiPassMode = (typeof AI_PASS_MODES)[number];
 
 export const AI_PASS_TRIGGERS = ['manual', 'scheduled'] as const;
@@ -196,6 +202,15 @@ export const aiTriageVerdicts = pgTable(
     decidedAt: timestamp('decided_at', { withTimezone: true }),
     /** W20-16 (UX_TODO AI-40): the person's optional "why" with the answer. */
     decisionNote: text('decision_note'),
+    /**
+     * W20-18 (UX_TODO AI-14): set on a SECOND OPINION - another model's answer
+     * about the same finding - to the suggestion it checks. Not answered on its
+     * own (the original is), so it is outside the one-open index below.
+     */
+    secondOpinionOf: bigint('second_opinion_of', { mode: 'number' }).references(
+      (): AnyPgColumn => aiTriageVerdicts.id,
+      { onDelete: 'cascade' },
+    ),
   },
   (t) => [
     index('ai_triage_verdicts_workspace_finding_idx').on(
@@ -205,7 +220,7 @@ export const aiTriageVerdicts = pgTable(
     ),
     uniqueIndex('ai_triage_verdicts_one_open_key')
       .on(t.findingId)
-      .where(sql`decision is null`),
+      .where(sql`decision is null and second_opinion_of is null`),
     uniqueIndex('ai_triage_verdicts_pass_finding_key').on(t.aiPassRunId, t.findingId),
     check(
       'ai_triage_verdicts_verdict_check',
@@ -267,6 +282,13 @@ export const aiPassSchedules = pgTable(
     enabledAt: timestamp('enabled_at', { withTimezone: true }),
     lastRunAt: timestamp('last_run_at', { withTimezone: true }),
     nextRunAt: timestamp('next_run_at', { withTimezone: true }),
+    /**
+     * W20-18 (UX_TODO AI-53): when a scheduled pass may start, in whole hours of
+     * the SERVER's time zone (start inclusive, end exclusive; an end before the
+     * start wraps past midnight). Both null = any time.
+     */
+    windowStartHour: smallint('window_start_hour'),
+    windowEndHour: smallint('window_end_hour'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -284,6 +306,10 @@ export const aiPassSchedules = pgTable(
       sql`${t.scopeKind} in (${sql.raw(AI_SCHEDULE_SCOPES.map((m) => `'${m}'`).join(', '))})`,
     ),
     check(
+      'ai_pass_schedules_window_check',
+      sql`(${t.windowStartHour} is null and ${t.windowEndHour} is null) or (${t.windowStartHour} between 0 and 23 and ${t.windowEndHour} between 0 and 23 and ${t.windowStartHour} <> ${t.windowEndHour})`,
+    ),
+    check(
       'ai_pass_schedules_enabled_ack_check',
       sql`NOT ${t.enabled} OR (${t.egressDigest} IS NOT NULL AND ${t.enabledAt} IS NOT NULL)`,
     ),
@@ -298,6 +324,16 @@ export const aiPassSettings = pgTable(
       .primaryKey()
       .references(() => workspaces.id),
     monthlyCallCap: integer('monthly_call_cap').notNull().default(300),
+    /**
+     * W20-18 (UX_TODO AI-77): the workspace-wide "AI off" switch. On, nothing
+     * sends source to a model: no pass (manual or scheduled), no second opinion
+     * and no verified-fix draft, including one a person asks for.
+     */
+    aiPaused: boolean('ai_paused').notNull().default(false),
+    aiPausedBy: bigint('ai_paused_by', { mode: 'number' }).references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    aiPausedAt: timestamp('ai_paused_at', { withTimezone: true }),
     updatedBy: bigint('updated_by', { mode: 'number' }).references(() => users.id, {
       onDelete: 'set null',
     }),
