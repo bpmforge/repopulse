@@ -181,6 +181,8 @@ describe('Copy review summary (W17-23, acceptance 3)', () => {
     expect(text).toContain('res.redirect(req.query.next)');
     expect(text).toContain('Allow-list the destination.');
     expect(text).toContain('2026-08-02 open → confirmed (fixture-dev: Reproduced.)');
+    // W20-15 (X-07): and back to the finding itself, absolute.
+    expect(text).toContain(`In RepoPulse: ${window.location.origin}/findings?finding=7`);
     // Plain text: no markup, no markdown headings.
     expect(text).not.toMatch(/<[a-z]+>|^#|\*\*/m);
 
@@ -198,6 +200,16 @@ describe('Copy review summary (W17-23, acceptance 3)', () => {
       fireEvent.click(screen.getByTestId('finding-copy-summary'));
     });
     expect(screen.getByTestId('finding-copy-summary').textContent).toMatch(/Copy failed/);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('copies an absolute link to the finding (W20-15, UX_TODO X-07)', async () => {
+    renderPanel();
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('finding-copy-link'));
+    });
+    expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/findings?finding=7`);
+    expect(screen.getByTestId('finding-copy-link').textContent).toBe('Link copied');
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

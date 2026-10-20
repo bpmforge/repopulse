@@ -1,4 +1,4 @@
-import { desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { core, facts, type Database } from '@repopulse/shared';
 
 // Sync status model (INGESTION §7, FR-INGEST-8/FR-WEB-8). Computed entirely
@@ -18,6 +18,12 @@ export interface SyncStatus {
    * work out which repository is stuck.
    */
   repoName: string;
+  /**
+   * Which connection the repository syncs through (W20-15, UX_TODO X-18): with
+   * three forges connected, an admin could not tell which one was rate-limited
+   * or failing. Null only for a repository whose connection row is gone.
+   */
+  connection: { id: number; provider: string; host: string | null } | null;
   phase: SyncStatusPhase;
   percentComplete: number;
   /** `error` (W17-35): why a finished entity holds no data, e.g. a 403 on issues. */
@@ -98,6 +104,22 @@ function refinePhase(
   }
 }
 
+/** The host a connection talks to, for a person to read (W20-15, X-18). */
+export function connectionHost(provider: string, baseUrl: string | null): string | null {
+  if (baseUrl) {
+    try {
+      const host = new URL(baseUrl).hostname;
+      // api.github.com is how GitHub's API is addressed, not what people call it.
+      return host === 'api.github.com' ? 'github.com' : host;
+    } catch {
+      return null;
+    }
+  }
+  if (provider === 'github') return 'github.com';
+  if (provider === 'gitlab') return 'gitlab.com';
+  return null;
+}
+
 export interface StatusClock {
   nowMs?: number;
 }
@@ -117,8 +139,18 @@ export async function repoSyncStatus(
       syncStatus: core.repos.syncStatus,
       lastSyncedAt: core.repos.lastSyncedAt,
       lastError: core.repos.lastError,
+      connectionId: core.forgeConnections.id,
+      provider: core.forgeConnections.provider,
+      baseUrl: core.forgeConnections.baseUrl,
     })
     .from(core.repos)
+    .leftJoin(
+      core.forgeConnections,
+      and(
+        eq(core.forgeConnections.id, core.repos.connectionId),
+        eq(core.forgeConnections.workspaceId, core.repos.workspaceId),
+      ),
+    )
     .where(eq(core.repos.id, repoId))
     .limit(1);
   if (!repo) return null;
@@ -165,6 +197,14 @@ export async function repoSyncStatus(
   return {
     repoId: String(repo.id),
     repoName: `${repo.org}/${repo.name}`,
+    connection:
+      repo.connectionId === null || repo.provider === null
+        ? null
+        : {
+            id: repo.connectionId,
+            provider: repo.provider,
+            host: connectionHost(repo.provider, repo.baseUrl),
+          },
     phase: refinePhase(repo.syncStatus, entities),
     percentComplete,
     entities,

@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { eq } from 'drizzle-orm';
 import { core, createDb, facts, type Database } from '@repopulse/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { orgSyncStatus, repoSyncStatus } from './status.js';
+import { connectionHost, orgSyncStatus, repoSyncStatus } from './status.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const describeIfLiveInfra = databaseUrl ? describe : describe.skip;
@@ -126,6 +126,17 @@ describeIfLiveInfra('sync status model (W2-05, INGESTION §7, FR-INGEST-8)', () 
     // newest commit 2026-07-18, now 2026-07-19 → ~1 day lag
     expect(status!.lagSeconds).toBeGreaterThan(0);
     expect(status!.lagSeconds).toBeLessThan(2 * 24 * 60 * 60);
+  });
+
+  // W20-15 (UX_TODO X-18): with several forges connected, which one is it?
+  it('names the connection each repository syncs through', async () => {
+    const status = await repoSyncStatus(db, repoId, { nowMs: NOW });
+    expect(status!.connection).toMatchObject({ provider: 'github' });
+    expect(typeof status!.connection!.id).toBe('number');
+    // No base URL on a github connection is github.com; a URL names its host.
+    expect(connectionHost('github', null)).toBe('github.com');
+    expect(connectionHost('github', 'https://api.github.com')).toBe('github.com');
+    expect(connectionHost('gitea', 'https://git.corp.example:8443/')).toBe('git.corp.example');
   });
 
   it('org aggregate reports worst phase + repo count', async () => {

@@ -365,6 +365,30 @@ export class GiteaProvider implements ForgeProvider {
     return String(body.id ?? '');
   }
 
+  async deleteWebhooks(ctx: CallCtx, repo: string, url: string): Promise<number> {
+    // One page of 50: a repository with more hooks than that is not one
+    // RepoPulse registered on (it adds one per repository).
+    const res = await this.client.request(ctx, {
+      method: 'GET',
+      url: `${this.base}/repos/${repo}/hooks?limit=50`,
+      family: 'commits',
+      getHeaders: this.getHeaders,
+    });
+    const hooks = (res.body as { id: number; config?: { url?: string } }[] | null) ?? [];
+    let removed = 0;
+    for (const hook of hooks) {
+      if (hook.config?.url !== url) continue;
+      await this.client.request(ctx, {
+        method: 'DELETE',
+        url: `${this.base}/repos/${repo}/hooks/${hook.id}`,
+        family: 'commits',
+        getHeaders: this.getHeaders,
+      });
+      removed += 1;
+    }
+    return removed;
+  }
+
   verifyWebhook(rawBody: Buffer, signatureHeader: string, secret: string): boolean {
     return verifyWebhookSignature(rawBody, signatureHeader, secret);
   }

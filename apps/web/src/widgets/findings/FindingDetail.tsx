@@ -14,6 +14,8 @@ import {
   locationOf,
   reviewSummary,
   RISK_BAND_LABEL,
+  findingUrl,
+  foundByText,
   SEVERITY_LABEL,
   statusLabel,
   undoTargetFor,
@@ -64,6 +66,7 @@ export function FindingDetail({
   const [note, setNote] = useState('');
   const [reason, setReason] = useState<string>('false_positive');
   const [copied, setCopied] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const [linkCopied, setLinkCopied] = useState<'idle' | 'copied' | 'failed'>('idle');
   const noteRef = useRef<HTMLInputElement>(null);
   const [proposing, setProposing] = useState(false);
   const { data: me } = useApiQuery<{ role?: string }>({ endpoint: '/me/context' });
@@ -147,6 +150,19 @@ export function FindingDetail({
     );
   };
 
+  // W20-15 (UX_TODO X-07): the panel had no way to share the finding itself.
+  const copyLink = () => {
+    const clipboard = navigator.clipboard;
+    if (!clipboard) {
+      setLinkCopied('failed');
+      return;
+    }
+    void clipboard
+      .writeText(findingUrl(finding.id))
+      .then(() => setLinkCopied('copied'))
+      .catch(() => setLinkCopied('failed'));
+  };
+
   const copySummary = () => {
     const text = reviewSummary(finding, history?.items ?? []);
     // Clipboard access can be refused (insecure origin, denied permission).
@@ -183,7 +199,7 @@ export function FindingDetail({
           <span>confidence {finding.confidence}/5</span>
           <span>{dimensionLabel(finding.dimension)}</span>
           <span>seen {finding.occurrence_count}×</span>
-          <span>Tier {finding.tier}</span>
+          <span data-testid="finding-found-by">{foundByText(finding)}</span>
           {/* The status, from the server's copy of the finding — never from
               the button that was just pressed (W17-23). */}
           <span data-testid="finding-status">
@@ -480,6 +496,18 @@ export function FindingDetail({
               : copied === 'failed'
                 ? 'Copy failed — select the text instead'
                 : 'Copy review summary'}
+          </button>
+          <button
+            type="button"
+            className={ACTION_BUTTON}
+            data-testid="finding-copy-link"
+            onClick={copyLink}
+          >
+            {linkCopied === 'copied'
+              ? 'Link copied'
+              : linkCopied === 'failed'
+                ? 'Copy failed'
+                : 'Copy link'}
           </button>
           {/* To the plan for this finding's repository (W17-24): a link that
               carries the id, and only navigates. */}

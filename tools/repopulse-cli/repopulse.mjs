@@ -58,7 +58,7 @@ export const SEVERITIES = /** @type {const} */ (['info', 'low', 'medium', 'high'
 /**
  * @typedef {object} PrFindings
  * @property {{ number: number, title: string, state: string, head_sha: string, base_ref: string }} pull
- * @property {{ sha: string, scanned: boolean, scanners: { scanner_key: string, scanned_at: string }[] }} head
+ * @property {{ sha: string, scanned: boolean, scanners: { scanner_key: string, scanned_at: string }[], pending?: string[], failed?: string[] }} head
  * @property {Finding[]} items
  */
 
@@ -109,6 +109,15 @@ Exit codes:
 
 export class UsageError extends Error {}
 export class ServerError extends Error {}
+/**
+ * RepoPulse has not ingested this pull request YET (W20-15, UX_TODO X-14).
+ * The usual case on a PR's first pipeline: CI starts the moment the forge
+ * sends the webhook. Not a server error, so --wait keeps polling through it.
+ */
+export class NotSyncedError extends Error {}
+
+/** The server's problem type for "this PR has not been ingested yet". */
+export const PR_NOT_SYNCED_PROBLEM = 'urn:repopulse:problem:pr-not-synced';
 
 /**
  * @param {string[]} argv arguments after the script name
@@ -239,7 +248,15 @@ export async function fetchPrFindings(config, fetchImpl) {
     } catch (err) {
       throw new ServerError(`could not reach ${config.server}: ${describe(err)}`);
     }
-    if (!res.ok) throw new ServerError(await problemText(res));
+    if (!res.ok) {
+      const problem = await readProblem(res);
+      if (res.status === 404 && problem.type === PR_NOT_SYNCED_PROBLEM) {
+        throw new NotSyncedError(
+          `RepoPulse has not ingested PR #${config.pr} yet${problem.detail ? ` (${problem.detail})` : ''}`,
+        );
+      }
+      throw new ServerError(problemText(res.status, problem));
+    }
     const body = /** @type {PrFindings & { next_cursor: string | null }} */ (await res.json());
     first ??= body;
     items.push(...body.items);
@@ -249,23 +266,32 @@ export async function fetchPrFindings(config, fetchImpl) {
   throw new ServerError('the findings list did not end after 200 pages');
 }
 
-/** @param {Response} res */
-async function problemText(res) {
-  /** @type {string} */
-  let detail = '';
+/**
+ * @param {Response} res
+ * @returns {Promise<{ type?: string, title?: string, detail?: string }>}
+ */
+async function readProblem(res) {
   try {
-    const p = /** @type {{ title?: string, detail?: string }} */ (await res.json());
-    detail = [p.title, p.detail].filter(Boolean).join(' — ');
+    return /** @type {{ type?: string, title?: string, detail?: string }} */ (await res.json());
   } catch {
     // not a problem+json body; the status line is all there is
+    return {};
   }
+}
+
+/**
+ * @param {number} status
+ * @param {{ title?: string, detail?: string }} p
+ */
+function problemText(status, p) {
+  const detail = [p.title, p.detail].filter(Boolean).join(' — ');
   const hint =
-    res.status === 401
+    status === 401
       ? ' (is REPOPULSE_TOKEN a current, unrevoked CI token?)'
-      : res.status === 404
-        ? ' (does the token name this repository, and has RepoPulse synced this PR?)'
+      : status === 404
+        ? ' (does the token name this repository?)'
         : '';
-  return `RepoPulse answered HTTP ${res.status}${detail ? `: ${detail}` : ''}${hint}`;
+  return `RepoPulse answered HTTP ${status}${detail ? `: ${detail}` : ''}${hint}`;
 }
 
 /** @param {unknown} err */
@@ -297,7 +323,18 @@ export function headReady(result, config) {
 export async function fetchWhenReady(config, fetchImpl, sleep, now) {
   const deadline = now() + config.waitSeconds * 1000;
   for (;;) {
-    const result = await fetchPrFindings(config, fetchImpl);
+    /** @type {PrFindings} */
+    let result;
+    try {
+      result = await fetchPrFindings(config, fetchImpl);
+    } catch (err) {
+      // Not ingested yet is "not ready", not a refusal (X-14): keep waiting.
+      if (err instanceof NotSyncedError && now() < deadline) {
+        await sleep(Math.min(15_000, Math.max(0, deadline - now())));
+        continue;
+      }
+      throw err;
+    }
     if (headReady(result, config) || now() >= deadline) return result;
     await sleep(Math.min(15_000, Math.max(0, deadline - now())));
   }
@@ -483,11 +520,19 @@ export function toMarkdown(result, verdict, config) {
   );
   lines.push('');
   const scanners = result.head.scanners.map((s) => s.scanner_key).join(', ');
+  const pending = result.head.pending ?? [];
+  const failed = result.head.failed ?? [];
   lines.push(
     result.head.scanned
-      ? `Head \`${short(result.pull.head_sha)}\` scanned by: ${scanners}.`
-      : `Head \`${short(result.pull.head_sha)}\` has not been scanned yet; findings below are from earlier commits of this PR.`,
+      ? `Head \`${short(result.pull.head_sha)}\` scanned by: ${scanners || 'none'}.`
+      : `Head \`${short(result.pull.head_sha)}\` has not been fully scanned yet; findings below may be from earlier commits of this PR.`,
   );
+  // Which scanners the verdict is missing (W20-15, UX_TODO X-13): a pass with
+  // a scanner still running or failed is a pass on a partial scan.
+  if (pending.length > 0) lines.push(`Still scanning: ${pending.join(', ')}.`);
+  if (failed.length > 0) {
+    lines.push(`Failed at this head (their findings are missing): ${failed.join(', ')}.`);
+  }
   const threshold = [
     config.failOn === 'none' ? 'no severity threshold' : `fail on ${config.failOn} or above`,
     config.maxNew === null ? null : `at most ${config.maxNew} new`,
@@ -570,7 +615,8 @@ export async function main(argv, env, io) {
     result = await fetchWhenReady(config, io.fetch, io.sleep, io.now);
   } catch (err) {
     io.err(`repopulse: ${describe(err)}\n`);
-    return EXIT.SERVER;
+    // The wait ran out before the PR was ingested: not ready, not broken (X-14).
+    return err instanceof NotSyncedError ? EXIT.NOT_READY : EXIT.SERVER;
   }
 
   const verdict = evaluate(result, config);

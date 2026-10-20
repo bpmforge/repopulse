@@ -207,6 +207,9 @@ function findingsQuery(db: Database) {
         forgeBaseUrl: core.forgeConnections.baseUrl,
         scanCommitSha: security.scanRuns.commitSha,
         scanToolVersions: security.scanRuns.toolVersions,
+        scanScannerVersion: security.scanRuns.scannerVersion,
+        // W20-15 (UX_TODO X-10): which of the customer's models raised it.
+        analysisModelId: read.analysisRuns.modelId,
       })
       .from(read.findings)
       .innerJoin(core.repos, eq(core.repos.id, read.findings.repoId))
@@ -215,6 +218,7 @@ function findingsQuery(db: Database) {
       // An inner join here would have silently dropped every Tier-2 finding from
       // the explorer — the failure mode this codebase keeps producing.
       .leftJoin(security.scanRuns, eq(security.scanRuns.id, read.findings.scanRunId))
+      .leftJoin(read.analysisRuns, eq(read.analysisRuns.id, read.findings.analysisRunId))
       // W20-08 (FND-66): whether the pull request it was raised on is still
       // open decides who may dismiss it.
       .leftJoin(facts.pullRequests, eq(facts.pullRequests.id, read.findings.pullRequestId))
@@ -278,6 +282,9 @@ function toFinding(r: FindingRow) {
     // GitHub code-scanning alert), so the UI can say whose opinion it is.
     // Null for every finding RepoPulse produced itself.
     external: externalOf(r),
+    // W20-15 (UX_TODO X-10): rule, model or another tool — the "mechanical
+    // first, then AI" promise, said on every finding instead of "Tier N".
+    found_by: foundByOf(r),
     // OPEN IT IN THE FORGE (W16-41). Null when there is nothing honest to link
     // to — a finding about the whole repository has no file, and a connection
     // with no recorded base URL has no instance to point at.
@@ -342,6 +349,32 @@ export function dependencyEvidenceOf(r: {
  * SAYS so, rather than implying a precision it does not have.
  */
 /** `{tool, source, tool_version}` for an external finding, else null (W18-24). */
+/**
+ * Who raised a finding (W20-15, UX_TODO X-10): one of RepoPulse's scanners or
+ * rules, the customer's own model on an analysis run, or another tool whose
+ * results were imported. The panel showed only "Tier 1" or "Tier 2".
+ */
+export type FoundBy =
+  | {
+      kind: 'imported';
+      tool: string;
+      source: 'sarif' | 'code_scanning';
+      tool_version: string | null;
+    }
+  | { kind: 'model'; model: string }
+  | { kind: 'scanner'; scanner: string; version: string | null }
+  | { kind: 'unknown' };
+
+function foundByOf(r: FindingRow): FoundBy {
+  const ext = externalOf(r);
+  if (ext) return { kind: 'imported', ...ext };
+  if (r.analysisModelId) return { kind: 'model', model: r.analysisModelId };
+  if (r.scannerKey) {
+    return { kind: 'scanner', scanner: r.scannerKey, version: r.scanScannerVersion ?? null };
+  }
+  return { kind: 'unknown' };
+}
+
 function externalOf(
   r: FindingRow,
 ): { tool: string; source: 'sarif' | 'code_scanning'; tool_version: string | null } | null {

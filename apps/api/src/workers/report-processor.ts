@@ -40,6 +40,8 @@ export interface ReportProcessorDeps {
   db: Database;
   dataDir: string;
   printBaseUrl: string;
+  /** Where readers open RepoPulse; finding links in the PDF point here (X-23). */
+  linkBaseUrl?: string;
   /** Injectable so tests exercise the whole path without a browser. */
   printToPdf?: (url: string) => Promise<Buffer>;
   /** Injectable so tests exercise the lifecycle without a seeded warehouse. */
@@ -145,6 +147,7 @@ export function reportProcessor(deps: ReportProcessorDeps) {
       const result = await renderReport(data, reportId, {
         dataDir: deps.dataDir,
         printBaseUrl: deps.printBaseUrl,
+        ...(deps.linkBaseUrl ? { linkBaseUrl: deps.linkBaseUrl } : {}),
         ...(deps.printToPdf ? { printToPdf: deps.printToPdf } : {}),
       });
 

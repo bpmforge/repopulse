@@ -21,7 +21,13 @@ export interface ScannerPosture {
   openTotal: number;
   /** Findings first seen after the PREVIOUS run of this scanner. */
   newSincePreviousRun: number | null;
-  topFindings: { severity: number; title: string; file: string | null; ruleId: string | null }[];
+  topFindings: {
+    id: number;
+    severity: number;
+    title: string;
+    file: string | null;
+    ruleId: string | null;
+  }[];
 }
 
 export interface ChainAppendixEntry {

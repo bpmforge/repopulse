@@ -60,6 +60,8 @@ export interface Finding {
   first_seen_at: string;
   last_seen_at: string;
   tier: number;
+  /** Who raised it (W20-15, UX_TODO X-10). Optional for an older API. */
+  found_by?: FoundBy;
   /** W6-05. 'unverified' is honest, not missing: nobody re-judged it. */
   verify_status: 'unverified' | 'confirmed' | 'contradicted';
   // W8-10 scanner delta. NULL on an analysis finding, and null rather than ''
@@ -178,6 +180,39 @@ export interface DependencyEvidence {
   scope: { kind: string; depth: number | null } | null;
   epss: number | null;
   aliases: string[];
+}
+
+/** GET /findings → found_by (W20-15, UX_TODO X-10). */
+export type FoundBy =
+  | {
+      kind: 'imported';
+      tool: string;
+      source: 'sarif' | 'code_scanning';
+      tool_version: string | null;
+    }
+  | { kind: 'model'; model: string }
+  | { kind: 'scanner'; scanner: string; version: string | null }
+  | { kind: 'unknown' };
+
+/**
+ * "Found by: …" in words (W20-15, UX_TODO X-10). The panel said only "Tier 1"
+ * or "Tier 2", so another tool's opinion looked like RepoPulse's own and a
+ * model's judgement looked like a rule's.
+ */
+export function foundByText(f: {
+  found_by?: FoundBy;
+  tier: number;
+  rule_id?: string | null;
+}): string {
+  const by = f.found_by;
+  if (!by || by.kind === 'unknown') return `Tier ${f.tier}`;
+  if (by.kind === 'imported') {
+    const via = by.source === 'sarif' ? 'a SARIF upload' : 'code scanning';
+    return `Found by: imported from ${by.tool}${by.tool_version ? ` v${by.tool_version}` : ''} (${via})`;
+  }
+  if (by.kind === 'model') return `Found by: your AI model ${by.model}`;
+  const rule = f.rule_id ? `, rule ${f.rule_id}` : '';
+  return `Found by: the ${by.scanner.replace(/_/g, ' ')} scanner${by.version ? ` ${by.version}` : ''}${rule}`;
 }
 
 /** Each reachability tier in a sentence a person can act on (FR-SEC-13). */
@@ -335,6 +370,14 @@ export const SEVERITY_LABEL: Record<number, string> = {
 };
 
 /**
+ * The absolute link to a finding in RepoPulse (W20-15, UX_TODO X-07). The web
+ * app is served from PUBLIC_BASE_URL, so the page's own origin is that URL.
+ */
+export function findingUrl(id: number, origin: string = window.location.origin): string {
+  return `${origin.replace(/\/+$/, '')}/findings?finding=${id}`;
+}
+
+/**
  * The whole review, as plain text (W17-23).
  *
  * For pasting into a PR comment, a ticket, or a message — which is where a
@@ -344,9 +387,16 @@ export const SEVERITY_LABEL: Record<number, string> = {
  * what the panel already holds and never fetched, and it writes nowhere: the
  * clipboard is the only destination, and no forge is told anything.
  */
-export function reviewSummary(finding: Finding, history: readonly FindingEvent[] = []): string {
+export function reviewSummary(
+  finding: Finding,
+  history: readonly FindingEvent[] = [],
+  origin: string = window.location.origin,
+): string {
   const lines = [
     `Finding #${finding.id}: ${finding.title}`,
+    // Back to the finding itself (W20-15, UX_TODO X-07): the ticket or chat
+    // message this is pasted into is read by someone who needs to open it.
+    `In RepoPulse: ${findingUrl(finding.id, origin)}`,
     `Repository: ${finding.repo.org}/${finding.repo.name}`,
     `Location: ${locationOf(finding)}`,
     `Severity: ${(SEVERITY_LABEL[finding.severity] ?? String(finding.severity)).replace(/^[●○] /, '')}` +

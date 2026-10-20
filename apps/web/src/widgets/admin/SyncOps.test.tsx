@@ -1,7 +1,15 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SYNC_POLL_MS, SyncOps, syncEmptyMessage, syncPollInterval } from './SyncOps.js';
+import {
+  SYNC_POLL_MS,
+  SyncOps,
+  syncEmptyMessage,
+  connectionLabel,
+  phaseCounts,
+  sortProblemsFirst,
+  syncPollInterval,
+} from './SyncOps.js';
 import { phaseLabel, type OrgSyncStatus, type RepoSyncStatus } from './contracts.js';
 
 // W17-39 (R-16): a feature switched off on the repository (issues disabled on
@@ -146,5 +154,56 @@ describe('SyncOps keeps itself current (W20-04)', () => {
     expect(syncPollInterval(status('live', 'error', 'paused'))).toBe(false);
     expect(syncPollInterval(status())).toBe(false);
     expect(syncPollInterval(undefined)).toBe(false);
+  });
+});
+
+// W20-15 (UX_TODO X-18): at 500 repositories across three connections, the
+// admin needs the failing ones first, a count per phase, and which connection.
+describe('SyncOps at scale (W20-15, UX_TODO X-18)', () => {
+  beforeEach(() => vi.stubGlobal('fetch', vi.fn()));
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  const rows = [
+    repo({ repoId: '1', repoName: 'acme/a', phase: 'live' }),
+    repo({
+      repoId: '2',
+      repoName: 'acme/b',
+      phase: 'error',
+      connection: { id: 4, provider: 'gitea', host: 'git.corp.example' },
+    }),
+    repo({ repoId: '3', repoName: 'acme/c', phase: 'live' }),
+  ];
+
+  it('sorts problem phases first and counts each phase', () => {
+    expect(sortProblemsFirst(rows).map((r) => r.repoId)).toEqual(['2', '1', '3']);
+    expect(phaseCounts(rows)).toEqual([
+      ['error', 1],
+      ['live', 2],
+    ]);
+    expect(connectionLabel({ id: 4, provider: 'gitea', host: 'git.corp.example' })).toBe(
+      'gitea · git.corp.example',
+    );
+    expect(connectionLabel(null)).toBe('connection removed');
+  });
+
+  it('a phase count filters the table to that phase', async () => {
+    respond({
+      phase: 'error',
+      repoCount: 3,
+      percentComplete: 50,
+      worstLagSeconds: 60,
+      repos: rows,
+    });
+    renderWidget();
+    const errors = await screen.findByTestId('sync-phase-filter-error');
+    expect(errors).toHaveTextContent('1 error');
+    const table = screen.getByTestId('sync-repo-table');
+    expect(within(table).getByText('gitea · git.corp.example')).toBeInTheDocument();
+    errors.click();
+    await waitFor(() => expect(within(table).queryByText('acme/a')).toBeNull());
+    expect(within(table).getByText('acme/b')).toBeInTheDocument();
   });
 });

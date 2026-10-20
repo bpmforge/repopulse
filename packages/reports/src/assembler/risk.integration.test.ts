@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { core, createDb, read, security, type Database } from '@repopulse/shared';
 import { axisSection, riskSections } from './risk.js';
+import { securityPostureSections } from './security-posture.js';
 import type { ReportSection } from '../types/index.js';
 
 // The risk opener (W9-12, RISK_MODEL.md §5, FR-RISK-6).
@@ -203,7 +204,10 @@ describeIfLiveInfra('risk opener', () => {
       5,
       'eval on request input',
       'acme/risk-report · src/app.js',
+      findingId,
     ]);
+    // W20-15 (UX_TODO X-23): the id column the viewer links back to RepoPulse.
+    expect(top?.kind === 'table' ? top.findingIdColumn : null).toBe(5);
   });
 
   it('EXCLUDES a shadow-rule finding, even at risk 99', async () => {
@@ -300,6 +304,45 @@ describeIfLiveInfra('risk opener', () => {
     const a = await riskSections(db, args);
     const b = await riskSections(db, args);
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+  });
+
+  // W20-15 (UX_TODO X-21, X-23). The posture report counted only the literal
+  // 'security' dimension, so this SAST finding was missing from the document
+  // meant for an auditor; and its rows did not say which finding they were.
+  it('the security posture report lists every security dimension, by finding', async () => {
+    const sections = await securityPostureSections(db, {
+      workspaceId,
+      repoIds: [repoId],
+      snapshotAt: PIN,
+      windowStart: new Date('2026-07-01T00:00:00.000Z'),
+    });
+    const table = byId(sections, 'open_security_findings');
+    expect(table?.kind).toBe('table');
+    if (table?.kind !== 'table') return;
+    expect(table.columns).toEqual([
+      'Finding #',
+      'Repository',
+      'Severity',
+      'Dimension',
+      'Finding',
+      'Location',
+      'Rule',
+      'Age',
+      'Verification',
+    ]);
+    expect(table.findingIdColumn).toBe(0);
+    expect(table.rows).toHaveLength(1);
+    expect(table.rows[0]!.slice(0, 7)).toEqual([
+      findingId,
+      'acme/risk-report',
+      'critical',
+      'sast',
+      'eval on request input',
+      'src/app.js:3',
+      'bpm-js-eval-dynamic',
+    ]);
+    // Shadow-rule findings stay out, as in the risk report.
+    expect(JSON.stringify(table.rows)).not.toContain('shadow rule finding');
   });
 });
 

@@ -4,6 +4,7 @@ import { useApiQuery, queryKeyFor } from '../../../api/useApiQuery.js';
 import { API_BASE } from '../../../api/client.js';
 import { ScannerStatusList, ScanToolingNote } from '../../../widgets/security/ScannerStatusList.js';
 import { RunScanButton } from '../../../widgets/security/RunScanButton.js';
+import { SarifImport } from '../../../widgets/security/SarifImport.js';
 import { LicensesPanel } from '../../../widgets/security/LicensesPanel.js';
 import { ChainsPanel } from '../../../widgets/security/ChainsPanel.js';
 import { CoverageMap } from '../../../widgets/trust/CoverageMap.js';
@@ -380,6 +381,13 @@ function SecurityTab() {
           </li>
         </ul>
       </WidgetFrame>
+
+      {/* W20-15 (UX_TODO X-09): SARIF import was API-only. */}
+      {isAdmin && (
+        <WidgetFrame title="Import results from another tool" state="ready" testId="security-sarif">
+          <SarifImport repoId={repoId} />
+        </WidgetFrame>
+      )}
 
       <WidgetFrame title="Attack chains" state={state} testId="security-chains">
         {data && (

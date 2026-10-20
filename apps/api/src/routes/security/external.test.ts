@@ -225,6 +225,7 @@ describeIfDb('SARIF upload route (W18-24)', () => {
         items: {
           scanner_key: string;
           external: { tool: string; source: string; tool_version: string | null } | null;
+          found_by: { kind: string };
         }[];
       }
     ).items;
@@ -232,6 +233,13 @@ describeIfDb('SARIF upload route (W18-24)', () => {
     for (const item of items) {
       expect(item.scanner_key).toBe('external:codeql');
       expect(item.external).toEqual({ tool: 'codeql', source: 'sarif', tool_version: '2.19.0' });
+      // W20-15 (UX_TODO X-10): said as who found it, not as a tier.
+      expect(item.found_by).toEqual({
+        kind: 'imported',
+        tool: 'codeql',
+        source: 'sarif',
+        tool_version: '2.19.0',
+      });
     }
   });
 });

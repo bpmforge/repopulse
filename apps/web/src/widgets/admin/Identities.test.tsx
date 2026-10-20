@@ -5,7 +5,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { createQueryClient } from '../../api/queryClient.js';
 import { Toaster } from '../../components/shell/Toaster.js';
 import { useUiStore } from '../../components/store/uiStore.js';
-import { Identities } from './Identities.js';
+import { Identities, filterIdentities, identityLabel } from './Identities.js';
 
 // W20-04 (UX_TODO ADM-10). A merge applied on one click, the picker closed
 // before the request finished, and a refused merge — or a refused bot flag —
@@ -70,7 +70,7 @@ describe('identity merge (W20-04)', () => {
     await user.click(screen.getByTestId('merge-into-1'));
 
     expect(screen.getByTestId('merge-confirm')).toHaveTextContent(
-      /Merge ada-work into ada\? Its 12 commits and 3 pull requests are re-attributed on every screen/,
+      /Merge ada-work \(github\) into ada \(github\)\? Its 12 commits and 3 pull requests are re-attributed on every screen/,
     );
     expect(writes).toHaveLength(0);
 
@@ -137,5 +137,37 @@ describe('identity link (W20-10)', () => {
     await waitFor(() => expect(screen.getAllByText('ada@corp (oidc)').length).toBeGreaterThan(0));
     await user.selectOptions(screen.getByTestId('identity-link-1'), '7');
     expect(await screen.findByRole('alert')).toHaveTextContent('already linked');
+  });
+});
+
+// W20-15 (UX_TODO X-17): "alice" on GitHub and "alice" on Gitea looked the
+// same, and the list was one unsearchable table of every identity.
+describe('identities at scale (W20-15, UX_TODO X-17)', () => {
+  const rows = [
+    { ...identity(1, 'alice'), provider: 'github' },
+    { ...identity(2, 'alice'), provider: 'gitea' },
+    { ...identity(3, 'dependabot'), is_bot: true },
+  ];
+
+  it('labels every identity with its forge', () => {
+    expect(identityLabel(rows[1]!)).toBe('alice (gitea)');
+  });
+
+  it('filters by text, forge and bot', () => {
+    const f = { query: '', provider: '', bots: 'all' as const };
+    expect(filterIdentities(rows, { ...f, query: 'ali' }).map((i) => i.id)).toEqual([1, 2]);
+    expect(filterIdentities(rows, { ...f, provider: 'gitea' }).map((i) => i.id)).toEqual([2]);
+    expect(filterIdentities(rows, { ...f, bots: 'humans' }).map((i) => i.id)).toEqual([1, 2]);
+    expect(filterIdentities(rows, { ...f, bots: 'bots' }).map((i) => i.id)).toEqual([3]);
+  });
+
+  it('shows the forge on the row and searches the table', async () => {
+    const user = userEvent.setup();
+    renderIdentities();
+    expect(await screen.findByTestId('identity-provider-1')).toHaveTextContent('github');
+    await user.type(screen.getByTestId('identity-search'), 'work');
+    await waitFor(() => expect(screen.queryByTestId('identity-1')).toBeNull());
+    expect(screen.getByTestId('identity-2')).toBeInTheDocument();
+    expect(screen.getByTestId('identity-count')).toHaveTextContent('1 of 2');
   });
 });

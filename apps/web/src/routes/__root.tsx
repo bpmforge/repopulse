@@ -153,6 +153,24 @@ export function deriveCrumbs(pathname: string, entity?: EntityCrumb | null): Cru
 }
 
 /**
+ * The top-bar repository options (W20-15, UX_TODO X-16). With more than one
+ * forge host connected, `org/name` alone cannot tell a GitHub repository from
+ * its Gitea mirror, so each label names its host; with one host it stays short.
+ */
+export function topbarRepoOptions(
+  items: { id: number; org: string; name: string; forge?: { host: string | null } | null }[],
+): { id: string; label: string }[] {
+  const hosts = new Set(items.map((r) => r.forge?.host ?? null).filter((h) => h !== null));
+  return items.map((r) => ({
+    id: String(r.id),
+    label:
+      hosts.size > 1 && r.forge?.host
+        ? `${r.org}/${r.name} · ${r.forge.host}`
+        : `${r.org}/${r.name}`,
+  }));
+}
+
+/**
  * The browser-tab title for a trail (W18-28): most specific first, so the part
  * that differs between tabs is the part a narrow tab still shows.
  * "Security · payments · RepoPulse"; the bare root is "Overview · RepoPulse".
@@ -180,11 +198,20 @@ function RootShell() {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
-  // Print routes render bare (W5-04) and are fetched by the print pipeline with
-  // its own session, so they neither need nor want the probe: an extra in-flight
-  // request keeps the page from settling, and the pipeline waits for settle.
+  // Print routes render bare (W5-04). The PDF pipeline injects the report
+  // (window.__REPORT_DATA) and has no session, so it neither needs nor wants
+  // the probe: an extra in-flight request keeps the page from settling, and the
+  // pipeline waits for settle.
+  //
+  // A PERSON opening the same viewer does need it (W20-15, UX_TODO X-24): a
+  // shared or bookmarked report link, or a session that expired with the tab
+  // open, used to sit on "Loading…" with no way to sign in. Only the injected
+  // pipeline skips the gate now; a person gets the sign-in screen in place and
+  // the report opens after signing in.
   const isPrint = pathname.startsWith('/print/');
-  const { status } = useSession({ enabled: !isPrint });
+  const isPdfPipeline =
+    isPrint && (window as unknown as { __REPORT_DATA?: unknown }).__REPORT_DATA !== undefined;
+  const { status } = useSession({ enabled: !isPdfPipeline });
 
   // Remembering that we once had a session is what lets the sign-in screen tell
   // "your session ended" from "you were never signed in". Same destination,
@@ -207,8 +234,13 @@ function RootShell() {
     }
   }, [status, hadSession, queryClient]);
 
-  if (isPrint) return <Outlet />;
+  if (isPdfPipeline) return <Outlet />;
   if (status === 'loading') return <SessionProbe />;
+  if (isPrint) {
+    // Bare, as before, but behind the same sign-in screen as the app.
+    if (status === 'anonymous') return <SignedOut expired={hadSession} />;
+    return <Outlet />;
+  }
   // 'anonymous' covers TWO states the session probe cannot separate: nobody is
   // signed in, and someone holds a session that must change its password before
   // it may do anything (it carries no `userId`, so /me/context 401s for it too).
@@ -564,14 +596,10 @@ function AppShell({ inert = false }: { inert?: boolean }) {
   // where the picker is actually shown — react-query serves the /repos screen
   // from the same cache entry.
   const scope = filterScopeFor(pathname);
-  const { data: repoList } = useApiQuery<{ items: { id: number; org: string; name: string }[] }>(
-    { endpoint: '/repos', query: { window: search.window } },
-    { enabled: scope.repos },
-  );
-  const repoOptions = (repoList?.items ?? []).map((r) => ({
-    id: String(r.id),
-    label: `${r.org}/${r.name}`,
-  }));
+  const { data: repoList } = useApiQuery<{
+    items: { id: number; org: string; name: string; forge?: { host: string | null } | null }[];
+  }>({ endpoint: '/repos', query: { window: search.window } }, { enabled: scope.repos });
+  const repoOptions = topbarRepoOptions(repoList?.items ?? []);
 
   const onFilterChange = (patch: {
     window?: string;

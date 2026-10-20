@@ -82,10 +82,19 @@ const response = z.object({
     sha: z.string(),
     scanned: z.boolean(),
     scanners: z.array(z.object({ scanner_key: z.string(), scanned_at: z.string() })),
+    pending: z.array(z.string()),
+    failed: z.array(z.string()),
   }),
   items: z.array(item),
   next_cursor: z.string().nullable(),
 });
+
+/**
+ * The problem type for "this PR has not been ingested yet" (W20-15, UX_TODO
+ * X-14). The CLI keeps waiting on it; any other 404 (a token that does not
+ * name the repository, an unknown repository) is a real refusal.
+ */
+export const PR_NOT_SYNCED_PROBLEM = 'urn:repopulse:problem:pr-not-synced';
 
 const DEFAULT_CLI_PATH = new URL(
   '../../../../../tools/repopulse-cli/repopulse.mjs',
@@ -150,6 +159,7 @@ export default async function pullsRoutes(
       if (!result) {
         // Most often: the CI asked before the webhook for this PR was ingested.
         sendProblem(request, reply, 404, 'Pull request not found', {
+          type: PR_NOT_SYNCED_PROBLEM,
           detail: `RepoPulse has no pull request #${number} for repository ${repoId} yet. If it was just opened, retry once its webhook has been processed.`,
         });
         return reply;

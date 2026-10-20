@@ -235,7 +235,32 @@ describeIfLiveInfra('report assembler', () => {
       status: 'open',
       dedupKey: 'w16-54-dedup',
       tier: 2,
+      firstSeenAt: new Date('2026-08-01T00:00:00.000Z'),
     });
+    // W20-15 (UX_TODO X-22): a dismissed one, a shadow-rule one and one raised
+    // after the pin. None belongs in "Open findings" at this snapshot.
+    const excluded = [
+      { title: 'dismissed false positive', dedupKey: 'w20-15-dismissed', status: 'dismissed' },
+      { title: 'shadow rule', dedupKey: 'w20-15-shadow', experimental: true },
+      { title: 'after the pin', dedupKey: 'w20-15-late', firstSeenAt: new Date('2026-09-01') },
+    ];
+    await db.insert(read.findings).values(
+      excluded.map((x) => ({
+        workspaceId,
+        repoId,
+        analysisRunId: run!.id,
+        dimension: 'security',
+        severity: 5,
+        confidence: 5,
+        file: 'src/x.ts',
+        evidence: 'e',
+        recommendation: 'r',
+        status: 'open',
+        tier: 2,
+        firstSeenAt: new Date('2026-08-01T00:00:00.000Z'),
+        ...x,
+      })),
+    );
 
     const after = await assembler.assemble(paramsFor('repo_health'));
     const section = findingsSection(after);
@@ -243,9 +268,16 @@ describeIfLiveInfra('report assembler', () => {
     if (section?.kind === 'table') {
       expect(JSON.stringify(section.rows)).toContain('SQL built by string concatenation');
       expect(JSON.stringify(section.rows)).toContain('src/pay.ts:10');
+      for (const x of excluded) expect(JSON.stringify(section.rows)).not.toContain(x.title);
+      // The id column the viewer links back to the finding (X-23).
+      expect(section.findingIdColumn).toBe(5);
+      expect(typeof section.rows[0]?.[5]).toBe('number');
     }
 
     await db.delete(read.findings).where(eq(read.findings.dedupKey, 'w16-54-dedup'));
+    for (const x of excluded) {
+      await db.delete(read.findings).where(eq(read.findings.dedupKey, x.dedupKey));
+    }
     await db.delete(read.analysisRuns).where(eq(read.analysisRuns.id, run!.id));
   });
 

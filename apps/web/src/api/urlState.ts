@@ -27,7 +27,17 @@ export function validateGlobalSearch(search: Record<string, unknown>): GlobalSea
 export function mergeGlobalSearch(
   current: GlobalSearch,
   patch: Partial<Record<'window' | 'repos' | 'person', string | null>>,
-): Record<string, string> {
+): Record<string, unknown> {
+  // W20-15: the page's own filters (?status=, ?severity=, ?state=, an open
+  // ?finding=…) survive a topbar change. They used to be dropped because the
+  // next search was rebuilt from the three global keys alone, so narrowing the
+  // repository silently threw away the severity filter the user had just set.
+  // Only a paging cursor goes: it belongs to the old result set.
+  const page: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(current as object)) {
+    if (GLOBAL_KEYS.has(key) || PAGING_KEYS.has(key) || value === undefined) continue;
+    page[key] = value;
+  }
   const next: GlobalSearch = { window: current.window };
   if (current.repos) next.repos = current.repos;
   if (current.person) next.person = current.person;
@@ -43,5 +53,9 @@ export function mergeGlobalSearch(
       delete next[key];
     }
   }
-  return serializeGlobalSearch(next);
+  return { ...page, ...serializeGlobalSearch(next) };
 }
+
+const GLOBAL_KEYS = new Set(['window', 'repos', 'person']);
+/** Keys that name a position in the previous result set, not a filter. */
+const PAGING_KEYS = new Set(['cursor']);

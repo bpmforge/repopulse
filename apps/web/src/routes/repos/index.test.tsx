@@ -224,3 +224,34 @@ describe('repository list (W17-18)', () => {
     expect(screen.getByTestId('widget-retry')).toBeInTheDocument();
   }, 15000);
 });
+
+// W20-15 (UX_TODO X-16): with several forges connected, no screen said which
+// forge a repository came from, and a mirror tracked twice went unremarked.
+describe('repositories across forges (W20-15, UX_TODO X-16)', () => {
+  it('names the forge host on each row and warns about a repository tracked twice', async () => {
+    reposResponse = {
+      status: 200,
+      body: {
+        items: [
+          {
+            ...repoItem({ id: 1, org: 'acme', name: 'api', score: 80 }),
+            forge: { provider: 'github', host: 'github.com' },
+            tracked_twice: true,
+          },
+          {
+            ...repoItem({ id: 2, org: 'acme', name: 'api', score: 70 }),
+            forge: { provider: 'gitea', host: 'git.corp.example' },
+            tracked_twice: true,
+          },
+        ],
+      },
+    };
+    renderList();
+    await screen.findByTestId('repo-list');
+    const forges = screen.getAllByTestId('repo-row-forge').map((el) => el.textContent?.trim());
+    expect(forges).toEqual(expect.arrayContaining(['· github.com', '· gitea · git.corp.example']));
+    expect(screen.getByTestId('repo-list-duplicates')).toHaveTextContent(
+      /more than one connection: acme\/api\. .*counted twice/,
+    );
+  });
+});

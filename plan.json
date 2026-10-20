@@ -10888,6 +10888,53 @@
           "Not reached: remaining P3 items and ADM-78, INS-59 (GitHub Enterprise /api/v3 base path would need the e2e fake forge to follow), INS-69, INS-70.",
           "Found, not fixed: WEBHOOK_SECRET is written by configure.sh but never read by the api; per-connection webhook secrets are used instead."
         ]
+      },
+      {
+        "id": "W20-15",
+        "title": "Cross-flow P2 polish: CI pull results, report links, forge labels, uninstall, topbar filters",
+        "phase": 20,
+        "module": "web",
+        "stories": [],
+        "write_scope": [
+          "apps/web/**",
+          "apps/api/**",
+          "packages/forge/src/**",
+          "packages/forge/test/**",
+          "packages/ingest/src/status/**",
+          "packages/reports/src/**",
+          "tools/repopulse-cli/**",
+          "deploy/uninstall.sh",
+          "deploy/bundle.sh",
+          "deploy/bundle/README.md",
+          "docs/INSTALL.md",
+          "docs/CI_INTEGRATION.md",
+          "README.md",
+          "docs/work/UX_TODO.md",
+          "package.json",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W20-10"
+        ],
+        "acceptance": [
+          "Changing the topbar repository or time range keeps the page's own filters (only the list cursor resets); tested in urlState.test.ts and __root.test.tsx",
+          "UX_TODO X-13, X-14, X-15: the PR findings API says which PR-triggered scanners are still pending or failed at the head and scanned is true only when all succeeded; the CLI waits through a not-yet-synced PR (typed problem urn:repopulse:problem:pr-not-synced, exit 4 at the deadline); PR detail shows the same new-on-this-PR list the CI sees (tested)",
+          "UX_TODO X-21, X-22, X-23: report finding tables carry a Finding # column linked to the finding in RepoPulse (PDF links use PUBLIC_BASE_URL); the security posture table covers security dimensions only with words for severity; the repo health report lists open, confirmed, non-experimental findings as of the snapshot (integration tested)",
+          "UX_TODO X-27: deploy/uninstall.sh removes the registered webhooks through the budgeted forge client (deleteWebhooks on GitHub, Gitea and GitLab, contract tested), offers a final backup, then removes the stack, volumes and folders; documented in INSTALL and the bundle README",
+          "UX_TODO X-07, X-09, X-16, X-18, X-19, X-20, X-24, X-25, X-26: finding Copy link and RepoPulse URL in the review summary; admin SARIF import on Repo Security; forge host on repositories and duplicate-tracking warning; sync table by connection with problems first; CI token expiry warnings; README/CI_INTEGRATION aligned; print routes honour the session except in the PDF pipeline; persona picker no longer hijacks deep links; Sensitive changes ignores the window filter"
+        ],
+        "points": 8,
+        "status": "done",
+        "notes": [
+          "Requested 2026-10-19 (fix the open cross-flow items in docs/work/UX_TODO.md, P1 first, plus the topbar-resets-page-filters bug).",
+          "Fixed: X-07, X-09, X-13, X-14, X-15, X-16, X-18, X-19, X-20, X-21, X-22, X-23, X-24, X-25, X-26, X-27, and the topbar filter reset.",
+          "Partial (left unticked): X-10 'Found by' now says imported from <tool vX>, your AI model, or the scanner, but which model verified a finding is not stored, so it is not shown. X-17 identities gain a provider chip, search, forge and bot filters, client-side paging and a searchable merge picker; identities carry no connection or host, and the API is still unpaged.",
+          "Skipped: X-06 (searchable multi-select with saved repository sets is a product decision on how sets are stored and shared, and needs a paged /repos). X-08 (CSV/SARIF export plus an external-ticket field needs a migration and a product decision on the ticket field). X-11 (a per-release accuracy page needs release benchmark data and a decision on where it lives). X-12 (a scorecard-check-to-rule mapping would be invented without the scorecard's check list).",
+          "X-27 deviation: no stored hook id (no migration); deleteWebhooks matches hooks by their delivery URL, so a hook registered under an older PUBLIC_BASE_URL is not removed (uninstall.sh says so).",
+          "D9a gate (apps/api/test/security/no-forge-write-scope.test.ts) deliberately updated for review: the forge port may also delete the push hook RepoPulse registered (DELETE on /hooks/{id} only, same hook scope as registration). The port check now also catches optional methods, which listed two pre-existing optional reads (listReviewComments, listCodeScanningAlerts). FOUNDING_BRIEF D9a text was not edited (outside this ticket's scope).",
+          "Fixed in passing: providerForRepo looked a repo up by id without the workspace filter (Law 5); it is now workspace-filtered.",
+          "Bugs noticed, not fixed: only secrets and sensitive_change run on pr_synced (incremental Semgrep and the anti-slop/perf/logging PR modes are never called from the workers); apiFetch spreads init after headers, so passing init.headers drops the CSRF and accept headers; the identities provider check allows github/gitea but not gitlab; report tables other than security posture still print numeric severity; DELETE /connections does not remove the connection's webhooks."
+        ]
       }
   ]
 }

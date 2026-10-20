@@ -3,6 +3,7 @@ import { Connections } from '../../widgets/admin/Connections.js';
 import { SystemStatus } from '../../widgets/admin/SystemStatus.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 import type { ConnectionList } from '../../widgets/admin/contracts.js';
+import { CiTokenExpiryNotice } from '../../widgets/admin/CiTokenExpiry.js';
 
 // Settings landing (W17-08).
 //
@@ -27,6 +28,8 @@ function AdminHome() {
     <div className="flex flex-col gap-6" data-testid="admin-home" data-connect-first={connectFirst}>
       <div className={connectFirst ? 'order-2' : 'order-1'}>
         <SystemStatus />
+        {/* W20-15 (UX_TODO X-19): before a pipeline starts failing. */}
+        <CiTokenExpiryNotice />
       </div>
       <div className={connectFirst ? 'order-1' : 'order-2'}>
         <Connections />

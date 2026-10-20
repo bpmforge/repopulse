@@ -19,7 +19,7 @@
 #                               images plus the postgres and redis they run with
 #     deploy/compose.yaml       deploy/compose.yaml with every `build:` removed
 #     deploy/.env.example, configure.sh, configure.mjs, up.sh, backup.sh,
-#     deploy/restore.sh, rotate-token-key.sh, scan-db-sync.sh, smoke-report-pdf.sh,
+#     deploy/restore.sh, rotate-token-key.sh, uninstall.sh, scan-db-sync.sh, smoke-report-pdf.sh,
 #     rulepacks/, scan-rules/
 #     RUNBOOK.md                operating it: backup, restore onto a new server,
 #                               upgrade, rotating secrets, when the app is down
@@ -220,7 +220,7 @@ echo "== stage deploy/"
 strip_compose deploy/compose.yaml > "$STAGE/deploy/compose.yaml"
 grep -q '^    build:' "$STAGE/deploy/compose.yaml" &&
   die "bug: build: stanza survived strip_compose — deploy/compose.yaml's layout changed."
-for f in .env.example configure.sh configure.mjs up.sh backup.sh restore.sh rotate-token-key.sh scan-db-sync.sh smoke-report-pdf.sh; do
+for f in .env.example configure.sh configure.mjs up.sh backup.sh restore.sh rotate-token-key.sh uninstall.sh scan-db-sync.sh smoke-report-pdf.sh; do
   cp "deploy/$f" "$STAGE/deploy/$f"
 done
 cp deploy/scan-rules/README.md "$STAGE/deploy/scan-rules/README.md"

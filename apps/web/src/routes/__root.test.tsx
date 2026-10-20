@@ -8,6 +8,7 @@ import { createRoute, createRouter, RouterProvider } from '@tanstack/react-route
 import {
   downFromHealthDetail,
   isServerSideFailure,
+  topbarRepoOptions,
   Route as rootRoute,
   type RouterContext,
 } from './__root.js';
@@ -89,8 +90,14 @@ function renderAt(initialUrl: string, home: ReactNode = <div data-testid="home">
     path: '/',
     component: () => <>{home}</>,
   });
+  // A stand-in for the report viewer, so the /print/* gate can be exercised.
+  const printRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/print/reports/$reportId',
+    component: () => <div data-testid="print-viewer">report</div>,
+  });
   const router = createRouter({
-    routeTree: rootRoute.addChildren([indexRoute]),
+    routeTree: rootRoute.addChildren([indexRoute, printRoute]),
     context: { queryClient } satisfies RouterContext,
     history: createMemoryHistory({ initialEntries: [initialUrl] }),
   });
@@ -504,5 +511,55 @@ describe('the session probe cannot strand you (W16-15)', () => {
 
     await vi.advanceTimersByTimeAsync(7000);
     await waitFor(() => expect(probe).toHaveAttribute('aria-busy', 'false'));
+  });
+});
+
+describe('report viewer sign-in (W20-15, UX_TODO X-24)', () => {
+  afterEach(() => {
+    delete (window as unknown as { __REPORT_DATA?: unknown }).__REPORT_DATA;
+  });
+
+  it('a signed-out person opening a report link gets the sign-in screen', async () => {
+    respond = signedOut;
+    renderAt('/print/reports/12');
+    expect(await screen.findByTestId('signin')).toBeInTheDocument();
+    expect(screen.queryByTestId('print-viewer')).not.toBeInTheDocument();
+  });
+
+  it('a signed-in person sees the bare viewer, without the app chrome', async () => {
+    renderAt('/print/reports/12');
+    expect(await screen.findByTestId('print-viewer')).toBeInTheDocument();
+    expect(screen.queryByTestId('rail')).not.toBeInTheDocument();
+  });
+
+  it('the PDF pipeline (injected data) skips the session probe entirely', async () => {
+    respond = signedOut;
+    (window as unknown as { __REPORT_DATA?: unknown }).__REPORT_DATA = { sections: [] };
+    renderAt('/print/reports/12');
+    expect(await screen.findByTestId('print-viewer')).toBeInTheDocument();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('topbar keeps page filters (W20-15)', () => {
+  it('changing the time window keeps the page-level filters in the URL', async () => {
+    const user = userEvent.setup();
+    const { router } = renderAt('/?window=90d&status=open&severity=5');
+    const windowSelect = (await screen.findByTestId('filter-window')) as HTMLSelectElement;
+    await user.selectOptions(windowSelect, '7d');
+    await waitFor(() => expect(router.state.location.searchStr).toContain('window=7d'));
+    expect(router.state.location.search).toMatchObject({ status: 'open', severity: 5 });
+  });
+});
+
+describe('top-bar repository labels across forges (W20-15, UX_TODO X-16)', () => {
+  it('names the host only when more than one forge host is connected', () => {
+    const gh = { id: 1, org: 'acme', name: 'api', forge: { host: 'github.com' } };
+    const gt = { id: 2, org: 'acme', name: 'api', forge: { host: 'git.corp.example' } };
+    expect(topbarRepoOptions([gh]).map((o) => o.label)).toEqual(['acme/api']);
+    expect(topbarRepoOptions([gh, gt]).map((o) => o.label)).toEqual([
+      'acme/api · github.com',
+      'acme/api · git.corp.example',
+    ]);
   });
 });

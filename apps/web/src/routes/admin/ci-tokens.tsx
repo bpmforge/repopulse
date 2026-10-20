@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { ErrorNote, WidgetFrame, frameState } from '../../components/index.js';
 import { useApiMutation, useApiQuery, queryKeyFor } from '../../api/useApiQuery.js';
 import { docsUrl } from '../../lib/docs.js';
+import { expiryState, expiryWords } from '../../widgets/admin/CiTokenExpiry.js';
 
 // Settings → CI tokens (W20-08, UX_TODO FND-17).
 //
@@ -236,7 +237,7 @@ export function CiTokens() {
             {items.map((t) => (
               <tr
                 key={t.id}
-                className="border-t border-border"
+                className={`border-t border-border ${expiryState(t) ? 'bg-warn/10' : ''}`}
                 data-testid={`ci-token-row-${t.id}`}
               >
                 <th scope="row" className="text-left font-normal">
@@ -244,7 +245,18 @@ export function CiTokens() {
                 </th>
                 <td className="font-mono text-xs">{t.prefix}…</td>
                 <td className="text-xs">{t.repo_ids.map(repoName).join(', ')}</td>
-                <td className="text-xs">{day(t.expires_at)}</td>
+                <td className="text-xs">
+                  {day(t.expires_at)}
+                  {/* W20-15 (UX_TODO X-19): due rows say so, in words. */}
+                  {expiryState(t) && t.expires_at && (
+                    <span
+                      className="ml-1 font-medium text-warn"
+                      data-testid={`ci-token-due-${t.id}`}
+                    >
+                      ({expiryWords(t.expires_at)})
+                    </span>
+                  )}
+                </td>
                 <td className="text-xs">{t.last_used_at ? day(t.last_used_at) : 'never'}</td>
                 <td className="text-right">
                   {t.revoked_at ? (

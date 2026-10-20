@@ -44,6 +44,8 @@ export interface RepoSyncStatus {
   repoId: string;
   /** `org/name` — what a person calls the repository (W16-05, F11). */
   repoName?: string;
+  /** Which connection it syncs through (W20-15, X-18). Optional for an older API. */
+  connection?: { id: number; provider: string; host: string | null } | null;
   phase: SyncPhase;
   percentComplete: number;
   /**

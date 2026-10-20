@@ -353,6 +353,30 @@ describe('GitLabProvider contract (W12-01, zero network)', () => {
     ).toBe('99');
   });
 
+  it('deleteWebhooks matches the top-level url GitLab returns (W20-15, X-27)', async () => {
+    const client = makeStubClient([
+      {
+        method: 'GET',
+        url: `${API}/projects/${ENC}/hooks?per_page=100`,
+        response: {
+          status: 200,
+          body: [
+            { id: 98, url: 'https://rp/api/v1/webhooks/gitlab' },
+            { id: 97, url: 'https://elsewhere/hook' },
+          ],
+        },
+      },
+      {
+        method: 'DELETE',
+        url: `${API}/projects/${ENC}/hooks/98`,
+        response: { status: 204, body: null },
+      },
+    ]);
+    const p = new GitLabProvider({ client, auth });
+    expect(await p.deleteWebhooks(ctx, REPO, 'https://rp/api/v1/webhooks/gitlab')).toBe(1);
+    expect(client.calls.filter((c) => c.method === 'DELETE')).toHaveLength(1);
+  });
+
   describe('verifyWebhook — X-Gitlab-Token is the SECRET ITSELF, not a signature', () => {
     const p = provider([]);
     const body = Buffer.from('{"object_kind":"push"}');

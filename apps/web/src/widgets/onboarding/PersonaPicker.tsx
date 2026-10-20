@@ -92,7 +92,17 @@ export function PersonaPicker() {
                     {
                       // Route from the API's answer, not a local table: the
                       // server owns which screen is a persona's home.
-                      onSuccess: (res) => void navigate({ to: res.home as never }),
+                      //
+                      // Only from `/` (W20-15, UX_TODO X-25). The dialog opens
+                      // on every route, so a colleague who followed a shared
+                      // link to a finding, PR or report lost it the moment they
+                      // answered. Anywhere else the persona is saved and they
+                      // stay on the page they were sent to.
+                      onSuccess: (res) => {
+                        if (window.location.pathname === '/') {
+                          void navigate({ to: res.home as never });
+                        }
+                      },
                     },
                   )
                 }
@@ -124,7 +134,7 @@ export function PersonaPicker() {
           onClick={defer}
           className="mt-4 text-xs text-fg-muted underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
         >
-          Not now — I want to finish setting up
+          Not now
         </button>
       </div>
     </div>

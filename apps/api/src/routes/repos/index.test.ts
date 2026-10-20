@@ -252,10 +252,14 @@ describeIfLiveInfra('drill-down + /me API (W4-01, FR-API-5, FR-AUTH-6)', () => {
     expect(list.statusCode).toBe(200);
     const repo = list.json().items.find((r: { id: number }) => r.id === repoId);
     expect(repo.links.self).toBe(`/api/v1/repos/${repoId}`);
+    // W20-15 (UX_TODO X-16): which forge and host, in list and header.
+    expect(repo.forge).toMatchObject({ provider: expect.any(String) });
+    expect(repo.tracked_twice).toBe(false);
 
     const detail = await g(repo.links.self);
     expect(detail.statusCode).toBe(200);
     expect(detail.json().health).toHaveProperty('breakdown');
+    expect(detail.json().forge).toEqual(repo.forge);
 
     const prs = await g(detail.json().links.prs);
     expect(prs.statusCode).toBe(200);

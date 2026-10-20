@@ -193,6 +193,13 @@ after "runs on your network":
   posts a PR comment. No forge write scope is added; W18-18 carries a test that
   asserts the App and token scopes. C5/SC-25 read-only scopes stand. A ticket
   that writes to a customer repo is still invalid; reject at review.
+- **D9a note (2026-10-19, founder): removing our own webhooks is allowed.**
+  `deploy/uninstall.sh` (W20-15, UX_TODO X-27) deletes the push webhooks
+  Repo Pulse itself registered, matched by its own delivery URL, one hook by
+  id, through the budgeted client and the same hook scope registration already
+  uses. Without it a removed install leaves hooks firing at a dead server.
+  Nothing else about D9a changes: no repo content, branch, patch or comment is
+  ever written. The D9a gate test names this one delete.
 - **N-3 stands.** The customer's CI failing its own build with Repo Pulse's
   results is the customer's gate, run with the customer's credentials; Repo
   Pulse ships no gate bot and sets no required status check. **N-9 stands**:

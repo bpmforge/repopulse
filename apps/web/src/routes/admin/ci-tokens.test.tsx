@@ -79,6 +79,15 @@ describe('CI tokens (W20-08)', () => {
     expect(tr.textContent).toContain('never');
   });
 
+  it('highlights a token that expires within two weeks (W20-15, X-19)', async () => {
+    rows = [
+      { ...row, id: 8, expires_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString() },
+    ];
+    renderPage();
+    expect(await screen.findByTestId('ci-token-due-8')).toHaveTextContent('(expires in 3 days)');
+    expect(screen.queryByTestId('ci-token-due-3')).toBeNull();
+  });
+
   it('creates a token for the ticked repositories and shows the secret once', async () => {
     renderPage();
     const submit = await screen.findByTestId('ci-token-submit');

@@ -68,7 +68,19 @@ export interface EgressSummary {
 export type ReportSection =
   | { kind: 'summary'; id?: string; markdown: string }
   | { kind: 'score_breakdown'; rows: ScoreBreakdownRow[] }
-  | { kind: 'table'; id: string; columns: string[]; rows: unknown[][] }
+  | {
+      kind: 'table';
+      id: string;
+      columns: string[];
+      rows: unknown[][];
+      /**
+       * W20-15 (UX_TODO X-23): the column holding each row's finding id, on
+       * tables whose rows ARE findings. The viewer links that cell to
+       * /findings?finding=<id> (absolute, PUBLIC_BASE_URL, in the PDF), so a
+       * reader can get from a report row back to the finding.
+       */
+      findingIdColumn?: number;
+    }
   | { kind: 'chart'; id: string; echartsOption: object }
   /**
    * FR-REPORTS-2: sections NEVER render blank. A missing section reads as a

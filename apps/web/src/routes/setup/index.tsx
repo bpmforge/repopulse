@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { docsUrl } from '../../lib/docs.js';
 import { WidgetFrame, frameState, PageHeader } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
+import { CiTokenExpiryNotice } from '../../widgets/admin/CiTokenExpiry.js';
 
 // Setup checklist (W11-02, E1.2).
 //
@@ -115,6 +116,9 @@ function SetupChecklist() {
           ))}
         </ul>
       </WidgetFrame>
+
+      {/* W20-15 (UX_TODO X-19): a token about to expire is a setup step due. */}
+      <CiTokenExpiryNotice />
 
       <WidgetFrame
         title="Configuration"

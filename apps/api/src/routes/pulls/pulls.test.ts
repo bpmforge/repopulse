@@ -506,7 +506,12 @@ describeIfLiveInfra('CI pull: PR findings API + read-only CI token (W18-18)', ()
     expect(res.statusCode).toBe(200);
     const body = res.json() as {
       pull: { number: number; head_sha: string };
-      head: { scanned: boolean; scanners: { scanner_key: string }[] };
+      head: {
+        scanned: boolean;
+        scanners: { scanner_key: string }[];
+        pending: string[];
+        failed: string[];
+      };
       items: {
         id: number;
         introduced_by_pr: boolean;
@@ -516,7 +521,12 @@ describeIfLiveInfra('CI pull: PR findings API + read-only CI token (W18-18)', ()
       next_cursor: string | null;
     };
     expect(body.pull).toMatchObject({ number: 7, head_sha: HEAD });
-    expect(body.head.scanned).toBe(true);
+    // W20-15 (UX_TODO X-13): anti_slop and semgrep have finished at the head,
+    // but the scanners that run on every PR push (secrets, and the radar that
+    // rides it) have not, so the head is NOT scanned yet and says which.
+    expect(body.head.scanned).toBe(false);
+    expect(body.head.pending).toEqual(['secrets', 'sensitive_change']);
+    expect(body.head.failed).toEqual([]);
     expect(body.head.scanners.map((s) => s.scanner_key)).toEqual(['anti_slop', 'semgrep']);
     // Severity desc, then id desc.
     expect(body.items.map((i) => i.id)).toEqual([
@@ -530,6 +540,34 @@ describeIfLiveInfra('CI pull: PR findings API + read-only CI token (W18-18)', ()
     expect(byId.get(ids['unscanned_scanner']!)!.seen_at_head).toBe(false);
     expect(byId.get(ids['semgrep_head']!)!.severity_label).toBe('critical');
     expect(body.next_cursor).toBeNull();
+  });
+
+  it('reports the head scanned once every PR scanner has finished there (X-13)', async () => {
+    const at = new Date(T1.getTime() + 1000);
+    const finish = (scannerKey: string, status: string) =>
+      db.insert(security.scanRuns).values({
+        workspaceId,
+        repoId: repoA,
+        scannerKey,
+        scannerVersion: 'test',
+        commitSha: HEAD,
+        trigger: 'pr_synced',
+        status,
+        startedAt: at,
+      });
+    await finish('secrets', 'succeeded');
+    const partial = (await get(findingsUrl(repoA), { token })).json() as {
+      head: { scanned: boolean; pending: string[] };
+    };
+    expect(partial.head).toMatchObject({ scanned: false, pending: ['sensitive_change'] });
+
+    // A failed run is finished: the verdict is not held for ever, but the
+    // failure is named so the caller knows what is missing.
+    await finish('sensitive_change', 'failed');
+    const done = (await get(findingsUrl(repoA), { token })).json() as {
+      head: { scanned: boolean; pending: string[]; failed: string[] };
+    };
+    expect(done.head).toMatchObject({ scanned: true, pending: [], failed: ['sensitive_change'] });
   });
 
   it('carries the fields a CI needs to act on', async () => {
@@ -614,6 +652,9 @@ describeIfLiveInfra('CI pull: PR findings API + read-only CI token (W18-18)', ()
     const res = await get(`/api/v1/repos/${repoA}/pulls/4242/findings`, { token });
     expect(res.statusCode).toBe(404);
     expect(res.json().detail).toMatch(/no pull request #4242/);
+    // Its own problem type, so the CLI keeps waiting on it (W20-15, X-14)
+    // and never confuses it with a token that does not name the repository.
+    expect(res.json().type).toBe('urn:repopulse:problem:pr-not-synced');
   });
 
   // --- what the token cannot do ------------------------------------------------
@@ -622,6 +663,7 @@ describeIfLiveInfra('CI pull: PR findings API + read-only CI token (W18-18)', ()
     const res = await get(findingsUrl(repoB), { token });
     expect(res.statusCode).toBe(404);
     expect(res.body).not.toContain('repo-b');
+    expect(res.json().type).toBe('about:blank');
   });
 
   it('cannot call ANY other /api/v1 endpoint, read or write (full route walk)', async () => {

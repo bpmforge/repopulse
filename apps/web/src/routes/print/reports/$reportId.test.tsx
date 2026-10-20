@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router';
 import { Route as rootRoute, type RouterContext } from '../../__root.js';
-import { cell, Route as printRoute, weightsLine } from './$reportId.js';
+import { cell, findingHref, Route as printRoute, weightsLine } from './$reportId.js';
 import { createQueryClient } from '../../../api/queryClient.js';
 
 // Print layout (W17-26). The PDF is what a customer is handed, and the two ways
@@ -74,6 +74,7 @@ function renderPrint() {
 afterEach(() => {
   delete (window as unknown as { __REPORT_DATA?: unknown }).__REPORT_DATA;
   delete (window as unknown as { __REPORT_READY?: unknown }).__REPORT_READY;
+  delete (window as unknown as { __REPORT_LINK_BASE?: unknown }).__REPORT_LINK_BASE;
 });
 
 describe('print route layout (W17-26)', () => {
@@ -228,5 +229,36 @@ describe('weights and the plan hand-off (W20-09)', () => {
       repo_ids: [3],
       from_report_id: 5,
     });
+  });
+});
+
+describe('finding rows link back to the finding (W20-15, UX_TODO X-23)', () => {
+  const WITH_FINDINGS = {
+    ...DATA,
+    sections: [
+      {
+        kind: 'table',
+        id: 'open_security_findings',
+        columns: ['Finding #', 'Repository', 'Severity', 'Finding'],
+        findingIdColumn: 0,
+        rows: [[812, 'acme/api', 'critical', 'Leaked token']],
+      },
+    ],
+  };
+
+  it('links the id cell to /findings?finding=<id> at the public address', async () => {
+    (window as unknown as { __REPORT_DATA: unknown }).__REPORT_DATA = WITH_FINDINGS;
+    (window as unknown as { __REPORT_LINK_BASE: unknown }).__REPORT_LINK_BASE =
+      'https://pulse.example.com/';
+    renderPrint();
+    const link = await screen.findByTestId('report-finding-link');
+    expect(link).toHaveAttribute('href', 'https://pulse.example.com/findings?finding=812');
+    expect(link).toHaveTextContent('#812');
+  });
+
+  it('uses the page origin in the app, and refuses anything that is not an id', () => {
+    expect(findingHref(7)).toBe(`${window.location.origin}/findings?finding=7`);
+    expect(findingHref(null)).toBeNull();
+    expect(findingHref('x')).toBeNull();
   });
 });
