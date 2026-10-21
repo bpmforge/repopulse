@@ -29,7 +29,12 @@ import {
   type SyncStreamEvent,
 } from '@repopulse/ingest';
 import { computeRepoSnapshots } from '@repopulse/metrics';
-import { hotspotPercentiles, repriceFindings, writeFindingsMetric } from '@repopulse/insights';
+import {
+  hotspotPercentiles,
+  reopenDueAcceptedRisks,
+  repriceFindings,
+  writeFindingsMetric,
+} from '@repopulse/insights';
 import { credentials } from '@repopulse/auth';
 import {
   providerForConnection,
@@ -580,7 +585,12 @@ async function processReconcileSweep(deps: ProcessorDeps) {
   let requeued = 0;
   let swept = 0;
   let autoAdded = 0;
+  let reviewsDue = 0;
   for (const ws of workspaces) {
+    // W20-21 (UX_TODO FND-25): accepted risks whose review date has come are
+    // reopened, with a history row, so a person decides again.
+    reviewsDue += (await reopenDueAcceptedRisks(deps.db, ws.id)).length;
+
     // W20-17 (UX_TODO INS-09): connections set to "auto-add new" track the
     // repositories created since the last sweep. First, so a new repository's
     // plan is queued alongside the rescue below. A failure is per connection
@@ -631,7 +641,7 @@ async function processReconcileSweep(deps: ProcessorDeps) {
       swept++;
     }
   }
-  return { requeued, swept, autoAdded };
+  return { requeued, swept, autoAdded, reviewsDue };
 }
 
 /** Metric snapshots — the numbers every screen reads. */

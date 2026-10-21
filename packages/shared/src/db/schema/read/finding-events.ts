@@ -2,6 +2,7 @@ import { bigint, index, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 import { workspaces } from '../core/workspaces.js';
 import { users } from '../core/users.js';
 import { findings } from './findings.js';
+import { scanRuns } from '../security/index.js';
 
 // Status history (DATABASE.md §2 calls this finding_events, not
 // finding_status_history — see plan.json W1-02 notes for the naming
@@ -33,6 +34,14 @@ export const findingEvents = pgTable(
     }),
     actorLogin: text('actor_login'),
     reason: text('reason'),
+    /**
+     * W20-21 (UX_TODO FND-51): the scan behind an automatic change - the one
+     * that stopped seeing the finding (resolved) or saw it again (reopened).
+     * Null for a person's change and for older rows.
+     */
+    scanRunId: bigint('scan_run_id', { mode: 'number' }).references(() => scanRuns.id, {
+      onDelete: 'set null',
+    }),
     at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

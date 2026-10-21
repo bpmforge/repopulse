@@ -1,6 +1,7 @@
-import { and, desc, eq, like, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, like, or, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { auditLog, read, security, type Database } from '@repopulse/shared';
+import { PACK_OVERRIDE_SOURCE } from '@repopulse/insights';
 import {
   canTransition,
   demotionFlag,
@@ -243,6 +244,154 @@ export default async function rulesRoutes(
       });
 
       return reply.send({ rule_id: row.ruleId, status: to });
+    },
+  );
+
+  /**
+   * POST /rules/:ruleId/pack-override — move a SHIPPED rule to shadow for this
+   * workspace (W20-21, UX_TODO FND-53).
+   *
+   * A pack rule has no registry row, so the transition route answered 404 and
+   * a noisy rule could only be fought one dismissal at a time. This writes a
+   * registry row marked as a workspace override (status candidate, so the
+   * workbench and the promotion gate treat it like any shadow rule) and stamps
+   * the rule's open findings experimental: kept and measured, left out of
+   * scores, banners, plans, reports and the default list. Future findings are
+   * stamped by persistFindings. Admin-only, with a reason, audited; undone by
+   * DELETE below.
+   */
+  app.post<{ Params: { ruleId: string }; Body: { reason?: unknown } | undefined }>(
+    '/rules/:ruleId/pack-override',
+    { preHandler: requireAdmin },
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      const userId = request.session.get('userId');
+      if (workspaceId === undefined || userId === undefined) {
+        return fail(request, reply, 401, 'No active session');
+      }
+      const ruleId = request.params.ruleId;
+      const reason = typeof request.body?.reason === 'string' ? request.body.reason.trim() : '';
+      if (reason.length < 10) {
+        return fail(
+          request,
+          reply,
+          400,
+          'A reason is required',
+          'Say why this rule is noisy here, in at least 10 characters: it is the record of the decision.',
+        );
+      }
+      const [existing] = await db
+        .select({ status: security.ruleRegistry.status })
+        .from(security.ruleRegistry)
+        .where(
+          and(
+            eq(security.ruleRegistry.workspaceId, workspaceId),
+            eq(security.ruleRegistry.ruleId, ruleId),
+          ),
+        )
+        .limit(1);
+      if (existing) {
+        return fail(
+          request,
+          reply,
+          409,
+          'The rule is already in the registry',
+          `It is ${existing.status} here; change it with the rule workbench instead.`,
+        );
+      }
+      const [seen] = await db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(read.findings)
+        .where(and(eq(read.findings.workspaceId, workspaceId), ruleIdMatch(ruleId)));
+      if ((seen?.n ?? 0) === 0) {
+        return fail(request, reply, 404, 'Rule not found', 'No finding here carries this rule id.');
+      }
+
+      const author = (await actorLoginFor(db, userId)) ?? 'unknown';
+      const now = new Date();
+      await db.insert(security.ruleRegistry).values({
+        workspaceId,
+        ruleId,
+        status: 'candidate',
+        provenance: {
+          source: PACK_OVERRIDE_SOURCE,
+          author,
+          date: now.toISOString().slice(0, 10),
+          reason,
+        },
+        shadowStartedAt: now,
+        updatedBy: userId,
+      });
+      const moved = await db
+        .update(read.findings)
+        .set({ experimental: true })
+        .where(
+          and(
+            eq(read.findings.workspaceId, workspaceId),
+            ruleIdMatch(ruleId),
+            inArray(read.findings.status, ['open', 'confirmed']),
+          ),
+        )
+        .returning({ id: read.findings.id });
+      auditLog(request.log, {
+        event: 'rule.pack_shadowed',
+        actorUserId: userId,
+        workspaceId,
+        ip: request.ip,
+        ua: request.headers['user-agent'] ?? null,
+        ruleId,
+        reason,
+        findingsMoved: moved.length,
+      });
+      return reply.code(201).send({ rule_id: ruleId, status: 'candidate', moved: moved.length });
+    },
+  );
+
+  /** DELETE /rules/:ruleId/pack-override — restore a shipped rule as shipped (W20-21, FND-53). */
+  app.delete<{ Params: { ruleId: string } }>(
+    '/rules/:ruleId/pack-override',
+    { preHandler: requireAdmin },
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      const userId = request.session.get('userId');
+      if (workspaceId === undefined || userId === undefined) {
+        return fail(request, reply, 401, 'No active session');
+      }
+      const ruleId = request.params.ruleId;
+      const removed = await db
+        .delete(security.ruleRegistry)
+        .where(
+          and(
+            eq(security.ruleRegistry.workspaceId, workspaceId),
+            eq(security.ruleRegistry.ruleId, ruleId),
+            sql`${security.ruleRegistry.provenance} ->> 'source' = ${PACK_OVERRIDE_SOURCE}`,
+          ),
+        )
+        .returning({ id: security.ruleRegistry.id });
+      if (removed.length === 0) {
+        return fail(request, reply, 404, 'No override for this rule');
+      }
+      const restored = await db
+        .update(read.findings)
+        .set({ experimental: false })
+        .where(
+          and(
+            eq(read.findings.workspaceId, workspaceId),
+            ruleIdMatch(ruleId),
+            inArray(read.findings.status, ['open', 'confirmed']),
+          ),
+        )
+        .returning({ id: read.findings.id });
+      auditLog(request.log, {
+        event: 'rule.pack_restored',
+        actorUserId: userId,
+        workspaceId,
+        ip: request.ip,
+        ua: request.headers['user-agent'] ?? null,
+        ruleId,
+        findingsRestored: restored.length,
+      });
+      return reply.send({ rule_id: ruleId, restored: restored.length });
     },
   );
 }

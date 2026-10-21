@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { ErrorNote, WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
+import { buildUrl } from '../../api/client.js';
 import { localDateTime } from '../findings/aiContracts.js';
 import { AiSpend, type Spend } from './AiSpend.js';
 import { AiControls } from './AiControls.js';
@@ -54,6 +55,9 @@ interface EgressRow {
   host?: string | null;
   tier?: number | null;
   initiator?: string | null;
+  /** W20-21 (UX_TODO AI-29): the analysis role, and the AI pass it belonged to. */
+  role?: string | null;
+  ai_pass_run_id?: number | null;
   content_sha256: string;
   sent_at: string;
 }
@@ -178,8 +182,16 @@ export function AnalysisPolicy() {
   // always reads the unfiltered first page (LIST), so it never changes under it.
   const [logRepo, setLogRepo] = useState('');
   const [cursors, setCursors] = useState<string[]>([]);
+  // W20-21 (UX_TODO AI-80): "what left last month" needs a date range.
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
   const before = cursors[cursors.length - 1];
-  const filtered = logRepo !== '' || before !== undefined;
+  const filtered = logRepo !== '' || before !== undefined || from !== '' || to !== '';
+  const rangeQuery = {
+    ...(logRepo ? { repo_id: logRepo } : {}),
+    ...(from ? { from } : {}),
+    ...(to ? { to } : {}),
+  };
   const { data, isLoading, isError, error, refetch } = useApiQuery<{
     gateway?: GatewayState;
     /** W20-16 (UX_TODO AI-08): spend per month and model. */
@@ -196,7 +208,7 @@ export function AnalysisPolicy() {
   }>(
     {
       ...LIST,
-      query: { ...(logRepo ? { repo_id: logRepo } : {}), ...(before ? { before } : {}) },
+      query: { ...rangeQuery, ...(before ? { before } : {}) },
     },
     { enabled: filtered },
   );
@@ -333,6 +345,40 @@ export function AnalysisPolicy() {
               ))}
             </select>
           </label>
+          <label className="flex flex-col gap-1 text-fg-muted">
+            From
+            <input
+              type="date"
+              className="panel px-2 py-1 text-sm"
+              data-testid="egress-filter-from"
+              value={from}
+              onChange={(e) => {
+                setFrom(e.target.value);
+                setCursors([]);
+              }}
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-fg-muted">
+            To (inclusive)
+            <input
+              type="date"
+              className="panel px-2 py-1 text-sm"
+              data-testid="egress-filter-to"
+              value={to}
+              onChange={(e) => {
+                setTo(e.target.value);
+                setCursors([]);
+              }}
+            />
+          </label>
+          <a
+            href={buildUrl('/admin/analysis/egress.csv', { query: rangeQuery })}
+            className="self-end underline underline-offset-2"
+            data-testid="egress-export"
+            download
+          >
+            Download CSV (these filters, up to 10,000 rows)
+          </a>
           {logSource?.egress_total !== undefined ? (
             <span className="text-fg-muted" data-testid="egress-count">
               Showing {log.length} of {logSource.egress_total} request
@@ -342,7 +388,7 @@ export function AnalysisPolicy() {
         </div>
         {filtered && log.length === 0 && !page.isLoading ? (
           <p className="text-xs text-fg-muted" data-testid="egress-filter-empty">
-            Nothing from this repository has been sent off your network.
+            Nothing matching these filters has been sent off your network.
           </p>
         ) : null}
         {/* W18-28: scrolls in its own region at phone width; padded cells
@@ -359,6 +405,7 @@ export function AnalysisPolicy() {
                 <th scope="col">When</th>
                 <th scope="col">Repository</th>
                 <th scope="col">Sent to</th>
+                <th scope="col">For</th>
                 <th scope="col">Outcome</th>
                 <th scope="col">Bytes</th>
                 <th scope="col">Tokens in/out</th>
@@ -385,6 +432,12 @@ export function AnalysisPolicy() {
                       {row.model}
                       {row.tier ? ` · Tier ${row.tier}` : ''}
                     </span>
+                  </td>
+                  <td className="py-1 text-xs" data-testid={`egress-for-${row.id}`}>
+                    {row.role ? row.role.replace(/_/g, ' ') : '—'}
+                    {row.ai_pass_run_id ? (
+                      <span className="block text-fg-muted">AI pass {row.ai_pass_run_id}</span>
+                    ) : null}
                   </td>
                   <td className="py-1 text-xs" data-testid={`egress-outcome-${row.id}`}>
                     {row.outcome ? OUTCOME_WORD[row.outcome] : '—'}
@@ -426,8 +479,9 @@ export function AnalysisPolicy() {
           </div>
         ) : null}
         <p className="mt-2 text-xs text-fg-faint">
-          &ldquo;?&rdquo; means the provider did not report token counts. The role and the AI pass a
-          request belonged to are not recorded in the audit.
+          &ldquo;?&rdquo; means the provider did not report token counts. &ldquo;For&rdquo; is the
+          analysis role and, when the request was part of one, the AI pass; rows written before this
+          was recorded show a dash.
         </p>
       </WidgetFrame>
     </div>

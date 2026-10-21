@@ -363,6 +363,7 @@ describeIfLiveInfra('AI pass routes (W19-09)', () => {
         runs: [],
         more: false,
         ai_paused: { paused: false, paused_by: null, paused_at: null },
+        admins: expect.any(Array),
       });
     });
 

@@ -269,6 +269,7 @@ function SecurityTab() {
                     <th scope="col">Package</th>
                     <th scope="col">Severity</th>
                     <th scope="col">Reachable?</th>
+                    <th scope="col">Fixed in</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -309,6 +310,18 @@ function SecurityTab() {
                         data-testid={`cve-reach-${cve.finding_id ?? cve.cve_id}`}
                       >
                         {reachabilityWord(cve.reachability)}
+                      </td>
+                      {/* W20-21 (FND-28): the version to upgrade to, from the
+                          advisory; "no fix yet" is news too. */}
+                      <td
+                        className="font-mono text-xs"
+                        data-testid={`cve-fixed-${cve.finding_id ?? cve.cve_id}`}
+                      >
+                        {cve.fixed_in && cve.fixed_in.length > 0 ? (
+                          cve.fixed_in.join(', ')
+                        ) : (
+                          <span className="font-sans text-fg-muted">no fix published</span>
+                        )}
                       </td>
                     </tr>
                   ))}

@@ -2,10 +2,12 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { read, type Database } from '@repopulse/shared';
 import { dedupKey } from './dedup.js';
 import { pruneClosedFindingContext } from './context.js';
+import { applyPackOverrides } from './pack-overrides.js';
 import {
   autoResolveOutdated,
   isSuppressed,
   reappearanceDecision,
+  staysClosed,
   type FindingStatus,
 } from './lifecycle.js';
 
@@ -157,7 +159,10 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
   };
   const now = new Date();
 
-  const keyed = params.findings.map((f) => ({
+  // W20-21 (UX_TODO FND-53): a shipped rule this workspace moved to shadow is
+  // stamped experimental; one it retired raises nothing.
+  const incoming = await applyPackOverrides(db, params.workspaceId, params.findings);
+  const keyed = incoming.map((f) => ({
     finding: f,
     // The scanner fields are threaded through — W8-02 added them to the key
     // precisely so two scanners flagging the same line stay two findings, and
@@ -245,6 +250,8 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
         repoId: params.repoId,
         analysisRunId: params.analysisRunId ?? null,
         scanRunId: params.scanRunId ?? null,
+        // W20-21 (FND-51): the scan that last saw it; the raising scan, at first.
+        lastSeenScanRunId: params.scanRunId ?? null,
         pullRequestId: params.pullRequestId,
         dimension: finding.dimension,
         severity: finding.severity,
@@ -281,19 +288,34 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
     // the unchanged test. Re-surfacing it would let the next scheduled run
     // overrule a person, and a dismiss button that does not stick is one
     // nobody presses twice. The sighting still counts.
-    const suppressed = isSuppressed(prior.status as FindingStatus, prior.dismissReason);
+    // W20-21 (FND-61): a secret recorded as rotated stays closed when a later
+    // history sweep sees it again: the old commit still holds it, as expected.
+    const suppressed =
+      isSuppressed(prior.status as FindingStatus, prior.dismissReason) ||
+      staysClosed(prior.status as FindingStatus, prior.dismissReason);
     const decision = suppressed ? null : reappearanceDecision(prior.status as FindingStatus);
     if (suppressed) result.suppressed += 1;
     await db
       .update(read.findings)
       .set({
         lastSeenAt: now,
+        ...(params.scanRunId ? { lastSeenScanRunId: params.scanRunId } : {}),
         occurrenceCount: prior.occurrenceCount + 1,
         ...(decision ? { status: decision.next, statusChangedAt: now } : {}),
         ...(finding.experimental !== undefined ? { experimental: finding.experimental } : {}),
         // W20-08 (FND-57): the reason follows the latest scan, as the context
         // does — a reachability tier that moved should say so.
         rationale: finding.rationale,
+        // W20-21 (FND-28): the fixed versions follow the latest scan too, so an
+        // advisory that gains a fix says so without a new row. Merged into the
+        // payload rather than replacing it: the chainer's terms live there.
+        ...(Array.isArray(finding.yields?.['fixed_in'])
+          ? {
+              yields: sql`coalesce(${read.findings.yields}, '{}'::jsonb) || ${JSON.stringify({
+                fixed_in: finding.yields['fixed_in'],
+              })}::jsonb`,
+            }
+          : {}),
         ...(finding.context !== undefined
           ? {
               contextLines: finding.context?.lines ?? null,
@@ -314,6 +336,7 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
         toStatus: decision.next,
         actor: null,
         reason: decision.reason,
+        scanRunId: params.scanRunId ?? null,
       });
       result.reopened += 1;
     }
@@ -389,6 +412,9 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
         // not that anyone fixed it. Crediting a fix we did not witness would
         // make the resolution rate a number nobody should trust.
         reason: decision.reason,
+        // W20-21 (FND-51): WHICH scan stopped seeing it, so the history can
+        // name its commit and date.
+        scanRunId: params.scanRunId ?? null,
       });
       result.autoResolved += 1;
     }

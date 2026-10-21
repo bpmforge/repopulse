@@ -124,6 +124,15 @@ export const llmProviders = pgTable(
      */
     capabilities: jsonb('capabilities').$type<Record<string, unknown>>(),
     probedAt: timestamp('probed_at', { withTimezone: true }),
+    /**
+     * W20-21 (UX_TODO AI-63): what real gateway calls last saw. Written by the
+     * worker after each call to this connection (no extra probe), so Models and
+     * System health can say whether the model is actually answering.
+     */
+    lastSuccessAt: timestamp('last_success_at', { withTimezone: true }),
+    lastErrorAt: timestamp('last_error_at', { withTimezone: true }),
+    /** The provider's own error text, truncated. Never request content. */
+    lastError: text('last_error'),
     enabled: boolean('enabled').notNull().default(true),
     // SET NULL (W16-59): a configured model outlives whoever added it.
     createdBy: bigint('created_by', { mode: 'number' }).references(() => users.id, {

@@ -141,7 +141,22 @@ function ItemList({
           </div>
           <p className="text-xs break-words text-fg-muted">
             {it.repo.name}
-            {it.pr_number !== null ? ` · PR #${it.pr_number}` : ' · pushed to a branch'}
+            {/* W20-21 (UX_TODO FND-70): the PR a reviewer may need to block. */}
+            {it.pr_number !== null ? (
+              <>
+                {' · '}
+                <Link
+                  to="/repos/$repoId/prs/$number"
+                  params={{ repoId: String(it.repo.id), number: String(it.pr_number) } as never}
+                  className="text-accent underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                  data-testid={`radar-pr-${it.id}`}
+                >
+                  PR #{it.pr_number}
+                </Link>
+              </>
+            ) : (
+              ' · pushed to a branch'
+            )}
             {it.file ? (
               <>
                 {' · '}

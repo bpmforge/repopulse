@@ -24,6 +24,8 @@ export interface RulePrecision {
   findings: number;
   triage: { triaged: number; falsePositives: number; precision: number | null };
   benchmark: BenchmarkRuleScore | null;
+  /** W20-21 (FND-53): a shipped rule moved to shadow in this workspace; Restore undoes it. */
+  override?: boolean;
 }
 
 export interface PublicCweScore {

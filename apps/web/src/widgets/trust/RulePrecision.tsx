@@ -1,5 +1,7 @@
 import { WidgetFrame, frameState } from '../../components/index.js';
-import { useApiQuery } from '../../api/useApiQuery.js';
+import { useState } from 'react';
+import { ErrorNote } from '../../components/index.js';
+import { useApiMutation, useApiQuery } from '../../api/useApiQuery.js';
 import { RuleFindingsLink } from '../rules/RuleFindingsLink.js';
 import {
   benchmarkText,
@@ -133,6 +135,8 @@ export function RulePrecisionTable() {
   const { data, isLoading, isError, error } = useApiQuery<RulePrecisionReport>(ALL);
   const report = isPrecisionReport(data) ? data : null;
   const rules = report?.rules ?? [];
+  const { data: me } = useApiQuery<{ role?: string }>({ endpoint: '/me/context' });
+  const isAdmin = me?.role === 'admin';
   const state = frameState({ isLoading, isError, isEmpty: !isLoading && rules.length === 0 });
 
   return (
@@ -172,6 +176,11 @@ export function RulePrecisionTable() {
                     Your triage
                   </th>
                   <th scope="col">Benchmark</th>
+                  {isAdmin && (
+                    <th scope="col" className="pl-2">
+                      In this workspace
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -203,6 +212,11 @@ export function RulePrecisionTable() {
                         testId={`precision-bench-${rule.ruleId}`}
                       />
                     </td>
+                    {isAdmin && (
+                      <td className="py-2 pl-2">
+                        <PackOverride rule={rule} />
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -256,6 +270,103 @@ export function RulePrecisionSummary({ ruleId }: { ruleId: string }) {
           </dd>
         </dl>
       )}
+    </div>
+  );
+}
+
+const OVERRIDE_REASON_MIN = 10;
+
+/**
+ * Move a noisy shipped rule to shadow here, or put it back (W20-21, UX_TODO
+ * FND-53). Shadow keeps the rule running and its findings visible under the
+ * shadow facet, out of every count, while its precision is measured; Restore
+ * deletes the override and the rule counts again. Admin only, as the API is.
+ */
+export function PackOverride({
+  rule,
+}: {
+  rule: { ruleId: string; lifecycle: string; override?: boolean };
+}) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState('');
+  const invalidate = [[ALL.endpoint]] as const;
+  const shadow = useApiMutation<{ reason: string }, unknown>(
+    { endpoint: '/rules/{ruleId}/pack-override', path: { ruleId: rule.ruleId }, method: 'POST' },
+    { invalidate },
+  );
+  const restore = useApiMutation<Record<string, never>, unknown>(
+    { endpoint: '/rules/{ruleId}/pack-override', path: { ruleId: rule.ruleId }, method: 'DELETE' },
+    { invalidate },
+  );
+  const link =
+    'text-xs text-accent underline underline-offset-2 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent';
+  if (rule.override) {
+    return (
+      <div className="flex flex-col gap-1 text-xs">
+        <span className="text-fg-muted">Moved to shadow here</span>
+        <button
+          type="button"
+          className={`${link} self-start`}
+          data-testid={`pack-restore-${rule.ruleId}`}
+          disabled={restore.isPending}
+          onClick={() => restore.mutate({})}
+        >
+          {restore.isPending ? 'Restoring…' : 'Restore'}
+        </button>
+        <ErrorNote error={restore.error} testId={`pack-restore-error-${rule.ruleId}`} />
+      </div>
+    );
+  }
+  if (rule.lifecycle !== 'pack') return <span className="text-xs text-fg-faint">—</span>;
+  return (
+    <div className="flex flex-col gap-1 text-xs">
+      {!open ? (
+        <button
+          type="button"
+          className={`${link} self-start`}
+          data-testid={`pack-shadow-${rule.ruleId}`}
+          title="Keep running this shipped rule but stop counting its findings here while its precision is measured."
+          onClick={() => setOpen(true)}
+        >
+          Move to shadow
+        </button>
+      ) : (
+        <form
+          className="flex flex-col gap-1"
+          onSubmit={(e) => {
+            e.preventDefault();
+            shadow.mutate({ reason: reason.trim() }, { onSuccess: () => setOpen(false) });
+          }}
+        >
+          <label className="flex flex-col gap-1 text-fg-muted">
+            Why (at least {OVERRIDE_REASON_MIN} characters)
+            <input
+              className="panel w-56 px-2 py-1 text-sm"
+              data-testid={`pack-shadow-reason-${rule.ruleId}`}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </label>
+          <span className="flex gap-2">
+            <button
+              type="submit"
+              className={link}
+              data-testid={`pack-shadow-submit-${rule.ruleId}`}
+              disabled={shadow.isPending || reason.trim().length < OVERRIDE_REASON_MIN}
+            >
+              {shadow.isPending ? 'Moving…' : 'Move to shadow'}
+            </button>
+            <button
+              type="button"
+              className="text-fg-muted underline"
+              onClick={() => setOpen(false)}
+            >
+              Cancel
+            </button>
+          </span>
+        </form>
+      )}
+      <ErrorNote error={shadow.error} testId={`pack-shadow-error-${rule.ruleId}`} />
     </div>
   );
 }

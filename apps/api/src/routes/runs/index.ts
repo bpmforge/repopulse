@@ -1,7 +1,7 @@
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Queue } from 'bullmq';
-import { auditLog, core, security, type Database } from '@repopulse/shared';
+import { auditLog, core, read, security, type Database } from '@repopulse/shared';
 import { SCANNER_DEFAULTS, isEnabled, listScanners } from '@repopulse/security';
 import { QUEUE, createQueue, createRedisConnection, type QueueName } from '@repopulse/ingest';
 import { requireAdmin } from '../../lib/rbac.js';
@@ -139,7 +139,12 @@ export default async function runRoutes(
           enabled: security.repoScannerConfig.enabled,
         })
         .from(security.repoScannerConfig)
-        .where(eq(security.repoScannerConfig.repoId, repoId));
+        .where(
+          and(
+            eq(security.repoScannerConfig.workspaceId, workspaceId),
+            eq(security.repoScannerConfig.repoId, repoId),
+          ),
+        );
       const byKey = new Map(stored.map((row) => [row.key, row]));
 
       const catalogue = [
@@ -329,6 +334,106 @@ export default async function runRoutes(
       });
 
       return reply.code(202).send({ started, repo: `${repo.org}/${repo.name}` });
+    },
+  );
+
+  /**
+   * GET /repos/:id/scan-runs?since=ISO — what each scan run since a moment
+   * reported (W20-21, UX_TODO FND-68).
+   *
+   * "Run scans now" used to end with "the table above is current", which left
+   * the person who pressed it — usually to check a fix — to compare counts by
+   * memory. Per run: what the scanner reported, how many findings are new
+   * (first raised by this run) and how many earlier findings it closed, so the
+   * button can link straight to each set in Reviews. Any member may read it:
+   * it is the same data the Coverage table and Reviews already show them.
+   */
+  app.get<{ Params: { id: string }; Querystring: { since?: string } }>(
+    '/repos/:id/scan-runs',
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
+      const repoId = Number(request.params.id);
+      if (!Number.isFinite(repoId)) return fail(request, reply, 400, 'Invalid repository id');
+      const since = request.query.since ? new Date(request.query.since) : null;
+      if (!since || Number.isNaN(since.getTime())) {
+        return fail(request, reply, 400, 'Invalid since', 'Pass `since` as an ISO date-time.');
+      }
+      const repo = await repoIn(workspaceId, repoId);
+      if (!repo) return fail(request, reply, 404, 'No such repository');
+
+      const runs = await db
+        .select({
+          id: security.scanRuns.id,
+          scannerKey: security.scanRuns.scannerKey,
+          status: security.scanRuns.status,
+          partial: security.scanRuns.partial,
+          findingCount: security.scanRuns.findingCount,
+          commitSha: security.scanRuns.commitSha,
+          error: security.scanRuns.error,
+          startedAt: security.scanRuns.startedAt,
+          finishedAt: security.scanRuns.finishedAt,
+        })
+        .from(security.scanRuns)
+        .where(
+          and(
+            eq(security.scanRuns.workspaceId, workspaceId),
+            eq(security.scanRuns.repoId, repoId),
+            gte(security.scanRuns.startedAt, since),
+          ),
+        )
+        .orderBy(desc(security.scanRuns.startedAt))
+        .limit(50);
+      const ids = runs.map((r) => r.id);
+
+      const created = ids.length
+        ? await db
+            .select({ runId: read.findings.scanRunId, n: sql<number>`count(*)::int` })
+            .from(read.findings)
+            .where(
+              and(
+                eq(read.findings.workspaceId, workspaceId),
+                inArray(read.findings.scanRunId, ids),
+              ),
+            )
+            .groupBy(read.findings.scanRunId)
+        : [];
+      const closed = ids.length
+        ? await db
+            .select({
+              runId: read.findingEvents.scanRunId,
+              n: sql<number>`count(distinct ${read.findingEvents.findingId})::int`,
+            })
+            .from(read.findingEvents)
+            .where(
+              and(
+                eq(read.findingEvents.workspaceId, workspaceId),
+                inArray(read.findingEvents.scanRunId, ids),
+                eq(read.findingEvents.toStatus, 'resolved'),
+              ),
+            )
+            .groupBy(read.findingEvents.scanRunId)
+        : [];
+      const newBy = new Map(created.map((r) => [r.runId, r.n]));
+      const closedBy = new Map(closed.map((r) => [r.runId, r.n]));
+
+      return reply.send({
+        repo_id: repoId,
+        since: since.toISOString(),
+        runs: runs.map((r) => ({
+          id: r.id,
+          scanner_key: r.scannerKey,
+          status: r.status,
+          partial: r.partial,
+          finding_count: r.findingCount,
+          new_count: newBy.get(r.id) ?? 0,
+          closed_count: closedBy.get(r.id) ?? 0,
+          commit_sha: r.commitSha,
+          error: r.error,
+          started_at: r.startedAt.toISOString(),
+          finished_at: r.finishedAt?.toISOString() ?? null,
+        })),
+      });
     },
   );
 }

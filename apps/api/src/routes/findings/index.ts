@@ -1,4 +1,5 @@
 import { and, desc, eq, gte, ilike, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { auditLog, core, facts, read, security, type Database } from '@repopulse/shared';
 import { canTransition, falsePositiveRate, type FindingStatus } from '@repopulse/insights';
@@ -105,6 +106,76 @@ function fail(
   return reply;
 }
 
+/** The longest an accepted risk may go before it is looked at again (W20-21, FND-25). */
+export const REVIEW_BY_MAX_DAYS = 730;
+
+/**
+ * The review date an accepted-risk dismissal must carry (W20-21, UX_TODO
+ * FND-25): a calendar day after today and within two years. Returns the date
+ * or the sentence that refuses it.
+ */
+export function reviewByFrom(
+  raw: unknown,
+  today: Date = new Date(),
+): { date: string } | { refusal: string } {
+  if (typeof raw !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return {
+      refusal:
+        'An accepted risk needs a review date (YYYY-MM-DD): the day someone looks at it again. The finding reopens on that day.',
+    };
+  }
+  const day = new Date(`${raw}T00:00:00Z`);
+  if (Number.isNaN(day.getTime()) || day.toISOString().slice(0, 10) !== raw) {
+    return { refusal: `${raw} is not a calendar date.` };
+  }
+  const todayIso = today.toISOString().slice(0, 10);
+  if (raw <= todayIso) return { refusal: 'The review date must be after today.' };
+  const latest = new Date(today.getTime() + REVIEW_BY_MAX_DAYS * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+  if (raw > latest) {
+    return { refusal: `The review date must be within two years (by ${latest}).` };
+  }
+  return { date: raw };
+}
+
+/** The latest a rotation may be dated: today; and no earlier than the finding (W20-21, FND-61). */
+export function rotatedOnFrom(
+  raw: unknown,
+  firstSeen: Date,
+  today: Date = new Date(),
+): { date: string } | { refusal: string } {
+  if (typeof raw !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return { refusal: 'Say when the credential was rotated (YYYY-MM-DD).' };
+  }
+  const day = new Date(`${raw}T00:00:00Z`);
+  if (Number.isNaN(day.getTime()) || day.toISOString().slice(0, 10) !== raw) {
+    return { refusal: `${raw} is not a calendar date.` };
+  }
+  if (raw > today.toISOString().slice(0, 10)) {
+    return { refusal: 'The rotation date cannot be in the future.' };
+  }
+  // A day's grace: the leak may be older than our first sighting of it, but a
+  // rotation BEFORE the year it was seen is almost certainly a typo.
+  if (raw < new Date(firstSeen.getTime() - 366 * 86_400_000).toISOString().slice(0, 10)) {
+    return { refusal: 'That date is long before this secret was first seen; check the year.' };
+  }
+  return { date: raw };
+}
+
+/** Comma list of positive integers, capped; anything else is dropped. */
+export function idList(raw: string | undefined, cap = BULK_SELECT_CAP): number[] {
+  if (!raw) return [];
+  return [
+    ...new Set(
+      raw
+        .split(',')
+        .map((p) => Number(p.trim()))
+        .filter((n) => Number.isInteger(n) && n > 0),
+    ),
+  ].slice(0, cap);
+}
+
 // KEYSET CURSOR — one shape per sort (W17-32).
 //
 // A keyset cursor has to carry every column the ORDER BY uses, or the "after
@@ -167,6 +238,9 @@ export function decodeCursor(cursor: string): FindingCursor | null {
 // opened by a CLICK. Extracted for that reason rather than for brevity: two
 // copies of thirty columns is exactly the kind of duplication that drifts by
 // one field and is noticed by a user rather than a test.
+/** The scan that last saw a finding, joined beside the one that raised it (W20-21). */
+const lastSeenRun = alias(security.scanRuns, 'last_seen_run');
+
 function findingsQuery(db: Database) {
   return (
     db
@@ -219,6 +293,14 @@ function findingsQuery(db: Database) {
         analysisModelId: read.analysisRuns.modelId,
         // W20-18 (UX_TODO X-08): the tracker issue someone linked.
         externalTicketUrl: read.findings.externalTicketUrl,
+        // W20-21 (UX_TODO FND-70): the pull request it was raised on.
+        prNumber: facts.pullRequests.number,
+        // W20-21 (UX_TODO FND-25): when an accepted risk is looked at again.
+        reviewBy: read.findings.reviewBy,
+        // W20-21 (UX_TODO FND-51): the scan that last saw it.
+        lastSeenScanRunId: read.findings.lastSeenScanRunId,
+        lastSeenScanCommit: lastSeenRun.commitSha,
+        lastSeenScanAt: lastSeenRun.startedAt,
       })
       .from(read.findings)
       .innerJoin(core.repos, eq(core.repos.id, read.findings.repoId))
@@ -231,6 +313,7 @@ function findingsQuery(db: Database) {
       // W20-08 (FND-66): whether the pull request it was raised on is still
       // open decides who may dismiss it.
       .leftJoin(facts.pullRequests, eq(facts.pullRequests.id, read.findings.pullRequestId))
+      .leftJoin(lastSeenRun, eq(lastSeenRun.id, read.findings.lastSeenScanRunId))
   );
 }
 
@@ -297,6 +380,20 @@ function toFinding(r: FindingRow) {
     // W20-18 (UX_TODO X-08): the tracker issue (Jira, Linear, ...) someone
     // linked, http(s) only; null when nobody has.
     external_ticket_url: r.externalTicketUrl,
+    // W20-21 (UX_TODO FND-70): the pull request it was raised on, so the panel
+    // can link RepoPulse's own PR page. Null when it was not raised on one.
+    pull_request: r.prNumber === null ? null : { number: r.prNumber },
+    // W20-21 (UX_TODO FND-25): an accepted risk's review date, YYYY-MM-DD.
+    review_by: r.reviewBy,
+    // W20-21 (UX_TODO FND-51): the scan that last saw it, with its commit.
+    last_seen_scan:
+      r.lastSeenScanRunId === null
+        ? null
+        : {
+            id: r.lastSeenScanRunId,
+            commit_sha: r.lastSeenScanCommit ?? null,
+            at: r.lastSeenScanAt?.toISOString() ?? null,
+          },
     // OPEN IT IN THE FORGE (W16-41). Null when there is nothing honest to link
     // to — a finding about the whole repository has no file, and a connection
     // with no recorded base URL has no instance to point at.
@@ -446,6 +543,8 @@ async function applyTransition(
     actorLogin: string | null;
     reason: string;
     dismissReason?: string | null;
+    /** W20-21 (FND-25): set with an accepted risk, cleared by every other move. */
+    reviewBy?: string | null;
   },
 ): Promise<boolean> {
   return db.transaction(async (tx) => {
@@ -456,6 +555,7 @@ async function applyTransition(
         statusChangedBy: t.userId,
         statusChangedAt: new Date(),
         ...(t.dismissReason !== undefined ? { dismissReason: t.dismissReason } : {}),
+        reviewBy: t.reviewBy ?? null,
       })
       .where(
         and(
@@ -523,7 +623,31 @@ interface ListQuery {
   q?: string;
   /** W20-13 (FND-46): the findings of one attack chain. */
   chain_id?: string;
+  /** W20-21 (FND-22): these findings only, a comma list of ids ("Show these"). */
+  ids?: string;
+  /** W20-21 (FND-68): findings first raised by these scan runs (comma list). */
+  scan_run_id?: string;
+  /** W20-21 (FND-68): findings these scan runs closed (comma list). */
+  closed_by_scan_run?: string;
+  /** W20-21 (AI-32): findings raised by one AI pass. */
+  ai_pass_run_id?: string;
+  /** W20-21 (AI-32): `model` = raised by a model (an AI pass or a model review). */
+  found_by?: string;
+  /** W20-21 (FND-55): `security` = every security-shaped dimension at once. */
+  dimension_group?: string;
+  /** W20-21 (FND-55): exactly this severity (the tile's per-severity counts). */
+  severity?: string;
 }
+
+/** The dimensions the Overview security tile counts (`dimension_group=security`). */
+export const SECURITY_GROUP_DIMENSIONS = [
+  'secrets',
+  'dependency',
+  'sast',
+  'iac',
+  'chain',
+  'security',
+];
 
 /** `%` and `_` in a search are literal text, not LIKE wildcards. */
 export function likeContains(text: string): string {
@@ -544,6 +668,12 @@ export function listFilters(db: Database, workspaceId: number, q: ListQuery) {
   const statuses = statusesFrom(q.status);
   if (statuses.length === 1) filters.push(eq(read.findings.status, statuses[0]!));
   else if (statuses.length > 1) filters.push(inArray(read.findings.status, statuses));
+  if (q.dimension_group === 'security') {
+    filters.push(inArray(read.findings.dimension, SECURITY_GROUP_DIMENSIONS));
+  }
+  if (q.severity && Number.isInteger(Number(q.severity))) {
+    filters.push(eq(read.findings.severity, Number(q.severity)));
+  }
   if (q.severity_min && Number.isInteger(Number(q.severity_min))) {
     filters.push(gte(read.findings.severity, Number(q.severity_min)));
   }
@@ -622,6 +752,51 @@ export function listFilters(db: Database, workspaceId: number, q: ListQuery) {
     );
   }
 
+  // W20-21 (UX_TODO FND-22): "Show these" after a bulk action names its ids.
+  const ids = idList(q.ids);
+  if (ids.length > 0) filters.push(inArray(read.findings.id, ids));
+  // W20-21 (UX_TODO FND-68): what one manual scan raised, and what it closed.
+  const raisedBy = idList(q.scan_run_id, 50);
+  if (raisedBy.length > 0) filters.push(inArray(read.findings.scanRunId, raisedBy));
+  const closedBy = idList(q.closed_by_scan_run, 50);
+  if (closedBy.length > 0) {
+    filters.push(
+      inArray(
+        read.findings.id,
+        db
+          .select({ id: read.findingEvents.findingId })
+          .from(read.findingEvents)
+          .where(
+            and(
+              eq(read.findingEvents.workspaceId, workspaceId),
+              inArray(read.findingEvents.scanRunId, closedBy),
+              eq(read.findingEvents.toStatus, 'resolved'),
+            ),
+          ),
+      ),
+    );
+  }
+  // W20-21 (UX_TODO AI-32): what one AI pass raised, through its provenance.
+  const passId = Number(q.ai_pass_run_id);
+  if (q.ai_pass_run_id && Number.isInteger(passId) && passId > 0) {
+    filters.push(
+      inArray(
+        read.findings.id,
+        db
+          .select({ id: read.aiFindingProvenance.findingId })
+          .from(read.aiFindingProvenance)
+          .where(
+            and(
+              eq(read.aiFindingProvenance.workspaceId, workspaceId),
+              eq(read.aiFindingProvenance.aiPassRunId, passId),
+            ),
+          ),
+      ),
+    );
+  }
+  // A model raised it: the finding hangs off an analysis run, not a scan.
+  if (q.found_by === 'model') filters.push(isNotNull(read.findings.analysisRunId));
+
   // SHADOW FINDINGS ARE NEVER MIXED IN SILENTLY (W18-29). A candidate rule's
   // finding is stamped experimental so its precision can be measured before
   // anyone is asked to act on it (CODE_HEALTH_SUITE §8.2). Listing them
@@ -676,7 +851,7 @@ export default async function findingsRoutes(
       q?: string;
       /** W20-13: one attack chain's findings. */
       chain_id?: string;
-    };
+    } & ListQuery;
   }>('/findings', async (request, reply) => {
     const workspaceId = request.workspace?.id;
     if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
@@ -1048,16 +1223,41 @@ export default async function findingsRoutes(
     // Tenancy (Law 5): another workspace's finding is a 404, never a 403.
     if (!finding) return fail(request, reply, 404, 'Not Found');
 
-    const events = await db
-      .select()
+    // Workspace-filtered as well as by finding (Law 5). The scan behind an
+    // automatic change is joined for its commit and date (W20-21, FND-51).
+    const rows = await db
+      .select({
+        e: read.findingEvents,
+        scanCommit: security.scanRuns.commitSha,
+        scanAt: security.scanRuns.startedAt,
+      })
       .from(read.findingEvents)
-      .where(eq(read.findingEvents.findingId, id))
+      .leftJoin(
+        security.scanRuns,
+        and(
+          eq(security.scanRuns.id, read.findingEvents.scanRunId),
+          eq(security.scanRuns.workspaceId, workspaceId),
+        ),
+      )
+      .where(
+        and(eq(read.findingEvents.findingId, id), eq(read.findingEvents.workspaceId, workspaceId)),
+      )
       .orderBy(read.findingEvents.at);
 
     return reply.send({
-      items: events.map((e) => ({
+      items: rows.map(({ e, scanCommit, scanAt }) => ({
         from_status: e.fromStatus,
         to_status: e.toStatus,
+        // W20-21 (UX_TODO FND-51): the scan that made an automatic change -
+        // "not seen by the scan of def456 on <date>". Null for a person's.
+        scan:
+          e.scanRunId === null
+            ? null
+            : {
+                id: e.scanRunId,
+                commit_sha: scanCommit ?? null,
+                at: scanAt?.toISOString() ?? null,
+              },
         // THREE STATES, not two (W16-59). A null actor used to mean exactly one
         // thing — the analysis pass acting by itself — and now that the FK is
         // ON DELETE SET NULL it could also mean a person whose account has been
@@ -1076,7 +1276,7 @@ export default async function findingsRoutes(
   /** PATCH /findings/:id — a human moving a finding through its lifecycle. */
   app.patch<{
     Params: { id: string };
-    Body: { status?: unknown; note?: unknown; dismiss_reason?: unknown };
+    Body: { status?: unknown; note?: unknown; dismiss_reason?: unknown; review_by?: unknown };
   }>('/findings/:id', async (request, reply) => {
     const workspaceId = request.workspace?.id;
     const userId = request.session.get('userId');
@@ -1152,6 +1352,17 @@ export default async function findingsRoutes(
         ? request.body.dismiss_reason
         : null;
 
+    // W20-21 (UX_TODO FND-25): an accepted risk carries the day it is looked
+    // at again, or it never comes back for review.
+    let reviewBy: string | null = null;
+    if (dismissReason === 'accepted_risk') {
+      const parsed = reviewByFrom(request.body?.review_by);
+      if ('refusal' in parsed) {
+        return fail(request, reply, 400, 'A review date is required', parsed.refusal);
+      }
+      reviewBy = parsed.date;
+    }
+
     // The login travels WITH the id (W16-59), so removing the account leaves
     // "a person whose account is gone" rather than "the analysis pass did it".
     const actorLogin = await actorLoginFor(db, userId);
@@ -1162,8 +1373,11 @@ export default async function findingsRoutes(
       toStatus: next,
       userId,
       actorLogin,
-      reason: dismissReason ? `${dismissReason}: ${note}` : note,
+      reason: dismissReason
+        ? `${dismissReason}${reviewBy ? ` (review by ${reviewBy})` : ''}: ${note}`
+        : note,
       ...(next === 'dismissed' ? { dismissReason } : {}),
+      reviewBy,
     });
     if (!applied) {
       // The row moved between the read above and the write: someone else's
@@ -1188,9 +1402,10 @@ export default async function findingsRoutes(
       fromStatus: finding.status,
       toStatus: next,
       dismissReason,
+      ...(reviewBy ? { reviewBy } : {}),
     });
 
-    return reply.send({ id, status: next, dismiss_reason: dismissReason });
+    return reply.send({ id, status: next, dismiss_reason: dismissReason, review_by: reviewBy });
   });
 
   /**
@@ -1203,7 +1418,13 @@ export default async function findingsRoutes(
    * Every status the lifecycle has is accepted; canTransition decides per row.
    */
   app.post<{
-    Body: { ids?: unknown; status?: unknown; note?: unknown; dismiss_reason?: unknown };
+    Body: {
+      ids?: unknown;
+      status?: unknown;
+      note?: unknown;
+      dismiss_reason?: unknown;
+      review_by?: unknown;
+    };
   }>('/findings/bulk', async (request, reply) => {
     const workspaceId = request.workspace?.id;
     const userId = request.session.get('userId');
@@ -1239,6 +1460,16 @@ export default async function findingsRoutes(
       );
     }
     const dismissReason = next === 'dismissed' && typeof rawReason === 'string' ? rawReason : null;
+    // W20-21 (UX_TODO FND-25): the same review date for every accepted risk in
+    // the batch, required as it is for one.
+    let reviewBy: string | null = null;
+    if (dismissReason === 'accepted_risk') {
+      const parsed = reviewByFrom(request.body?.review_by);
+      if ('refusal' in parsed) {
+        return fail(request, reply, 400, 'A review date is required', parsed.refusal);
+      }
+      reviewBy = parsed.date;
+    }
     // Resolved ONCE for the whole batch — it is the same person for every row
     // and a lookup per finding would be a query per finding. After the
     // guards, so a malformed request costs no query at all.
@@ -1294,8 +1525,11 @@ export default async function findingsRoutes(
         toStatus: next,
         userId,
         actorLogin: bulkActorLogin,
-        reason: dismissReason ? `${dismissReason}: ${note}` : note,
+        reason: dismissReason
+          ? `${dismissReason}${reviewBy ? ` (review by ${reviewBy})` : ''}: ${note}`
+          : note,
         ...(next === 'dismissed' ? { dismissReason } : {}),
+        reviewBy,
       });
       if (ok) applied.push(row.id);
       else skipped.push({ id: row.id, reason: 'changed status while this request was in flight' });
@@ -1316,4 +1550,98 @@ export default async function findingsRoutes(
 
     return reply.send({ applied, skipped });
   });
+
+  /**
+   * POST /findings/:id/rotated — record that a leaked secret was rotated
+   * (W20-21, UX_TODO FND-61).
+   *
+   * Deleting the line never closed a secret finding (the secret stays in the
+   * commit that added it, and the secrets scan does no sweep), and none of the
+   * dismiss reasons fitted. This resolves the finding with reason `rotated`,
+   * a required rotation date and note, and the person who recorded it; a later
+   * history sweep that sees the same secret again leaves it closed. Any member
+   * may record it, as any member may mark a finding fixed. Audited.
+   */
+  app.post<{ Params: { id: string }; Body: { rotated_on?: unknown; note?: unknown } | undefined }>(
+    '/findings/:id/rotated',
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      const userId = request.session.get('userId');
+      if (workspaceId === undefined || userId === undefined) {
+        return fail(request, reply, 401, 'No active session');
+      }
+      const id = Number(request.params.id);
+      if (!Number.isInteger(id)) return fail(request, reply, 400, 'Invalid finding id');
+      const note = typeof request.body?.note === 'string' ? request.body.note.trim() : '';
+      if (note.length < DISMISS_NOTE_MIN) {
+        return fail(
+          request,
+          reply,
+          400,
+          'A note is required',
+          `Say how it was rotated (where, by whom) in at least ${DISMISS_NOTE_MIN} characters.`,
+        );
+      }
+
+      const [finding] = await db
+        .select()
+        .from(read.findings)
+        .where(and(eq(read.findings.id, id), eq(read.findings.workspaceId, workspaceId)))
+        .limit(1);
+      if (!finding) return fail(request, reply, 404, 'Not Found');
+      if (finding.dimension !== 'secrets') {
+        return fail(
+          request,
+          reply,
+          409,
+          'Not a secret',
+          'Only a leaked secret can be recorded as rotated.',
+        );
+      }
+      if (!canTransition(finding.status as FindingStatus, 'resolved')) {
+        return fail(
+          request,
+          reply,
+          409,
+          'Transition not allowed',
+          `A ${finding.status} finding cannot be recorded as rotated; reopen it first.`,
+        );
+      }
+      const when = rotatedOnFrom(request.body?.rotated_on, finding.firstSeenAt);
+      if ('refusal' in when) return fail(request, reply, 400, 'Invalid date', when.refusal);
+
+      const actorLogin = await actorLoginFor(db, userId);
+      const applied = await applyTransition(db, {
+        workspaceId,
+        findingId: id,
+        fromStatus: finding.status,
+        toStatus: 'resolved',
+        userId,
+        actorLogin,
+        reason: `rotated on ${when.date}: ${note}`,
+        // The closing reason, on a resolved row: what keeps a later sighting
+        // of the same secret from reopening it (staysClosed).
+        dismissReason: 'rotated',
+      });
+      if (!applied) {
+        return fail(
+          request,
+          reply,
+          409,
+          'Transition not allowed',
+          'The finding changed status while this request was in flight. Reload and try again.',
+        );
+      }
+      auditLog(request.log, {
+        event: 'finding.secret_rotated',
+        actorUserId: userId,
+        workspaceId,
+        ip: request.ip,
+        ua: request.headers['user-agent'] ?? null,
+        findingId: id,
+        detail: { rotated_on: when.date, from: finding.status },
+      });
+      return reply.send({ id, status: 'resolved', rotated_on: when.date });
+    },
+  );
 }

@@ -208,7 +208,10 @@ function priceOne(
     // verbatim.
     evidenceQuote: `${purl} is affected by ${identifier}`,
     rationale: rationaleFor(vulnerability, fix),
-    suggestedFix: vulnerability.fixVersions.length > 0 || (advice !== null && advice.kind !== 'no_fix') ? fix : null,
+    suggestedFix:
+      vulnerability.fixVersions.length > 0 || (advice !== null && advice.kind !== 'no_fix')
+        ? fix
+        : null,
     scannerKey: DEPENDENCY_SCANNER_KEY,
     // The vulnerability id, not a constant: dedupKey normalizes digits out of
     // the evidence quote, so "CVE-2020-11023" and "CVE-2020-11022" on the same
@@ -255,6 +258,9 @@ function priceOne(
           // (W8-14, FR-SEC-14).
           { proposed_vex: vulnerability.proposals }
         : {}),
+      // W20-21 (UX_TODO FND-28): the published fixed versions, for the
+      // Security tab's "Fixed in" column. Empty when no fix is published.
+      fixed_in: vulnerability.fixVersions,
     },
   };
 

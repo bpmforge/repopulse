@@ -168,6 +168,11 @@ export interface RulePrecision {
   triage: TriagePrecision;
   /** null = this rule is not in the benchmark corpus at all. */
   benchmark: BenchmarkRuleScore | null;
+  /**
+   * W20-21 (UX_TODO FND-53): true when the registry row is this workspace's
+   * override of a SHIPPED rule (moved to shadow here), which can be restored.
+   */
+  override: boolean;
 }
 
 export interface RulePrecisionReport {
@@ -235,7 +240,11 @@ export async function rulePrecision(
     .groupBy(read.findings.ruleId);
 
   const registryRows = await db
-    .select({ ruleId: security.ruleRegistry.ruleId, status: security.ruleRegistry.status })
+    .select({
+      ruleId: security.ruleRegistry.ruleId,
+      status: security.ruleRegistry.status,
+      source: sql<string | null>`${security.ruleRegistry.provenance} ->> 'source'`,
+    })
     .from(security.ruleRegistry)
     .where(
       and(
@@ -244,6 +253,9 @@ export async function rulePrecision(
       ),
     );
   const registry = new Map(registryRows.map((r) => [r.ruleId, r.status]));
+  const overrides = new Set(
+    registryRows.filter((r) => r.source === 'pack_override').map((r) => r.ruleId),
+  );
   const byRule = new Map(counts.filter((c) => c.ruleId !== null).map((c) => [c.ruleId!, c]));
 
   const ids =
@@ -273,6 +285,7 @@ export async function rulePrecision(
         precision: rate === null ? null : Math.round((1 - rate) * 1000) / 1000,
       },
       benchmark: summary.rules[ruleId] ?? null,
+      override: overrides.has(ruleId),
     };
   });
 

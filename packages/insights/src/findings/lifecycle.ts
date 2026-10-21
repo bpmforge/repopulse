@@ -83,6 +83,16 @@ export function isSuppressed(status: FindingStatus, reason: string | null): bool
   return status === 'dismissed' && reason === 'false_positive';
 }
 
+/**
+ * W20-21 (UX_TODO FND-61): a leaked secret a person recorded as rotated. It is
+ * resolved with reason `rotated`; the old commit still holds the secret, so a
+ * later history sweep sees it again, and that sighting is not news: the
+ * credential it names no longer works.
+ */
+export function staysClosed(status: FindingStatus, reason: string | null): boolean {
+  return status === 'resolved' && reason === 'rotated';
+}
+
 /** false_positive dismissals feed analysis_false_positive_rate (FR-INSIGHTS-1). */
 export function countsAsFalsePositive(status: FindingStatus, reason: string | null): boolean {
   return status === 'dismissed' && reason === 'false_positive';

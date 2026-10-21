@@ -13,6 +13,7 @@ import {
 } from '@repopulse/security';
 import path from 'node:path';
 import { sendProblem } from '../../lib/problem.js';
+import { scannerRuns } from '../../lib/scan-schedule.js';
 import vexRoutes from './vex.js';
 import externalFindingsRoutes from './external.js';
 
@@ -93,6 +94,16 @@ export function rejectedEverything(funnel: Record<string, unknown> | null | unde
  */
 export const STALE_RUN_AFTER_MS = 60 * 60 * 1000;
 
+/** The dimensions the Overview tile counts; the Reviews `dimension_group=security`. */
+export const SECURITY_ROLLUP_DIMENSIONS = [
+  'secrets',
+  'dependency',
+  'sast',
+  'iac',
+  'chain',
+  'security',
+] as const;
+
 /** The dimensions the Security tab lists findings from (packages/shared dimensions.ts). */
 export const SECURITY_DIMENSIONS: ReadonlySet<string> = new Set([
   'security',
@@ -125,6 +136,7 @@ export function cveRows(
     ruleId: string | null;
     yields: Record<string, unknown> | null;
     experimental: boolean;
+    recommendation?: string | null;
   }[],
 ): {
   finding_id: number;
@@ -135,6 +147,8 @@ export function cveRows(
   scanner_key: string | null;
   /** W20-13 (FND-28): the scanner's reachability tier, or null when unknown. */
   reachability: string | null;
+  /** W20-21 (FND-28): the versions that fix it, newest scanner data first. */
+  fixed_in: string[];
 }[] {
   return findings
     .filter((f) => f.dimension === 'dependency' && !f.experimental && (f.cveId ?? f.ruleId))
@@ -150,12 +164,31 @@ export function cveRows(
         scanner_key: f.scannerKey,
         reachability:
           typeof f.yields?.['reachability'] === 'string' ? f.yields['reachability'] : null,
+        fixed_in: fixedIn(f.yields, f.recommendation ?? null),
       };
     })
     .sort(
       (a, b) =>
         b.severity - a.severity || Number(b.kev) - Number(a.kev) || a.finding_id - b.finding_id,
     );
+}
+
+/**
+ * The fix versions for a CVE row (W20-21, UX_TODO FND-28): the scanner's own
+ * list when it wrote one (`yields.fixed_in`, since W20-21), otherwise the
+ * version named in the "Upgrade to X." sentence older findings carry.
+ */
+export function fixedIn(
+  yields: Record<string, unknown> | null,
+  recommendation: string | null,
+): string[] {
+  const stored = yields?.['fixed_in'];
+  if (Array.isArray(stored)) {
+    const list = stored.filter((v): v is string => typeof v === 'string' && v.length > 0);
+    if (list.length > 0) return [...new Set(list)].slice(0, 5);
+  }
+  const m = recommendation ? /Upgrade to ([^\s,;]+?)\.?(?:\s|$)/.exec(recommendation) : null;
+  return m ? [m[1]!] : [];
 }
 
 /** Whether attack-chain analysis has a completed run to speak for (FND-60). */
@@ -292,6 +325,7 @@ export default async function securityRoutes(
         ruleId: read.findings.ruleId,
         yields: read.findings.yields,
         experimental: read.findings.experimental,
+        recommendation: read.findings.recommendation,
       })
       .from(read.findings)
       .where(
@@ -340,6 +374,9 @@ export default async function securityRoutes(
         // that has no funnel, which the UI reads as "not measured".
         validation_funnel: run?.validationFunnel ?? null,
         open_findings: findings.filter((f) => f.scannerKey === key).length,
+        // W20-21 (UX_TODO FND-52): when this scanner runs without anyone
+        // pressing Run — on every pull request, weekly, nightly or by hand only.
+        runs: scannerRuns(key, registered.get(key)?.triggers ?? []),
       };
     });
 
@@ -537,15 +574,24 @@ export default async function securityRoutes(
         and(
           eq(read.findings.workspaceId, workspaceId),
           inScope,
-          inArray(read.findings.dimension, [
-            'secrets',
-            'dependency',
-            'sast',
-            'iac',
-            'chain',
-            'security',
-          ]),
+          inArray(read.findings.dimension, [...SECURITY_ROLLUP_DIMENSIONS]),
           inArray(read.findings.status, ['open', 'confirmed']),
+        ),
+      )
+      .groupBy(read.findings.severity);
+
+    // W20-21 (UX_TODO FND-55): what is new since yesterday, so a fresh
+    // critical shows on the tile rather than as a count that moved by one.
+    const fresh = await db
+      .select({ severity: read.findings.severity, n: sql<number>`count(*)::int` })
+      .from(read.findings)
+      .where(
+        and(
+          eq(read.findings.workspaceId, workspaceId),
+          inScope,
+          inArray(read.findings.dimension, [...SECURITY_ROLLUP_DIMENSIONS]),
+          inArray(read.findings.status, ['open', 'confirmed']),
+          sql`${read.findings.firstSeenAt} >= now() - interval '24 hours'`,
         ),
       )
       .groupBy(read.findings.severity);
@@ -582,10 +628,13 @@ export default async function securityRoutes(
 
     const bySeverity: Record<number, number> = {};
     for (const row of all) bySeverity[row.severity] = row.n;
+    const newBySeverity: Record<number, number> = {};
+    for (const row of fresh) newBySeverity[row.severity] = row.n;
 
     return reply.send({
       open_by_severity: bySeverity,
       open_total: all.reduce((sum, r) => sum + r.n, 0),
+      new_by_severity: newBySeverity,
       kev_count: kev?.n ?? 0,
       secrets_open: rows.reduce((sum, r) => sum + r.n, 0),
       // Always red-flagged when non-zero (SECURITY_SUITE §5) — and honestly 0

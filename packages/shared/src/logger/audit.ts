@@ -177,6 +177,17 @@ export type AuditEvent =
   | 'report.deleted'
   | 'connection.scheduled_sync_only'
   | 'admin.member.created'
+  // W20-21 (UX_TODO FND-61, FND-53, AI-33, AI-56). Recording a secret as
+  // rotated closes it for good; moving a shipped rule to shadow (or back)
+  // changes what every scan says in this workspace; cancelling a pass stops
+  // model calls; a member's request for a pass is what the admins' inbox reads.
+  | 'finding.secret_rotated'
+  | 'rule.pack_shadowed'
+  | 'rule.pack_restored'
+  | 'ai_pass.cancelled'
+  | 'ai_pass.requested'
+  // W20-21 (UX_TODO AI-80): the egress log leaving the product as a file.
+  | 'egress_audit.exported'
   // W20-10 (UX_TODO ADM-13). Written by deploy/backup.sh straight into
   // audit_events (it has psql, not this function); listed so the name is
   // owned here. System health reads the newest one as "last backup".

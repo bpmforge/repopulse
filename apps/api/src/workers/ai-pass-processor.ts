@@ -15,6 +15,7 @@ import { dedupKey, persistFindings } from '@repopulse/insights';
 import { TRIAGE_TOP_N, runTriage, type TriageCandidate } from '@repopulse/security';
 import { overlaps, rangesByFile, type DiffRequest, type LoadedDiff } from './ai-pass-diff.js';
 import { isAiPaused } from '../lib/ai-pause.js';
+import { withAiPass } from './ai-pass-context.js';
 import { describeEndpoint, loadStoredRouting, providersFor } from '../lib/llm-routing.js';
 
 // ai.pass processor (W19-09): planned specialists, then evidence-fed triage, over
@@ -105,11 +106,64 @@ export function inScope(file: string, paths: readonly string[]): boolean {
 
 const stripPatchPrefix = (s: string): string => s.replace(/^\+/gm, '');
 
+/** Thrown inside a pass whose row an admin cancelled (W20-21, UX_TODO AI-33). */
+export class PassCancelledError extends Error {
+  constructor() {
+    super('The pass was cancelled.');
+    this.name = 'PassCancelledError';
+  }
+}
+
+/**
+ * The pass's view of the gateway (W20-21, UX_TODO AI-33, AI-64): before each
+ * model call it checks that the row is still running (an admin may have
+ * cancelled it; then it throws and nothing more is sent), and after each call
+ * it writes the number of calls so far, so a long pass shows progress instead
+ * of nothing until it ends.
+ */
+export function trackPassGateway(
+  inner: AnalysisGateway,
+  db: Database,
+  ids: { workspaceId: number; runId: number },
+): AnalysisGateway {
+  let calls = 0;
+  const where = and(
+    eq(read.aiPassRuns.id, ids.runId),
+    eq(read.aiPassRuns.workspaceId, ids.workspaceId),
+  );
+  return {
+    async complete(prompt, opts) {
+      const [row] = await db
+        .select({ status: read.aiPassRuns.status })
+        .from(read.aiPassRuns)
+        .where(where)
+        .limit(1);
+      if (!row || row.status !== 'running') throw new PassCancelledError();
+      try {
+        return await inner.complete(prompt, opts);
+      } finally {
+        calls += 1;
+        await db
+          .update(read.aiPassRuns)
+          .set({ calls })
+          .where(and(where, eq(read.aiPassRuns.status, 'running')))
+          .catch(() => undefined);
+      }
+    },
+    health: (tier) => inner.health(tier),
+  };
+}
+
 export function aiPassProcessor(deps: AiPassDeps) {
   const now = deps.now ?? (() => new Date());
   const baseMaxCalls = deps.maxCalls ?? AI_PASS_MAX_CALLS;
 
-  return async function process(job: Job<AiPassJobData>): Promise<AiPassResult> {
+  // W20-21 (UX_TODO AI-29): every model call inside the pass is attributed to
+  // it on the egress audit.
+  return (job: Job<AiPassJobData>): Promise<AiPassResult> =>
+    withAiPass(job.data.runId, () => process(job));
+
+  async function process(job: Job<AiPassJobData>): Promise<AiPassResult> {
     const { workspaceId, runId } = job.data;
     const maxCalls = Math.max(1, Math.min(baseMaxCalls, job.data.maxCalls ?? baseMaxCalls));
     const { db } = deps;
@@ -129,10 +183,21 @@ export function aiPassProcessor(deps: AiPassDeps) {
       status: 'succeeded' | 'failed' | 'skipped',
       patch: Partial<typeof read.aiPassRuns.$inferInsert> = {},
     ): Promise<AiPassResult> => {
-      await db
+      // W20-21 (UX_TODO AI-33): never over a row an admin cancelled meanwhile.
+      const ended = await db
         .update(read.aiPassRuns)
         .set({ status, finishedAt: now(), ...patch })
-        .where(eq(read.aiPassRuns.id, runId));
+        .where(
+          and(
+            eq(read.aiPassRuns.id, runId),
+            eq(read.aiPassRuns.workspaceId, workspaceId),
+            inArray(read.aiPassRuns.status, ['pending', 'running']),
+          ),
+        )
+        .returning({ id: read.aiPassRuns.id });
+      if (ended.length === 0) {
+        return { status: 'failed', code: 'cancelled', reason: 'The pass was cancelled.' };
+      }
       return {
         status,
         ...(patch.reasonCode ? { code: patch.reasonCode } : {}),
@@ -162,10 +227,22 @@ export function aiPassProcessor(deps: AiPassDeps) {
       });
     }
 
-    await db
+    // Compare-and-set on `pending` (W20-21, AI-33): a pass cancelled while it
+    // waited in the queue does not start.
+    const started = await db
       .update(read.aiPassRuns)
       .set({ status: 'running', startedAt: now() })
-      .where(eq(read.aiPassRuns.id, runId));
+      .where(
+        and(
+          eq(read.aiPassRuns.id, runId),
+          eq(read.aiPassRuns.workspaceId, workspaceId),
+          eq(read.aiPassRuns.status, 'pending'),
+        ),
+      )
+      .returning({ id: read.aiPassRuns.id });
+    if (started.length === 0) {
+      return { status: 'skipped', code: 'already_started', reason: 'No longer queued.' };
+    }
 
     if (run.mode === 'second_opinion') {
       try {
@@ -176,7 +253,10 @@ export function aiPassProcessor(deps: AiPassDeps) {
     }
 
     try {
-      const wg = await deps.gatewayFor(workspaceId);
+      const built = await deps.gatewayFor(workspaceId);
+      const wg = built
+        ? { ...built, gateway: trackPassGateway(built.gateway, db, { workspaceId, runId }) }
+        : null;
       if (!wg) {
         return fail(
           'no_gateway',
@@ -419,7 +499,7 @@ export function aiPassProcessor(deps: AiPassDeps) {
       // A local-only refusal arrives here with its sentence (role and connection).
       return fail('error', safeErrorText(err), progress);
     }
-  };
+  }
 }
 
 async function triageStep(a: {

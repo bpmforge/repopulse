@@ -129,13 +129,24 @@ function RunRow({
   isAdmin,
   repoId,
   onRerun,
+  invalidate,
 }: {
   run: AiPassRun;
   isAdmin: boolean;
   repoId: string;
   /** Starts the same scope again; absent while a pass runs or for a member. */
   onRerun?: (() => void) | undefined;
+  invalidate: readonly (readonly unknown[])[];
 }) {
+  // W20-21 (UX_TODO AI-33): a queued or running pass can be stopped.
+  const cancel = useApiMutation<Record<string, never>, unknown>(
+    {
+      endpoint: '/repos/{id}/ai-pass/{runId}/cancel',
+      path: { id: repoId, runId: run.id },
+      method: 'POST',
+    },
+    { invalidate },
+  );
   const funnel = run.triage_funnel;
   const verdicts = funnel?.verdicts ?? {};
   const usage = run.specialists?.usage ?? {};
@@ -180,9 +191,30 @@ function RunRow({
           moving. Calls so far are not recorded until the pass ends. */}
       {run.status === 'running' && elapsed !== null ? (
         <p className="text-xs text-fg-muted" data-testid="ai-pass-elapsed">
-          Running for {duration(elapsed)}. A pass on a local model can take several minutes; the
-          model calls it used are shown when it ends.
+          {/* W20-21 (AI-64): calls are now counted as they happen. */}
+          Running for {duration(elapsed)}
+          {run.calls !== null && run.calls !== undefined
+            ? `, ${run.calls} of at most ${PASS_CAPS.calls} model calls so far`
+            : ''}
+          . A pass on a local model can take several minutes.
         </p>
+      ) : null}
+      {isAdmin && ACTIVE(run.status) ? (
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <button
+            type="button"
+            className="rounded-md border border-border px-2 py-0.5 hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            data-testid="ai-pass-cancel"
+            disabled={cancel.isPending}
+            onClick={() => cancel.mutate({})}
+          >
+            {cancel.isPending ? 'Cancelling…' : 'Cancel this pass'}
+          </button>
+          <span className="text-fg-faint">
+            Stops before its next model call; findings already saved stay.
+          </span>
+          <ErrorNote error={cancel.error} testId="ai-pass-cancel-error" />
+        </div>
       ) : null}
       {run.status === 'pending' && waiting !== null && waiting >= STALLED_AFTER_MIN ? (
         <p className="text-xs text-fg" role="alert" data-testid="ai-pass-stalled">
@@ -249,7 +281,16 @@ function RunRow({
           {raised.length > 0 ? (
             <li data-testid="ai-pass-raised">
               Specialists raised:{' '}
-              {raised.map(([id, u]) => `${specialistLabel(id)} ${u.findings}`).join(', ')}.
+              {raised.map(([id, u]) => `${specialistLabel(id)} ${u.findings}`).join(', ')}.{' '}
+              {/* W20-21 (UX_TODO AI-32): straight to what this pass raised. */}
+              <Link
+                to="/findings"
+                search={{ repos: repoId, ai_pass_run_id: String(run.id), status: 'any' } as never}
+                className={LINK}
+                data-testid="ai-pass-raised-link"
+              >
+                Show the findings this pass raised
+              </Link>
             </li>
           ) : failedBy.size > 0 ? (
             <li data-testid="ai-pass-raised">
@@ -400,6 +441,80 @@ export function PassDestinations({ repoId }: { repoId: string }) {
   );
 }
 
+/** GET /repos/:id/ai-pass/pickers (W20-21, UX_TODO AI-31). */
+export interface PassPickers {
+  prs: { number: number; title: string; state: string }[];
+  commits: { sha: string; message: string; at: string }[];
+  files: string[];
+  files_truncated: boolean;
+}
+
+/** Files plus every directory above them, so a directory can be picked too. */
+export function pickerPaths(files: readonly string[]): string[] {
+  const out = new Set<string>();
+  for (const f of files) {
+    out.add(f);
+    const parts = f.split('/');
+    for (let i = 1; i < parts.length; i++) out.add(parts.slice(0, i).join('/'));
+  }
+  return [...out].sort();
+}
+
+/**
+ * A member's way to ask for a pass (W20-21, UX_TODO AI-56). Members read only
+ * "An admin starts a pass."; now they see who the admins are and can send them
+ * a request, which lands in the admins' inbox. Nothing goes to a model.
+ */
+function AskAnAdmin({ repoId, admins }: { repoId: string; admins: string[] }) {
+  const [note, setNote] = useState('');
+  const ask = useApiMutation<{ note: string }, { asked: boolean; admins: string[] }>({
+    endpoint: '/repos/{id}/ai-pass/ask',
+    path: { id: repoId },
+    method: 'POST',
+  });
+  return (
+    <div className="flex flex-col gap-1 text-xs text-fg-muted" data-testid="ai-pass-admin-only">
+      <p>
+        An admin starts a pass
+        {admins.length > 0 ? ` (admins here: ${admins.join(', ')})` : ''}.
+      </p>
+      {ask.isSuccess ? (
+        <p role="status" data-testid="ai-pass-asked">
+          Asked. The admins see your request in their inbox.
+        </p>
+      ) : (
+        <form
+          className="flex flex-wrap items-end gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            ask.mutate({ note: note.trim() });
+          }}
+        >
+          <label className="flex flex-col gap-1">
+            What should it look at, and why? (optional)
+            <input
+              className="panel w-80 px-2 py-1 text-sm"
+              data-testid="ai-pass-ask-note"
+              value={note}
+              maxLength={500}
+              onChange={(e) => setNote(e.target.value)}
+            />
+          </label>
+          <button
+            type="submit"
+            className="rounded-md border border-border px-2 py-1 hover:border-accent disabled:opacity-50"
+            data-testid="ai-pass-ask"
+            disabled={ask.isPending}
+          >
+            {ask.isPending ? 'Asking…' : 'Ask an admin for a pass'}
+          </button>
+        </form>
+      )}
+      <ErrorNote error={ask.error} testId="ai-pass-ask-error" />
+    </div>
+  );
+}
+
 export function AiPassPanel({
   repoId,
   initialPaths,
@@ -422,6 +537,8 @@ export function AiPassPanel({
     more?: boolean;
     /** W20-18 (UX_TODO AI-77). */
     ai_paused?: AiPause;
+    /** W20-21 (UX_TODO AI-56): who can start a pass. */
+    admins?: string[];
   }>(descriptor, {
     // Follow a pass while it is in flight; a settled list does not change.
     refetchInterval: (d) => ((d?.runs ?? []).some((r) => ACTIVE(r.status)) ? 5000 : false),
@@ -433,6 +550,12 @@ export function AiPassPanel({
   const [pr, setPr] = useState('');
   const [base, setBase] = useState('');
   const [head, setHead] = useState('');
+  const [addPath, setAddPath] = useState('');
+  // W20-21 (UX_TODO AI-31): what to pick from, from what RepoPulse ingested.
+  const { data: pickers } = useApiQuery<PassPickers>(
+    { endpoint: '/repos/{id}/ai-pass/pickers', path: { id: repoId } },
+    { enabled: isAdmin },
+  );
   const start = useApiMutation<
     { paths: string[] } | { pull_request: number } | { base: string; head: string },
     unknown
@@ -544,21 +667,61 @@ export function AiPassPanel({
             ))}
           </fieldset>
           {mode === 'paths' ? (
-            <label className="flex flex-col gap-1 text-xs text-fg-muted">
-              Files or directories to review (one per line, relative to the repository root)
-              <textarea
-                className="panel w-full max-w-xl px-2 py-1 font-mono text-sm"
-                rows={3}
-                data-testid="ai-pass-paths"
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                placeholder="src/payments"
-              />
-              <span className="text-fg-faint" data-testid="ai-pass-languages">
-                Reads {READABLE_SOURCES} files only, each up to 512 KB. Other files in these paths
-                are not reviewed.
-              </span>
-            </label>
+            <>
+              <label className="flex flex-col gap-1 text-xs text-fg-muted">
+                Files or directories to review (one per line, relative to the repository root)
+                <textarea
+                  className="panel w-full max-w-xl px-2 py-1 font-mono text-sm"
+                  rows={3}
+                  data-testid="ai-pass-paths"
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  placeholder="src/payments"
+                />
+                <span className="text-fg-faint" data-testid="ai-pass-languages">
+                  Reads {READABLE_SOURCES} files only, each up to 512 KB. Other files in these paths
+                  are not reviewed.
+                </span>
+              </label>
+              {pickers && (pickers.files ?? []).length > 0 ? (
+                <div className="flex flex-wrap items-end gap-2 text-xs text-fg-muted">
+                  <label className="flex flex-col gap-1">
+                    Add a file or directory changed in an ingested commit
+                    <input
+                      className="panel w-80 px-2 py-1 font-mono text-sm"
+                      list="ai-pass-file-options"
+                      data-testid="ai-pass-file-picker"
+                      value={addPath}
+                      onChange={(e) => setAddPath(e.target.value)}
+                      placeholder="Type to search"
+                    />
+                  </label>
+                  <datalist id="ai-pass-file-options">
+                    {pickerPaths(pickers.files).map((f) => (
+                      <option key={f} value={f} />
+                    ))}
+                  </datalist>
+                  <button
+                    type="button"
+                    className="rounded-md border border-border px-2 py-1 hover:border-accent disabled:opacity-50"
+                    data-testid="ai-pass-file-add"
+                    disabled={addPath.trim() === ''}
+                    onClick={() => {
+                      const next = [...new Set([...parsePaths(text), addPath.trim()])];
+                      setText(next.join('\n'));
+                      setAddPath('');
+                    }}
+                  >
+                    Add
+                  </button>
+                  {pickers.files_truncated ? (
+                    <span className="text-fg-faint">
+                      Showing the first {pickers.files.length} paths; type any other path above.
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+            </>
           ) : mode === 'pull_request' ? (
             <div className="flex flex-col gap-1">
               <label className="flex flex-col gap-1 text-xs text-fg-muted">
@@ -572,6 +735,24 @@ export function AiPassPanel({
                   placeholder="123"
                 />
               </label>
+              {pickers && (pickers.prs ?? []).length > 0 ? (
+                <label className="flex flex-col gap-1 text-xs text-fg-muted">
+                  Or pick one
+                  <select
+                    className="panel max-w-xl px-2 py-1 text-sm"
+                    data-testid="ai-pass-pr-picker"
+                    value={pr}
+                    onChange={(e) => setPr(e.target.value)}
+                  >
+                    <option value="">Recent pull requests…</option>
+                    {pickers.prs.map((p) => (
+                      <option key={p.number} value={String(p.number)}>
+                        #{p.number} {p.title} ({p.state})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
               <p className="text-xs text-fg-faint">
                 Reviews the lines the pull request changes, as the forge reports them. Files whose
                 patch the forge does not send in full are listed as not reviewed.
@@ -585,6 +766,7 @@ export function AiPassPanel({
                   <input
                     className="panel w-56 px-2 py-1 font-mono text-sm"
                     data-testid="ai-pass-base"
+                    list="ai-pass-commit-options"
                     value={base}
                     onChange={(e) => setBase(e.target.value)}
                     placeholder="a1b2c3d"
@@ -595,12 +777,22 @@ export function AiPassPanel({
                   <input
                     className="panel w-56 px-2 py-1 font-mono text-sm"
                     data-testid="ai-pass-head"
+                    list="ai-pass-commit-options"
                     value={head}
                     onChange={(e) => setHead(e.target.value)}
                     placeholder="e4f5a6b"
                   />
                 </label>
               </div>
+              {pickers && (pickers.commits ?? []).length > 0 ? (
+                <datalist id="ai-pass-commit-options" data-testid="ai-pass-commit-options">
+                  {pickers.commits.map((c) => (
+                    <option key={c.sha} value={c.sha}>
+                      {`${c.sha.slice(0, 7)} ${c.at.slice(0, 10)} ${c.message}`}
+                    </option>
+                  ))}
+                </datalist>
+              ) : null}
               <p className="text-xs text-fg-faint">
                 Reviews the commits RepoPulse has ingested after the base up to the head, oldest
                 first, at most {PASS_CAPS.commits}, merges skipped. RepoPulse keeps no commit graph,
@@ -635,9 +827,7 @@ export function AiPassPanel({
           <ErrorNote error={start.error} testId="ai-pass-error" />
         </form>
       ) : (
-        <p className="text-xs text-fg-muted" data-testid="ai-pass-admin-only">
-          An admin starts a pass.
-        </p>
+        <AskAnAdmin repoId={repoId} admins={data?.admins ?? []} />
       )}
 
       {isLoading ? (
@@ -666,6 +856,7 @@ export function AiPassPanel({
                 isAdmin={isAdmin}
                 repoId={repoId}
                 onRerun={isAdmin && !active && !start.isPending ? () => rerun(r) : undefined}
+                invalidate={[queryKeyFor(descriptor)]}
               />
             ))}
           </ol>

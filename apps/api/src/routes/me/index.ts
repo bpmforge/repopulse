@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, gte, ne, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, gte, inArray, ne, or, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { core, facts, read, security, type Database } from '@repopulse/shared';
 import { identity, workspace as workspaceModule } from '@repopulse/auth';
@@ -611,12 +611,95 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
       .orderBy(desc(security.scanRuns.startedAt))
       .limit(INBOX_ITEMS);
 
+    // W20-21 (UX_TODO AI-38): a scheduled AI pass that did not run (skipped or
+    // failed) reaches the admin who enabled the schedule. The skipped row
+    // carries that admin as requested_by; nobody else is told twice.
+    const userId = request.session.get('userId');
+    const passes =
+      userId === undefined
+        ? []
+        : await db
+            .select({
+              id: read.aiPassRuns.id,
+              status: read.aiPassRuns.status,
+              reason: read.aiPassRuns.reason,
+              repoId: read.aiPassRuns.repoId,
+              org: core.repos.org,
+              name: core.repos.name,
+              at: read.aiPassRuns.createdAt,
+            })
+            .from(read.aiPassRuns)
+            .innerJoin(
+              core.repos,
+              and(
+                eq(core.repos.id, read.aiPassRuns.repoId),
+                eq(core.repos.workspaceId, workspaceId),
+              ),
+            )
+            .where(
+              and(
+                eq(read.aiPassRuns.workspaceId, workspaceId),
+                eq(read.aiPassRuns.trigger, 'scheduled'),
+                eq(read.aiPassRuns.requestedBy, userId),
+                inArray(read.aiPassRuns.status, ['skipped', 'failed']),
+                gt(read.aiPassRuns.createdAt, since),
+              ),
+            )
+            .orderBy(desc(read.aiPassRuns.createdAt))
+            .limit(INBOX_ITEMS);
+
+    // W20-21 (UX_TODO AI-56): a member's "Ask an admin for an AI pass", for
+    // admins. Read from the audit log, where the request is recorded.
+    const asks =
+      request.role !== 'admin'
+        ? []
+        : await db
+            .select({
+              id: read.auditEvents.id,
+              login: read.auditEvents.actorLogin,
+              detail: read.auditEvents.detail,
+              at: read.auditEvents.occurredAt,
+            })
+            .from(read.auditEvents)
+            .where(
+              and(
+                eq(read.auditEvents.workspaceId, workspaceId),
+                eq(read.auditEvents.event, 'ai_pass.requested'),
+                gt(read.auditEvents.occurredAt, since),
+              ),
+            )
+            .orderBy(desc(read.auditEvents.occurredAt))
+            .limit(INBOX_ITEMS);
+
     return reply.send({
       since: since.toISOString(),
       first_look: firstLook,
-      unread: (findingCount?.n ?? 0) + (scanCount?.n ?? 0),
+      unread: (findingCount?.n ?? 0) + (scanCount?.n ?? 0) + passes.length + asks.length,
       findings_count: findingCount?.n ?? 0,
       failed_scans_count: scanCount?.n ?? 0,
+      ai_passes: passes.map((p) => ({
+        id: p.id,
+        status: p.status,
+        reason: p.reason === null ? null : p.reason.slice(0, 300),
+        repo_id: p.repoId,
+        repo: `${p.org}/${p.name}`,
+        at: p.at.toISOString(),
+      })),
+      ai_pass_requests: asks.map((a) => {
+        const d = a.detail;
+        const paths = Array.isArray(d['paths'])
+          ? (d['paths'] as unknown[]).filter((p): p is string => typeof p === 'string')
+          : [];
+        return {
+          id: a.id,
+          by: a.login,
+          repo_id: typeof d['repo_id'] === 'number' ? d['repo_id'] : null,
+          repo: typeof d['repo'] === 'string' ? d['repo'] : null,
+          paths,
+          note: typeof d['note'] === 'string' ? d['note'] : null,
+          at: a.at.toISOString(),
+        };
+      }),
       findings: findings.map((f) => ({
         id: f.id,
         title: f.title,

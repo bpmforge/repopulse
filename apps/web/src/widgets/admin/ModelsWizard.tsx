@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { ErrorNote, WidgetFrame } from '../../components/index.js';
 import { useApiMutation, useApiQuery, queryKeyFor } from '../../api/useApiQuery.js';
-import { CapabilityList, ClaudeCliPanel, testNextStep } from './LlmProviders.js';
+import { CapabilityList, ClaudeCliPanel, ModelChoices, testNextStep } from './LlmProviders.js';
 import {
   summarizeRole,
   TIER3_NOTE,
@@ -55,6 +55,8 @@ interface TestResult {
   model?: string;
   capabilities?: Parameters<typeof CapabilityList>[0]['c'];
   problems?: string[];
+  /** W20-21 (UX_TODO AI-20): the server's model list, from /v1/models. */
+  models?: string[];
 }
 
 const ROLE_LABEL: Record<string, string> = {
@@ -545,6 +547,12 @@ export function ModelsWizard() {
                   onChange={(e) => setModel(e.target.value)}
                   placeholder={isCli ? 'sonnet' : 'exactly as the server names it'}
                   className="rounded-sm border border-border bg-surface-2 px-2 py-1.5 font-mono text-sm text-fg"
+                />
+                <ModelChoices
+                  models={result?.models}
+                  current={model}
+                  onPick={setModel}
+                  testId="wizard-model-choices"
                 />
               </label>
               {isCli ? (

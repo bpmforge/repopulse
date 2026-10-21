@@ -108,6 +108,12 @@ export interface Finding {
   effective_risk?: number | null;
   /** act | schedule | track, null when unpriced. */
   risk_band?: string | null;
+  /** W20-21 (FND-70): the pull request it was raised on, or null. */
+  pull_request?: { number: number } | null;
+  /** W20-21 (FND-25): when an accepted risk comes back for review (YYYY-MM-DD). */
+  review_by?: string | null;
+  /** W20-21 (FND-51): the newest scan that still saw it, or null. */
+  last_seen_scan?: { id: number; commit_sha: string; at: string } | null;
 }
 
 /**
@@ -363,6 +369,8 @@ export interface FindingEvent {
   automatic: boolean;
   reason: string | null;
   at: string;
+  /** W20-21 (FND-51): the scan that caused this move (an auto-close or reopen). */
+  scan?: { id: number; commit_sha: string; at: string } | null;
 }
 
 /** Paired word + glyph so severity never depends on colour (UX_SPEC §7). */
@@ -553,7 +561,7 @@ export const DISMISS_REASON_LABEL: Record<DismissReason, { label: string; help: 
   },
   accepted_risk: {
     label: 'Accepted risk',
-    help: 'The problem is real and the team accepts it. Say in the note who accepted it and when to look again.',
+    help: 'The problem is real and the team accepts it. Say in the note who accepted it; it reopens on the review date for another look.',
   },
   not_applicable: {
     label: 'Not applicable',
@@ -566,6 +574,8 @@ export const DISMISS_REASON_LABEL: Record<DismissReason, { label: string; help: 
 };
 
 export function dismissReasonLabel(reason: string): string {
+  // W20-21 (FND-61): set by "Record as rotated", never offered as a dismissal.
+  if (reason === 'rotated') return 'Secret rotated';
   return isDismissReason(reason) ? DISMISS_REASON_LABEL[reason].label : reason.replace(/_/g, ' ');
 }
 
@@ -597,3 +607,9 @@ export const FINDING_DONE_LABEL: Record<FindingLifecycleStatus, string> = {
   dismissed: 'Dismissed',
   open: 'Reopened',
 };
+
+/** Tomorrow as YYYY-MM-DD, the earliest review date the API accepts. */
+export function tomorrow(now = new Date()): string {
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}

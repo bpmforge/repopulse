@@ -96,10 +96,14 @@ describe('finding panel (W20-13)', () => {
     fireEvent.change(screen.getByTestId('finding-dismiss-reason'), {
       target: { value: 'accepted_risk' },
     });
-    expect(screen.getByTestId('finding-dismiss-reason-help')).toHaveTextContent('look again');
+    expect(screen.getByTestId('finding-dismiss-reason-help')).toHaveTextContent(
+      'reopens on the review date',
+    );
     fireEvent.change(screen.getByTestId('finding-note'), {
       target: { value: 'accepted by the platform team until Q1' },
     });
+    // W20-21 (FND-25): an accepted risk needs its review date.
+    fireEvent.change(screen.getByTestId('finding-review-by'), { target: { value: '2099-01-01' } });
     fireEvent.click(screen.getByTestId('finding-dismiss'));
     act(() => calls.list[0]!.opts?.onSuccess?.());
     const message = screen.getByTestId('finding-change-status');

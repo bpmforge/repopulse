@@ -9,6 +9,7 @@ import {
   allowedFindingTransitions,
   isDismissReason,
   statusLabel,
+  tomorrow,
   undoTargetFor,
   type DismissReason,
   type Finding,
@@ -54,13 +55,15 @@ interface BulkBody {
   status: string;
   note: string;
   dismiss_reason?: string;
+  /** W20-21 (FND-25): required with accepted_risk. */
+  review_by?: string;
 }
 
 /** What a bulk action did, with what each finding was before it (for Undo). */
 interface LastBulk {
   result: BulkResult;
   to: FindingLifecycleStatus;
-  before: Record<number, { status: string; reason: string | null }>;
+  before: Record<number, { status: string; reason: string | null; reviewBy: string | null }>;
   undone: number | null;
 }
 
@@ -93,6 +96,7 @@ export function BulkActions({
   allMatching = null,
   onApplied,
   invalidate,
+  onShowIds,
 }: {
   selected: readonly Finding[];
   /**
@@ -104,9 +108,12 @@ export function BulkActions({
   allMatching?: { ids: number[]; truncated: boolean } | null;
   onApplied: () => void;
   invalidate: readonly (readonly unknown[])[];
+  /** W20-21 (FND-22): "Show these" — list exactly these findings. */
+  onShowIds?: (ids: number[]) => void;
 }) {
   const [note, setNote] = useState('');
   const [reason, setReason] = useState<DismissReason | ''>('');
+  const [reviewBy, setReviewBy] = useState('');
   const [confirming, setConfirming] = useState(false);
   /**
    * What the last bulk action did, kept after the selection clears (W17-23).
@@ -127,12 +134,21 @@ export function BulkActions({
 
   const run = (to: FindingLifecycleStatus) => {
     const before = Object.fromEntries(
-      selected.map((f) => [f.id, { status: f.status, reason: f.dismiss_reason }]),
+      selected.map((f) => [
+        f.id,
+        { status: f.status, reason: f.dismiss_reason, reviewBy: f.review_by ?? null },
+      ]),
     );
     setConfirming(false);
     bulk.mutate(
       to === 'dismissed' && reason !== ''
-        ? { ids, status: to, note, dismiss_reason: reason }
+        ? {
+            ids,
+            status: to,
+            note,
+            dismiss_reason: reason,
+            ...(reason === 'accepted_risk' ? { review_by: reviewBy } : {}),
+          }
         : { ids, status: to, note },
       {
         onSuccess: (result) => {
@@ -153,7 +169,12 @@ export function BulkActions({
   const undoGroups = (l: LastBulk) => {
     const groups = new Map<
       string,
-      { status: FindingLifecycleStatus; reason: string | null; ids: number[] }
+      {
+        status: FindingLifecycleStatus;
+        reason: string | null;
+        reviewBy: string | null;
+        ids: number[];
+      }
     >();
     let stuck = 0;
     // Findings acted on from other pages (select all matching): what they were
@@ -171,8 +192,14 @@ export function BulkActions({
         continue;
       }
       const reasonBack = target === 'dismissed' ? was.reason : null;
-      const key = `${target}|${reasonBack ?? ''}`;
-      const g = groups.get(key) ?? { status: target, reason: reasonBack, ids: [] };
+      const reviewBack = reasonBack === 'accepted_risk' ? was.reviewBy : null;
+      const key = `${target}|${reasonBack ?? ''}|${reviewBack ?? ''}`;
+      const g = groups.get(key) ?? {
+        status: target,
+        reason: reasonBack,
+        reviewBy: reviewBack,
+        ids: [],
+      };
       g.ids.push(id);
       groups.set(key, g);
     }
@@ -191,6 +218,7 @@ export function BulkActions({
           status: g.status,
           note: `Undo of bulk ${FINDING_ACTIONS[l.to].label}`,
           ...(g.reason ? { dismiss_reason: g.reason } : {}),
+          ...(g.reviewBy ? { review_by: g.reviewBy } : {}),
         });
         reverted += r.applied.length;
       }
@@ -247,12 +275,28 @@ export function BulkActions({
                 </select>
               </label>
             )}
+            {moves.includes('dismissed') && reason === 'accepted_risk' && (
+              // W20-21 (UX_TODO FND-25): an accepted risk comes back for review.
+              <label className="flex flex-col gap-1 text-xs text-fg-muted">
+                Review by
+                <input
+                  type="date"
+                  className="panel px-2 py-1 text-sm"
+                  data-testid="bulk-review-by"
+                  min={tomorrow()}
+                  value={reviewBy}
+                  onChange={(e) => setReviewBy(e.target.value)}
+                />
+              </label>
+            )}
             {moves.map((to) => {
               const action = FINDING_ACTIONS[to];
               // Only the button that was pressed waits (W17-23); the others
               // stay live rather than the whole bar greying out.
               const pending = bulk.isPending && bulk.variables?.status === to;
-              const needsReason = to === 'dismissed' && reason === '';
+              const needsReason =
+                to === 'dismissed' &&
+                (reason === '' || (reason === 'accepted_risk' && reviewBy === ''));
               // W20-08 (FND-66): the API's ten-character minimum, said here.
               const shortNote = CLOSING.includes(to) && noteShort;
               return (
@@ -263,7 +307,9 @@ export function BulkActions({
                   data-testid={`bulk-${to}`}
                   title={
                     needsReason
-                      ? 'Choose a dismiss reason first.'
+                      ? reason === 'accepted_risk'
+                        ? 'Choose the date this risk is reviewed again.'
+                        : 'Choose a dismiss reason first.'
                       : shortNote
                         ? `Say why in at least ${DISMISS_NOTE_MIN} characters.`
                         : action.hint
@@ -329,6 +375,7 @@ export function BulkActions({
         <LastBulkNote
           last={last}
           undoing={undoing}
+          {...(onShowIds ? { onShowIds } : {})}
           groups={undoGroups(last)}
           onUndo={() => void undo(last)}
         />
@@ -343,8 +390,10 @@ function LastBulkNote({
   groups,
   undoing,
   onUndo,
+  onShowIds,
 }: {
   last: LastBulk;
+  onShowIds?: (ids: number[]) => void;
   groups: { groups: { ids: number[] }[]; stuck: number; unknown: number };
   undoing: boolean;
   onUndo: () => void;
@@ -397,12 +446,27 @@ function LastBulkNote({
               <ul className="mt-1 flex flex-col gap-0.5">
                 {skipped.map((g) => (
                   <li key={g.reason}>
-                    {g.reason}:{' '}
-                    {g.ids
-                      .slice(0, 50)
-                      .map((id) => `#${id}`)
-                      .join(', ')}
-                    {g.ids.length > 50 ? ` and ${g.ids.length - 50} more` : ''}
+                    {g.ids.length} {g.reason}
+                    {onShowIds && (
+                      <>
+                        {' '}
+                        <button
+                          type="button"
+                          className="text-accent underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                          data-testid="bulk-skipped-show"
+                          onClick={() => onShowIds(g.ids.slice(0, 200))}
+                        >
+                          Show {g.ids.length > 200 ? 'the first 200' : 'these'}
+                        </button>
+                      </>
+                    )}
+                    <div className="text-fg-faint">
+                      {g.ids
+                        .slice(0, 50)
+                        .map((id) => `#${id}`)
+                        .join(', ')}
+                      {g.ids.length > 50 ? ` and ${g.ids.length - 50} more` : ''}
+                    </div>
                   </li>
                 ))}
               </ul>

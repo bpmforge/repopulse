@@ -75,6 +75,26 @@ export function looksLikeMissingScanTools(error: string): boolean {
 }
 
 /**
+ * The part of an error the scan container itself produced (W20-21, UX_TODO
+ * FND-62). The image scanner's run error also lists registry pull failures
+ * ("Could not pull …: manifest unknown") and images over the per-run limit,
+ * and those matched the missing-tools heuristic ("docker", "manifest
+ * unknown") although the scan tools were fine. Other scanners' errors are
+ * returned whole.
+ */
+export function sandboxPartOf(error: string): string {
+  return error
+    .split('; ')
+    .filter((part) => !/^(Could not pull |Not scanned \(over the )/.test(part))
+    .join('; ');
+}
+
+/** Whether the error names an image the registry would not hand over. */
+export function hasPullFailure(error: string): boolean {
+  return error.split('; ').some((part) => part.startsWith('Could not pull '));
+}
+
+/**
  * Does this failure look like a stale or missing VULNERABILITY database?
  *
  * A different answer from a missing image, and it needs a different command.
@@ -142,6 +162,9 @@ export function ScannerStatusList({ scanners, manage = null }: Props) {
           </th>
           <th scope="col" className="py-1">
             Last run
+          </th>
+          <th scope="col" className="py-1">
+            Runs
           </th>
           <th scope="col" className="py-1 text-right">
             Open
@@ -214,6 +237,14 @@ export function ScannerStatusList({ scanners, manage = null }: Props) {
                 )}
             </td>
             <td className="py-1.5">{when(scanner.last_run_at)}</td>
+            {/* W20-21 (FND-52): when it runs without anyone pressing Run. */}
+            <td
+              className="py-1.5 text-xs text-fg-muted"
+              data-testid={`scanner-runs-${scanner.key}`}
+              title={scanner.runs?.cron ? `Schedule: ${scanner.runs.cron}` : undefined}
+            >
+              {scanner.runs?.text ?? '—'}
+            </td>
             <td className="py-1.5 text-right tabular-nums">
               {/* A dash, not 0, when nothing has looked: a zero here is a
                   claim, and an unrun scanner has not earned it. Nor from a
@@ -379,7 +410,14 @@ export function ScannerErrorDetail({ scannerKey, error }: { scannerKey: string; 
           host where RepoPulse runs (see INSTALL → Scan data).
         </div>
       )}
-      {!looksLikeStaleVulnDb(error) && looksLikeMissingScanTools(error) && (
+      {hasPullFailure(error) && (
+        <div className="mt-0.5" data-testid={`scanner-pull-${scannerKey}`}>
+          Images are pulled anonymously: an image in a private registry, or a tag that no longer
+          exists, cannot be scanned. Registry credentials are not supported yet; the other images
+          were scanned and their findings are listed.
+        </div>
+      )}
+      {!looksLikeStaleVulnDb(error) && looksLikeMissingScanTools(sandboxPartOf(error)) && (
         // WHAT TO DO ABOUT IT (W16-11, F16). A screen that says a tool is
         // missing and stops there has told someone their scan failed and left
         // them to guess.

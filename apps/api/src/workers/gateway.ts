@@ -1,6 +1,7 @@
 import {
   createAnalysisGateway,
   createEgressAuditor,
+  hostIsLocal,
   resolveProviderAsync,
   type AnalysisGateway,
   type EgressAuditRow,
@@ -13,6 +14,7 @@ import { core, read, type Database } from '@repopulse/shared';
 import { and, eq } from 'drizzle-orm';
 import { chainsFor, loadStoredRouting } from '../lib/llm-routing.js';
 import { isClaudeCliAccepted } from '../lib/claude-cli-acceptance.js';
+import { currentAiPassRunId } from './ai-pass-context.js';
 
 // The analysis gateway, built once for the worker (carry-forward from W9-03,
 // W9-04 and W9-07).
@@ -164,6 +166,52 @@ export async function hostsFromProviders(
   return { hosts, skipped };
 }
 
+/** Whether the workspace has any connection rows, enabled or not (W20-21, AI-78). */
+async function hasProviderRows(db: Database, workspaceId: number | undefined): Promise<boolean> {
+  if (workspaceId === undefined) return false;
+  const [row] = await db
+    .select({ id: core.llmProviders.id })
+    .from(core.llmProviders)
+    .where(eq(core.llmProviders.workspaceId, workspaceId))
+    .limit(1);
+  return row !== undefined;
+}
+
+/** A success is recorded at most once a minute per connection; every error is. */
+const SUCCESS_RECORD_EVERY_MS = 60_000;
+
+/**
+ * Records a connection's last success and last error from real gateway calls
+ * (W20-21, UX_TODO AI-63). Workspace-filtered (Law 5). The error is the
+ * provider's own text, truncated; it never contains request content.
+ */
+export function connectionHealthRecorder(
+  db: Database,
+  workspaceId: number,
+  now: () => Date = () => new Date(),
+): (host: T2Host, result: { ok: true } | { ok: false; error: string }) => void {
+  const lastWritten = new Map<number, number>();
+  return (host, result) => {
+    const id = host.providerId;
+    if (typeof id !== 'number') return; // the env route has no row to write to
+    const at = now();
+    if (result.ok) {
+      const prev = lastWritten.get(id) ?? 0;
+      if (at.getTime() - prev < SUCCESS_RECORD_EVERY_MS) return;
+      lastWritten.set(id, at.getTime());
+    }
+    void db
+      .update(core.llmProviders)
+      .set(
+        result.ok
+          ? { lastSuccessAt: at }
+          : { lastErrorAt: at, lastError: result.error.slice(0, 500) },
+      )
+      .where(and(eq(core.llmProviders.id, id), eq(core.llmProviders.workspaceId, workspaceId)))
+      .catch(() => undefined);
+  };
+}
+
 /**
  * Builds the gateway, or null when this deployment has no Tier-2 host.
  *
@@ -209,9 +257,18 @@ export async function buildWorkerGateway(
     hosts = hosts
       .filter((h) => h.providerId === pin.providerId)
       .map((h) => ({ ...h, modelSlot: pin.model }));
-  } else if (hosts.length === 0) {
+  } else if (hosts.length === 0 && !(await hasProviderRows(db, workspaceId))) {
+    // W20-21 (UX_TODO AI-78): the deprecated environment route only while the
+    // workspace has NO connection rows at all. A workspace whose connections
+    // are all disabled, or unusable, has made a choice in Admin → Models, and
+    // falling back to .env quietly overruled it.
     hosts = hostsFromEnv(env);
     source = 'env';
+    // Local only applies to these hosts too: it used to be skipped on this path.
+    if (workspaceId !== undefined && hosts.length > 0) {
+      const stored = await loadStoredRouting(db, workspaceId);
+      if (stored?.localOnly) hosts = hosts.filter(hostIsLocal);
+    }
   }
 
   if (hosts.length === 0) return null;
@@ -246,6 +303,9 @@ export async function buildWorkerGateway(
         destinationHost: row.destinationHost,
         tier: row.tier,
         error: row.error,
+        // W20-21 (UX_TODO AI-29): what the call was for, and which AI pass made it.
+        role: row.role ?? null,
+        aiPassRunId: currentAiPassRunId(),
       });
     },
   });
@@ -271,6 +331,11 @@ export async function buildWorkerGateway(
     hosts,
     ...(policy ? { routing: policy } : {}),
     egressAuditor,
+    // W20-21 (UX_TODO AI-63): each connection's last success and last error,
+    // from real calls. Fire-and-forget: bookkeeping never delays or fails a call.
+    ...(workspaceId !== undefined
+      ? { onHostResult: connectionHealthRecorder(db, workspaceId) }
+      : {}),
     /**
      * The gateway speaks in the string repoId its callers use; the audit table
      * is relational. Resolving here — not in the gateway — keeps the analysis
