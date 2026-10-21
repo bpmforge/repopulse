@@ -58,6 +58,8 @@ export interface ApiV1Options {
   /** Absolute webhook URL surfaced when a connection is created. */
   webhookUrl: string;
   enqueueBackfillPlan: (params: { workspaceId: number; repoId: number }) => Promise<void>;
+  /** W20-22 (INS-30): one reconcile pass for a live repository, "Sync now". */
+  enqueueReconcile?: (params: { workspaceId: number; repoId: number }) => Promise<void>;
   /**
    * Forwarded to the connections route, which already documents it as an
    * injectable seam. Exposed here so tests exercise the REAL mount rather than
@@ -215,6 +217,7 @@ export default async function apiV1(app: FastifyInstance, opts: ApiV1Options): P
     tokenKey: opts.tokenKey,
     webhookUrl: opts.webhookUrl,
     enqueueBackfillPlan: opts.enqueueBackfillPlan,
+    ...(opts.enqueueReconcile ? { enqueueReconcile: opts.enqueueReconcile } : {}),
     ...(process.env.GITHUB_APP_ID ? { appId: process.env.GITHUB_APP_ID } : {}),
     ...(opts.buildProvider ? { buildProvider: opts.buildProvider } : {}),
     ...(opts.forgeBaseUrl ? { forgeBaseUrl: opts.forgeBaseUrl } : {}),

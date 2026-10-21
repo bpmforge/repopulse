@@ -55,6 +55,7 @@ import {
   scheduledSyncResponseSchema,
   selectReposBodySchema,
   selectReposResponseSchema,
+  syncNowResponseSchema,
 } from './schema.js';
 
 export const WEBHOOK_EVENTS = [
@@ -102,6 +103,11 @@ export interface ConnectionsRoutesOptions {
   ) => ForgeProvider;
   /** Forge API base URL — GitHub Enterprise Server, or a fake in e2e. */
   forgeBaseUrl?: string;
+  /**
+   * Queue one reconcile pass for a live repository now (W20-22, INS-30): the
+   * same budgeted job the nightly sweep runs. Absent, "Sync now" answers 503.
+   */
+  enqueueReconcile?: (params: { workspaceId: number; repoId: number }) => Promise<void>;
 }
 
 /** Every repository the token can see, across every page (W20-07, INS-52). */
@@ -427,8 +433,11 @@ export default async function connectionsRoutes(
           status: core.forgeConnections.status,
           baseUrl: core.forgeConnections.baseUrl,
           repoCount: sql<number>`(select count(*)::int from ${core.repos} where ${core.repos.connectionId} = ${core.forgeConnections.id})`,
+          createdAt: core.forgeConnections.createdAt,
+          createdBy: core.users.login,
         })
         .from(core.forgeConnections)
+        .leftJoin(core.users, eq(core.users.id, core.forgeConnections.createdBy))
         .where(eq(core.forgeConnections.workspaceId, ctx.workspaceId));
       const { stored } = await readWorkspaceSettings(db, ctx.workspaceId);
       const autoAdd = new Set(stored.auto_add_connection_ids ?? []);
@@ -445,6 +454,8 @@ export default async function connectionsRoutes(
           base_url: r.baseUrl,
           auto_add: r.status === 'active' && autoAdd.has(r.id),
           scheduled_sync_only: isScheduledOnly(stored, r.id),
+          created_at: r.createdAt.toISOString(),
+          created_by: r.createdBy ?? null,
         })),
       });
     },
@@ -1065,6 +1076,68 @@ export default async function connectionsRoutes(
         repoId: repo.id,
       });
       return reply.send({ repo_id: repo.id, sync_status: 'pending_backfill' });
+    },
+  );
+
+  // POST /repos/{id}/sync-now — catch one live repository up now (👑)
+  // (W20-22, UX_TODO INS-30). The nightly reconcile pass, for one repository,
+  // through the same budgeted client: it repairs what a missed webhook left
+  // behind. Only for `live`: an errored repository has Retry (a fresh plan),
+  // a paused one Resume, and one still loading its history is syncing already.
+  typedApp.post(
+    '/repos/:id/sync-now',
+    {
+      preHandler: requireAdmin,
+      schema: {
+        params: connectionIdParamsSchema,
+        response: { 202: syncNowResponseSchema },
+      },
+    },
+    async (request, reply) => {
+      const ctx = ctxOf(request);
+      if (!ctx) return fail(request, reply, 401, 'No active session');
+      const [repo] = await db
+        .select({
+          id: core.repos.id,
+          syncStatus: core.repos.syncStatus,
+          connectionStatus: core.forgeConnections.status,
+        })
+        .from(core.repos)
+        .innerJoin(core.forgeConnections, eq(core.forgeConnections.id, core.repos.connectionId))
+        .where(
+          and(eq(core.repos.id, request.params.id), eq(core.repos.workspaceId, ctx.workspaceId)),
+        )
+        .limit(1);
+      if (!repo) return fail(request, reply, 404, 'Not Found');
+      if (repo.connectionStatus !== 'active') {
+        return fail(
+          request,
+          reply,
+          409,
+          'Its connection was removed',
+          'Replace the connection’s token in Settings → Connections first.',
+        );
+      }
+      if (repo.syncStatus !== 'live') {
+        const detail =
+          repo.syncStatus === 'error'
+            ? 'Use Retry: it plans the sync again from where it stopped.'
+            : repo.syncStatus === 'paused'
+              ? 'It is paused. Resume it to start syncing again.'
+              : 'It is still loading its history and syncs as it goes.';
+        return fail(request, reply, 409, 'Sync now is for a repository that is up to date', detail);
+      }
+      if (!opts.enqueueReconcile) {
+        return fail(request, reply, 503, 'The sync queue is not available on this server');
+      }
+      await opts.enqueueReconcile({ workspaceId: ctx.workspaceId, repoId: repo.id });
+      auditLog(request.log, {
+        event: 'repo.sync_requested',
+        actorUserId: ctx.userId,
+        ...auditContext(request, ctx.workspaceId),
+        repoId: repo.id,
+      });
+      return reply.code(202).send({ repo_id: repo.id, queued: true as const });
     },
   );
 

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { WINDOW_PRESETS, type GlobalSearch } from '../../api/urlState.js';
 import { customRange, presetCovering } from '@repopulse/shared/url-state';
 import type { FilterScope } from '../../api/filterScope.js';
+import { RepoPicker } from './RepoPicker.js';
 
 // Global filters (UX §3.4): time window, repo set, person. Controlled — the
 // topbar wires `onChange` to router.navigate so every change serializes to the
@@ -157,25 +158,16 @@ export function FilterBar({
       )}
 
       {scope.repos && (
-        <label className="flex items-center gap-1 text-xs text-fg-muted">
-          <span className="sr-only">Repositories</span>
-          {/* min-w-0 + a max width (DSH-67): a native select is as wide as
-              its longest option. */}
-          <select
-            className="h-8 min-w-0 max-w-[14rem] truncate rounded-md border border-border bg-surface px-2 text-sm text-fg hover:border-border-strong"
-            data-testid="filter-repos"
-            aria-label="Repositories"
-            value={value.repos ?? 'all'}
-            onChange={(e) => onChange({ repos: e.target.value === 'all' ? null : e.target.value })}
-          >
-            <option value="all">All repos</option>
-            {repoOptions.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        // W20-22 (UX_TODO X-06): searchable, grouped by org, several at once.
+        // The URL carries the set as `repos=1,2,3`, which every repos-aware
+        // endpoint already reads.
+        <RepoPicker
+          testId="filter-repos"
+          options={repoOptions}
+          // String(): the router parses a bare `?repos=4` as the number 4.
+          selected={value.repos ? String(value.repos).split(',').filter(Boolean) : []}
+          onChange={(ids) => onChange({ repos: ids.length === 0 ? null : ids.join(',') })}
+        />
       )}
 
       {scope.person && (

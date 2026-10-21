@@ -17,7 +17,7 @@ import { signOutAndReload, signOutEverywhereAndReload } from '../auth/contracts.
 const ME = { endpoint: '/me/context' } as const;
 
 const PERSONA_LABELS: Record<Persona, string> = {
-  lead: 'Team lead — the organisation overview',
+  lead: 'Team lead — the organization overview',
   developer: 'Developer — My Focus',
   security: 'Security — the review queue',
   exec: 'Executive — reports',

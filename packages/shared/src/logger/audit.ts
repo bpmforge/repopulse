@@ -43,6 +43,8 @@ export type AuditEvent =
   // says who pressed it. Logged deliberately rather than left out because the
   // list did not happen to anticipate it.
   | 'dlq.job.replayed'
+  // W20-22 (UX_TODO ADM-53): a job dropped for good, with the admin's reason.
+  | 'dlq.job.discarded'
   // W5-05. SC-22 names "identity merge" in its own list. A merge rewrites who
   // authored what on every ownership and bus-factor screen, so an unattributed
   // one is a silent change to the numbers people make staffing decisions on.
@@ -161,6 +163,8 @@ export type AuditEvent =
   | 'connection.removed'
   | 'repo.tracking_paused'
   | 'repo.tracking_resumed'
+  // W20-22 (UX_TODO INS-30): a forge catch-up an admin asked for spends budget.
+  | 'repo.sync_requested'
   // W20-10 (UX_TODO INS-51, ADM-77). Linking a person to a forge account
   // decides whose commits and reviews My Focus counts as theirs; re-pointing
   // every webhook is a change to where the forge sends deliveries.

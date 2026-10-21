@@ -15,7 +15,7 @@ import { CiTokenExpiryNotice } from '../../widgets/admin/CiTokenExpiry.js';
 // matters.
 //
 // W20-14 (UX_TODO INS-24): until the first connection exists, the order that
-// matters is the other one. An admin sent here by "Connect an organisation"
+// matters is the other one. An admin sent here by "Connect an organization"
 // landed on health tiles (worse on a phone) with the form below them. Same
 // query the Connections widget makes, so this costs no extra request.
 function AdminHome() {

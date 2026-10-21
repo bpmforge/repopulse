@@ -2,10 +2,11 @@ import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Queue } from 'bullmq';
 import { auditLog, core, read, security, type Database } from '@repopulse/shared';
-import { SCANNER_DEFAULTS, isEnabled, listScanners } from '@repopulse/security';
+import { listScanners } from '@repopulse/security';
 import { QUEUE, createQueue, createRedisConnection, type QueueName } from '@repopulse/ingest';
 import { requireAdmin } from '../../lib/rbac.js';
 import { sendProblem } from '../../lib/problem.js';
+import { startableScannerKeys } from '../../lib/startable-scanners.js';
 
 // Run it now (W16-10, F15).
 //
@@ -121,50 +122,16 @@ export default async function runRoutes(
       const repo = await repoIn(workspaceId, repoId);
       if (!repo) return fail(request, reply, 404, 'No such repository');
 
-      // ENABLEMENT IS DEFAULT-AWARE (W16-20).
-      //
-      // The first version selected rows from repo_scanner_config and treated an
-      // empty result as "nothing enabled". But `isEnabled` falls back to
-      // SCANNER_DEFAULTS when there is NO row, which is the state of every
-      // repository on a fresh install — so the coverage table read "enabled"
-      // for four scanners while this button answered "Nothing to run" directly
-      // beneath it. The feature was dead for every repository nobody had
-      // explicitly toggled.
-      //
-      // Reading through the same helper the coverage table uses is what keeps
-      // the two from disagreeing again.
-      const stored = await db
-        .select({
-          key: security.repoScannerConfig.scannerKey,
-          enabled: security.repoScannerConfig.enabled,
-        })
-        .from(security.repoScannerConfig)
-        .where(
-          and(
-            eq(security.repoScannerConfig.workspaceId, workspaceId),
-            eq(security.repoScannerConfig.repoId, repoId),
-          ),
-        );
-      const byKey = new Map(stored.map((row) => [row.key, row]));
-
-      const catalogue = [
-        ...new Set([...listScanners().map((s) => s.key), ...SCANNER_DEFAULTS.map((d) => d.key)]),
-      ];
-      // ENABLED IS NOT THE SAME AS STARTABLE (W16-28).
-      //
-      // A scanner is offered here only if it declares the `manual` trigger,
-      // which the catalogue gives only to keys with a runner wired in the
-      // worker. Without this the button enqueued a job for every enabled key
-      // and told the user four scanners had started, while three of them could
-      // only ever reach "no history runner is wired" — a started-count that
-      // counted things that could not run.
+      // ENABLEMENT IS DEFAULT-AWARE (W16-20) and ENABLED IS NOT THE SAME AS
+      // STARTABLE (W16-28): an empty config means the catalogue defaults, and
+      // only scanners with a `manual` trigger (a runner wired in the worker)
+      // are offered. Shared with the first scan on going live (W20-22,
+      // INS-60) so the two never disagree; lib/startable-scanners.ts.
+      const enabledKeys = await startableScannerKeys(db, workspaceId, repoId);
       const startable = new Set(
         listScanners()
           .filter((s) => s.triggers.includes('manual'))
           .map((s) => s.key),
-      );
-      const enabledKeys = catalogue.filter(
-        (key) => startable.has(key) && isEnabled(key, byKey.get(key)),
       );
 
       const requested = request.body?.scanner_key;

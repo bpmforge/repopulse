@@ -8,6 +8,7 @@ import {
   type DataTableColumn,
 } from '../../components/index.js';
 import { docsUrl } from '../../lib/docs.js';
+import { localDateTime } from '../../lib/time.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import { errorDetailOf, requestIdOf } from '../../api/client.js';
 import { errorToast, type Toast } from '../../components/store/uiStore.js';
@@ -15,7 +16,7 @@ import type { ConnectionList, ConnectionSummary } from './contracts.js';
 import { RepoPicker } from './RepoPicker.js';
 
 // Admin → Connections (UX_SPEC §4.i). This is the screen docs/INSTALL.md sends
-// operators to, and the only way to connect an organisation.
+// operators to, and the only way to connect an organization.
 
 const LIST = { endpoint: '/connections' } as const;
 
@@ -69,6 +70,17 @@ export function connectionHost(provider: string, baseUrl: string | null): string
   if (provider === 'github') return 'github.com';
   if (provider === 'gitlab') return 'gitlab.com';
   return 'no address set';
+}
+
+/**
+ * "ada, 3 Oct 2026 14:02 (UTC)" (W20-22, UX_TODO ADM-50): whose credential a
+ * connection was added with, so a replacement admin can find the one running
+ * on a departing person's personal token.
+ */
+export function addedByText(row: { created_at?: string; created_by?: string | null }): string {
+  if (!row.created_at) return '—';
+  const who = row.created_by ?? 'a removed account';
+  return `${who}, ${localDateTime(row.created_at)}`;
 }
 
 /** "GitHub · github.com" — what a picker and a row are called (INS-28). */
@@ -133,7 +145,7 @@ export function connectionStatusText(status: string): string {
 /** The Instance URL label names the real default per forge (W20-07, UX_TODO INS-73). */
 export const BASE_URL_LABEL: Record<'github' | 'gitlab' | 'gitea', string> = {
   github:
-    'Instance URL (optional — blank means github.com, or this server’s GitHub Enterprise default)',
+    'Instance URL (optional — blank means github.com; for GitHub Enterprise Server give its address, e.g. https://ghe.example.com, and /api/v3 is added)',
   gitlab: 'Instance URL (optional — blank means gitlab.com; give your own for self-managed GitLab)',
   gitea: 'Instance URL (required — Gitea is self-hosted)',
 };
@@ -156,11 +168,11 @@ export function connectErrorSentence(
     case 'bad_scope':
       return `The token works but cannot read enough. Give it these scopes: ${SCOPES[provider]}.`;
     case 'no_repos':
-      return 'The token works but can see no repositories. Check that its owner is a member of the organisation, or that a fine-grained token includes the repositories.';
+      return 'The token works but can see no repositories. Check that its owner is a member of the organization, or that a fine-grained token includes the repositories.';
     // W20-07 (UX_TODO INS-64): the forge never judged the token in these
     // three, so none of them may tell the admin to replace it.
     case 'wrong_url':
-      return 'The forge answered "not found" for the repository listing. The Instance URL is probably wrong — check it, including any path such as /api/v3 for GitHub Enterprise.';
+      return 'The forge answered "not found" for the repository listing. The Instance URL is probably wrong — check it. For GitHub Enterprise Server, the server address is enough (/api/v3 is added for you).';
     case 'tls_untrusted':
       return 'RepoPulse does not trust this forge’s certificate — usually an internal CA. Add the CA as described in Installing → “A forge with an internal-CA certificate”; your token was not checked.';
     case 'cannot_reach':
@@ -643,6 +655,15 @@ export function Connections() {
       ),
     },
     {
+      id: 'added',
+      header: 'Added',
+      cell: (row) => (
+        <span className="text-xs text-fg-muted" data-testid={`connection-added-${row.id}`}>
+          {addedByText(row)}
+        </span>
+      ),
+    },
+    {
       id: 'repos',
       header: 'Repos',
       align: 'right',
@@ -676,7 +697,7 @@ export function Connections() {
   return (
     <div className="flex flex-col gap-4" data-testid="admin-connections">
       <WidgetFrame
-        title="Connect an organisation"
+        title="Connect a forge"
         state="ready"
         definitionHref={docsUrl('/docs/INSTALL.md#connect-your-forge')}
       >
@@ -746,7 +767,7 @@ export function Connections() {
                 ? 'https://git.example.com'
                 : provider === 'gitlab'
                   ? 'leave blank for gitlab.com'
-                  : 'leave blank for GitHub'
+                  : 'blank for github.com, or https://ghe.example.com'
             }
             className="panel px-2 py-1 text-sm"
             data-testid="connection-base-url"
@@ -850,7 +871,7 @@ export function Connections() {
         })}
         {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
-        emptyMessage="No connections yet. Add a credential above to connect your organisation."
+        emptyMessage="No connections yet. Add a credential above to connect your organization."
       >
         <div data-testid="connection-list">
           <DataTable

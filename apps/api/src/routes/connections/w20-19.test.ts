@@ -300,6 +300,8 @@ describeIfLiveInfra('W20-19 repository purge and scheduled sync only', () => {
       await sql`delete from identities where workspace_id = ${workspaceId} and forge_login = 'w2019-dev'`;
       await sql`delete from repos where workspace_id = ${workspaceId} and org = 'w2019'`;
     }
+    // The purge test leaves beta's cached response behind on purpose.
+    await sql`delete from forge_etag where workspace_id = ${ws} and endpoint_key like 'w2022-%'`;
     await sql`delete from forge_connections where workspace_id = ${otherWs}`;
     for (const credential of [TOKEN, `${TOKEN}-2`]) {
       await sql`delete from forge_connections where workspace_id = ${ws}
@@ -364,6 +366,11 @@ describeIfLiveInfra('W20-19 repository purge and scheduled sync only', () => {
       await sql`insert into ci_tokens (workspace_id, name, token_hash, token_prefix, repo_ids)
       values (${ws}, 'w2019-two', ${'h2-' + randomBytes(8).toString('hex')}, 'p2', ${[a, b]}) returning id`;
 
+    // W20-22: cached forge responses about alpha go; beta's stay.
+    await sql`insert into forge_etag (connection_id, workspace_id, endpoint_key, etag, cached_body)
+      values (${connId}, ${ws}, 'w2022-alpha', 'e1', ${JSON.stringify({ full_name: 'w2019/alpha' })}::jsonb),
+             (${connId}, ${ws}, 'w2022-beta', 'e2', ${JSON.stringify({ full_name: 'w2019/beta' })}::jsonb)`;
+
     const res = await purge(a, ' w2019/alpha ');
     expect(res.statusCode).toBe(200);
     const body = res.json() as {
@@ -384,8 +391,12 @@ describeIfLiveInfra('W20-19 repository purge and scheduled sync only', () => {
       agreements: 1,
       improvement_plans: 1,
       plan_items: 1,
+      forge_etag: 1,
       repos: 1,
     });
+    const etagKeys = await sql`select endpoint_key from forge_etag where workspace_id = ${ws}
+      and endpoint_key like 'w2022-%'`;
+    expect(etagKeys.map((r) => r.endpoint_key)).toEqual(['w2022-beta']);
     expect(body.narrowed).toMatchObject({ agreements: 1, improvement_plans: 1, ci_tokens: 1 });
     expect(body.ci_tokens_revoked).toBe(1);
     expect(body.webhooks_removed).toBe(1);

@@ -72,8 +72,8 @@ function AdminLayout() {
           state="empty"
           emptyMessage={
             admins.length > 0
-              ? `You need an admin role in this workspace. Ask an admin (${admins.join(', ')}) to connect your organisation or change your role.`
-              : 'You need an admin role in this workspace. Ask an admin to connect your organisation or change your role.'
+              ? `You need an admin role in this workspace. Ask an admin (${admins.join(', ')}) to connect your organization or change your role.`
+              : 'You need an admin role in this workspace. Ask an admin to connect your organization or change your role.'
           }
         />
         <p className="text-sm text-fg-muted">

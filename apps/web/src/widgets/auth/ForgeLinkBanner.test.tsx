@@ -44,7 +44,7 @@ describe('ForgeLinkBanner (W15-04)', () => {
     renderBanner();
     const banner = await screen.findByTestId('forge-link-banner');
     expect(banner).toHaveAttribute('data-link-state', 'unlinked');
-    expect(banner).toHaveTextContent(/not connected to a forge account/i);
+    expect(banner).toHaveTextContent(/forge identity is not linked/i);
     // The sentence that matters: the emptiness is about us, not about them.
     expect(banner).toHaveTextContent(/not because you have no work/i);
   });

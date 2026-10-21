@@ -1,6 +1,6 @@
 import { createReadStream } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { auditLog, core, plans, read, type Database } from '@repopulse/shared';
 import { requireAdmin } from '../../lib/rbac.js';
@@ -158,6 +158,18 @@ export default async function reportsRoutes(
     // would make two reports queued a second apart disagree, and would make
     // "regenerate with the same scope" quietly mean a different scope.
     const now = new Date();
+    // W20-22 (UX_TODO ADM-23/66): the cover and every PDF page name the
+    // workspace and who generated it (REPORTS.md §5, FR-REPORTS-6).
+    const [ws] = await db
+      .select({ name: core.workspaces.name })
+      .from(core.workspaces)
+      .where(eq(core.workspaces.id, workspaceId))
+      .limit(1);
+    const [author] = await db
+      .select({ login: core.users.login })
+      .from(core.users)
+      .where(eq(core.users.id, userId))
+      .limit(1);
     const params: ReportParams = {
       type: type as ReportType,
       workspaceId: String(workspaceId),
@@ -175,6 +187,8 @@ export default async function reportsRoutes(
       ...(typeof request.body?.annotation === 'string' && request.body.annotation.trim() !== ''
         ? { annotation: request.body.annotation.trim().slice(0, 2000) }
         : {}),
+      ...(ws ? { workspaceName: ws.name } : {}),
+      ...(author?.login ? { generatedBy: author.login } : {}),
     };
 
     const [row] = await db
@@ -203,20 +217,85 @@ export default async function reportsRoutes(
     return reply.code(201).send({ id: row!.id, status: row!.status, params });
   });
 
-  /** GET /reports — history, newest first. */
-  app.get('/reports', async (request, reply) => {
+  /**
+   * GET /reports — history, newest first.
+   *
+   * W20-22 (UX_TODO ADM-52): paged by cursor, with a type and a date filter
+   * and the total. It answered the newest 100 and nothing else, so a report
+   * people had bookmarked or compared vanished from the list once the
+   * workspace passed 100. `cursor` is the `next_cursor` of the page before
+   * (`<generated_at ISO>~<id>`); `since`/`until` are YYYY-MM-DD, inclusive.
+   */
+  app.get<{
+    Querystring: { limit?: string; cursor?: string; type?: string; since?: string; until?: string };
+  }>('/reports', async (request, reply) => {
     const workspaceId = request.workspace?.id;
     if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
+    const q = request.query;
+    const limit = q.limit === undefined ? 100 : Number.parseInt(q.limit, 10);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 200) {
+      return fail(request, reply, 400, 'Invalid limit', 'limit is 1-200');
+    }
+    if (q.type !== undefined && !TYPES.includes(q.type as ReportType)) {
+      return fail(
+        request,
+        reply,
+        400,
+        'Invalid report type',
+        'type must be one of ' + TYPES.join(', '),
+      );
+    }
+    const day = /^\d{4}-\d{2}-\d{2}$/;
+    if ((q.since && !day.test(q.since)) || (q.until && !day.test(q.until))) {
+      return fail(request, reply, 400, 'Invalid date', 'since and until are YYYY-MM-DD');
+    }
+    let after: { at: Date; id: number } | null = null;
+    if (q.cursor) {
+      const [iso, idText] = q.cursor.split('~');
+      const at = new Date(iso ?? '');
+      const id = Number(idText);
+      if (Number.isNaN(at.getTime()) || !Number.isInteger(id)) {
+        return fail(request, reply, 400, 'Invalid cursor');
+      }
+      after = { at, id };
+    }
+    const filters = and(
+      eq(read.reports.workspaceId, workspaceId),
+      q.type ? eq(read.reports.type, q.type) : undefined,
+      q.since ? gte(read.reports.generatedAt, new Date(`${q.since}T00:00:00.000Z`)) : undefined,
+      q.until
+        ? lt(
+            read.reports.generatedAt,
+            new Date(Date.parse(`${q.until}T00:00:00.000Z`) + 86_400_000),
+          )
+        : undefined,
+    );
+    const [counted] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(read.reports)
+      .where(filters);
     const rows = await db
       .select({ report: read.reports, generatedByLogin: core.users.login })
       .from(read.reports)
       .leftJoin(core.users, eq(core.users.id, read.reports.generatedBy))
-      .where(eq(read.reports.workspaceId, workspaceId))
-      .orderBy(desc(read.reports.generatedAt))
-      .limit(100);
+      .where(
+        and(
+          filters,
+          after
+            ? sql`(${read.reports.generatedAt}, ${read.reports.id}) < (${after.at.toISOString()}::timestamptz, ${after.id})`
+            : undefined,
+        ),
+      )
+      .orderBy(desc(read.reports.generatedAt), desc(read.reports.id))
+      .limit(limit + 1);
+    const more = rows.length > limit;
+    const page = more ? rows.slice(0, limit) : rows;
+    const last = page[page.length - 1]?.report;
     return reply.send({
+      total: counted?.n ?? 0,
+      next_cursor: more && last ? `${last.generatedAt.toISOString()}~${last.id}` : null,
       items: await Promise.all(
-        rows.map(async ({ report: r, generatedByLogin }) => ({
+        page.map(async ({ report: r, generatedByLogin }) => ({
           id: r.id,
           type: r.type,
           status: r.status,
@@ -333,6 +412,17 @@ export default async function reportsRoutes(
       }
     }
 
+    // W20-22 (UX_TODO ADM-23): the viewer's cover names who generated it,
+    // also for a report stored before params carried the name.
+    const [author] =
+      row.generatedBy === null
+        ? []
+        : await db
+            .select({ login: core.users.login })
+            .from(core.users)
+            .where(eq(core.users.id, row.generatedBy))
+            .limit(1);
+
     return reply.send({
       id: row.id,
       type: row.type,
@@ -340,6 +430,7 @@ export default async function reportsRoutes(
       params: row.params,
       generated_at: row.generatedAt.toISOString(),
       queued_at: row.queuedAt.toISOString(),
+      generated_by: author?.login ?? null,
       error: row.error,
       ...(await artifactFields(row)),
       data,

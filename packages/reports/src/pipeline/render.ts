@@ -19,6 +19,76 @@ export function reportDir(dataDir: string, workspaceId: number, reportId: number
   return resolve(join(dataDir, 'reports', String(workspaceId), String(reportId)));
 }
 
+/** Report titles as the viewer prints them (kept in step with the print route). */
+export const REPORT_TITLES: Record<string, string> = {
+  repo_health: 'Repository Health',
+  org_exec: 'Organization Executive Summary',
+  security_posture: 'Security Posture',
+  delivery_dora: 'Delivery / DORA',
+  code_health: 'Code Health',
+};
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/** "acme/api, acme/web" or "All repositories" — from the stored data only. */
+export function reportScopeText(data: ReportData): string {
+  if (data.params.repoIds.length === 0) return 'All repositories';
+  const names = data.dataQuality.map((d) => d.repoName ?? d.repoId);
+  const list = names.length > 0 ? names : data.params.repoIds;
+  return list.length > 3
+    ? `${list.slice(0, 3).join(', ')} and ${list.length - 3} more`
+    : list.join(', ');
+}
+
+/** Whether the report quotes endoflife.date (its MIT licence asks to be named). */
+export function usesEndOfLifeData(data: ReportData): boolean {
+  return JSON.stringify(data.sections).includes('endoflife.date');
+}
+
+const PDF_TEXT =
+  'font-size:8px;width:100%;padding:0 12mm;color:#666;display:flex;justify-content:space-between;gap:8px';
+
+/**
+ * Every PDF page says which report it is from (W20-22, UX_TODO ADM-66;
+ * FR-REPORTS-6): title, scope and generated date in the header; workspace and
+ * page number in the footer. A page printed or forwarded on its own carried
+ * only a page number. Dates come from the pinned params, never a clock.
+ */
+export function pdfHeaderTemplate(data: ReportData): string {
+  const title = REPORT_TITLES[data.params.type] ?? data.params.type;
+  const date = data.params.windowEnd.slice(0, 10);
+  return (
+    `<div style="${PDF_TEXT}">` +
+    `<span>${escapeHtml(title)} · ${escapeHtml(reportScopeText(data))}</span>` +
+    `<span>${data.params.windowDays}-day window · generated ${escapeHtml(date)}</span></div>`
+  );
+}
+
+/**
+ * The footer: the workspace, and the endoflife.date credit only in a report
+ * that uses that data (it was on every page of every report).
+ */
+export function pdfFooterTemplate(data: ReportData): string {
+  const left = [
+    data.params.workspaceName ? `Workspace: ${escapeHtml(data.params.workspaceName)}` : '',
+    usesEndOfLifeData(data) ? 'EOL dates from endoflife.date (MIT)' : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  return (
+    `<div style="${PDF_TEXT}">` +
+    `<span>${left}</span>` +
+    '<span><span class="pageNumber"></span>/<span class="totalPages"></span></span></div>'
+  );
+}
+
 export interface RenderDeps {
   dataDir: string;
   /** Base URL of the web app serving /print/reports/:id. */
@@ -81,14 +151,11 @@ async function playwrightPrint(
       format: 'A4',
       printBackground: true,
       displayHeaderFooter: true,
-      headerTemplate: '<div style="font-size:8px;width:100%;padding:0 12mm;color:#666"></div>',
-      // Data attribution (W10-02, Law 2). endoflife.date is MIT-licensed and
-      // asks to be named as the source; a report that quotes an EOL date
-      // without saying where it came from is a date the reader cannot check.
-      footerTemplate:
-        '<div style="font-size:8px;width:100%;padding:0 12mm;color:#666;display:flex;justify-content:space-between">' +
-        '<span>EOL dates from endoflife.date (MIT)</span>' +
-        '<span><span class="pageNumber"></span>/<span class="totalPages"></span></span></div>',
+      // W20-22 (UX_TODO ADM-66): which report, scope, date and workspace, on
+      // every page. Data attribution (W10-02, Law 2): endoflife.date is
+      // MIT-licensed and asks to be named — in a report that quotes it.
+      headerTemplate: pdfHeaderTemplate(data),
+      footerTemplate: pdfFooterTemplate(data),
       margin: { top: '18mm', bottom: '18mm', left: '12mm', right: '12mm' },
     });
   } finally {

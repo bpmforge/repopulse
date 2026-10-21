@@ -6,6 +6,7 @@ import {
   frameState,
 } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
+import { useBackfill } from '../../lib/backfill.js';
 import type { AttentionItems } from './contracts.js';
 
 // UX_SPEC §4.a "Needs attention": every measured repository scoring below the
@@ -43,15 +44,20 @@ export function AttentionFeed({ window, search }: Props) {
   });
 
   const items = data?.items ?? [];
+  const backfill = useBackfill();
 
   return (
     <WidgetFrame
       title="Needs attention"
+      // W20-22 (UX_TODO INS-35): an empty list while history loads is
+      // "still loading", not "nothing here".
       state={frameState({
         isLoading,
         isError,
         isEmpty: data !== undefined && items.length === 0,
+        isSyncing: backfill.syncing,
       })}
+      syncPct={backfill.pct}
       {...(error ? { errorMessage: error.message, error } : {})}
       onRetry={() => void refetch()}
       emptyMessage="Every measured repository is in the healthy band (75 or above)."

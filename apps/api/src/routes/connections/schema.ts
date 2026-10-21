@@ -38,6 +38,13 @@ export const connectionSummarySchema = z.object({
   auto_add: z.boolean(),
   /** No webhooks; updates arrive with the nightly sync (W20-19, INS-69). */
   scheduled_sync_only: z.boolean(),
+  /**
+   * Who added it and when (W20-22, UX_TODO ADM-50), so a replacement admin can
+   * tell whose credential a connection runs on. Login, not a forge user id;
+   * null when that account was deleted.
+   */
+  created_at: z.string(),
+  created_by: z.string().nullable(),
 });
 
 /** PUT /connections/{id}/auto-add (W20-17, UX_TODO INS-09). */
@@ -138,6 +145,12 @@ export const repoTrackingBodySchema = z.object({ paused: z.boolean() });
 export const repoTrackingResponseSchema = z.object({
   repo_id: z.number(),
   sync_status: z.string(),
+});
+
+/** POST /repos/{id}/sync-now (W20-22, UX_TODO INS-30). */
+export const syncNowResponseSchema = z.object({
+  repo_id: z.number(),
+  queued: z.literal(true),
 });
 
 export const selectReposBodySchema = z

@@ -1,6 +1,7 @@
 import { EvidenceLink } from './EvidenceLink.js';
 import { KpiTile, Sparkline, WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
+import { useBackfill } from '../../lib/backfill.js';
 import { docsUrl } from '../../lib/docs.js';
 import { withRepos } from '../scopeRepos.js';
 import {
@@ -81,10 +82,13 @@ export function KpiRow({ window, repos, title = 'Delivery KPIs' }: Props) {
   const custom = window.includes('..');
 
   const byKey = new Map((data?.tiles ?? []).map((t) => [t.metric_key, t]));
+  // W20-22 (UX_TODO INS-35): while history loads, empty is "still loading".
+  const backfill = useBackfill();
   const state = frameState({
     isLoading,
     isError,
     isEmpty: data !== undefined && data.tiles.length === 0,
+    isSyncing: backfill.syncing,
   });
 
   return (
@@ -94,6 +98,7 @@ export function KpiRow({ window, repos, title = 'Delivery KPIs' }: Props) {
       {...(error ? { errorMessage: error.message, error } : {})}
       onRetry={() => void refetch()}
       emptyMessage="No metric snapshots yet for this window."
+      syncPct={backfill.pct}
       // W20-12 (UX_TODO DSH-15): the rendered definitions page, not the raw
       // JSON catalog endpoint.
       definitionHref={docsUrl('/docs/design/METRICS.md')}

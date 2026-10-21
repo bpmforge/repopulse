@@ -385,7 +385,7 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     scope: 'api',
     required: false,
     purpose:
-      'Comma-separated GitHub organisation logins. When set, "Sign in with GitHub" admits only members of at least one of them, checked at every sign-in (needs the read:org scope the sign-in already asks for).',
+      'Comma-separated GitHub organization logins. When set, "Sign in with GitHub" admits only members of at least one of them, checked at every sign-in (needs the read:org scope the sign-in already asks for).',
     ifWrong:
       'Unset on an install with GitHub sign-in: ANY GitHub account can sign in and becomes a member. Set to a wrong org: everyone signing in with GitHub is refused ("not on this install\'s sign-in list"); local accounts still work.',
     default: 'unset (any GitHub account)',
@@ -502,6 +502,15 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     ifWrong: 'Findings only ever come from pull requests, so unchanged code is never reviewed.',
     default: '41 2 * * 0',
     validate: isCron,
+  },
+  {
+    name: 'FIRST_SCAN_ON_LIVE',
+    scope: 'worker',
+    required: false,
+    purpose:
+      "Start a repository's first security scan when it finishes loading its history. 'off' leaves it to the weekly pass (also off when SECURITY_WEEKLY_CRON is off).",
+    ifWrong: 'A new repository shows "has never run" on its Security tab until the weekly pass.',
+    default: 'on',
   },
   {
     name: 'SECURITY_CHAIN_CRON',

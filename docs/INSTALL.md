@@ -12,7 +12,8 @@ and connect a forge later from inside the product. Until you do, the product
 runs; it just has nothing to measure yet.
 
 Every command in this document was run on **linux/arm64 under rootless Podman
-5.8** (`podman-compose` 1.6). An **amd64** bundle has been built and
+5.8** (`podman-compose` 1.6), in the Linux VM that `podman machine` runs on a
+Mac (see [Install on a Mac](#install-on-a-mac)). An **amd64** bundle has been built and
 installed only under emulation on that same arm64 host (2026-09-23; see
 `ARCHITECTURES.md` in the bundle for exactly what ran), never on real amd64
 hardware. **Docker is untested** — the scripts carry Docker code paths, but
@@ -24,8 +25,10 @@ tell us what happened.
 - A container runtime: Podman 5+ with `podman-compose`, or Docker 24+ with the
   compose plugin
 - About 4 GB of disk for images, plus room for your warehouse (a few hundred MB
-  for most organisations), plus 5 GB under the scan-data directory if you want
+  for most organizations), plus 5 GB under the scan-data directory if you want
   dependency (CVE) scanning
+- Memory for six containers: plan on 4 GB free for the stack, more while
+  scans run (a starting figure, not a measured minimum)
 - A hostname you will reach this install at, and a TLS terminator in front of
   it (nginx, Caddy, Traefik, a cloud load balancer — RepoPulse does not
   terminate TLS itself)
@@ -129,6 +132,34 @@ worker and served by the api). `down` keeps them; only `down -v` deletes them.
 `backup.sh` dumps the database only. A report whose files are gone still shows
 in Reports with its parameters, and can be generated again. Upgrading, rolling back and
 restoring are in [RUNBOOK.md](RUNBOOK.md).
+
+## Install on a Mac
+
+On macOS the containers run inside the Linux VM that `podman machine`
+manages. Three things differ from a Linux host:
+
+1. **Create and start the VM first**, with room for the stack and the scan
+   data. The sizes are a starting point, not a measured minimum:
+
+   ```sh
+   podman machine init --cpus 4 --memory 8192 --disk-size 60
+   podman machine start
+   ```
+
+2. **Keep everything under your home folder.** `podman machine` shares only
+   `/Users` with the VM by default, so a bind mount from anywhere else (the
+   `/opt/repopulse` examples in this document, say) fails and the worker
+   never starts. Extract the bundle somewhere like `~/repopulse`, and if you
+   set `SCAN_RULES_DIR` or `EXTRA_CA_DIR` in `deploy/.env`, point them under
+   `/Users/<you>/` too (absolute paths, as everywhere).
+
+3. **The socket warning from `up.sh` is expected.** The container socket lives
+   inside the VM, so `up.sh` cannot see it from macOS and says so; `podman
+   info` reports the VM's path and the scan-runner mounts that. It is only a
+   problem if scans then fail to start.
+
+Everything else (install, sign-in, connecting a forge, the cron line for
+`deploy/scan-db-sync.sh`, with your own home path) is as below.
 
 ## Install from a checkout
 
@@ -263,7 +294,10 @@ source, your tokens and your findings never leave your install.
 You do this from **Settings → Connections**, signed in as the administrator you
 just created. The form takes three things: the forge kind (GitHub, GitLab or
 Gitea), a base URL for a self-hosted instance (blank for github.com), and an
-**access token**. Each connection has its own base URL, so one install can
+**access token**. For GitHub Enterprise Server, type the server's address as
+you open it in a browser (`https://ghe.example.com`): RepoPulse adds the
+`/api/v3` API path itself, as it adds `/api/v1` for Gitea and `/api/v4` for
+GitLab. An address that already ends in `/api/v3` is used as typed. Each connection has its own base URL, so one install can
 watch more than one forge. The token is encrypted at rest with
 `TOKEN_ENC_KEY` before it is stored, and the screen shows only its fingerprint
 afterwards.
@@ -365,7 +399,11 @@ needs its CA added as in the section above. Without the proxy setting,
 connecting a forge from such a server fails with a timeout ("cannot reach"),
 not a bad-token error. `deploy/scan-db-sync.sh` passes `HTTPS_PROXY` and
 `NO_PROXY` from `.env` to the containers that download the vulnerability
-database.
+database, and, when `NODE_EXTRA_CA_CERTS` is set, mounts `EXTRA_CA_DIR` into
+them and trusts that certificate as well, so a proxy that re-signs TLS works
+for the scan data too. When a download fails it prints the container's own
+error; with no way out at all, import the database from a file with
+`SCAN_VULN_DB_ARCHIVE` (see [Scan data](#scan-data)).
 
 ### The GitHub App variables are for sign-in, not for data
 

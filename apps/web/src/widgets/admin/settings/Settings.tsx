@@ -5,6 +5,7 @@ import { docsUrl } from '../../../lib/docs.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../../api/useApiQuery.js';
 import {
   WEIGHT_KEYS,
+  effectiveShares,
   isDefaulted,
   weightsSumOk,
   type HealthWeights,
@@ -150,6 +151,38 @@ export function Settings() {
                 </label>
               ))}
             </div>
+            {/* W20-22 (UX_TODO ADM-60): all seven sub-scores, and what each
+                really counts for once the three measured-only ones are in. */}
+            <table className="table-plain w-full text-xs" data-testid="weights-effective">
+              <caption className="text-left text-fg-muted">
+                The four above add up to 1.00. Security, code health and supply chain are added on
+                top when a repository has been scanned for them, and then every weight is scaled so
+                the total is 100 %. A repository without those scans uses the four alone.
+              </caption>
+              <thead>
+                <tr className="text-left text-fg-muted">
+                  <th scope="col">Sub-score</th>
+                  <th scope="col">Weight</th>
+                  <th scope="col">Share when fully measured</th>
+                </tr>
+              </thead>
+              <tbody>
+                {effectiveShares(weights).map((r) => (
+                  <tr key={r.key} className="border-t border-border">
+                    <th scope="row" className="py-1 text-left font-normal">
+                      {r.label}
+                      {!r.editable && (
+                        <span className="text-fg-muted"> (fixed; only used when measured)</span>
+                      )}
+                    </th>
+                    <td className="py-1 tabular-nums">{r.weight.toFixed(2)}</td>
+                    <td className="py-1 tabular-nums" data-testid={`weight-share-${r.key}`}>
+                      {Math.round(r.share * 100)} %
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
             {/* role=alert so the reason is announced, not just coloured. */}
             {!sumOk && (
               <p role="alert" className="text-xs text-crit" data-testid="weights-sum-error">
@@ -343,7 +376,7 @@ export function Settings() {
           <li>
             <span className="text-fg">How many requests one model machine handles at once</span> —
             set at install time, not here (default 1), because it describes the machine the model
-            runs on, not the organisation being measured. Your operator changes it with the{' '}
+            runs on, not the organization being measured. Your operator changes it with the{' '}
             <code className="font-mono text-xs">LMSTUDIO_CONCURRENCY</code> setting.
           </li>
           <li>

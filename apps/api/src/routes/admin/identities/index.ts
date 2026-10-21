@@ -1,4 +1,5 @@
-import { and, eq, isNull, or, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { auditLog, core, facts, type Database } from '@repopulse/shared';
 import { linkMemberToCommitter } from '@repopulse/auth';
@@ -39,10 +40,65 @@ export default async function identityRoutes(
 ): Promise<void> {
   const { db } = opts;
 
-  /** GET /admin/identities — every identity in the workspace, with its weight. */
-  app.get('/admin/identities', { preHandler: requireAdmin }, async (request, reply) => {
+  /**
+   * GET /admin/identities — the workspace's identities, with their weight.
+   *
+   * W20-22 (UX_TODO X-17): searchable and paged on the server. `q` matches the
+   * login or display name, `provider` one forge, `bots` humans|bots, `merged`
+   * false leaves out merged rows (the merge picker), and `limit`/`offset` page
+   * with `total` beside them. Without `limit` the whole list comes back, as
+   * before. Each row names its survivor's login, so a page can say "merged
+   * into alice" without the survivor being on the same page.
+   */
+  app.get<{
+    Querystring: {
+      q?: string;
+      provider?: string;
+      bots?: string;
+      merged?: string;
+      limit?: string;
+      offset?: string;
+    };
+  }>('/admin/identities', { preHandler: requireAdmin }, async (request, reply) => {
     const workspaceId = request.workspace?.id;
     if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
+    const { q, provider, bots, merged } = request.query;
+    const limit =
+      request.query.limit === undefined ? undefined : Number.parseInt(request.query.limit, 10);
+    const offset = Number.parseInt(request.query.offset ?? '0', 10);
+    if (
+      (limit !== undefined && (!Number.isInteger(limit) || limit < 1 || limit > 500)) ||
+      !Number.isInteger(offset) ||
+      offset < 0
+    ) {
+      return fail(request, reply, 400, 'Invalid paging', 'limit is 1-500 and offset 0 or more');
+    }
+
+    const needle = q?.trim().toLowerCase();
+    const where = and(
+      eq(core.identities.workspaceId, workspaceId),
+      needle
+        ? or(
+            sql`strpos(lower(${core.identities.forgeLogin}), ${needle}) > 0`,
+            sql`strpos(lower(${core.identities.displayName}), ${needle}) > 0`,
+          )
+        : undefined,
+      provider ? eq(core.identities.provider, provider) : undefined,
+      bots === 'bots' ? eq(core.identities.isBot, true) : undefined,
+      bots === 'humans' ? eq(core.identities.isBot, false) : undefined,
+      merged === 'false' ? isNull(core.identities.mergedIntoId) : undefined,
+    );
+    const [counted] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(core.identities)
+      .where(where);
+    // Every forge with an identity here, for the filter (not just this page's),
+    // and how many identities there are in all.
+    const providerRows = await db
+      .select({ provider: core.identities.provider, n: sql<number>`count(*)::int` })
+      .from(core.identities)
+      .where(eq(core.identities.workspaceId, workspaceId))
+      .groupBy(core.identities.provider);
 
     // Counts come from the facts tables rather than a cached column: an
     // identity with no commits and no PRs is exactly the row an admin is
@@ -54,8 +110,9 @@ export default async function identityRoutes(
     // hand-written equivalent does — verified side by side, the literal form
     // returned 1 and the interpolated one 0 on the same row. Two small
     // workspace-scoped reads are also easier to reason about than SQL whose
-    // rendering has to be trusted.
-    const rows = await db
+    // rendering has to be trusted. Since W20-22 they cover only the rows sent.
+    const survivor = alias(core.identities, 'survivor');
+    const base = db
       .select({
         id: core.identities.id,
         provider: core.identities.provider,
@@ -64,25 +121,54 @@ export default async function identityRoutes(
         userId: core.identities.userId,
         isBot: core.identities.isBot,
         mergedIntoId: core.identities.mergedIntoId,
+        mergedIntoLogin: survivor.forgeLogin,
       })
       .from(core.identities)
-      .where(eq(core.identities.workspaceId, workspaceId))
-      .orderBy(core.identities.forgeLogin);
+      .leftJoin(
+        survivor,
+        and(eq(survivor.id, core.identities.mergedIntoId), eq(survivor.workspaceId, workspaceId)),
+      )
+      .where(where)
+      .orderBy(core.identities.forgeLogin, core.identities.id);
+    const rows = limit === undefined ? await base : await base.limit(limit).offset(offset);
+    const ids = rows.map((r) => r.id);
 
-    const commitCounts = await db
-      .select({ identityId: facts.commits.authorIdentityId, n: sql<number>`count(*)::int` })
-      .from(facts.commits)
-      .where(eq(facts.commits.workspaceId, workspaceId))
-      .groupBy(facts.commits.authorIdentityId);
-    const prCounts = await db
-      .select({ identityId: facts.pullRequests.authorIdentityId, n: sql<number>`count(*)::int` })
-      .from(facts.pullRequests)
-      .where(eq(facts.pullRequests.workspaceId, workspaceId))
-      .groupBy(facts.pullRequests.authorIdentityId);
+    const commitCounts =
+      ids.length === 0
+        ? []
+        : await db
+            .select({ identityId: facts.commits.authorIdentityId, n: sql<number>`count(*)::int` })
+            .from(facts.commits)
+            .where(
+              and(
+                eq(facts.commits.workspaceId, workspaceId),
+                inArray(facts.commits.authorIdentityId, ids),
+              ),
+            )
+            .groupBy(facts.commits.authorIdentityId);
+    const prCounts =
+      ids.length === 0
+        ? []
+        : await db
+            .select({
+              identityId: facts.pullRequests.authorIdentityId,
+              n: sql<number>`count(*)::int`,
+            })
+            .from(facts.pullRequests)
+            .where(
+              and(
+                eq(facts.pullRequests.workspaceId, workspaceId),
+                inArray(facts.pullRequests.authorIdentityId, ids),
+              ),
+            )
+            .groupBy(facts.pullRequests.authorIdentityId);
     const commitsBy = new Map(commitCounts.map((c) => [c.identityId, c.n]));
     const prsBy = new Map(prCounts.map((c) => [c.identityId, c.n]));
 
     return reply.send({
+      total: counted?.n ?? 0,
+      all: providerRows.reduce((n, r) => n + r.n, 0),
+      providers: providerRows.map((r) => r.provider).sort(),
       items: rows.map((r) => ({
         id: r.id,
         provider: r.provider,
@@ -91,6 +177,7 @@ export default async function identityRoutes(
         user_id: r.userId,
         is_bot: r.isBot,
         merged_into_id: r.mergedIntoId,
+        merged_into_login: r.mergedIntoLogin ?? null,
         // An identity with zero of both is exactly the row an admin is looking
         // for when tidying up, so absent counts render as 0, not as missing.
         commits: commitsBy.get(r.id) ?? 0,

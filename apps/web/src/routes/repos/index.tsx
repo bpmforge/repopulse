@@ -272,7 +272,7 @@ function RepoList() {
               {[...new Set(items.filter((r) => r.tracked_twice).map((r) => `${r.org}/${r.name}`))]
                 .slice(0, 5)
                 .join(', ')}
-              . Each one&apos;s activity is counted twice in organisation numbers; an admin can
+              . Each one&apos;s activity is counted twice in organization numbers; an admin can
               pause the copy you do not want in Settings → Sync.
             </p>
           )}

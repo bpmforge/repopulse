@@ -3,7 +3,7 @@
 // Three `definitionHref` links pointed at `/docs/INSTALL.md` and
 // `/docs/design/METRICS.md`. The app does not serve `/docs`, so all three
 // resolved to the not-found page — including the ⓘ on "Connect an
-// organisation", which is the screen a new admin is sent to by the welcome
+// organization", which is the screen a new admin is sent to by the welcome
 // state and the one place they most need to know what credential to create.
 //
 // The setup checklist had the same problem in a quieter form: it printed
@@ -18,14 +18,22 @@
 // its own documentation, should be able to point this at their own copy rather
 // than at ours.
 
-const DEFAULT_DOCS_BASE = 'https://github.com/bpmforge/repopulse/blob/main';
+const DOCS_REPO = 'https://github.com/bpmforge/repopulse/blob';
 
-/** `VITE_DOCS_BASE_URL`, or the public repository. */
-export function docsBase(): string {
-  const configured = import.meta.env?.VITE_DOCS_BASE_URL;
-  return (
-    typeof configured === 'string' && configured !== '' ? configured : DEFAULT_DOCS_BASE
-  ).replace(/\/+$/, '');
+/**
+ * `VITE_DOCS_BASE_URL`, or the public repository at `VITE_DOCS_REF`.
+ *
+ * W20-22 (UX_TODO ADM-31): `VITE_DOCS_REF` lets a release build pin its links
+ * to its own tag, so an install reads the docs for the version it runs rather
+ * than whatever `main` says today. It defaults to `main` because no release
+ * tag is published yet; a link to a tag that does not exist is a 404, which is
+ * worse than slightly newer docs.
+ */
+export function docsBase(env: Record<string, unknown> | undefined = import.meta.env): string {
+  const configured = env?.VITE_DOCS_BASE_URL;
+  if (typeof configured === 'string' && configured !== '') return configured.replace(/\/+$/, '');
+  const ref = env?.VITE_DOCS_REF;
+  return `${DOCS_REPO}/${typeof ref === 'string' && ref !== '' ? encodeURIComponent(ref) : 'main'}`;
 }
 
 /**

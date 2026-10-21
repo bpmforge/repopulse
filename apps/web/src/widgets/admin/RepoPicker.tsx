@@ -112,7 +112,7 @@ export function RepoPicker({ connectionId, connectionsKey, sourceLabel, autoFocu
         })}
         {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
-        emptyMessage="This credential can see no repositories. Check its scopes, or that it has access to the organisation."
+        emptyMessage="This credential can see no repositories. Check its scopes, or that it has access to the organization."
       >
         <div
           className="flex flex-col gap-3"

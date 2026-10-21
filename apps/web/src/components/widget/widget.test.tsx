@@ -44,7 +44,7 @@ describe('WidgetFrame state machine (UX §4)', () => {
     const frame = screen.getByTestId('widget-frame');
     expect(frame).toHaveAttribute('aria-busy', 'true');
     expect(screen.getByTestId('widget-state-syncing')).toHaveTextContent(
-      'backfilling — 42% (history)',
+      'History still loading — 42% (history)',
     );
   });
 

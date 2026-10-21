@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { ErrorNote, WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
+import { RepoPicker, type RepoChoice } from '../../components/shell/RepoPicker.js';
 
 // Working agreements admin (W5-08, FR-PLANS-4).
 //
@@ -19,6 +20,14 @@ interface AgreementException {
   detail: string;
 }
 
+interface RepoCheck {
+  repo: string;
+  repo_id: number;
+  value: number | null;
+  /** true breaks it; null not measured. Repositories that keep it are not listed. */
+  breached: boolean | null;
+}
+
 interface Agreement {
   id: number;
   kind: string;
@@ -27,6 +36,27 @@ interface Agreement {
   window_days: number;
   exception_count: number;
   exceptions: AgreementException[];
+  /** Empty: every repository (W20-22, UX_TODO ADM-74). */
+  applies_to?: { id: number; repo: string }[];
+  /** Aggregate kinds only (W20-22, UX_TODO ADM-59). */
+  repo_checks?: RepoCheck[];
+  measured_count?: number;
+  not_measured_count?: number;
+}
+
+/** "Applies to: all repositories" or the names (W20-22, ADM-74). */
+export function appliesToText(a: Pick<Agreement, 'applies_to'>): string {
+  const repos = a.applies_to ?? [];
+  if (repos.length === 0) return 'Applies to: all repositories';
+  const names = repos.map((r) => r.repo);
+  return `Applies to: ${names.slice(0, 5).join(', ')}${names.length > 5 ? ` and ${names.length - 5} more` : ''}`;
+}
+
+/** A repository's value for an aggregate agreement, in the form's units. */
+export function checkValueText(kind: string, value: number | null): string {
+  if (value === null) return 'not measured yet';
+  if (kind === 'ci_pass_floor') return `${Math.round(value * 1000) / 10}% CI pass rate`;
+  return `${value} stale pull request${value === 1 ? '' : 's'}`;
 }
 
 interface Kind {
@@ -132,11 +162,21 @@ export function Agreements({ readOnly = false }: { readOnly?: boolean } = {}) {
   const [kind, setKind] = useState(KINDS[0]!.id);
   const [value, setValue] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
-
-  const create = useApiMutation<{ kind: string; threshold: Record<string, number> }, unknown>(
-    { endpoint: '/agreements', method: 'POST' },
-    { invalidate: [queryKeyFor(LIST)] },
+  // W20-22 (UX_TODO ADM-74): which repositories it covers; empty = all.
+  const [scope, setScope] = useState<string[]>([]);
+  const { data: repoList } = useApiQuery<{ items: { id: number; org: string; name: string }[] }>(
+    { endpoint: '/repos' },
+    { enabled: !readOnly },
   );
+  const repoOptions: RepoChoice[] = (repoList?.items ?? []).map((r) => ({
+    id: String(r.id),
+    label: `${r.org}/${r.name}`,
+  }));
+
+  const create = useApiMutation<
+    { kind: string; threshold: Record<string, number>; repo_ids?: number[] },
+    unknown
+  >({ endpoint: '/agreements', method: 'POST' }, { invalidate: [queryKeyFor(LIST)] });
 
   const chosen = KINDS.find((k) => k.id === kind)!;
   const items = data?.items ?? [];
@@ -185,6 +225,18 @@ export function Agreements({ readOnly = false }: { readOnly?: boolean } = {}) {
               ))}
             </select>
           </label>
+          <div className="flex flex-col gap-1 text-xs text-fg-muted">
+            <span id="agreement-scope-label">Repositories</span>
+            <RepoPicker
+              testId="agreement-scope"
+              label="Repositories this agreement covers"
+              allLabel="All repositories"
+              options={repoOptions}
+              selected={scope}
+              onChange={setScope}
+              buttonClassName="panel max-w-[16rem] truncate px-2 py-1 text-left text-sm text-fg"
+            />
+          </div>
           <label className="flex flex-col gap-1 text-xs text-fg-muted">
             {chosen.unit}
             <input
@@ -216,8 +268,17 @@ export function Agreements({ readOnly = false }: { readOnly?: boolean } = {}) {
                 return;
               }
               create.mutate(
-                { kind, threshold: parsed.threshold },
-                { onSuccess: () => setValue('') },
+                {
+                  kind,
+                  threshold: parsed.threshold,
+                  ...(scope.length > 0 ? { repo_ids: scope.map(Number) } : {}),
+                },
+                {
+                  onSuccess: () => {
+                    setValue('');
+                    setScope([]);
+                  },
+                },
               );
             }}
           >
@@ -307,6 +368,9 @@ function AgreementItem({
         )}
         <span className="text-xs text-fg-faint">last {a.window_days}d</span>
       </div>
+      <p className="mt-0.5 text-xs text-fg-muted" data-testid={`agreement-scope-${a.id}`}>
+        {appliesToText(a)}
+      </p>
 
       {/* W20-17 (UX_TODO ADM-14): edit, pause and delete. The API had PATCH
           and DELETE all along; a typo meant a permanent extra agreement. */}
@@ -430,7 +494,9 @@ function AgreementItem({
         withDetail
       />
 
-      {!a.active ? null : a.exceptions.length > 0 ? (
+      {!a.active ? null : AGGREGATE.has(a.kind) ? (
+        <AggregateChecks agreement={a} />
+      ) : a.exceptions.length > 0 ? (
         <ul className="mt-2 flex flex-col gap-1" data-testid={`agreement-exceptions-${a.id}`}>
           {a.exceptions.map((e) => (
             <li key={`${e.repo_id}-${e.pr_number}`} className="text-xs">
@@ -449,13 +515,53 @@ function AgreementItem({
         </ul>
       ) : (
         <p className="mt-1 text-xs text-fg-muted">
-          {AGGREGATE.has(a.kind)
-            ? // Not the same as "no violations": this kind is judged
-              // against a repository-level metric, not a PR list.
-              'This agreement is measured against a repository metric rather than individual pull requests.'
-            : 'No pull request breached this agreement in the window.'}
+          No pull request breached this agreement in the window.
         </p>
       )}
     </li>
+  );
+}
+
+/**
+ * The repositories breaking an aggregate agreement, and the ones with no
+ * number yet (W20-22, UX_TODO ADM-59). Judged against each repository's
+ * current metric; "not measured" is never counted as keeping it.
+ */
+function AggregateChecks({ agreement: a }: { agreement: Agreement }) {
+  const checks = a.repo_checks ?? [];
+  const measured = a.measured_count ?? 0;
+  const unmeasured = a.not_measured_count ?? 0;
+  const breaking = checks.filter((c) => c.breached === true);
+  return (
+    <div className="mt-2 flex flex-col gap-1" data-testid={`agreement-checks-${a.id}`}>
+      <p className="text-xs text-fg-muted">
+        Judged per repository against its current metric (last {a.window_days} days): {measured}{' '}
+        measured
+        {unmeasured > 0 ? `, ${unmeasured} not measured yet` : ''}.
+      </p>
+      {checks.length > 0 && (
+        <ul className="flex flex-col gap-1">
+          {checks.map((c) => (
+            <li key={c.repo_id} className="text-xs">
+              <Link
+                to="/repos/$repoId"
+                params={{ repoId: String(c.repo_id) }}
+                className="text-accent underline underline-offset-2 hover:text-fg"
+              >
+                {c.repo}
+              </Link>{' '}
+              —{' '}
+              <span className={c.breached ? '' : 'text-fg-muted'}>
+                {c.breached ? '⚠ ' : ''}
+                {checkValueText(a.kind, c.value)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {breaking.length === 0 && measured > 0 && (
+        <p className="text-xs text-fg-muted">Every measured repository keeps this agreement.</p>
+      )}
+    </div>
   );
 }

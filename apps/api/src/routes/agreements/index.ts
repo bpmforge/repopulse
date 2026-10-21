@@ -1,10 +1,18 @@
-import { and, desc, eq, gte, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { auditLog, core, facts, plans as plansSchema, type Database } from '@repopulse/shared';
+import {
+  auditLog,
+  core,
+  facts,
+  plans as plansSchema,
+  read,
+  type Database,
+} from '@repopulse/shared';
 import {
   AGREEMENT_DEFAULTS,
   AGREEMENT_KINDS,
   EXCEPTION_WINDOW_DAYS,
+  aggregateBreached,
   computeExceptions,
   type Agreement,
   type AgreementKind,
@@ -104,6 +112,100 @@ async function recentPrs(db: Database, workspaceId: number): Promise<PrFact[]> {
   })) as PrFact[];
 }
 
+/** The snapshot window an aggregate agreement is judged in (W20-22, ADM-59). */
+export const AGGREGATE_WINDOW = '30d';
+
+/**
+ * Each repository's current value for an aggregate agreement (W20-22, UX_TODO
+ * ADM-59): its newest snapshot in AGGREGATE_WINDOW. Stale pull requests are M8's
+ * count; the CI pass rate is M9's default-branch `passRate` (a fraction, null
+ * when the repository has no completed runs). A repository with no row is
+ * absent: "not measured", never "fine".
+ */
+async function aggregateValues(
+  db: Database,
+  workspaceId: number,
+): Promise<{ stale: Map<number, number | null>; ci: Map<number, number | null> }> {
+  const rows = await db
+    .selectDistinctOn([read.metricSnapshots.repoId, read.metricSnapshots.metricKey], {
+      repoId: read.metricSnapshots.repoId,
+      metricKey: read.metricSnapshots.metricKey,
+      value: read.metricSnapshots.value,
+      dims: read.metricSnapshots.dims,
+    })
+    .from(read.metricSnapshots)
+    .where(
+      and(
+        eq(read.metricSnapshots.workspaceId, workspaceId),
+        inArray(read.metricSnapshots.metricKey, ['M8', 'M9']),
+        eq(read.metricSnapshots.window, AGGREGATE_WINDOW),
+        sql`${read.metricSnapshots.repoId} is not null`,
+      ),
+    )
+    .orderBy(
+      read.metricSnapshots.repoId,
+      read.metricSnapshots.metricKey,
+      desc(read.metricSnapshots.computedAt),
+    );
+  const stale = new Map<number, number | null>();
+  const ci = new Map<number, number | null>();
+  for (const r of rows) {
+    if (r.repoId === null) continue;
+    if (r.metricKey === 'M8') {
+      const v = Number(r.value);
+      stale.set(r.repoId, Number.isFinite(v) ? v : null);
+    } else {
+      const pass = (r.dims as { passRate?: unknown }).passRate;
+      ci.set(r.repoId, typeof pass === 'number' && Number.isFinite(pass) ? pass : null);
+    }
+  }
+  return { stale, ci };
+}
+
+/** One repository judged against an aggregate agreement. */
+export interface RepoCheck {
+  repoId: number;
+  value: number | null;
+  /** true breaks it, false keeps it, null not measured. */
+  breached: boolean | null;
+}
+
+/** Judge every repository an aggregate agreement covers (W20-22, ADM-59). */
+export function checkAggregate(
+  agreement: Agreement,
+  repoIds: readonly number[],
+  values: ReadonlyMap<number, number | null>,
+): RepoCheck[] {
+  const scoped = agreement.repoIds.length > 0 ? agreement.repoIds : repoIds;
+  return scoped.map((repoId) => {
+    const value = values.get(repoId) ?? null;
+    return { repoId, value, breached: aggregateBreached(agreement, value) };
+  });
+}
+
+/** Repository ids in the body that are not this workspace's (W20-22, ADM-74). */
+async function foreignRepoIds(
+  db: Database,
+  workspaceId: number,
+  ids: readonly number[],
+): Promise<number[]> {
+  if (ids.length === 0) return [];
+  const own = await db
+    .select({ id: core.repos.id })
+    .from(core.repos)
+    .where(and(eq(core.repos.workspaceId, workspaceId), inArray(core.repos.id, [...ids])));
+  const ownIds = new Set(own.map((r) => r.id));
+  return ids.filter((id) => !ownIds.has(id));
+}
+
+function parseRepoIds(raw: unknown): number[] | null {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw)) return null;
+  const ids = raw.map(Number);
+  if (!ids.every((n) => Number.isInteger(n) && n > 0)) return null;
+  return [...new Set(ids)];
+}
+
 export default async function agreementsRoutes(
   app: FastifyInstance,
   opts: AgreementsRoutesOptions,
@@ -127,6 +229,11 @@ export default async function agreementsRoutes(
       .from(core.repos)
       .where(eq(core.repos.workspaceId, workspaceId));
     const repoName = new Map(repos.map((r) => [r.id, `${r.org}/${r.name}`]));
+    const allRepoIds = repos.map((r) => r.id);
+    const needsMetrics = rows.some(
+      (r) => r.active && (r.kind === 'stale_ceiling' || r.kind === 'ci_pass_floor'),
+    );
+    const metrics = needsMetrics ? await aggregateValues(db, workspaceId) : null;
 
     return reply.send({
       items: rows.map((row) => {
@@ -140,14 +247,43 @@ export default async function agreementsRoutes(
         // Computed at read time, never stored (§4): a PR reviewed after the
         // fact would otherwise sit in a table as an exception forever.
         const exceptions = row.active ? computeExceptions(agreement, prs) : [];
+        // W20-22 (UX_TODO ADM-59): the two aggregate kinds are judged per
+        // repository against its current metric. aggregateBreached existed and
+        // was never called, so these agreements could never be broken.
+        const aggregate = row.kind === 'stale_ceiling' || row.kind === 'ci_pass_floor';
+        const checks =
+          aggregate && row.active && metrics
+            ? checkAggregate(
+                agreement,
+                allRepoIds,
+                row.kind === 'stale_ceiling' ? metrics.stale : metrics.ci,
+              )
+            : [];
+        const breaching = checks.filter((c) => c.breached === true);
+        const unmeasured = checks.filter((c) => c.breached === null);
         return {
           id: row.id,
           kind: row.kind,
           threshold: row.threshold,
           repo_ids: row.repoIds,
+          // W20-22 (UX_TODO ADM-74): what the agreement covers, by name.
+          applies_to: row.repoIds.map((id) => ({ id, repo: repoName.get(id) ?? String(id) })),
           active: row.active,
-          window_days: EXCEPTION_WINDOW_DAYS,
-          exception_count: exceptions.length,
+          window_days: aggregate ? Number.parseInt(AGGREGATE_WINDOW, 10) : EXCEPTION_WINDOW_DAYS,
+          exception_count: aggregate ? breaching.length : exceptions.length,
+          ...(aggregate
+            ? {
+                measured_count: checks.length - unmeasured.length,
+                not_measured_count: unmeasured.length,
+                // Breaking ones first, then the ones with no number yet.
+                repo_checks: [...breaching, ...unmeasured].slice(0, 25).map((c) => ({
+                  repo: repoName.get(c.repoId) ?? String(c.repoId),
+                  repo_id: c.repoId,
+                  value: c.value,
+                  breached: c.breached,
+                })),
+              }
+            : {}),
           exceptions: exceptions.slice(0, 25).map((e) => ({
             repo: repoName.get(e.repoId) ?? String(e.repoId),
             repo_id: e.repoId,
@@ -187,9 +323,22 @@ export default async function agreementsRoutes(
           : {};
       const problem = thresholdProblem(kind as AgreementKind, threshold);
       if (problem) return fail(request, reply, 400, 'Invalid threshold', problem);
-      const repoIds = Array.isArray(request.body?.repo_ids)
-        ? (request.body.repo_ids as unknown[]).map(Number).filter(Number.isInteger)
-        : [];
+      // W20-22 (UX_TODO ADM-74): the form now sends a scope. Ids are checked
+      // against this workspace (Law 5); an empty list means every repository.
+      const repoIds = parseRepoIds(request.body?.repo_ids);
+      if (repoIds === null) {
+        return fail(
+          request,
+          reply,
+          400,
+          'Invalid repo_ids',
+          'repo_ids is a list of repository ids',
+        );
+      }
+      const foreign = await foreignRepoIds(db, workspaceId, repoIds);
+      if (foreign.length > 0) {
+        return fail(request, reply, 400, 'Unknown repository', `No repository ${foreign[0]} here.`);
+      }
 
       const [row] = await db
         .insert(plansSchema.agreements)
@@ -211,70 +360,86 @@ export default async function agreementsRoutes(
   );
 
   /** PATCH /agreements/:id — activate/deactivate or retune, admin-only. */
-  app.patch<{ Params: { id: string }; Body: { active?: unknown; threshold?: unknown } }>(
-    '/agreements/:id',
-    { preHandler: requireAdmin },
-    async (request, reply) => {
-      const workspaceId = request.workspace?.id;
-      const userId = request.session.get('userId');
-      if (workspaceId === undefined || userId === undefined) {
-        return fail(request, reply, 401, 'No active session');
-      }
-      const id = Number(request.params.id);
-      if (!Number.isInteger(id)) return fail(request, reply, 400, 'Invalid agreement id');
+  app.patch<{
+    Params: { id: string };
+    Body: { active?: unknown; threshold?: unknown; repo_ids?: unknown };
+  }>('/agreements/:id', { preHandler: requireAdmin }, async (request, reply) => {
+    const workspaceId = request.workspace?.id;
+    const userId = request.session.get('userId');
+    if (workspaceId === undefined || userId === undefined) {
+      return fail(request, reply, 401, 'No active session');
+    }
+    const id = Number(request.params.id);
+    if (!Number.isInteger(id)) return fail(request, reply, 400, 'Invalid agreement id');
 
-      const [existing] = await db
-        .select()
-        .from(plansSchema.agreements)
-        .where(
-          and(
-            eq(plansSchema.agreements.id, id),
-            eq(plansSchema.agreements.workspaceId, workspaceId),
-          ),
-        )
-        .limit(1);
-      // Tenancy (Law 5): another workspace's agreement is a 404, never a 403.
-      if (!existing) return fail(request, reply, 404, 'Not Found');
+    const [existing] = await db
+      .select()
+      .from(plansSchema.agreements)
+      .where(
+        and(eq(plansSchema.agreements.id, id), eq(plansSchema.agreements.workspaceId, workspaceId)),
+      )
+      .limit(1);
+    // Tenancy (Law 5): another workspace's agreement is a 404, never a 403.
+    if (!existing) return fail(request, reply, 404, 'Not Found');
 
-      const patch: { active?: boolean; threshold?: Record<string, unknown> } = {};
-      if (typeof request.body?.active === 'boolean') patch.active = request.body.active;
-      if (request.body?.threshold && typeof request.body.threshold === 'object') {
-        patch.threshold = request.body.threshold as Record<string, unknown>;
-      }
-      if (Object.keys(patch).length === 0) {
-        return fail(request, reply, 400, 'Invalid body', 'active or threshold is required');
-      }
-      if (patch.threshold) {
-        const problem = thresholdProblem(existing.kind as AgreementKind, patch.threshold);
-        if (problem) return fail(request, reply, 400, 'Invalid threshold', problem);
-      }
-
-      // Workspace-filtered as well as id-filtered (Law 5), though the select
-      // above already proved the row is this workspace's.
-      await db
-        .update(plansSchema.agreements)
-        .set(patch)
-        .where(
-          and(
-            eq(plansSchema.agreements.id, id),
-            eq(plansSchema.agreements.workspaceId, workspaceId),
-          ),
+    const patch: {
+      active?: boolean;
+      threshold?: Record<string, unknown>;
+      repoIds?: number[];
+    } = {};
+    if (typeof request.body?.active === 'boolean') patch.active = request.body.active;
+    if (request.body?.threshold && typeof request.body.threshold === 'object') {
+      patch.threshold = request.body.threshold as Record<string, unknown>;
+    }
+    // W20-22 (ADM-74): the scope can change too.
+    if (request.body?.repo_ids !== undefined) {
+      const repoIds = parseRepoIds(request.body.repo_ids);
+      if (repoIds === null) {
+        return fail(
+          request,
+          reply,
+          400,
+          'Invalid repo_ids',
+          'repo_ids is a list of repository ids',
         );
+      }
+      const foreign = await foreignRepoIds(db, workspaceId, repoIds);
+      if (foreign.length > 0) {
+        return fail(request, reply, 400, 'Unknown repository', `No repository ${foreign[0]} here.`);
+      }
+      patch.repoIds = repoIds;
+    }
+    if (Object.keys(patch).length === 0) {
+      return fail(request, reply, 400, 'Invalid body', 'active, threshold or repo_ids is required');
+    }
+    if (patch.threshold) {
+      const problem = thresholdProblem(existing.kind as AgreementKind, patch.threshold);
+      if (problem) return fail(request, reply, 400, 'Invalid threshold', problem);
+    }
 
-      auditLog(request.log, {
-        event: 'agreement.configured',
-        actorUserId: userId,
-        workspaceId,
-        ip: request.ip,
-        ua: request.headers['user-agent'] ?? null,
-        agreementId: id,
-        kind: existing.kind,
-        changedKeys: Object.keys(patch),
-      });
+    // Workspace-filtered as well as id-filtered (Law 5), though the select
+    // above already proved the row is this workspace's.
+    await db
+      .update(plansSchema.agreements)
+      .set(patch)
+      .where(
+        and(eq(plansSchema.agreements.id, id), eq(plansSchema.agreements.workspaceId, workspaceId)),
+      );
 
-      return reply.send({ id, ...patch });
-    },
-  );
+    auditLog(request.log, {
+      event: 'agreement.configured',
+      actorUserId: userId,
+      workspaceId,
+      ip: request.ip,
+      ua: request.headers['user-agent'] ?? null,
+      agreementId: id,
+      kind: existing.kind,
+      changedKeys: Object.keys(patch),
+    });
+
+    const { repoIds: scope, ...rest } = patch;
+    return reply.send({ id, ...rest, ...(scope ? { repo_ids: scope } : {}) });
+  });
 
   /** DELETE /agreements/:id — admin-only. */
   app.delete<{ Params: { id: string } }>(

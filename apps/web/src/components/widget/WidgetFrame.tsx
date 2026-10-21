@@ -6,7 +6,7 @@ import type { WidgetState } from './types.js';
 // loading/syncing/empty/error state machine, keyed off its query. Each state
 // has a defined shape (UX §4):
 //   loading = skeleton matching the final shape
-//   syncing = skeleton + "backfilling — X% (phase)" chip (FR-INGEST-8)
+//   syncing = skeleton + "History still loading — X% (phase)" chip (FR-INGEST-8)
 //   empty   = one-line explanation + next action
 //   error   = message + request id + retry button
 // No widget blocks another — each frame owns its own state (DASHBOARD §9).
@@ -94,8 +94,9 @@ export function WidgetFrame({
             <a
               href={definitionHref}
               className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-fg-faint hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-              aria-label={`About ${title}${/^https?:/.test(definitionHref) ? ' (opens in a new tab)' : ''}`}
-              title="About this"
+              // W20-22 (UX_TODO ADM-31): "Help: <topic>", what the link is.
+              aria-label={`Help: ${title}${/^https?:/.test(definitionHref) ? ' (opens in a new tab)' : ''}`}
+              title={`Help: ${title}`}
               {...(/^https?:/.test(definitionHref)
                 ? { target: '_blank', rel: 'noopener noreferrer' }
                 : {})}
@@ -112,7 +113,9 @@ export function WidgetFrame({
         {state === 'syncing' && (
           <div className="flex flex-col gap-2">
             <span className="inline-flex w-fit items-center gap-1.5 rounded-sm bg-info/15 px-1.5 py-0.5 text-xs text-info">
-              backfilling — {Math.round(syncPct ?? 0)}%{syncPhase ? ` (${syncPhase})` : ''}
+              {/* W20-22 (INS-35): plain words; "backfilling" is ours. */}
+              History still loading — {Math.round(syncPct ?? 0)}%
+              {syncPhase ? ` (${syncPhase})` : ''}
             </span>
             <FrameSkeleton />
           </div>

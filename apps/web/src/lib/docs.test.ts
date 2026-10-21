@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { docsUrl } from './docs.js';
+import { docsBase, docsUrl } from './docs.js';
 
 // W16-24. Three `definitionHref` links pointed at `/docs/INSTALL.md` and
 // `/docs/design/METRICS.md`; the app does not serve `/docs`, so all three
-// landed on the not-found page — including the ⓘ on "Connect an organisation",
+// landed on the not-found page — including the ⓘ on "Connect an organization",
 // the screen a new admin is sent to and the one place they most need help.
 //
 // Serving the markdown from the app was the alternative and it is worse: the
@@ -24,5 +24,18 @@ describe('docsUrl (W16-24)', () => {
 
   it('never emits a double slash between base and path', () => {
     expect(docsUrl('/docs/INSTALL.md')).not.toMatch(/[^:]\/\//);
+  });
+});
+
+// W20-22 (UX_TODO ADM-31): a release build can pin the links to its own tag.
+describe('docsBase (W20-22)', () => {
+  it('uses main by default, the release ref when given, and an explicit base above both', () => {
+    expect(docsBase({})).toBe('https://github.com/bpmforge/repopulse/blob/main');
+    expect(docsBase({ VITE_DOCS_REF: 'v1.2.0' })).toBe(
+      'https://github.com/bpmforge/repopulse/blob/v1.2.0',
+    );
+    expect(docsBase({ VITE_DOCS_REF: 'v1', VITE_DOCS_BASE_URL: 'https://docs.example/' })).toBe(
+      'https://docs.example',
+    );
   });
 });

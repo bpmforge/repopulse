@@ -176,7 +176,7 @@ export async function securityPostureSections(
           id: 'review_bypass',
           columns: ['Repository', 'Unreviewed merge rate'],
           rows: [...latestByRepo.entries()].map(([repoId, row]) => [
-            repoId === null ? 'organisation' : (repoName.get(repoId) ?? String(repoId)),
+            repoId === null ? 'organization' : (repoName.get(repoId) ?? String(repoId)),
             row.value === null ? null : Math.round(Number(row.value) * 1000) / 1000,
           ]),
         }

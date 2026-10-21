@@ -63,6 +63,47 @@ done
 
 log() { printf '[scan-db-sync] %s\n' "$*"; }
 
+# INS-67 (W20-22): the internal CA the api and worker trust, for the two
+# fetching containers too. Behind a TLS-inspecting proxy grype and the feed
+# builder otherwise fail on the company certificate. Same directory up.sh
+# mounts (EXTRA_CA_DIR, default deploy/ca) at the same container path, and the
+# same PEM NODE_EXTRA_CA_CERTS names. Grype (Go) ADDS a directory through
+# SSL_CERT_DIR, keeping the image's public roots; Python's ssl only REPLACES
+# its bundle (SSL_CERT_FILE), so that step concatenates the two first.
+CA_FILE="$(env_value NODE_EXTRA_CA_CERTS)"
+ca_mounts=()
+grype_ca_env=()
+if [ -n "$CA_FILE" ]; then
+  CA_DIR="$(env_value EXTRA_CA_DIR)"
+  : "${CA_DIR:=$SCRIPT_DIR/ca}"
+  if [ -d "$CA_DIR" ]; then
+    ca_mounts=(-v "$CA_DIR:/etc/repopulse/ca:ro")
+    grype_ca_env=(-e "SSL_CERT_DIR=/etc/ssl/certs:/etc/repopulse/ca")
+  else
+    log "WARNING: NODE_EXTRA_CA_CERTS is set but EXTRA_CA_DIR ($CA_DIR) is not a directory;"
+    log "         fetching without the internal CA"
+    CA_FILE=""
+  fi
+fi
+
+# The real reason a fetch failed (W20-22, INS-67): the container's own last
+# lines, so a TLS or proxy error reads as one instead of as "needs outbound
+# HTTPS", which sent the admin to the firewall team.
+fetch_err="$(mktemp "${TMPDIR:-/tmp}/scan-db-sync.XXXXXX")"
+trap 'rm -f "$fetch_err"' EXIT
+show_fetch_error() {
+  if [ -s "$fetch_err" ]; then
+    log "       its last output:"
+    tail -n 5 "$fetch_err" | while IFS= read -r line; do log "         $line"; done
+  fi
+  if grep -qiE 'x509|certificate|CERTIFICATE_VERIFY_FAILED|SSL' "$fetch_err" 2>/dev/null; then
+    log "       That is a TLS trust error: put your proxy's or company CA (PEM) in"
+    log "       EXTRA_CA_DIR and set NODE_EXTRA_CA_CERTS in deploy/.env (see INSTALL.md)."
+  elif grep -qiE 'proxy|407|connection refused|no such host|timeout|timed out' "$fetch_err" 2>/dev/null; then
+    log "       That looks like a proxy or network error: check HTTPS_PROXY / NO_PROXY in deploy/.env."
+  fi
+}
+
 # INS-65: refuse to run as root against a rootless install. Root's podman has
 # its own image store, so it cannot find the scan image the install's user
 # loaded, and anything it did write would leave root-owned files in the scan
@@ -234,9 +275,11 @@ if [ "${SCAN_SYNC_VULN_DB:-1}" = "1" ]; then
       if [ -z "${ARCHIVE_BAD:-}" ] && "$runtime" run --rm --user 0:0 \
            -e GRYPE_DB_CACHE_DIR=/db \
            ${proxy_env[@]+"${proxy_env[@]}"} \
+           ${grype_ca_env[@]+"${grype_ca_env[@]}"} \
            -v "$stage:/db:rw" \
+           ${ca_mounts[@]+"${ca_mounts[@]}"} \
            ${db_mounts[@]+"${db_mounts[@]}"} \
-           "$SCAN_IMAGE" "${db_fetch[@]}"; then
+           "$SCAN_IMAGE" "${db_fetch[@]}" 2>"$fetch_err"; then
         # Read-only for everyone, matching the rulepacks: the scan container
         # mounts this ro anyway, and defence in depth costs one chmod.
         find "$stage" -type d -exec chmod 0555 {} +
@@ -275,9 +318,11 @@ if [ "${SCAN_SYNC_VULN_DB:-1}" = "1" ]; then
           FAILED=1
         fi
       elif [ -z "${ARCHIVE_BAD:-}" ]; then
-        log "ERROR: 'grype ${db_fetch[*]}' failed inside $SCAN_IMAGE. This host needs"
-        log "       outbound HTTPS to grype.anchore.io, and $SCAN_IMAGE must exist"
-        log "       (podman compose ... build scan)."
+        log "ERROR: 'grype ${db_fetch[*]}' failed inside $SCAN_IMAGE."
+        show_fetch_error
+        log "       It needs outbound HTTPS to grype.anchore.io (through HTTPS_PROXY if set),"
+        log "       and $SCAN_IMAGE must exist (podman compose ... build scan). With no"
+        log "       way out, set SCAN_VULN_DB_ARCHIVE (+ _SHA256) to import a database offline."
         chmod -R u+w "$stage" 2>/dev/null || true
         rm -rf "$stage"
         FAILED=1
@@ -308,19 +353,29 @@ if [ "${SCAN_SYNC_MALICIOUS:-1}" != "0" ]; then
     mal_stage="$DEST/malicious.stage"
     rm -rf "$mal_stage"
     mkdir -p "$mal_stage"
+    # With an internal CA, Python gets ONE bundle: the image's public roots
+    # plus that PEM (SSL_CERT_FILE replaces, it does not add).
+    mal_cmd=(python3 /build.py /out)
+    if [ -n "$CA_FILE" ]; then
+      mal_cmd=(sh -c 'cat "$(python3 -c "import ssl; print(ssl.get_default_verify_paths().openssl_cafile)")" "$REPOPULSE_CA_FILE" > /tmp/ca-bundle.pem && SSL_CERT_FILE=/tmp/ca-bundle.pem REQUESTS_CA_BUNDLE=/tmp/ca-bundle.pem exec python3 /build.py /out')
+    fi
     if "$runtime" run --rm --user 0:0 \
          ${proxy_env[@]+"${proxy_env[@]}"} \
+         -e "REPOPULSE_CA_FILE=$CA_FILE" \
+         ${ca_mounts[@]+"${ca_mounts[@]}"} \
          -v "$mal_stage:/out:rw" \
          -v "$SCRIPT_DIR/build-malicious-index.py:/build.py:ro" \
-         "$SCAN_IMAGE" python3 /build.py /out; then
+         "$SCAN_IMAGE" "${mal_cmd[@]}" 2>"$fetch_err"; then
       rm -rf "$mal_dir.old"
       [ -e "$mal_dir" ] && mv "$mal_dir" "$mal_dir.old"
       mv "$mal_stage" "$mal_dir"
       rm -rf "$mal_dir.old"
       log "malicious-package index synced: $(du -sh "$mal_dir" | awk '{print $1}') at $mal_dir"
     else
-      log "ERROR: building the malicious-package index failed. This host needs outbound"
-      log "       HTTPS to osv-vulnerabilities.storage.googleapis.com. Keeping any previous index."
+      log "ERROR: building the malicious-package index failed. Keeping any previous index."
+      show_fetch_error
+      log "       It needs outbound HTTPS to osv-vulnerabilities.storage.googleapis.com"
+      log "       (through HTTPS_PROXY if set)."
       rm -rf "$mal_stage"
       FAILED=1
     fi

@@ -94,6 +94,13 @@ export interface ProcessorDeps extends WorkerProviderDeps {
    * this address; unset, auto-add is skipped (it would register no hook).
    */
   webhookUrl?: string;
+  /**
+   * A repository just went live (W20-22, UX_TODO INS-60). The worker queues
+   * its first security scan here when it has never been scanned, so the
+   * Security tab does not say "has never run" until Sunday's sweep.
+   * Best-effort: a failure is logged by the caller and never fails the job.
+   */
+  onLive?: (workspaceId: number, repoId: number) => Promise<void>;
 }
 
 /**
@@ -286,6 +293,13 @@ async function goLiveIfEnriched(
     .where(and(eq(core.repos.id, repoId), eq(core.repos.syncStatus, 'backfilling')))
     .returning({ id: core.repos.id });
   if (updated.length === 0) return false;
+  if (deps.onLive) {
+    try {
+      await deps.onLive(workspaceId, repoId);
+    } catch {
+      /* best-effort: the weekly sweep still scans it */
+    }
+  }
   // Recompute now that churn exists: the snapshot taken when history finished
   // could not see any file-level data yet. Replacing a finished job of the same
   // key: a repo that recovers from a stall on the day it first went live must
