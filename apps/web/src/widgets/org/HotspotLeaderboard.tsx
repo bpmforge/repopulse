@@ -6,6 +6,7 @@ import {
   type DataTableColumn,
 } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
+import { useBackfill } from '../../lib/backfill.js';
 import { spansMultipleRepos, type HotspotItems } from './contracts.js';
 import { docsUrl } from '../../lib/docs.js';
 import { HOTSPOT_SCALE_HINT } from '../repo/RepoHotspots.js';
@@ -34,6 +35,7 @@ export function HotspotLeaderboard({ window, search, limit = 10 }: Props) {
   });
 
   const items = data?.items ?? [];
+  const backfill = useBackfill();
   // src/index.ts is hot in three repositories and the leaderboard listed it
   // three times, identically — the score told you something was wrong without
   // telling you where. The repository is part of the row's identity here.
@@ -99,11 +101,15 @@ export function HotspotLeaderboard({ window, search, limit = 10 }: Props) {
   return (
     <WidgetFrame
       title="Hotspots"
+      // W20-22 (UX_TODO INS-35): an empty list while history loads is
+      // "still loading", not "nothing here".
       state={frameState({
         isLoading,
         isError,
         isEmpty: data !== undefined && items.length === 0,
+        isSyncing: backfill.syncing,
       })}
+      syncPct={backfill.pct}
       {...(error ? { errorMessage: error.message, error } : {})}
       onRetry={() => void refetch()}
       // W20-20: with every hot file acknowledged the hidden-files note sat

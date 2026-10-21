@@ -31,6 +31,7 @@ import { providerForRepo } from './forge-provider.js';
 import { runKnowledgeRegister, runTestGapRegister } from '@repopulse/insights';
 import { buildWorkerGateway, createGatewayResolver, reportGatewayHealth } from './gateway.js';
 import { isAiPaused } from '../lib/ai-pause.js';
+import { hasNeverBeenScanned, startableScannerKeys } from '../lib/startable-scanners.js';
 import {
   jsonFetcher,
   readComponents,
@@ -163,6 +164,32 @@ async function main(): Promise<void> {
     ...(process.env.PUBLIC_BASE_URL
       ? {
           webhookUrl: `${process.env.PUBLIC_BASE_URL.replace(/\/+$/, '')}/api/v1/webhooks/github`,
+        }
+      : {}),
+    // W20-22 (UX_TODO INS-60): a repository's first security scan starts when
+    // it first goes live, not on the next weekly sweep. Same scanner set as
+    // "Run scans now"; only for a repository with no scan run at all, so a
+    // resumed or retried one is not scanned again. Off with the weekly pass
+    // (SECURITY_WEEKLY_CRON=off), or alone with FIRST_SCAN_ON_LIVE=off.
+    ...(process.env.SECURITY_WEEKLY_CRON !== 'off' && process.env.FIRST_SCAN_ON_LIVE !== 'off'
+      ? {
+          onLive: async (workspaceId: number, repoId: number) => {
+            if (!(await hasNeverBeenScanned(db, workspaceId, repoId))) return;
+            for (const scannerKey of await startableScannerKeys(db, workspaceId, repoId)) {
+              await securityScanQueue.add(
+                'first-scan',
+                {
+                  workspaceId,
+                  repoId,
+                  scannerKey,
+                  commitSha: '',
+                  trigger: 'schedule' as const,
+                  mode: 'history' as const,
+                },
+                { jobId: `sec-first-${repoId}-${scannerKey}` },
+              );
+            }
+          },
         }
       : {}),
     // W4-22: the missing half. publishSyncEvent was built, documented and

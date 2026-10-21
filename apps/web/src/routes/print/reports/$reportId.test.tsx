@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router';
 import { Route as rootRoute, type RouterContext } from '../../__root.js';
-import { cell, findingHref, Route as printRoute, weightsLine } from './$reportId.js';
+import { cell, coverScope, findingHref, Route as printRoute, weightsLine } from './$reportId.js';
 import { createQueryClient } from '../../../api/queryClient.js';
 
 // Print layout (W17-26). The PDF is what a customer is handed, and the two ways
@@ -260,5 +260,60 @@ describe('finding rows link back to the finding (W20-15, UX_TODO X-23)', () => {
     expect(findingHref(7)).toBe(`${window.location.origin}/findings?finding=7`);
     expect(findingHref(null)).toBeNull();
     expect(findingHref('x')).toBeNull();
+  });
+});
+
+// W20-22 (UX_TODO ADM-23): the cover names scope, workspace and author, and
+// the in-app viewer has Download PDF, Print and Copy link with a note on who
+// can open the link; a printed PDF carries none of it.
+describe('report cover and toolbar (W20-22)', () => {
+  it('says the scope by name, or all repositories', () => {
+    expect(coverScope({ ...DATA, params: { ...DATA.params, repoIds: ['1'] } })).toBe('acme/api');
+    expect(coverScope(DATA)).toBe('All repositories');
+  });
+
+  it('prints workspace and author on the cover, with no toolbar in a print run', async () => {
+    (window as unknown as { __REPORT_DATA: unknown }).__REPORT_DATA = {
+      ...DATA,
+      params: { ...DATA.params, workspaceName: 'Acme', generatedBy: 'ada' },
+    };
+    renderPrint();
+    expect(await screen.findByTestId('print-workspace')).toHaveTextContent('Acme');
+    expect(screen.getByTestId('print-author')).toHaveTextContent('ada');
+    expect(screen.getByTestId('print-scope')).toHaveTextContent('All repositories');
+    expect(screen.queryByTestId('report-toolbar')).toBeNull();
+  });
+
+  it('the in-app viewer offers Download PDF, Print and Copy link', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              id: 5,
+              type: 'code_health',
+              status: 'ready',
+              error: null,
+              has_pdf: true,
+              generated_by: 'bo',
+              data: DATA,
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          ),
+        ),
+      ),
+    );
+    renderPrint();
+    expect(await screen.findByTestId('report-toolbar-pdf')).toHaveAttribute(
+      'href',
+      '/api/v1/reports/5/download',
+    );
+    expect(screen.getByTestId('report-toolbar-print')).toBeInTheDocument();
+    expect(screen.getByTestId('report-toolbar-note')).toHaveTextContent(
+      'needs a RepoPulse account in this workspace',
+    );
+    // An older report with no author in its params falls back to the row's.
+    expect(screen.getByTestId('print-author')).toHaveTextContent('bo');
   });
 });

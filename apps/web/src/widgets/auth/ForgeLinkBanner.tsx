@@ -49,7 +49,7 @@ export function ForgeLinkBanner() {
     >
       <span aria-hidden="true">●</span>
       <span>
-        <strong>Not connected to a forge account.</strong> Your personal views are empty because
+        <strong>Your forge identity is not linked.</strong> Your personal views are empty because
         RepoPulse does not know which committer is you — not because you have no work.
         {isAdmin ? (
           <>

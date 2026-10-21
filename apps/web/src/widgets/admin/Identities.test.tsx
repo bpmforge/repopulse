@@ -5,7 +5,15 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { createQueryClient } from '../../api/queryClient.js';
 import { Toaster } from '../../components/shell/Toaster.js';
 import { useUiStore } from '../../components/store/uiStore.js';
-import { Identities, filterIdentities, identityLabel } from './Identities.js';
+import {
+  Identities,
+  RECOMPUTE_NOTE,
+  filterIdentities,
+  hostsByProvider,
+  identityLabel,
+  identityQuery,
+  suggestedTargetIds,
+} from './Identities.js';
 
 // W20-04 (UX_TODO ADM-10). A merge applied on one click, the picker closed
 // before the request finished, and a refused merge — or a refused bot flag —
@@ -25,7 +33,26 @@ function identity(id: number, login: string) {
   };
 }
 
-const LIST = { items: [identity(1, 'ada'), identity(2, 'ada-work')] };
+let LIST: { items: ReturnType<typeof identity>[] } = {
+  items: [identity(1, 'ada'), identity(2, 'ada-work')],
+};
+let CANDIDATES: { groups: { display_name: string; members: { id: number; login: string }[] }[] } = {
+  groups: [],
+};
+
+/** The API's filtering and paging (W20-22, X-17), so the widget is tested against it. */
+function serveIdentities(url: string) {
+  const params = new URL(url, 'http://x').searchParams;
+  let rows = filterIdentities(LIST.items, {
+    query: params.get('q') ?? '',
+    provider: params.get('provider') ?? '',
+    bots: (params.get('bots') as 'humans' | 'bots' | null) ?? 'all',
+  });
+  if (params.get('merged') === 'false') rows = rows.filter((r) => r.merged_into_id === null);
+  const offset = Number(params.get('offset') ?? 0);
+  const limit = Number(params.get('limit') ?? rows.length);
+  return { items: rows.slice(offset, offset + limit), total: rows.length, all: LIST.items.length };
+}
 const MEMBERS = { items: [{ user_id: 7, login: 'ada@corp', auth_provider: 'oidc' }] };
 
 let writeResponse: { status: number; body: unknown };
@@ -33,6 +60,8 @@ const writes: { url: string; body: string }[] = [];
 
 beforeEach(() => {
   writes.length = 0;
+  LIST = { items: [identity(1, 'ada'), identity(2, 'ada-work')] };
+  CANDIDATES = { groups: [] };
   useUiStore.setState({ toasts: [] });
   writeResponse = { status: 200, body: {} };
   vi.stubGlobal(
@@ -40,7 +69,14 @@ beforeEach(() => {
     vi.fn((input: unknown, init?: RequestInit) => {
       const method = init?.method ?? 'GET';
       if (method !== 'GET') writes.push({ url: String(input), body: String(init?.body) });
-      const get = String(input).includes('/admin/members') ? MEMBERS : LIST;
+      const url = String(input);
+      const get = url.includes('/admin/members')
+        ? MEMBERS
+        : url.includes('/admin/identities/candidates')
+          ? CANDIDATES
+          : url.includes('/connections')
+            ? { items: [{ provider: 'github', base_url: null, status: 'active' }] }
+            : serveIdentities(url);
       const { status, body } = method === 'GET' ? { status: 200, body: get } : writeResponse;
       return Promise.resolve(
         new Response(JSON.stringify(body), {
@@ -70,7 +106,7 @@ describe('identity merge (W20-04)', () => {
     await user.click(screen.getByTestId('merge-into-1'));
 
     expect(screen.getByTestId('merge-confirm')).toHaveTextContent(
-      /Merge ada-work \(github\) into ada \(github\)\? Its 12 commits and 3 pull requests are re-attributed on every screen/,
+      /Merge ada-work \(github · github\.com\) into ada \(github · github\.com\)\? Its 12 commits and 3 pull requests are re-attributed on every screen/,
     );
     expect(writes).toHaveLength(0);
 
@@ -169,5 +205,61 @@ describe('identities at scale (W20-15, UX_TODO X-17)', () => {
     await waitFor(() => expect(screen.queryByTestId('identity-1')).toBeNull());
     expect(screen.getByTestId('identity-2')).toBeInTheDocument();
     expect(screen.getByTestId('identity-count')).toHaveTextContent('1 of 2');
+  });
+});
+
+// W20-22: identities are paged and searched on the server (X-17), the merge
+// picker leads with the API's suggestions and takes focus (ADM-36), and a
+// merge or bot flag says when each screen catches up (ADM-70).
+describe('identities W20-22', () => {
+  it('asks the server for one filtered page', () => {
+    expect(identityQuery({ query: ' al ', provider: 'gitea', bots: 'humans' }, 2)).toEqual({
+      q: 'al',
+      provider: 'gitea',
+      bots: 'humans',
+      limit: '100',
+      offset: '200',
+    });
+    expect(identityQuery({ query: '', provider: '', bots: 'all' }, 0)).toEqual({
+      limit: '100',
+      offset: '0',
+    });
+  });
+
+  it('names the host only when one connection serves that forge', () => {
+    const hosts = hostsByProvider([
+      { provider: 'github', base_url: null, status: 'active' },
+      { provider: 'gitea', base_url: 'https://git.a.example', status: 'active' },
+      { provider: 'gitea', base_url: 'https://git.b.example', status: 'active' },
+    ]);
+    expect(identityLabel({ login: 'alice', provider: 'github' }, hosts)).toBe(
+      'alice (github · github.com)',
+    );
+    expect(identityLabel({ login: 'alice', provider: 'gitea' }, hosts)).toBe('alice (gitea)');
+  });
+
+  it('lists suggested targets first and focuses the search', async () => {
+    LIST = { items: [identity(1, 'ada'), identity(2, 'ada-work'), identity(3, 'zed')] };
+    CANDIDATES = {
+      groups: [
+        {
+          display_name: 'ada',
+          members: [
+            { id: 3, login: 'zed' },
+            { id: 2, login: 'ada-work' },
+          ],
+        },
+      ],
+    };
+    expect(suggestedTargetIds(2, CANDIDATES)).toEqual([3]);
+    const user = userEvent.setup();
+    renderIdentities();
+    await user.click(await screen.findByTestId('identity-merge-2'));
+    expect(await screen.findByTestId('merge-suggested-3')).toBeInTheDocument();
+    const buttons = screen.getAllByTestId(/^merge-into-/).map((b) => b.dataset.testid);
+    expect(buttons[0]).toBe('merge-into-3');
+    expect(buttons).not.toContain('merge-into-2');
+    expect(screen.getByTestId('merge-find')).toHaveFocus();
+    expect(screen.getByTestId('merge-picker')).toHaveTextContent(RECOMPUTE_NOTE);
   });
 });

@@ -65,6 +65,65 @@ function dimNum(dims: Record<string, unknown>, path: string[]): number | null {
 /** Rounds for presentation only — never for a stored number. */
 const r2 = (n: number): number => Math.round(n * 100) / 100;
 
+/** A 0-1 ratio as a percentage for print; null stays null. */
+const pct = (n: number | null | undefined): number | null =>
+  typeof n === 'number' ? Math.round(n * 1000) / 10 : null;
+
+/** M7's buckets (METRICS.md §1 M7), in size order, with their line ranges. */
+const PR_SIZE_BUCKETS: [string, string][] = [
+  ['XS', 'under 10 lines'],
+  ['S', '10–99 lines'],
+  ['M', '100–499 lines'],
+  ['L', '500–999 lines'],
+  ['XL', '1,000 lines or more'],
+];
+
+/**
+ * The PR flow table (W20-22, UX_TODO ADM-73): [measure, value, unit] rows,
+ * leaving out any measure with no value. Exported for its test.
+ */
+export function flowTableRows(input: {
+  m4: Record<string, unknown> | undefined;
+  m5: number | null;
+  m6: number | null;
+  m7: { median: number | null; dims: Record<string, unknown> } | null;
+  m8: number | null;
+}): unknown[][] {
+  const rows: unknown[][] = [];
+  const push = (label: string, value: number | null, unit: string) => {
+    if (value !== null && Number.isFinite(value)) rows.push([label, r2(value), unit]);
+  };
+  const stage = (key: string, stat: 'median' | 'p90') =>
+    input.m4 ? dimNum(input.m4, ['stages', key, stat]) : null;
+  push('Cycle time, open to merge (median)', stage('e2e', 'median'), 'hours');
+  push('Cycle time, open to merge (90th percentile)', stage('e2e', 'p90'), 'hours');
+  push('Open to first review (median)', stage('openToFirstReview', 'median'), 'hours');
+  push('First review to approval (median)', stage('firstReviewToApproved', 'median'), 'hours');
+  push('Approval to merge (median)', stage('approvedToMerged', 'median'), 'hours');
+  push('Review coverage of merged PRs', pct(input.m5), '%');
+  push('Merged without review', pct(input.m6), '%');
+  if (input.m7) {
+    push('PR size (median)', input.m7.median, 'lines changed');
+    for (const [bucket, range] of PR_SIZE_BUCKETS) {
+      push(`PRs sized ${bucket} (${range})`, dimNum(input.m7.dims, ['counts', bucket]), 'PRs');
+    }
+  }
+  push('Stale open PRs', input.m8, 'PRs');
+  return rows;
+}
+
+/** The CI table (W20-22, UX_TODO ADM-73), units named. Exported for its test. */
+export function ciTableRows(value: number | null, dims: Record<string, unknown>): unknown[][] {
+  const flaky = dimNum(dims, ['topFlakiness']);
+  return [
+    ['Default-branch pass rate', pct(value), '%'],
+    ['PR pass rate', pct(dimNum(dims, ['prPassRate'])), '%'],
+    ['Run duration (median)', dimNum(dims, ['duration', 'median']), 'minutes'],
+    ['Run duration (90th percentile)', dimNum(dims, ['duration', 'p90']), 'minutes'],
+    ['Worst workflow flakiness (fail-then-pass reruns)', pct(flaky), '% of rerun groups'],
+  ].map(([label, v, unit]) => [label, typeof v === 'number' ? r2(v) : null, unit]);
+}
+
 function noData(id: string, reason: string): ReportSection {
   return { kind: 'no_data', id, reason };
 }
@@ -283,16 +342,26 @@ export function createReportAssembler(db: Database): ReportAssembler {
     );
 
     // PR flow (M4 stages, M5 coverage, M6 bypass, M7 size, M8 stale).
-    const flowRows: unknown[][] = [];
-    for (const key of ['M4', 'M5', 'M6', 'M7', 'M8']) {
-      const s = snap(snapshots, repo.id, key);
-      if (s?.value !== undefined && s.value !== null) {
-        flowRows.push([key, METRIC_CATALOG.find((c) => c.id === key)?.name ?? key, r2(s.value)]);
-      }
-    }
+    //
+    // W20-22 (UX_TODO ADM-73): one row per thing measured, named in words with
+    // its unit beside it. It printed "M4 · PR cycle-time stages · 41.2": an
+    // internal id, no stage, no unit, and coverage as 0.83 rather than 83 %.
+    // The value cell stays a NUMBER so the report diff still reads a delta.
+    const m4 = snap(snapshots, repo.id, 'M4');
+    const m5 = snap(snapshots, repo.id, 'M5');
+    const m6 = snap(snapshots, repo.id, 'M6');
+    const m7 = snap(snapshots, repo.id, 'M7');
+    const m8 = snap(snapshots, repo.id, 'M8');
+    const flowRows = flowTableRows({
+      m4: m4?.dims,
+      m5: m5?.value ?? null,
+      m6: m6?.value ?? null,
+      m7: m7 ? { median: m7.value, dims: m7.dims } : null,
+      m8: m8?.value ?? null,
+    });
     sections.push(
       flowRows.length > 0
-        ? { kind: 'table', id: 'pr_flow', columns: ['Metric', 'Name', 'Value'], rows: flowRows }
+        ? { kind: 'table', id: 'pr_flow', columns: ['Measure', 'Value', 'Unit'], rows: flowRows }
         : noData('pr_flow', 'No pull-request metrics in this window.'),
     );
 
@@ -303,13 +372,8 @@ export function createReportAssembler(db: Database): ReportAssembler {
         ? {
             kind: 'table',
             id: 'ci',
-            columns: ['Measure', 'Value'],
-            rows: [
-              ['Default-branch pass rate', m9.value === null ? null : r2(m9.value)],
-              ['PR pass rate', dimNum(m9.dims, ['prPassRate'])],
-              ['Median duration (min)', dimNum(m9.dims, ['duration', 'median'])],
-              ['Worst workflow flakiness', dimNum(m9.dims, ['topFlakiness'])],
-            ],
+            columns: ['Measure', 'Value', 'Unit'],
+            rows: ciTableRows(m9.value, m9.dims),
           }
         : noData('ci', 'No CI runs ingested for this repository in this window.'),
     );

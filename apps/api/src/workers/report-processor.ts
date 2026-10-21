@@ -66,6 +66,9 @@ async function createScheduledReport(
     healthWeights: { ...effective.healthWeights },
     catalogVersion: 'v1',
     annotation: 'Generated automatically on schedule.',
+    // W20-22 (UX_TODO ADM-23/66): named on the cover and on every PDF page.
+    ...(await workspaceNameOf(deps, data.workspaceId)),
+    generatedBy: 'schedule',
   };
   const [row] = await deps.db
     .insert(read.reports)
@@ -81,6 +84,18 @@ async function createScheduledReport(
     })
     .returning();
   return { reportId: row!.id, params };
+}
+
+async function workspaceNameOf(
+  deps: ReportProcessorDeps,
+  workspaceId: number,
+): Promise<{ workspaceName?: string }> {
+  const [ws] = await deps.db
+    .select({ name: core.workspaces.name })
+    .from(core.workspaces)
+    .where(eq(core.workspaces.id, workspaceId))
+    .limit(1);
+  return ws ? { workspaceName: ws.name } : {};
 }
 
 async function firstAdminId(deps: ReportProcessorDeps, workspaceId: number): Promise<number> {

@@ -12,7 +12,7 @@ import type { ReportSection } from '../types/index.js';
 // SIGNALS, NOT GRADES (N-9). The section sets two cohorts side by side and
 // says which way each measure leans, in words that carry no verdict. It names
 // no person and ranks nothing: the cohorts are "AI-authored" and "human", and
-// what an organisation concludes from a higher rework rate on AI changes is a
+// what an organization concludes from a higher rework rate on AI changes is a
 // conversation for the people who know the work.
 //
 // A SMALL SAMPLE IS SAID OUT LOUD. Each measure has a minimum per cohort

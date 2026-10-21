@@ -116,6 +116,29 @@ amd64 are untested, not unsupported.
 | Infrastructure-as-code scanning | none (runs inside the code-health tools scan) | adapter tests over recorded real tool output (W18-26) | **Shadow candidate, not yet surfaced** | checkov (Terraform, CloudFormation, Kubernetes manifests, Dockerfiles; an allowlist of exposure, privilege, credential and encryption checks), hadolint, actionlint and shellcheck run and store findings as experimental — excluded from scores, banners, plans and reports until an admin promotes them. Helm charts are not scanned. The Security tab's `iac` scanner row still reads "not in this build"; that flips when the checks are promoted |
 | Bitbucket; Kubernetes/Helm packaging; email or chat digests; PR comments or any write to your repositories | — | — | **Absent** | by decision; RepoPulse never writes to a repository |
 
+## Coming from Slop Scorecard
+
+[Slop Scorecard](https://github.com/bpmforge/slop-scorecard) grades one
+checkout, once, on your own machine. RepoPulse runs the same kinds of check
+on every tracked repository, on a schedule, keeps their history, and puts them
+beside delivery, review and CI numbers. What each scorecard check becomes here:
+
+| Scorecard check | In RepoPulse |
+|---|---|
+| Secrets | the secrets scanner (every scan, and the head of each PR push) |
+| Phantom imports | `slop.phantom_module` / `slop.phantom_symbol` (anti-slop scanner) |
+| Hallucinated dependencies | **not in this build**: the `slopsquat` rule is designed (SECURITY_SUITE.md) but no scanner writes it yet |
+| Duplication | `duplication.clone` (code-health tools) |
+| Dead exports | `slop.unused_export` (anti-slop scanner) |
+| Dependency risk (OSV CVEs) | the dependency scanner, from the grype database (`deploy/scan-db-sync.sh`), with KEV and EPSS |
+
+The scorecard's grade and slop index have no counterpart: RepoPulse shows
+signals per repository, not a letter. The scorecard writes JSON, not SARIF, so
+its results cannot be imported directly; a tool that does write SARIF can be
+uploaded with `POST /api/v1/repos/{id}/external-findings/sarif` (admin). The
+optional ast-grep / Opengrep rules in the scorecard's `rules/` are not loaded;
+RepoPulse runs its own rule packs, which do not share their rule ids.
+
 ## Documentation
 
 | Document | For whom | What |

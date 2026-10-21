@@ -18,9 +18,15 @@ import { core, facts, plans, read, security, type Database } from '@repopulse/sh
 //  - audit_events: the record of who did what, including this purge.
 //  - reports: workspace documents that may name the repository; an admin
 //    deletes those one by one (ADM-72).
-//  - forge_etag: a cache keyed by a hash of the request, prunable at any time.
 //  - org-level metric_snapshots (repo_id null): history of the whole
-//    workspace, computed when this repository was part of it.
+//    workspace. Nothing writes such rows today (every snapshot writer passes a
+//    repo id), so none can name this repository; if a rollup writer is added,
+//    its rows are workspace history and stay.
+//
+// forge_etag (W20-22): the cache is keyed by a hash of the request, so its
+// rows cannot be matched to a repository by key. Its cached bodies can: every
+// row of this connection whose body mentions the repository's org/name is
+// deleted. Over-matching (org/name-two) only costs one uncached fetch.
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 
@@ -185,6 +191,18 @@ export async function purgeRepoHistory(
     )
     .returning({ id: core.jobFailure.id });
   note(deleted, 'job_failure', failures.length);
+  // Cached forge responses about this repository (see the header).
+  const etags = await tx
+    .delete(core.forgeEtag)
+    .where(
+      and(
+        eq(core.forgeEtag.workspaceId, ws),
+        eq(core.forgeEtag.connectionId, target.connectionId),
+        sql`strpos(${core.forgeEtag.cachedBody}::text, ${`${target.org}/${target.name}`}) > 0`,
+      ),
+    )
+    .returning({ one: sql<number>`1` });
+  note(deleted, 'forge_etag', etags.length);
 
   // Lists of repositories. An EMPTY list means "every repository" for an
   // agreement and a plan, so a list holding only this one is deleted rather

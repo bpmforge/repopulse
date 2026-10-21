@@ -120,7 +120,7 @@ export function OrgOverview({ search }: Props) {
         }
         // W16-18. The comment above calls this a "role-appropriate CTA", and
         // until now it was only ever role-appropriate COPY: the admin was told
-        // to connect their organisation and given nothing to click. This is the
+        // to connect their organization and given nothing to click. This is the
         // first screen of a real install — found by finally walking the
         // non-demo first run — so a dead end here is a dead end at the worst
         // possible moment. The member still gets none, correctly: they are told
@@ -142,7 +142,7 @@ export function OrgOverview({ search }: Props) {
     );
     // W20-07 (UX_TODO INS-12): the admin checklist at ZERO repos too, above
     // the welcome. It only rendered once repos existed, so "Connect your
-    // organisation" was always already ticked whenever anyone could see it,
+    // organization" was always already ticked whenever anyone could see it,
     // and the checklist never guided the one step that matters first.
     return isAdmin ? (
       <div className="flex flex-col gap-4" data-testid="org-overview-first-run">

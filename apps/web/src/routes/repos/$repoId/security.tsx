@@ -252,7 +252,7 @@ function SecurityTab() {
               className="mt-2 inline-block text-sm underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
               data-testid="secrets-drill"
             >
-              Open in Findings
+              Open in Reviews
             </Link>
           )}
         </WidgetFrame>

@@ -10,7 +10,7 @@ import { PageHeader } from '../primitives/PageHeader.js';
  * from an email.
  *
  * It also caught three in-app help links pointing at /docs/*, which the app does
- * not serve, so the ⓘ on "Connect an organisation" landed here — at exactly the
+ * not serve, so the ⓘ on "Connect an organization" landed here — at exactly the
  * moment a new admin needs help.
  */
 export function NotFound() {

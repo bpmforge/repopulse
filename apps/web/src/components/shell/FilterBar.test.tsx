@@ -106,3 +106,55 @@ describe('person filter applies on Enter, not per keystroke', () => {
     expect(onChange).toHaveBeenLastCalledWith({ person: null });
   });
 });
+
+// W20-22 (UX_TODO X-06): a searchable, org-grouped multi-select that applies
+// the set in one URL change.
+describe('repository picker', () => {
+  const repoOptions = [
+    { id: '1', label: 'acme/api' },
+    { id: '2', label: 'acme/web' },
+    { id: '3', label: 'beta/tools' },
+  ];
+  const reposOnly = { window: false, repos: true, person: false };
+
+  it('groups by org, filters by typing, and applies several at once', () => {
+    const onChange = vi.fn();
+    render(
+      <FilterBar
+        value={{ window: '30d' } as never}
+        onChange={onChange}
+        repoOptions={repoOptions}
+        scope={reposOnly}
+      />,
+    );
+    expect(screen.getByTestId('filter-repos-button')).toHaveTextContent('All repos');
+    fireEvent.click(screen.getByTestId('filter-repos-button'));
+    expect(screen.getByRole('group', { name: 'Repositories by organization' })).toHaveTextContent(
+      /acme.*acme\/api.*acme\/web.*beta.*beta\/tools/,
+    );
+    fireEvent.change(screen.getByTestId('filter-repos-search'), { target: { value: 'acme' } });
+    expect(screen.queryByTestId('filter-repos-option-3')).toBeNull();
+    fireEvent.click(screen.getByTestId('filter-repos-select-shown'));
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('filter-repos-apply'));
+    expect(onChange).toHaveBeenCalledWith({ repos: '1,2' });
+  });
+
+  it('shows a set as a count, and "All repos" clears it', () => {
+    const onChange = vi.fn();
+    render(
+      <FilterBar
+        value={{ window: '30d', repos: '1,3' } as never}
+        onChange={onChange}
+        repoOptions={repoOptions}
+        scope={reposOnly}
+      />,
+    );
+    expect(screen.getByTestId('filter-repos-button')).toHaveTextContent('2 repos');
+    fireEvent.click(screen.getByTestId('filter-repos-button'));
+    expect(screen.getByTestId('filter-repos-option-1')).toBeChecked();
+    fireEvent.click(screen.getByTestId('filter-repos-all'));
+    fireEvent.click(screen.getByTestId('filter-repos-apply'));
+    expect(onChange).toHaveBeenCalledWith({ repos: null });
+  });
+});

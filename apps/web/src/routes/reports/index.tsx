@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ErrorNote, WidgetFrame, frameState, PageHeader } from '../../components/index.js';
 import {
@@ -11,6 +11,7 @@ import type { MeContext } from '../../widgets/org/contracts.js';
 import { MakePlanButton } from '../../widgets/plans/MakePlanButton.js';
 import { repoIdsFromFilter } from '../../widgets/plans/contracts.js';
 import { localDateTime, relativeTime } from '../../lib/time.js';
+import { sectionTitle } from '../../lib/report-sections.js';
 
 // Report Center (W5-04, UX_SPEC §4.h). The rail has linked to /reports since
 // W4-02 with no route behind it.
@@ -78,7 +79,7 @@ export function reportScopeLabel(r: ReportRow, names: Record<number, string>): s
 
 const TYPES = [
   { id: 'repo_health', label: 'Repository Health' },
-  { id: 'org_exec', label: 'Organisation Executive Summary' },
+  { id: 'org_exec', label: 'Organization Executive Summary' },
   { id: 'delivery_dora', label: 'Delivery / DORA' },
   { id: 'security_posture', label: 'Security Posture' },
   { id: 'code_health', label: 'Code Health' },
@@ -131,6 +132,44 @@ export function pollInterval(
 }
 
 /** A failed job, or a ready one whose PDF is gone, can be queued again. */
+/** A report by type and date, for the compare labels (W20-22, UX_TODO ADM-25). */
+export function reportLabel(r: Pick<ReportRow, 'type' | 'generated_at'>): string {
+  const type = TYPES.find((t) => t.id === r.type)?.label ?? r.type;
+  return `${type}, ${localDateTime(r.generated_at)}`;
+}
+
+/** Older first, whatever order they were ticked in (W20-22, UX_TODO ADM-25). */
+export function compareOrder(a: ReportRow, b: ReportRow): [ReportRow, ReportRow] {
+  return Date.parse(a.generated_at) <= Date.parse(b.generated_at) ? [a, b] : [b, a];
+}
+
+/** One page of history (W20-22, UX_TODO ADM-52). */
+export const PAGE_SIZE = 50;
+
+export interface HistoryFilter {
+  type: string;
+  since: string;
+  until: string;
+}
+
+/** The list query for a filter and a cursor; empty fields are left out. */
+export function historyQuery(f: HistoryFilter, cursor: string | null): Record<string, string> {
+  return {
+    limit: String(PAGE_SIZE),
+    ...(f.type ? { type: f.type } : {}),
+    ...(f.since ? { since: f.since } : {}),
+    ...(f.until ? { until: f.until } : {}),
+    ...(cursor ? { cursor } : {}),
+  };
+}
+
+/** "Showing 51-100 of 230" (W20-22, UX_TODO ADM-52). */
+export function historyRangeText(offset: number, shown: number, total: number | undefined): string {
+  if (shown === 0) return '';
+  const range = `${offset + 1}–${offset + shown}`;
+  return total === undefined ? `Showing ${range}` : `Showing ${range} of ${total}`;
+}
+
 export function canRetry(r: ReportRow): boolean {
   return r.status === 'failed' || (r.status === 'ready' && r.artifact_missing === true);
 }
@@ -162,32 +201,51 @@ function ReportCenter() {
   const missingRepo = single && effectiveScope.length === 0;
   const { data: me } = useApiQuery<MeContext>({ endpoint: SESSION_ENDPOINT });
 
-  const { data, isLoading, isError, error, refetch } = useApiQuery<{ items: ReportRow[] }>(LIST, {
-    // Generation is asynchronous and this list is how anyone knows it finished.
-    // Polling rather than SSE because a report takes seconds, not minutes, and
-    // a dedicated event channel for it would be more moving parts than the
-    // problem deserves.
-    //
-    // WHILE THERE IS SOMETHING TO WAIT FOR, and not otherwise (W16-12). The
-    // old flat 3000 asked every three seconds for the life of the tab, long
-    // after every report had settled. Terminal is anything that is not
-    // queued/running, and a job non-terminal for longer than STALE_AFTER_MS
-    // counts as settled too (W17-26).
-    refetchInterval: (list) => pollInterval(list),
-    // AND WHILE THE TAB IS HIDDEN. TanStack pauses the interval on
-    // `visibilityState: 'hidden'` and defaults this to false — right for a
-    // dashboard nobody is looking at, wrong for work the user asked for and
-    // then switched away from. A report generated in a backgrounded tab
-    // finished server-side and the row read "running" indefinitely.
-    //
-    // Safe to leave on precisely because the interval above stops itself: this
-    // is a poll while a report is generating, not a permanent background
-    // request from a tab nobody is looking at.
-    refetchIntervalInBackground: true,
-  });
+  // PAGED, FILTERED HISTORY (W20-22, UX_TODO ADM-52): the API answered the
+  // newest 100 and no more. `cursors` is the stack of pages walked so far;
+  // its last entry is the page on screen (null = the newest).
+  const [filter, setFilter] = useState<HistoryFilter>({ type: '', since: '', until: '' });
+  const [cursors, setCursors] = useState<(string | null)[]>([null]);
+  const cursor = cursors[cursors.length - 1] ?? null;
+  const changeFilter = (next: Partial<HistoryFilter>) => {
+    setFilter((f) => ({ ...f, ...next }));
+    setCursors([null]);
+  };
+  const { data, isLoading, isError, error, refetch } = useApiQuery<{
+    items: ReportRow[];
+    total?: number;
+    next_cursor?: string | null;
+  }>(
+    { ...LIST, query: historyQuery(filter, cursor) },
+    {
+      // Generation is asynchronous and this list is how anyone knows it finished.
+      // Polling rather than SSE because a report takes seconds, not minutes, and
+      // a dedicated event channel for it would be more moving parts than the
+      // problem deserves.
+      //
+      // WHILE THERE IS SOMETHING TO WAIT FOR, and not otherwise (W16-12). The
+      // old flat 3000 asked every three seconds for the life of the tab, long
+      // after every report had settled. Terminal is anything that is not
+      // queued/running, and a job non-terminal for longer than STALE_AFTER_MS
+      // counts as settled too (W17-26).
+      refetchInterval: (list) => pollInterval(list),
+      // AND WHILE THE TAB IS HIDDEN. TanStack pauses the interval on
+      // `visibilityState: 'hidden'` and defaults this to false — right for a
+      // dashboard nobody is looking at, wrong for work the user asked for and
+      // then switched away from. A report generated in a backgrounded tab
+      // finished server-side and the row read "running" indefinitely.
+      //
+      // Safe to leave on precisely because the interval above stops itself: this
+      // is a poll while a report is generating, not a permanent background
+      // request from a tab nobody is looking at.
+      refetchIntervalInBackground: true,
+    },
+  );
 
   const [annotation, setAnnotation] = useState('');
-  const [compare, setCompare] = useState<number[]>([]);
+  // Rows, not ids (W20-22, UX_TODO ADM-25): the pair keeps its labels and
+  // dates when the page that held them is paged away.
+  const [compare, setCompare] = useState<ReportRow[]>([]);
 
   const generate = useApiMutation<
     { type: string; window_days: number; annotation: string; repo_ids: number[] },
@@ -341,6 +399,44 @@ function ReportCenter() {
       >
         {/* W20-17 (UX_TODO ADM-32): its own scroll region, so eight columns
             scroll inside the panel at 390 px instead of pushing <main> sideways. */}
+        <div className="mb-2 flex flex-wrap items-end gap-3 text-xs" data-testid="history-filter">
+          <label className="flex flex-col gap-1">
+            <span className="text-fg-muted">Type</span>
+            <select
+              className="rounded-md border border-border bg-surface px-2 py-1"
+              value={filter.type}
+              onChange={(e) => changeFilter({ type: e.target.value })}
+              data-testid="history-filter-type"
+            >
+              <option value="">All types</option>
+              {TYPES.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-fg-muted">From</span>
+            <input
+              type="date"
+              className="rounded-md border border-border bg-surface px-2 py-1"
+              value={filter.since}
+              onChange={(e) => changeFilter({ since: e.target.value })}
+              data-testid="history-filter-since"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-fg-muted">To</span>
+            <input
+              type="date"
+              className="rounded-md border border-border bg-surface px-2 py-1"
+              value={filter.until}
+              onChange={(e) => changeFilter({ until: e.target.value })}
+              data-testid="history-filter-until"
+            />
+          </label>
+        </div>
         <div
           className="overflow-x-auto"
           role="region"
@@ -368,10 +464,10 @@ function ReportCenter() {
                   key={r.id}
                   row={r}
                   repoNames={repoNames}
-                  compared={compare.includes(r.id)}
+                  compared={compare.some((c) => c.id === r.id)}
                   onCompare={(checked) =>
                     setCompare((c) =>
-                      checked ? [...c, r.id].slice(-2) : c.filter((id) => id !== r.id),
+                      checked ? [...c, r].slice(-2) : c.filter((x) => x.id !== r.id),
                     )
                   }
                   onRefresh={() => void refetch()}
@@ -381,9 +477,39 @@ function ReportCenter() {
             </tbody>
           </table>
         </div>
+        {(data?.next_cursor || cursors.length > 1 || items.length > 0) && (
+          <div
+            className="mt-2 flex flex-wrap items-center gap-2 text-xs"
+            data-testid="history-pager"
+          >
+            <span className="text-fg-muted" data-testid="history-range">
+              {historyRangeText((cursors.length - 1) * PAGE_SIZE, items.length, data?.total)}
+            </span>
+            {cursors.length > 1 && (
+              <button
+                type="button"
+                className="rounded-md border border-border px-2 py-1 hover:border-accent"
+                onClick={() => setCursors((c) => c.slice(0, -1))}
+                data-testid="history-newer"
+              >
+                Newer
+              </button>
+            )}
+            {data?.next_cursor && (
+              <button
+                type="button"
+                className="rounded-md border border-border px-2 py-1 hover:border-accent"
+                onClick={() => setCursors((c) => [...c, data.next_cursor ?? null])}
+                data-testid="history-older"
+              >
+                Older
+              </button>
+            )}
+          </div>
+        )}
       </WidgetFrame>
 
-      {compare.length === 2 && <ReportDiff before={compare[0]!} after={compare[1]!} />}
+      {compare.length === 2 && <ReportDiff pair={compareOrder(compare[0]!, compare[1]!)} />}
 
       {/* Admin-only, like the API behind it (ADM-07). */}
       {me?.role === 'admin' && <SchedulesPanel />}
@@ -651,7 +777,7 @@ function HistoryRow({
       <td className="py-1">
         <input
           type="checkbox"
-          aria-label={`Compare report ${r.id}`}
+          aria-label={`Compare ${reportLabel(r)}`}
           data-testid={`report-compare-${r.id}`}
           disabled={r.status !== 'ready'}
           checked={compared}
@@ -799,66 +925,77 @@ interface DiffResponse {
  * determinism pin: two reports of the same scope differ where the numbers
  * moved, never because they were generated at different moments.
  */
-function ReportDiff({ before, after }: { before: number; after: number }) {
+function ReportDiff({ pair: [before, after] }: { pair: [ReportRow, ReportRow] }) {
   const { data, isLoading, isError, error } = useApiQuery<DiffResponse>({
     endpoint: '/reports/{id}/diff/{otherId}',
-    path: { id: before, otherId: after },
+    path: { id: before.id, otherId: after.id },
   });
+  // The diff renders below a table that can be long (W20-22, UX_TODO ADM-25):
+  // bring it into view and move focus to it, once per pair.
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+    el.focus({ preventScroll: true });
+  }, [before.id, after.id]);
 
   return (
-    <WidgetFrame
-      title={`Comparing #${before} → #${after}`}
-      state={frameState({
-        isLoading,
-        isError,
-        isEmpty: data?.comparable === true && data.deltas.length === 0,
-      })}
-      {...(error ? { errorMessage: error.message, error } : {})}
-      emptyMessage="These reports contain no comparable rows."
-    >
-      {data?.comparable === false ? (
-        // Refusing is the honest answer: a diff across scopes would render a
-        // change in what was measured as a change in the work.
-        <p className="text-sm text-fg-muted" data-testid="diff-refused">
-          {data.reason}
-        </p>
-      ) : (
-        <table className="table-plain w-full text-sm" data-testid="diff-table">
-          <caption className="sr-only">Per-row deltas between two reports</caption>
-          <thead>
-            <tr className="text-left text-xs text-fg-muted">
-              <th scope="col">Section</th>
-              <th scope="col">Row</th>
-              <th scope="col">Before</th>
-              <th scope="col">After</th>
-              <th scope="col">Change</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(data?.deltas ?? []).map((d, i) => (
-              <tr key={`${d.sectionId}-${d.label}-${i}`} className="border-t border-border">
-                <td className="py-1 text-xs text-fg-muted">{d.sectionId}</td>
-                <th scope="row" className="py-1 text-left font-normal">
-                  {d.label}
-                </th>
-                <td className="py-1 tabular-nums">{d.before ?? '—'}</td>
-                <td className="py-1 tabular-nums">{d.after ?? '—'}</td>
-                <td className="py-1 tabular-nums">
-                  {d.delta === null
-                    ? // Never rendered as a number: a row present on one side
-                      // only has not moved, it has appeared or gone.
-                      d.onlyOneSide
-                      ? d.after === null
-                        ? 'gone'
-                        : 'new'
-                      : '—'
-                    : `${d.delta > 0 ? '▲' : d.delta < 0 ? '▼' : ''} ${Math.round(d.delta * 100) / 100}`}
-                </td>
+    <div ref={ref} tabIndex={-1} data-testid="report-diff" aria-label="Report comparison">
+      <WidgetFrame
+        title={`Comparing ${reportLabel(before)} → ${reportLabel(after)}`}
+        state={frameState({
+          isLoading,
+          isError,
+          isEmpty: data?.comparable === true && data.deltas.length === 0,
+        })}
+        {...(error ? { errorMessage: error.message, error } : {})}
+        emptyMessage="These reports contain no comparable rows."
+      >
+        {data?.comparable === false ? (
+          // Refusing is the honest answer: a diff across scopes would render a
+          // change in what was measured as a change in the work.
+          <p className="text-sm text-fg-muted" data-testid="diff-refused">
+            {data.reason}
+          </p>
+        ) : (
+          <table className="table-plain w-full text-sm" data-testid="diff-table">
+            <caption className="sr-only">Per-row deltas between two reports</caption>
+            <thead>
+              <tr className="text-left text-xs text-fg-muted">
+                <th scope="col">Section</th>
+                <th scope="col">Row</th>
+                <th scope="col">Before</th>
+                <th scope="col">After</th>
+                <th scope="col">Change</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </WidgetFrame>
+            </thead>
+            <tbody>
+              {(data?.deltas ?? []).map((d, i) => (
+                <tr key={`${d.sectionId}-${d.label}-${i}`} className="border-t border-border">
+                  <td className="py-1 text-xs text-fg-muted">{sectionTitle(d.sectionId)}</td>
+                  <th scope="row" className="py-1 text-left font-normal">
+                    {d.label}
+                  </th>
+                  <td className="py-1 tabular-nums">{d.before ?? '—'}</td>
+                  <td className="py-1 tabular-nums">{d.after ?? '—'}</td>
+                  <td className="py-1 tabular-nums">
+                    {d.delta === null
+                      ? // Never rendered as a number: a row present on one side
+                        // only has not moved, it has appeared or gone.
+                        d.onlyOneSide
+                        ? d.after === null
+                          ? 'gone'
+                          : 'new'
+                        : '—'
+                      : `${d.delta > 0 ? '▲' : d.delta < 0 ? '▼' : ''} ${Math.round(d.delta * 100) / 100}`}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </WidgetFrame>
+    </div>
   );
 }

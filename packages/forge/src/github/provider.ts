@@ -97,6 +97,37 @@ export interface ForgeHttpClient {
  */
 export const DEFAULT_GITHUB_BASE_URL = 'https://api.github.com';
 
+/**
+ * The REST root for a GitHub address as an operator types it (W20-22, UX_TODO
+ * INS-59). GitHub Enterprise Server serves its API under /api/v3, and the
+ * Gitea and GitLab adapters already add their /api/vN; this one used the
+ * address exactly as typed, so pasting the browser address
+ * (https://ghe.example.com) failed with a confusing credential error. A bare
+ * host now gets /api/v3. Left as typed: api.github.com, an address that
+ * already has a path (/api/v3, or a proxy prefix), and a loopback host (the
+ * demo and e2e fake forges serve the API at their root).
+ */
+export function githubApiBase(url: string): string {
+  const trimmed = url.replace(/\/+$/, '');
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return trimmed;
+  }
+  const host = parsed.hostname.toLowerCase();
+  const loopback =
+    host === 'localhost' || host === '[::1]' || host === '::1' || /^127\./.test(host);
+  if (
+    host === 'api.github.com' ||
+    loopback ||
+    (parsed.pathname !== '' && parsed.pathname !== '/')
+  ) {
+    return trimmed;
+  }
+  return `${trimmed}/api/v3`;
+}
+
 export interface GitHubProviderOptions {
   client: ForgeHttpClient;
   auth: AuthHeaderProvider;
@@ -124,7 +155,7 @@ export class GitHubProvider implements ForgeProvider {
   constructor(opts: GitHubProviderOptions) {
     this.client = opts.client;
     this.auth = opts.auth;
-    this.base = opts.baseUrl ?? DEFAULT_GITHUB_BASE_URL;
+    this.base = githubApiBase(opts.baseUrl ?? DEFAULT_GITHUB_BASE_URL);
     this.download = opts.tarballDownloader ?? createFetchDownloader();
   }
 

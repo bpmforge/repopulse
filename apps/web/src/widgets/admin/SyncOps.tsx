@@ -290,8 +290,49 @@ export function RetryButton({ row }: { row: RepoSyncStatus }) {
 }
 
 /**
+ * Sync a live repository now (W20-22, UX_TODO INS-30): one catch-up pass, the
+ * same one the nightly sweep runs, for when a webhook was missed and a change
+ * is not showing yet. Repeated clicks within ten minutes share one pass.
+ */
+export function SyncNowButton({ row }: { row: RepoSyncStatus }) {
+  const pushToasts = useUiStore((s) => s.pushToasts);
+  const syncNow = useApiMutation<Record<string, never>, { repo_id: number; queued: boolean }>(
+    { endpoint: '/repos/{id}/sync-now', path: { id: row.repoId }, method: 'POST' },
+    { invalidate: [queryKeyFor(STATUS)] },
+  );
+  const name = row.repoName ?? row.repoId;
+  return (
+    <button
+      type="button"
+      disabled={syncNow.isPending}
+      className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+      data-testid={`sync-now-${row.repoId}`}
+      title="Fetch what changed on the forge since the last sync, now rather than tonight"
+      onClick={() =>
+        syncNow.mutate(
+          {},
+          {
+            onError: (err: Error) => pushToasts([errorToast(`sync-now-${row.repoId}-err`, err)]),
+            onSuccess: () =>
+              pushToasts([
+                {
+                  id: `sync-now-${row.repoId}-ok`,
+                  tone: 'ok',
+                  message: `${name} queued to catch up with the forge`,
+                },
+              ]),
+          },
+        )
+      }
+    >
+      {syncNow.isPending ? 'Queuing…' : 'Sync now'}
+    </button>
+  );
+}
+
+/**
  * The empty state names which step is missing (W20-14, UX_TODO INS-31): it
- * said "connect an organisation first" even with a connection in place.
+ * said "connect an organization first" even with a connection in place.
  */
 export function syncEmptyMessage(connectionCount: number | undefined): string {
   if (connectionCount === undefined || connectionCount === 0) {
@@ -421,6 +462,7 @@ export function SyncOps() {
       cell: (row) => (
         <div className="flex flex-wrap gap-1.5">
           {row.phase === 'error' && <RetryButton row={row} />}
+          {row.phase === 'live' && <SyncNowButton row={row} />}
           <TrackingButton row={row} />
           <PurgeButton row={row} />
         </div>

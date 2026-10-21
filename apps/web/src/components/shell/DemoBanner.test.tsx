@@ -20,7 +20,7 @@ describe('demo banner', () => {
     const banner = screen.getByTestId('demo-banner');
     expect(banner.textContent).toMatch(/Demo mode/i);
     // Not colour alone (UX_SPEC §7): the words have to carry it.
-    expect(banner.textContent).toMatch(/not.*real organisation|fake/i);
+    expect(banner.textContent).toMatch(/not.*real organization|fake/i);
   });
 
   it('renders NOTHING when the API says demo is false', () => {

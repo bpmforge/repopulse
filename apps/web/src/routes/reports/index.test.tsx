@@ -11,6 +11,10 @@ import {
 import { Route as rootRoute, type RouterContext } from '../__root.js';
 import {
   canRetry,
+  compareOrder,
+  historyQuery,
+  historyRangeText,
+  reportLabel,
   isStalled,
   pollInterval,
   retriedAt,
@@ -453,5 +457,30 @@ describe('Retried and deleted reports (W20-19)', () => {
     await screen.findByTestId('report-23');
     await waitFor(() => expect(requests.some((r) => r.url.includes('/me/context'))).toBe(true));
     expect(screen.queryByTestId('report-delete-23')).toBeNull();
+  });
+});
+
+// W20-22 (UX_TODO ADM-25, ADM-52): compare is labelled by type and date and
+// ordered by date; history is paged with a type and date filter.
+describe('compare and history paging (W20-22)', () => {
+  it('labels a report by type and date, and orders a pair older first', () => {
+    const a = row({ id: 9, generated_at: '2026-09-01T10:00:00.000Z' });
+    const b = row({ id: 3, generated_at: '2026-08-01T10:00:00.000Z' });
+    expect(reportLabel(a)).toMatch(/^Repository Health, /);
+    expect(compareOrder(a, b).map((r) => r.id)).toEqual([3, 9]);
+    expect(compareOrder(b, a).map((r) => r.id)).toEqual([3, 9]);
+  });
+
+  it('sends only the filters that are set, and says which slice is shown', () => {
+    expect(historyQuery({ type: '', since: '', until: '' }, null)).toEqual({ limit: '50' });
+    expect(historyQuery({ type: 'org_exec', since: '2026-01-01', until: '' }, 'c1')).toEqual({
+      limit: '50',
+      type: 'org_exec',
+      since: '2026-01-01',
+      cursor: 'c1',
+    });
+    expect(historyRangeText(0, 50, 230)).toBe('Showing 1–50 of 230');
+    expect(historyRangeText(50, 20, undefined)).toBe('Showing 51–70');
+    expect(historyRangeText(0, 0, 0)).toBe('');
   });
 });

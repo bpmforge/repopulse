@@ -84,7 +84,8 @@ const SUBPAGE_LABELS: Record<string, string> = {
   'pr-flow': 'PR Flow',
   'ai-reviewers': 'AI Reviewers',
   ci: 'CI',
-  findings: 'Findings',
+  // W20-22 (UX_TODO ADM-34): the repo tab's name, the rail's word.
+  findings: 'Reviews',
   security: 'Security',
   'code-health': 'Code Health',
   prs: 'Pull Requests',
@@ -776,11 +777,18 @@ function AppShell({ inert = false }: { inert?: boolean }) {
         search={preservedSearch}
         returnFocusTo={drawerTriggerRef}
       />
-      <div className="flex min-w-0 flex-1 flex-col">
+      {/* PHONE (W20-22, UX_TODO ADM-64): below md this column is the scroll
+          container, so the banners, filter bar and breadcrumb scroll away with
+          the page and only the Menu row stays (sticky). From md up <main>
+          scrolls on its own under a fixed header, as before. */}
+      <div
+        className="flex min-w-0 flex-1 flex-col overflow-y-auto md:overflow-hidden"
+        data-testid="shell-column"
+      >
         {/* The drawer's trigger. Labelled in words, not a bare hamburger, and
             it reports its own state — a control that opens something must say
             so (aria-expanded / aria-controls). */}
-        <div className="flex items-center gap-2 border-b border-border px-3 py-2 md:hidden">
+        <div className="sticky top-0 z-30 flex items-center gap-2 border-b border-border bg-bg px-3 py-2 md:hidden">
           <button
             type="button"
             ref={drawerTriggerRef}
@@ -817,7 +825,7 @@ function AppShell({ inert = false }: { inert?: boolean }) {
         <main
           id="main"
           ref={mainRef}
-          className="min-h-0 flex-1 overflow-auto p-5 focus:outline-none"
+          className="flex-1 overflow-x-auto p-5 focus:outline-none md:min-h-0 md:overflow-auto"
           data-testid="main"
           hidden={outage.down.length > 0}
         >

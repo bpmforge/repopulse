@@ -11194,6 +11194,47 @@
           "No migration.",
           "Bugs noticed: Pulse 'raised this window' used a fixed 7 days whatever the window (fixed); Next actions coverage vanished when any action existed (fixed); the hotspot empty state hid the acknowledged-files note (fixed). Not fixed: insights intentWarnings has no caller and no hotspot history to read."
         ]
+      },
+      {
+        "id": "W20-22",
+        "title": "Install, admin and cross-flow remaining polish",
+        "phase": 20,
+        "module": "web",
+        "stories": [],
+        "write_scope": [
+          "apps/web/**",
+          "apps/api/**",
+          "packages/forge/src/github/**",
+          "packages/forge/test/**",
+          "packages/reports/src/**",
+          "packages/shared/src/logger/audit.ts",
+          "deploy/scan-db-sync.sh",
+          "README.md",
+          "docs/INSTALL.md",
+          "docs/CONFIG.md",
+          "docs/work/UX_TODO.md",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W20-19"
+        ],
+        "acceptance": [
+          "UX_TODO INS-30/35/59/60: POST /repos/:id/sync-now (admin, workspace-filtered, 409 unless the connection is active and the repo live, audited repo.sync_requested) behind a Sync now button on live rows; Overview KPI, hotspot and attention cards show 'History still loading - X%' while a backfill runs; a bare GitHub Enterprise host gets /api/v3 added; a repository's first live transition queues one history scan per startable scanner (FIRST_SCAN_ON_LIVE, default on, off with SECURITY_WEEKLY_CRON=off)",
+          "UX_TODO INS-42/67/68, X-12: one spelling (organization) and 'forge connection' vs 'forge identity' in the first-run path; scan-db-sync.sh mounts EXTRA_CA_DIR and trusts NODE_EXTRA_CA_CERTS in both fetch containers, prints the container's own error and points at SCAN_VULN_DB_ARCHIVE; INSTALL has a macOS (podman machine) section and RAM in What you need; README maps Slop Scorecard checks to RepoPulse rules",
+          "UX_TODO ADM-23/25/52/66/73: report viewer has Download PDF, Print and Copy link and its cover names scope, workspace and author; compare is labelled by type and date, ordered by date, scrolled to and focused, with section titles; GET /reports pages by cursor with type and date filters and a total; PDF pages carry a header and footer naming report, scope, date and workspace, with the EOL credit only where used; PR flow and CI tables name each measure with its unit and split PR size into buckets",
+          "UX_TODO ADM-34/36/53/59/60/64/70/74, X-17: 'Reviews' names the place everywhere; identities are searchable, filterable and paged with provider and host labels and a focused merge picker that puts suggestions first; dead-letter rows name their target and can be discarded with a reason (audited); stale-PR and CI-pass-rate agreements are checked per repository; agreements can be scoped to repositories; the weights form shows all seven sub-scores and their effective share; on a phone only the Menu row stays fixed; file owners follow identity merges and bot flags",
+          "Purge follow-ups from W20-19: purge deletes forge_etag rows whose cached body names the repository; a queued job whose repository was removed is skipped instead of dead-lettering on its foreign key; workspace lint, typecheck and offline vitest green"
+        ],
+        "points": 8,
+        "status": "done",
+        "notes": [
+          "Fixed: INS-30, INS-35, INS-42, INS-59, INS-60, INS-67, INS-68, ADM-23, ADM-25, ADM-34, ADM-36, ADM-52, ADM-53, ADM-59, ADM-60, ADM-64, ADM-66, ADM-70, ADM-73, ADM-74, X-12, X-17.",
+          "Partial or not done: INS-40 (CLI message already right; shipping it in the api image needs a container build), INS-58 (install.sh --upgrade needs a Podman run to verify), ADM-31 (Help label done; VITE_DOCS_REF can pin docs links but defaults to main: no release tags exist and the image build does not pass it), ADM-50 (Added by/on shown; token owner and expiry need a migration and a connect-time forge read), X-06 (searchable, grouped multi-select done; saved repository sets parked), X-10 (Found by shown; the verifying model is not stored), X-11 (parked).",
+          "Defaults chosen (cheap to change): Sync now dedupes per repository in 10-minute buckets (jobId rc-<id>-now-<bucket>); FIRST_SCAN_ON_LIVE defaults on and is also off when SECURITY_WEEKLY_CRON=off, one job per scanner (jobId sec-first-<repo>-<scanner>), only for a repository never scanned; a GitHub address with no path gets /api/v3, api.github.com and loopback hosts are left as typed; aggregate agreements use the 30d window, M8 value for stale PRs and M9 dims.passRate for CI; an agreement lists at most 25 repository checks, breaching first; DLQ discard deletes the row and needs a 1-500 character reason, the audit log keeps it; an identity's host is named only when its forge has exactly one connection; report history pages are 50, cursor <generated_at ISO>~<id>, since/until inclusive UTC days; 'Reviews' is the place (rail, trail, heading, repo tab), 'finding' one item in it; one spelling, 'organization'; security, code health and supply-chain weights are shown but not editable; the scan-db-sync CA uses SSL_CERT_DIR for grype and a concatenated bundle for Python; the Mac VM sizes (4 CPU, 8 GB, 60 GB) are a starting point, not measured; forge_etag rows are matched by the repository's org/name in the cached body.",
+          "No migration.",
+          "Not verified here: the DB-gated suites (purge, identities paging, file owners, agreements, reports list, connections list) were written but could not run: the dev Postgres on 15432 refused the repopulse role's password and changing pg_hba was not allowed. The phone layout (ADM-64) was not checked on a device or in Playwright.",
+          "Bugs noticed: the runs route read repo_scanner_config without a workspace filter (fixed through startableScannerKeys); POST /agreements accepted repo_ids from another workspace unchecked (fixed); identities counted commits for the whole workspace on every request (now per page); FilterBar crashed on a bare ?repos=4 because the router parses it as a number (fixed); no scanner writes the 'slopsquat' rule that CODE_HEALTH_SUITE.md calls shipped (README says so; not fixed)."
+        ]
       }
   ]
 }

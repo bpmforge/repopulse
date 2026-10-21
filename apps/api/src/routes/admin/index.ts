@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { and, count, desc, eq, isNull } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { auditLog, core, read, type Database } from '@repopulse/shared';
 import { QUEUE, createQueue, createRedisConnection } from '@repopulse/ingest';
 import type { Queue } from 'bullmq';
@@ -94,6 +94,24 @@ function problem(
 ): FastifyReply {
   sendProblem(request, reply, status, title, detail === undefined ? {} : { detail });
   return reply;
+}
+
+/**
+ * What a dead-lettered job was for, from its payload (W20-22, UX_TODO ADM-53).
+ * Every ingest and scan payload carries `repoId`; report jobs carry
+ * `reportId`; some carry a pull request or a scanner. Anything else is null.
+ */
+export function jobTarget(payload: unknown): { repoId: number | null; detail: string | null } {
+  if (!payload || typeof payload !== 'object') return { repoId: null, detail: null };
+  const p = payload as Record<string, unknown>;
+  const num = (v: unknown) => (typeof v === 'number' && Number.isInteger(v) && v > 0 ? v : null);
+  const parts: string[] = [];
+  if (num(p.reportId) !== null) parts.push(`report #${String(p.reportId)}`);
+  if (num(p.prNumber) !== null) parts.push(`pull request #${String(p.prNumber)}`);
+  if (typeof p.entityType === 'string') parts.push(p.entityType);
+  if (typeof p.scannerKey === 'string') parts.push(`scanner ${p.scannerKey}`);
+  if (typeof p.sha === 'string') parts.push(`commit ${p.sha.slice(0, 7)}`);
+  return { repoId: num(p.repoId), detail: parts.length > 0 ? parts.join(' · ') : null };
 }
 
 export default async function adminRoutes(
@@ -531,18 +549,88 @@ export default async function adminRoutes(
         .orderBy(desc(core.jobFailure.failedAt))
         .limit(200);
 
+      // W20-22 (UX_TODO ADM-53): which repository, report or pull request each
+      // job was for, read from its payload. A repository that no longer exists
+      // is said so: that job can never succeed, and Discard is the answer.
+      const repoIds = [
+        ...new Set(rows.map((r) => jobTarget(r.payload).repoId).filter((n) => n !== null)),
+      ] as number[];
+      const repos =
+        repoIds.length === 0
+          ? []
+          : await opts.db
+              .select({ id: core.repos.id, org: core.repos.org, name: core.repos.name })
+              .from(core.repos)
+              .where(and(eq(core.repos.workspaceId, workspaceId), inArray(core.repos.id, repoIds)));
+      const repoName = new Map(repos.map((r) => [r.id, `${r.org}/${r.name}`]));
+
       return reply.send({
-        items: rows.map((r) => ({
-          id: r.id,
-          queue: r.queue,
-          job_id: r.jobId,
-          // The error is the whole point of this screen — a DLQ showing a count
-          // and no reason tells an operator nothing they can act on.
-          error: r.error,
-          failed_at: r.failedAt,
-          replayed_at: r.replayedAt,
-        })),
+        items: rows.map((r) => {
+          const t = jobTarget(r.payload);
+          return {
+            id: r.id,
+            queue: r.queue,
+            job_id: r.jobId,
+            // The error is the whole point of this screen — a DLQ showing a count
+            // and no reason tells an operator nothing they can act on.
+            error: r.error,
+            failed_at: r.failedAt,
+            replayed_at: r.replayedAt,
+            target: {
+              repo_id: t.repoId,
+              repo: t.repoId === null ? null : (repoName.get(t.repoId) ?? null),
+              repo_removed: t.repoId !== null && !repoName.has(t.repoId),
+              detail: t.detail,
+            },
+          };
+        }),
       });
+    },
+  );
+
+  /**
+   * POST /admin/dlq/:id/discard — drop a job that can never succeed (W20-22,
+   * UX_TODO ADM-53), for example one whose repository was removed. The list
+   * only grew. The row is deleted; the audit trail keeps what it was, who
+   * discarded it and why (a reason is required).
+   */
+  app.post<{ Params: { id: string }; Body: { reason?: unknown } }>(
+    '/admin/dlq/:id/discard',
+    { preHandler: requireAdmin },
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      if (workspaceId === undefined) return problem(request, reply, 401, 'No active session');
+      const id = Number(request.params.id);
+      if (!Number.isInteger(id)) return problem(request, reply, 400, 'Invalid id');
+      const reason = typeof request.body?.reason === 'string' ? request.body.reason.trim() : '';
+      if (reason.length === 0 || reason.length > 500) {
+        return problem(
+          request,
+          reply,
+          400,
+          'Say why it is discarded',
+          'A reason of up to 500 characters is required; it is kept in the audit log.',
+        );
+      }
+      const [row] = await opts.db
+        .delete(core.jobFailure)
+        .where(and(eq(core.jobFailure.id, id), eq(core.jobFailure.workspaceId, workspaceId)))
+        .returning();
+      // Tenancy (Law 5): another workspace's row is a 404.
+      if (!row) return problem(request, reply, 404, 'Dead-letter job not found');
+      auditLog(request.log, {
+        event: 'dlq.job.discarded',
+        actorUserId: request.session.get('userId') ?? null,
+        workspaceId,
+        ip: request.ip,
+        ua: request.headers['user-agent'] ?? null,
+        failureId: id,
+        queue: row.queue,
+        jobId: row.jobId,
+        reason,
+        error: row.error.slice(0, 500),
+      });
+      return reply.send({ id, discarded: true });
     },
   );
 

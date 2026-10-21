@@ -48,6 +48,14 @@ export interface ReportParams {
    * report quotable.
    */
   annotation?: string;
+  /**
+   * The workspace's name and who pressed Generate (W20-22, UX_TODO ADM-23 /
+   * ADM-66, REPORTS.md §5, FR-REPORTS-6), pinned like the rest so the cover
+   * and every PDF page say where the report came from. A scheduled report
+   * says "schedule". Optional: reports stored before this have neither.
+   */
+  workspaceName?: string;
+  generatedBy?: string;
 }
 
 export interface ScoreBreakdownRow {

@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { core, facts, type Database } from '@repopulse/shared';
 import {
@@ -99,23 +100,39 @@ export default async function filesRoutes(
       )
       .orderBy(asc(facts.commits.authoredAt));
 
-    // Owners by lines changed.
+    // Owners by lines changed. W20-22 (UX_TODO ADM-70): grouped by the identity
+    // a merge kept (merged_into_id, else itself) and without bots, so a merge
+    // or a bot flag in Settings → Identities shows here at once. It grouped by
+    // the raw login, so "alice@corp.com (email-only)" and "alice" stayed two
+    // owners with split shares and dependabot stayed a top owner.
+    const author = alias(core.identities, 'author');
+    const owner = alias(core.identities, 'owner');
     const owners = await db
       .select({
-        login: core.identities.forgeLogin,
+        login: owner.forgeLogin,
         lines: sql<number>`sum(${facts.commitFiles.additions} + ${facts.commitFiles.deletions})::int`,
       })
       .from(facts.commitFiles)
       .innerJoin(facts.commits, eq(facts.commitFiles.commitId, facts.commits.id))
-      .innerJoin(core.identities, eq(facts.commits.authorIdentityId, core.identities.id))
+      .innerJoin(author, eq(facts.commits.authorIdentityId, author.id))
+      .innerJoin(
+        owner,
+        and(
+          eq(owner.id, sql`coalesce(${author.mergedIntoId}, ${author.id})`),
+          eq(owner.workspaceId, workspaceId),
+        ),
+      )
       .where(
         and(
+          eq(facts.commitFiles.workspaceId, workspaceId),
           eq(facts.commitFiles.repoId, repoId),
           eq(facts.commitFiles.path, path),
           eq(facts.commits.isMerge, false),
+          eq(author.isBot, false),
+          eq(owner.isBot, false),
         ),
       )
-      .groupBy(core.identities.forgeLogin)
+      .groupBy(owner.id, owner.forgeLogin)
       .orderBy(desc(sql`sum(${facts.commitFiles.additions} + ${facts.commitFiles.deletions})`));
 
     // W20-12 (UX_TODO DSH-94): NO COMMITS IS AN ANSWER, NOT A 404. A PR's

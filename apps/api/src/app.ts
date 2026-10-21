@@ -186,10 +186,12 @@ export function buildApp(opts: BuildAppOptions) {
   let queueConnection: Redis | undefined;
   let backfillQueue: Queue | undefined;
   let deltaQueue: Queue | undefined;
+  let reconcileQueue: Queue | undefined;
   const connection = () => (queueConnection ??= createRedisConnection(opts.redisUrl));
   let reportQueue: ReturnType<typeof createQueue> | undefined;
   const backfill = () => (backfillQueue ??= createQueue(QUEUE.backfill, connection()));
   const delta = () => (deltaQueue ??= createQueue(QUEUE.delta, connection()));
+  const reconcile = () => (reconcileQueue ??= createQueue(QUEUE.reconcile, connection()));
   // Lazily created like the others: an API process that never generates a
   // report should not hold a Redis connection for the privilege.
   const reportsQueue = () => (reportQueue ??= createQueue(QUEUE.reports, connection()));
@@ -197,6 +199,7 @@ export function buildApp(opts: BuildAppOptions) {
   app.addHook('onClose', async () => {
     await backfillQueue?.close();
     await deltaQueue?.close();
+    await reconcileQueue?.close();
     await reportQueue?.close();
     queueConnection?.disconnect();
   });
@@ -251,6 +254,17 @@ export function buildApp(opts: BuildAppOptions) {
     },
     enqueueBackfillPlan: async ({ workspaceId, repoId }) => {
       await backfill().add('plan', { workspaceId, repoId });
+    },
+    // W20-22 (INS-30): the nightly sweep's per-repo job. The jobId is a
+    // ten-minute bucket, so repeated clicks collapse onto one pass instead of
+    // spending forge budget on the same catch-up several times.
+    enqueueReconcile: async ({ workspaceId, repoId }) => {
+      const bucket = Math.floor(Date.now() / 600_000);
+      await reconcile().add(
+        'repo',
+        { workspaceId, repoId },
+        { jobId: `rc-${repoId}-now-${bucket}` },
+      );
     },
     prefix: '/api/v1',
   });

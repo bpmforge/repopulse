@@ -55,9 +55,9 @@ const CALLBACK_ERRORS: Record<string, string> = {
     'Your identity provider’s answer could not be verified, so you were not signed in. Tell your administrator.',
   // W20-10 (UX_TODO INS-50): the SSO allowlist refused this account.
   not_allowed:
-    'Your account is not on this install’s sign-in list (an allowed organisation, group or email domain). If you should have access, ask your RepoPulse administrator.',
+    'Your account is not on this install’s sign-in list (an allowed organization, group or email domain). If you should have access, ask your RepoPulse administrator.',
   org_check_failed:
-    'RepoPulse could not check your GitHub organisations, so you were not signed in. Try again; if it keeps happening, tell your administrator.',
+    'RepoPulse could not check your GitHub organizations, so you were not signed in. Try again; if it keeps happening, tell your administrator.',
 };
 
 /**
@@ -211,7 +211,7 @@ export function SignIn({ expired }: SignInProps) {
             data-testid="signin-demo-banner"
           >
             <span className="font-medium">Demo mode</span> — fake forge, seeded fixture data.
-            Nothing here describes a real organisation. Sign in with{' '}
+            Nothing here describes a real organization. Sign in with{' '}
             <code className="font-mono">{providers.demo.email}</code> /{' '}
             <code className="font-mono">{providers.demo.password}</code>, already filled in below.
           </p>
@@ -229,7 +229,7 @@ export function SignIn({ expired }: SignInProps) {
               // stays mounted, so what was typed is still there — but the write
               // that hit the expired session was refused and is not retried.
               'Your session ended. Sign in again to carry on — the page behind this stays as you left it, but the last change you made was not saved; make it again.'
-            : 'Sign in to see your organisation’s delivery, code health, and risk.'}
+            : 'Sign in to see your organization’s delivery, code health, and risk.'}
         </p>
 
         {insecure ? (

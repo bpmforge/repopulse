@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useApiQuery } from '../../../api/useApiQuery.js';
 import { ErrorNote, ReportMarkdown } from '../../../components/index.js';
 import { MakePlanButton } from '../../../widgets/plans/MakePlanButton.js';
+import { SECTION_TITLE, sectionTitle } from '../../../lib/report-sections.js';
 
 // Print route (W5-04, REPORTS.md §3).
 //
@@ -14,40 +15,6 @@ import { MakePlanButton } from '../../../widgets/plans/MakePlanButton.js';
 // No shell either (no rail, no topbar, no SSE): this page exists to be printed
 // by a headless browser, and every live subscription is one more thing that can
 // keep `networkidle` from ever arriving.
-
-/**
- * A section's heading (W16-54).
- *
- * `capitalize` on the raw id turned `ci` into "Ci" and `pr_flow` into "Pr
- * Flow" — the two acronyms this product is largely about, misspelled in the
- * document customers are handed. The map covers the ids where mechanical
- * casing is wrong; everything else keeps the underscore-to-space transform,
- * so a section added later still gets a readable heading rather than nothing.
- */
-const SECTION_TITLE: Record<string, string> = {
-  ci: 'CI',
-  pr_flow: 'PR flow',
-  top_risks: 'Top risks',
-  // W20-15 (UX_TODO X-22): open findings only, so the heading says so.
-  findings: 'Open findings',
-  risk_counts: 'Risk counts',
-  score_breakdown: 'Health score breakdown',
-  sbom: 'SBOM',
-  vex: 'VEX',
-  // W18-20. Mapped summary ids also get a heading (below): the governance
-  // summary opens a new topic mid-report and would otherwise run on from the
-  // section above it.
-  ai_governance: 'AI-authored vs human changes',
-  ai_governance_measures: 'AI-authored vs human: measures',
-};
-
-function sectionTitle(id: string | undefined): string {
-  const key = id ?? '';
-  const mapped = SECTION_TITLE[key];
-  if (mapped) return mapped;
-  const words = key.replace(/_/g, ' ');
-  return words.charAt(0).toUpperCase() + words.slice(1);
-}
 
 export const Route = createFileRoute('/print/reports/$reportId')({ component: PrintReport });
 
@@ -95,6 +62,9 @@ interface ReportDataShape {
     repoIds?: (string | number)[];
     /** Pinned at generation (W20-09, UX_TODO ADM-71); absent on older reports. */
     healthWeights?: Record<string, number>;
+    /** W20-22 (UX_TODO ADM-23): pinned at generation; absent on older reports. */
+    workspaceName?: string;
+    generatedBy?: string;
   };
   sections: ReportSection[];
   appendix: { definitions: { id: string; name: string; formula: string; unit: string }[] };
@@ -113,6 +83,75 @@ interface ReportResponse {
   status: string;
   error?: string | null;
   data: ReportDataShape | null;
+  has_pdf?: boolean;
+  generated_by?: string | null;
+}
+
+/**
+ * The cover's scope line (W20-22, UX_TODO ADM-23; REPORTS.md §5): which
+ * repositories, by name, from the stored data.
+ */
+export function coverScope(report: Pick<ReportDataShape, 'params' | 'dataQuality'>): string {
+  const ids = report.params.repoIds ?? [];
+  if (ids.length === 0) return 'All repositories';
+  const names = report.dataQuality.map((d) => d.repoName ?? d.repoId);
+  return (names.length > 0 ? names : ids.map(String)).join(', ');
+}
+
+/**
+ * Download, print and share (W20-22, UX_TODO ADM-23). Screen only: the PDF is
+ * printed from this page and must not carry its own toolbar.
+ */
+function ReportToolbar({ reportId, hasPdf }: { reportId: string; hasPdf: boolean }) {
+  const [copied, setCopied] = useState<'idle' | 'done' | 'failed'>('idle');
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopied('done');
+    } catch {
+      setCopied('failed');
+    }
+  };
+  const button =
+    'rounded-md border border-border px-2 py-1 text-xs hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent';
+  return (
+    <div className="flex flex-wrap items-center gap-2" data-testid="report-toolbar">
+      {hasPdf && (
+        <a
+          href={`/api/v1/reports/${reportId}/download`}
+          className={button}
+          data-testid="report-toolbar-pdf"
+        >
+          Download PDF
+        </a>
+      )}
+      <button
+        type="button"
+        className={button}
+        data-testid="report-toolbar-print"
+        onClick={() => window.print()}
+      >
+        Print
+      </button>
+      <button
+        type="button"
+        className={button}
+        data-testid="report-toolbar-copy"
+        onClick={() => void copy()}
+      >
+        Copy link
+      </button>
+      <span className="text-xs text-fg-muted" role="status" data-testid="report-toolbar-note">
+        {copied === 'done'
+          ? 'Link copied. '
+          : copied === 'failed'
+            ? 'Could not copy; copy the address bar instead. '
+            : ''}
+        Whoever opens the link needs a RepoPulse account in this workspace; send the PDF to anyone
+        else.
+      </span>
+    </div>
+  );
 }
 
 /** Health sub-score keys in words, for the Basis box's weights line. */
@@ -152,7 +191,7 @@ function inFlight(status: string | undefined): boolean {
 
 const TITLES: Record<string, string> = {
   repo_health: 'Repository Health',
-  org_exec: 'Organisation Executive Summary',
+  org_exec: 'Organization Executive Summary',
   security_posture: 'Security Posture',
   delivery_dora: 'Delivery / DORA',
   code_health: 'Code Health',
@@ -304,6 +343,7 @@ function PrintReport() {
             repoIds={report.params.repoIds ?? []}
           />
         )}
+        {injected === null && <ReportToolbar reportId={reportId} hasPdf={data?.has_pdf === true} />}
       </div>
 
       {/* Cover (REPORTS.md §5). */}
@@ -314,6 +354,27 @@ function PrintReport() {
         <p className="mt-1 text-xs text-fg-muted">
           {report.params.windowDays}-day window · generated {generatedAt}
         </p>
+        {/* W20-22 (UX_TODO ADM-23; REPORTS.md §5, FR-REPORTS-6): scope,
+            workspace and author on the cover. */}
+        <dl
+          className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 text-xs"
+          data-testid="print-cover-meta"
+        >
+          <dt className="text-fg-muted">Scope</dt>
+          <dd data-testid="print-scope">{coverScope(report)}</dd>
+          {report.params.workspaceName && (
+            <>
+              <dt className="text-fg-muted">Workspace</dt>
+              <dd data-testid="print-workspace">{report.params.workspaceName}</dd>
+            </>
+          )}
+          {(report.params.generatedBy ?? data?.generated_by) && (
+            <>
+              <dt className="text-fg-muted">Generated by</dt>
+              <dd data-testid="print-author">{report.params.generatedBy ?? data?.generated_by}</dd>
+            </>
+          )}
+        </dl>
         {/* R-A11: the context someone captured at generation, on the cover
             where a reader meets it before the numbers. */}
         {report.params.annotation && (

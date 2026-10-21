@@ -89,6 +89,34 @@ export const WEIGHT_KEYS: { key: keyof HealthWeights; label: string }[] = [
 ];
 
 /**
+ * The three sub-scores added ON TOP of the four above (W20-22, UX_TODO
+ * ADM-60), as packages/insights/src/score/health.ts DEFAULT_WEIGHTS sets them.
+ * Not editable here: they count only when measured, and the score divides by
+ * the weight of the sub-scores present. Keep in step with health.ts.
+ */
+export const FIXED_WEIGHTS: { key: string; label: string; weight: number }[] = [
+  { key: 'security', label: 'Security', weight: 0.2 },
+  { key: 'codeHealth', label: 'Code health', weight: 0.15 },
+  { key: 'supplyChain', label: 'Supply chain', weight: 0.1 },
+];
+
+/**
+ * What each sub-score really counts for in a fully measured repository
+ * (W20-22, UX_TODO ADM-60): its weight over the sum of all seven. "Activity
+ * 0.20" is about 14 % once security, code health and supply chain are in.
+ */
+export function effectiveShares(
+  w: HealthWeights,
+): { key: string; label: string; weight: number; share: number; editable: boolean }[] {
+  const rows = [
+    ...WEIGHT_KEYS.map(({ key, label }) => ({ key, label, weight: w[key], editable: true })),
+    ...FIXED_WEIGHTS.map((f) => ({ ...f, editable: false })),
+  ];
+  const total = rows.reduce((sum, r) => sum + (Number.isFinite(r.weight) ? r.weight : 0), 0);
+  return rows.map((r) => ({ ...r, share: total > 0 ? r.weight / total : 0 }));
+}
+
+/**
  * METRICS.md §3: the four Tier-1 weights sum to 1.00. Checked in the browser so
  * the admin sees it before submitting; the API re-checks it, because a client
  * check is a courtesy and not a control.

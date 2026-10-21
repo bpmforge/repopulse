@@ -207,6 +207,25 @@ describe('deploy/restore.sh + backup.sh refusals (W17-29)', () => {
     expect(calls).toContain('-e NO_PROXY=api,scan-runner');
   });
 
+  // INS-67 (W20-22): behind a TLS-inspecting proxy the fetch containers need
+  // the internal CA the api and worker trust, and a failure names the real
+  // error and the offline fallback instead of only "needs outbound HTTPS".
+  it('scan-db-sync.sh mounts the internal CA into both fetch containers', async () => {
+    const caDir = path.join(dir, 'ca');
+    mkdirSync(caDir, { recursive: true });
+    writeEnv({
+      SCAN_RULES_DIR: path.join(dir, 'scan-rules'),
+      EXTRA_CA_DIR: caDir,
+      NODE_EXTRA_CA_CERTS: '/etc/repopulse/ca/internal.pem',
+    });
+    const r = await sh('scan-db-sync.sh', []);
+    const calls = runtimeCalls();
+    expect(calls).toContain(`-v ${caDir}:/etc/repopulse/ca:ro`);
+    expect(calls).toContain('-e SSL_CERT_DIR=/etc/ssl/certs:/etc/repopulse/ca');
+    expect(calls).toContain('-e REPOPULSE_CA_FILE=/etc/repopulse/ca/internal.pem');
+    expect(r.out).toContain('SCAN_VULN_DB_ARCHIVE');
+  });
+
   // INS-65: root's podman cannot see a rootless install's containers or images,
   // so a nightly job in root's crontab failed every night. Both scripts now
   // refuse up front when run as root over an install another user owns. Only

@@ -94,7 +94,7 @@ export function PlanTile({ widget }: WidgetComponentProps) {
           <p className="text-xs text-fg-muted">items verified</p>
           {/* The plan's own scope (W17-24): this tile sits on the ORG overview,
               and the newest plan may be one repository's. Said out loud, so a
-              repository's 3/4 is not read as the organisation's. */}
+              repository's 3/4 is not read as the organization's. */}
           <p className="text-xs text-fg-faint" data-testid="plan-tile-scope">
             Scope: {planScopeLabel(plan.repo_ids, repoNames)} · generated{' '}
             {plan.created_at.slice(0, 10)}

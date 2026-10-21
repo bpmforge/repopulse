@@ -15,6 +15,9 @@ export interface ConnectionSummary {
   auto_add?: boolean;
   /** No webhooks; updates arrive with the nightly sync (W20-19, INS-69). */
   scheduled_sync_only?: boolean;
+  /** When and by whom it was added (W20-22, UX_TODO ADM-50); optional for an older API. */
+  created_at?: string;
+  created_by?: string | null;
 }
 
 export interface ConnectionList {

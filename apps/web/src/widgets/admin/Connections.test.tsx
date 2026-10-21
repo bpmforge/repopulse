@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createQueryClient } from '../../api/queryClient.js';
-import { Connections, connectErrorSentence } from './Connections.js';
+import { Connections, addedByText, connectErrorSentence } from './Connections.js';
 
 // W20-04 (UX_TODO INS-05). A refused token showed "Credential validation
 // failed: bad_scope" and nothing else; the API's detail, and the scopes to add,
@@ -65,5 +65,18 @@ describe('forge connect errors (W20-04)', () => {
       /no repositories/,
     );
     expect(connectErrorSentence('Bad Request', 'github')).toBeNull();
+  });
+});
+
+// W20-22 (UX_TODO ADM-50): who added a connection, and when.
+describe('addedByText (W20-22)', () => {
+  it('names the login and the time, and says when the account is gone', () => {
+    expect(addedByText({ created_at: '2026-10-03T14:02:00.000Z', created_by: 'ada' })).toMatch(
+      /^ada, /,
+    );
+    expect(addedByText({ created_at: '2026-10-03T14:02:00.000Z', created_by: null })).toMatch(
+      /^a removed account, /,
+    );
+    expect(addedByText({})).toBe('—');
   });
 });
