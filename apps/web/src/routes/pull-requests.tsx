@@ -14,12 +14,24 @@ import { formatAge } from '../widgets/me/contracts.js';
 
 const SIZES = ['XS', 'S', 'M', 'L', 'XL'] as const;
 const STATES = ['open', 'merged', 'closed'] as const;
+/** W20-20 (UX_TODO DSH-45): the API's sorts; `updated:desc` is the default. */
+const SORTS = ['updated:desc', 'updated:asc', 'opened:desc', 'opened:asc'] as const;
+const SORT_LABEL: Record<(typeof SORTS)[number], string> = {
+  'updated:desc': 'Recently updated',
+  'updated:asc': 'Least recently updated',
+  'opened:desc': 'Newest first',
+  'opened:asc': 'Oldest first (longest open)',
+};
 
 export interface PrListSearch {
   state?: (typeof STATES)[number];
   size?: (typeof SIZES)[number];
   stale?: true;
   unreviewed?: true;
+  /** W20-20 (UX_TODO DSH-30): PRs this login reviewed (from PR Flow's review load). */
+  reviewer?: string;
+  /** W20-20 (UX_TODO DSH-45); absent = recently updated first. */
+  sort?: (typeof SORTS)[number];
   cursor?: string;
   /**
    * W20-12 (UX_TODO DSH-45): the cursors of the pages before this one, so
@@ -42,6 +54,12 @@ export function validatePrListSearch(search: Record<string, unknown>): PrListSea
   if ((SIZES as readonly unknown[]).includes(search.size)) out.size = search.size as never;
   if (search.stale === true || search.stale === 'true') out.stale = true;
   if (search.unreviewed === true || search.unreviewed === 'true') out.unreviewed = true;
+  if (typeof search.reviewer === 'string' && /^[\w.\-[\]]{1,200}$/.test(search.reviewer)) {
+    out.reviewer = search.reviewer;
+  }
+  if ((SORTS as readonly unknown[]).includes(search.sort) && search.sort !== 'updated:desc') {
+    out.sort = search.sort as never;
+  }
   if (typeof search.cursor === 'string' && search.cursor.length > 0) out.cursor = search.cursor;
   if (typeof search.prev === 'string' && /^[~0-9:,]+$/.test(search.prev)) out.prev = search.prev;
   return out;
@@ -94,7 +112,7 @@ function PullRequestsIndex() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: '/pull-requests' });
   const preserved = serializeGlobalSearch(search);
-  const { state, size, stale, unreviewed, cursor } = search;
+  const { state, size, stale, unreviewed, cursor, sort, reviewer } = search;
 
   /**
    * Any filter change drops the cursor — a cursor from the old query means
@@ -131,6 +149,8 @@ function PullRequestsIndex() {
       ...(size ? { size_bucket: size } : {}),
       ...(stale ? { stale: 'true' } : {}),
       ...(unreviewed ? { unreviewed: 'true' } : {}),
+      ...(sort ? { sort } : {}),
+      ...(reviewer ? { reviewer } : {}),
       ...(cursor ? { cursor } : {}),
     },
   });
@@ -199,6 +219,44 @@ function PullRequestsIndex() {
           />
           Unreviewed
         </label>
+        {reviewer && (
+          <span
+            className="flex items-center gap-1 rounded-sm bg-surface-2 px-2 py-1 text-xs"
+            data-testid="pr-filter-reviewer"
+          >
+            Reviewed by {reviewer}
+            <button
+              type="button"
+              className="text-fg-muted hover:text-fg"
+              aria-label={`Stop filtering by reviewer ${reviewer}`}
+              onClick={() => setFilter({ reviewer: undefined })}
+            >
+              ×
+            </button>
+          </span>
+        )}
+        <label className="flex flex-col gap-1 text-xs text-fg-muted">
+          Sort
+          <select
+            className="panel px-2 py-1 text-sm"
+            data-testid="pr-sort"
+            value={sort ?? 'updated:desc'}
+            onChange={(e) =>
+              setFilter({
+                sort:
+                  e.target.value === 'updated:desc'
+                    ? undefined
+                    : (e.target.value as PrListSearch['sort']),
+              })
+            }
+          >
+            {SORTS.map((s) => (
+              <option key={s} value={s}>
+                {SORT_LABEL[s]}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <WidgetFrame
@@ -229,8 +287,31 @@ function PullRequestsIndex() {
                 <th scope="col">Author</th>
                 <th scope="col">Size</th>
                 <th scope="col">State</th>
-                <th scope="col" className="text-right">
-                  Age
+                <th
+                  scope="col"
+                  className="text-right"
+                  aria-sort={
+                    sort === 'opened:asc'
+                      ? 'descending'
+                      : sort === 'opened:desc'
+                        ? 'ascending'
+                        : 'none'
+                  }
+                >
+                  {/* W20-20 (DSH-45): oldest first is "age, descending". */}
+                  <button
+                    type="button"
+                    className="hover:text-fg"
+                    data-testid="pr-sort-age"
+                    onClick={() =>
+                      setFilter({ sort: sort === 'opened:asc' ? 'opened:desc' : 'opened:asc' })
+                    }
+                  >
+                    Age{' '}
+                    <span aria-hidden="true">
+                      {sort === 'opened:asc' ? '▼' : sort === 'opened:desc' ? '▲' : ''}
+                    </span>
+                  </button>
                 </th>
                 <th scope="col">Reviewed</th>
               </tr>

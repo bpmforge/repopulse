@@ -60,9 +60,15 @@ describe('PlanItemCard has no human path to done (W17-25)', () => {
     }
     expect(
       buttons.every((b) =>
-        ['Accept', 'Dismiss…', 'Start', 'Restore', 'Restart', 'Back to accepted'].includes(
-          b.textContent ?? '',
-        ),
+        [
+          'Accept',
+          'Dismiss…',
+          'Start',
+          'Restore',
+          'Restart',
+          'Back to accepted',
+          'Move back to proposed',
+        ].includes(b.textContent ?? ''),
       ),
     ).toBe(true);
   });
@@ -202,5 +208,23 @@ describe('regressed items and agreement evidence (W20-12, UX_TODO DSH-89/DSH-90)
       'href',
       '/repos/12/prs/88',
     );
+  });
+});
+
+// W20-20 (UX_TODO DSH-44).
+describe('PlanItemCard can move an accept back and links its evidence', () => {
+  it('moves an accepted item back to proposed', () => {
+    render(<PlanItemCard item={item('accepted')} metricNames={names} />);
+    fireEvent.click(screen.getByTestId('plan-unaccept-7'));
+    expect(mutate).toHaveBeenCalledWith({ status: 'proposed' });
+  });
+
+  it('links each evidence metric to its list, in the plan’s repositories', () => {
+    render(<PlanItemCard item={item('proposed')} metricNames={names} repoIds={[3, 4]} />);
+    const link = screen.getByTestId('plan-item-evidence-7-M5');
+    expect(link).toHaveTextContent('Review coverage %');
+    expect(link.getAttribute('href')).toContain('/pull-requests?');
+    expect(link.getAttribute('href')).toContain('unreviewed=true');
+    expect(link.getAttribute('href')).toContain('repos=3%2C4');
   });
 });

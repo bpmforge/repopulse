@@ -11159,6 +11159,41 @@
           "Bug fixed in passing: POST /repos/:id/scan read repo_scanner_config without a workspace filter (Law 5).",
           "The AI pass id reaches the egress writer through AsyncLocalStorage (workers/ai-pass-context.ts), so the gateway's public types are unchanged."
         ]
+      },
+      {
+        "id": "W20-20",
+        "title": "Dashboards: custom date ranges computed for the exact dates, and the remaining dashboard polish",
+        "phase": 20,
+        "module": "web",
+        "stories": [],
+        "write_scope": [
+          "apps/web/**",
+          "apps/api/**",
+          "packages/metrics/src/**",
+          "packages/insights/src/**",
+          "e2e/intents.spec.ts",
+          "docs/work/UX_TODO.md",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W20-19"
+        ],
+        "acceptance": [
+          "UX_TODO DSH-56: /org/summary with window=YYYY-MM-DD..YYYY-MM-DD computes M5, M9, M4, M1 and M10 from facts for exactly that range (packages/metrics computeRangeHeadline, workspace-filtered, no forge call) and compares with the equal-length period before it; presets still read snapshots; an invalid, reversed, future or over-366-day range is a 400; the KPI row says the tiles cover exactly those dates and the other cards the covering preset",
+          "UX_TODO DSH-18/29/30/45/47/50/51/55/63/70/71/74/76/77/91/92: KPI and pulse evidence links, health-score delta, flaky workflow rows link to the forge's runs, reviewer drill-down from review load, PR list sort, widget column placement and undo, plan tile scope and date, plan items can move back to proposed with linked evidence, findings status filter and paging, person filter options, churn decals, CSV export on tables and charts, hidden hotspot files listed, pulse period and provenance, security tile states its scanners and trial findings, next-actions coverage shown beside actions with linked notices",
+          "UX_TODO DSH-31/36/37 (part): Code Health debt signals show the change since the previous reading; the intent control is choose + note + Save with the saved note shown, Clear and a visible error; the intent states its age and the refactor review date",
+          "pnpm lint, typecheck and test green"
+        ],
+        "points": 8,
+        "status": "done",
+        "notes": [
+          "Fixed: DSH-56, DSH-18, DSH-29, DSH-30, DSH-36, DSH-45, DSH-47, DSH-50, DSH-51, DSH-55, DSH-63, DSH-70, DSH-71, DSH-74, DSH-76, DSH-77, DSH-91, DSH-92.",
+          "Defaults chosen (cheap to change): a custom range computes only the five headline KPI tiles (M5, M9, M4, M1, M10); other cards keep the smallest covering preset and say so; 'to' is inclusive; at most 366 days; the comparison is the equal-length period just before; sparklines are hidden for a custom range. Health delta compares the score now with the score one window ago from snapshots (security inputs are today's in both readings). Next actions checks coverage for the first 25 repositories by name (was smaller) and says so when the scope is larger. Findings performance view defaults to open + confirmed. Person filter lists up to 500 non-bot PR authors. CSV export guards against spreadsheet formulas and writes a UTF-8 BOM. A new widget goes beside the last one when it fits. Flaky rows link to GitHub Actions filtered by workflow name; Gitea and GitLab open the runs/pipelines list. Experimental (shadow-rule) findings are left out of security headline counts and shown as a separate trial count.",
+          "Partial: DSH-31 has deltas but no targets (needs decision). DSH-33 repo-scoped finding links now open the repository's Findings tab; the Reviews/Findings name is a decision. DSH-37 shows the intent's age and refactor review date, not whether the hotspot improved: there is no stored hotspot score history for intentWarnings to read, and Needs attention does not show intents yet. DSH-41 still measures waiting from PR open: review-request times are not ingested. DSH-44 error, move-back and evidence links done; owner is a decision.",
+          "Needs decision: DSH-33 one name for findings everywhere (recommend 'Findings'; 'Reviews' collides with PR reviews). DSH-44 plan item owner (recommend an optional workspace member; needs a migration). DSH-31 targets for debt signals (recommend per-workspace targets set in settings, none by default).",
+          "No migration.",
+          "Bugs noticed: Pulse 'raised this window' used a fixed 7 days whatever the window (fixed); Next actions coverage vanished when any action existed (fixed); the hotspot empty state hid the acknowledged-files note (fixed). Not fixed: insights intentWarnings has no caller and no hotspot history to read."
+        ]
       }
   ]
 }

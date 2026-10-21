@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, lte } from 'drizzle-orm';
 import {
   buildHealthSubScores,
   computeHealthScore,
@@ -61,6 +61,11 @@ export async function repoHealthMany(
   repos: readonly { id: number; pushedAt: Date | null }[],
   window: string,
   nowMs: number,
+  /**
+   * W20-20 (UX_TODO DSH-18): score from the snapshots taken at or before this
+   * instant, for the tile's change over the window. Absent = the latest.
+   */
+  asOf?: Date,
 ): Promise<Map<number, RepoHealth>> {
   const out = new Map<number, RepoHealth>();
   if (repos.length === 0) return out;
@@ -82,6 +87,7 @@ export async function repoHealthMany(
         ),
         inArray(read.metricSnapshots.metricKey, [...HEALTH_METRIC_KEYS]),
         eq(read.metricSnapshots.window, window),
+        asOf ? lte(read.metricSnapshots.computedAt, asOf) : undefined,
       ),
     )
     // DISTINCT ON keeps the first row per (repo, metric) in this order — the

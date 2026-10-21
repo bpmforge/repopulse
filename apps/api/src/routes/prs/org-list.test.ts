@@ -79,3 +79,13 @@ describe('org PR list repo filter', () => {
     expect(orgListQuery.safeParse({ repo_id: 'all' }).success).toBe(false);
   });
 });
+
+// W20-20 (UX_TODO DSH-45): the list sorts by update or by age.
+describe('org PR list sort', () => {
+  it('accepts the four sorts and nothing else', () => {
+    for (const sort of ['updated:desc', 'updated:asc', 'opened:desc', 'opened:asc']) {
+      expect(orgListQuery.parse({ sort }).sort).toBe(sort);
+    }
+    expect(orgListQuery.safeParse({ sort: 'title:asc' }).success).toBe(false);
+  });
+});

@@ -1,3 +1,4 @@
+import { presetCovering } from '@repopulse/shared/url-state';
 import { Link } from '@tanstack/react-router';
 import {
   HealthBadge,
@@ -94,6 +95,18 @@ export function HealthTileGrid({ window, search }: Props) {
                       // parts, as the repo header says them — not "Basis: Tier-1 only".
                       basisWords(repo.health.not_measured, repo.health.basis)}
                 </p>
+                {/* W20-20 (UX_TODO DSH-18): the change over the window, in
+                    points and words — never colour alone. */}
+                {!progress && repo.health.delta !== null && (
+                  <p
+                    className="mt-0.5 text-xs text-fg-muted"
+                    data-testid={`health-delta-${repo.id}`}
+                  >
+                    {repo.health.delta === 0
+                      ? `No change over ${presetCovering(window)}`
+                      : `${repo.health.delta > 0 ? '▲ up' : '▼ down'} ${Math.abs(repo.health.delta)} pts over ${presetCovering(window)} (${repo.health.delta > 0 ? 'better' : 'worse'})`}
+                  </p>
+                )}
               </Link>
             </li>
           );

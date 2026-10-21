@@ -333,15 +333,14 @@ describe('Security tab — drill-downs and exports', () => {
     });
     renderSecurity();
     const secrets = await screen.findByTestId('secrets-drill');
-    // The router writes a numeric-looking string quoted (%227%22); either way
-    // it parses back to repos "7".
-    expect(secrets.getAttribute('href')).toMatch(/repos=(%22)?7/);
+    // W20-20 (DSH-33): the repository's own Findings tab, not the workspace list.
+    expect(secrets.getAttribute('href')).toMatch(/^\/repos\/7\/findings\?/);
     expect(secrets.getAttribute('href')).toMatch(/dimension=secrets/);
     expect(screen.getByTestId('security-finding-link-4711').getAttribute('href')).toMatch(
-      /repos=(%22)?7/,
+      /^\/repos\/7\/findings\?.*finding=4711/,
     );
-    expect(screen.getByTestId('security-findings-all').getAttribute('href')).toMatch(
-      /repos=(%22)?7/,
+    expect(screen.getByTestId('security-findings-all').getAttribute('href')).toBe(
+      '/repos/7/findings',
     );
   });
 

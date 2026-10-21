@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
@@ -71,8 +71,14 @@ export const orgListQuery = z.object({
   unreviewed: z.coerce.boolean().optional(),
   size_bucket: z.enum(['XS', 'S', 'M', 'L', 'XL']).optional(),
   author: z.string().min(1).optional(),
+  // W20-20 (UX_TODO DSH-30): PRs this login reviewed (PR Flow's review-load
+  // rows drill here). Through the canonical identity, like every reader.
+  reviewer: z.string().min(1).max(200).optional(),
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).optional().default(25),
+  // W20-20 (UX_TODO DSH-45): sortable by last update (default, newest first)
+  // or by when the PR was opened (age). The keyset cursor follows the sort.
+  sort: z.enum(['updated:desc', 'updated:asc', 'opened:desc', 'opened:asc']).optional(),
 });
 
 /**
@@ -338,6 +344,17 @@ export default async function prsRoutes(
     if (q.repo_id) conds.push(inArray(facts.pullRequests.repoId, q.repo_id));
     if (q.state) conds.push(eq(facts.pullRequests.state, q.state));
     if (q.author) conds.push(eq(core.identities.forgeLogin, q.author));
+    if (q.reviewer) {
+      conds.push(
+        sql`exists (select 1 from ${facts.prReviews} r
+          join ${core.identities} ri on ri.id = r.reviewer_identity_id
+          join ${core.identities} rc on rc.id = coalesce(ri.merged_into_id, ri.id)
+          where r.pull_request_id = ${facts.pullRequests.id}
+            and r.workspace_id = ${workspaceId}
+            and rc.workspace_id = ${workspaceId}
+            and (rc.forge_login = ${q.reviewer} or ri.forge_login = ${q.reviewer}))`,
+      );
+    }
 
     // EVERY filter runs in SQL, including the two the repo-scoped list applies
     // in JS after the fact. With pagination they have no choice: a page of 25
@@ -372,13 +389,25 @@ export default async function prsRoutes(
       .innerJoin(core.identities, eq(facts.pullRequests.authorIdentityId, core.identities.id))
       .where(and(...conds));
 
+    const [sortKey, sortDir] = (q.sort ?? 'updated:desc').split(':') as [
+      'updated' | 'opened',
+      'asc' | 'desc',
+    ];
+    const sortCol =
+      sortKey === 'opened' ? facts.pullRequests.createdAt : facts.pullRequests.updatedAt;
     if (q.cursor) {
       const after = decodeCursor(q.cursor);
       if (!after) return fail(request, reply, 400, 'Invalid cursor');
+      // Bound as an ISO string with a cast: a Date inside a raw sql tuple is
+      // not serialised by the driver, and the second page answered 500.
+      const at = sql`${after.updatedAt.toISOString()}::timestamptz`;
       conds.push(
-        sql`(${facts.pullRequests.updatedAt}, ${facts.pullRequests.id}) < (${after.updatedAt}, ${after.id})`,
+        sortDir === 'asc'
+          ? sql`(${sortCol}, ${facts.pullRequests.id}) > (${at}, ${after.id})`
+          : sql`(${sortCol}, ${facts.pullRequests.id}) < (${at}, ${after.id})`,
       );
     }
+    const dir = sortDir === 'asc' ? asc : desc;
 
     // limit + 1: the extra row answers "is there another page" without a second
     // COUNT query, and is dropped before serialising.
@@ -404,12 +433,15 @@ export default async function prsRoutes(
       .innerJoin(core.identities, eq(facts.pullRequests.authorIdentityId, core.identities.id))
       .innerJoin(core.repos, eq(facts.pullRequests.repoId, core.repos.id))
       .where(and(...conds))
-      .orderBy(desc(facts.pullRequests.updatedAt), desc(facts.pullRequests.id))
+      .orderBy(dir(sortCol), dir(facts.pullRequests.id))
       .limit(q.limit + 1);
 
     const page = rows.slice(0, q.limit);
     const last = page[page.length - 1];
-    const nextCursor = rows.length > q.limit && last ? encodeCursor(last.updatedAt, last.id) : null;
+    const nextCursor =
+      rows.length > q.limit && last
+        ? encodeCursor(sortKey === 'opened' ? last.createdAt : last.updatedAt, last.id)
+        : null;
 
     return reply.send({
       items: page.map((p) => ({

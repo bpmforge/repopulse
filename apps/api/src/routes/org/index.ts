@@ -1,12 +1,13 @@
-import { and, eq, gte, inArray, sql } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { core, plans, read, security, type Database } from '@repopulse/shared';
+import { core, facts, plans, read, security, type Database } from '@repopulse/shared';
 import { buildPulse, computeMetricTrend } from '@repopulse/insights';
-import { computeAiGovernance, readMetricTrend } from '@repopulse/metrics';
+import { computeAiGovernance, computeRangeHeadline, rangeBounds } from '@repopulse/metrics';
 import { healthBand } from '@repopulse/shared/health-band';
 import { sendProblem } from '../../lib/problem.js';
+import { readWorkspaceSettings } from '../../lib/workspace-settings.js';
 import { latestSnapshotAt, scopedMetrics } from '../../lib/scope-metrics.js';
 import { isMeasured, repoHealthMany } from './health.js';
 import { collectTopActions, serializeTopActions } from './top-actions.js';
@@ -35,10 +36,25 @@ const governanceQuery = windowQuery.extend({ repos: reposCsv });
 // three rather than the whole workspace. `since` is gone: the feed never read
 // it (DSH-09), and accepting it implied a diff that did not exist.
 const repoScopedQuery = windowQuery.extend({ repos: reposCsv });
+// W20-20 (UX_TODO DSH-56). The KPI row also takes a custom `YYYY-MM-DD..YYYY-MM-DD`
+// range (`to` inclusive), computed live for exactly those days; every other
+// card still reads the preset that covers it.
+const summaryQuery = z.object({
+  window: z
+    .union([
+      z.enum(['7d', '14d', '30d', '90d', '365d']),
+      z.string().regex(/^\d{4}-\d{2}-\d{2}\.\.\d{4}-\d{2}-\d{2}$/),
+    ])
+    .default('30d'),
+  repos: reposCsv,
+});
 
 function repoIdsOf(repos: string | undefined): number[] {
   return repos && repos !== 'all' ? repos.split(',').map(Number) : [];
 }
+
+/** Suggestions, not a directory: enough for a datalist to be useful. */
+const PEOPLE_LIMIT = 500;
 
 // The 5 KPI tiles (dashboard landing). Org-rollup series (repoId null).
 const KPI_METRICS = ['M5', 'M9', 'M4', 'M1', 'M10'] as const;
@@ -62,12 +78,51 @@ export default async function orgRoutes(
   // GET /org/summary — 5 KPI tile values with deltas (FR-INSIGHTS-4).
   typedApp.get(
     '/org/summary',
-    { schema: { querystring: repoScopedQuery } },
+    { schema: { querystring: summaryQuery } },
     async (request, reply) => {
       const workspaceId = request.workspace?.id;
       if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
       const { window } = request.query;
       const repoIds = repoIdsOf(request.query.repos);
+      if (window.includes('..')) {
+        // W20-20 (UX_TODO DSH-56): a custom range is computed from the
+        // warehouse for exactly those days, and compared with the equally long
+        // period right before it. No snapshot is involved, so `as_of` is now.
+        const [from, to] = window.split('..') as [string, string];
+        const bounds = rangeBounds(from, to);
+        if (!bounds) {
+          sendProblem(request, reply, 400, 'Invalid date range', {
+            detail:
+              'Use YYYY-MM-DD..YYYY-MM-DD: a start on or before the end, ending today at the latest, at most 366 days.',
+          });
+          return reply;
+        }
+        const { effective } = await readWorkspaceSettings(opts.db, workspaceId);
+        const common = { workspaceId, repoIds, botGlobs: effective.botLoginGlobs };
+        const current = await computeRangeHeadline(opts.db, { ...common, ...bounds });
+        const previous = await computeRangeHeadline(opts.db, { ...common, ...bounds.previous });
+        const tiles = KPI_METRICS.map((metricKey) => {
+          const now = current[metricKey];
+          const prev = previous[metricKey].value;
+          return {
+            metric_key: metricKey,
+            value: now.value,
+            delta: now.value === null || prev === null ? null : now.value - prev,
+            previous: prev,
+            sample:
+              now.numerator !== null && now.denominator !== null && now.denominator > 0
+                ? { numerator: now.numerator, denominator: now.denominator }
+                : null,
+          };
+        });
+        return reply.send({
+          window,
+          ...(repoIds.length > 0 ? { repo_ids: repoIds } : {}),
+          range: { from, to, days: bounds.days },
+          tiles,
+          as_of: new Date().toISOString(),
+        });
+      }
       // W20-09 (UX_TODO DSH-02). A view scoped to three repositories showed the
       // whole workspace's KPIs above three repositories' health tiles. With a
       // repo set the tiles are that set's values — ratios pooled, counts summed
@@ -128,6 +183,30 @@ export default async function orgRoutes(
     },
   );
 
+  // GET /org/people — the logins the topbar's person filter suggests (W20-20,
+  // UX_TODO DSH-63). People, not accounts: canonical (unmerged), non-bot
+  // identities of this workspace that authored a pull request, which is what
+  // the filter narrows (`author`). Logins only — the PR list shows them anyway.
+  typedApp.get('/org/people', async (request, reply) => {
+    const workspaceId = request.workspace?.id;
+    if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
+    const rows = await opts.db
+      .selectDistinct({ login: core.identities.forgeLogin })
+      .from(core.identities)
+      .innerJoin(facts.pullRequests, eq(facts.pullRequests.authorIdentityId, core.identities.id))
+      .where(
+        and(
+          eq(core.identities.workspaceId, workspaceId),
+          eq(facts.pullRequests.workspaceId, workspaceId),
+          eq(core.identities.isBot, false),
+          isNull(core.identities.mergedIntoId),
+        ),
+      )
+      .orderBy(core.identities.forgeLogin)
+      .limit(PEOPLE_LIMIT);
+    return reply.send({ items: rows.map((r) => r.login) });
+  });
+
   // GET /org/health-tiles — per-repo health grid (FR-INSIGHTS-2/3).
   typedApp.get(
     '/org/health-tiles',
@@ -155,8 +234,22 @@ export default async function orgRoutes(
 
       // One batched read for every repo (W17-32), not one loader call per row.
       const healths = await repoHealthMany(opts.db, workspaceId, repos, window, nowMs);
+      // W20-20 (UX_TODO DSH-18): the same score from the snapshots one window
+      // back, for the tile's change. Open security findings are read as they
+      // are now in both (no history of them is kept), so the change is the
+      // movement of the measured metrics.
+      const windowMs = (Number(window.replace('d', '')) || 30) * 86_400_000;
+      const before = await repoHealthMany(
+        opts.db,
+        workspaceId,
+        repos,
+        window,
+        nowMs,
+        new Date(nowMs - windowMs),
+      );
       const tiles = repos.map((r) => {
         const health = healths.get(r.id)!;
+        const prior = before.get(r.id);
         // W20-05 (UX_TODO DSH-08). The same `measured` guard /repos applies
         // (W17-18): a repository with no sub-scores sums an empty set to 0, and
         // this grid painted that 0 red as "needs attention" while /repos showed
@@ -174,8 +267,10 @@ export default async function orgRoutes(
             // W20-12 (UX_TODO DSH-19): which parts of the score were not
             // measured, so the tile can say so in words the repo page uses.
             not_measured: health.notMeasured.map((n) => n.key),
-            // delta needs a prior health snapshot series — a later enrichment.
-            delta: null,
+            delta:
+              measured && prior && isMeasured(prior)
+                ? Math.round(health.score) - Math.round(prior.score)
+                : null,
           },
         };
       });
@@ -324,6 +419,7 @@ export default async function orgRoutes(
       if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
       const { window } = request.query;
       const repoIds = repoIdsOf(request.query.repos);
+      const windowDays = Number(window.replace('d', '')) || 30;
 
       const PULSE_METRICS: {
         key: string;
@@ -360,21 +456,22 @@ export default async function orgRoutes(
         }
       }
       for (const metric of repoIds.length > 0 ? [] : PULSE_METRICS) {
-        // Two points from the SAME series: current and one window back. Reading
-        // the previous value from a different window would compare a 7-day figure
-        // with a 30-day one and report the difference as movement.
-        const series = await readMetricTrend(opts.db, {
+        // W20-20 (UX_TODO DSH-74): the same comparison as the KPI tile above
+        // it — the latest value against the one a full window earlier. This
+        // read the two newest snapshots, last night's and the night before,
+        // so "improved by 2%" was a one-day change beside a tile showing the
+        // change over the window.
+        const trend = await computeMetricTrend(opts.db, {
           workspaceId,
           repoId: null,
           metricKey: metric.key,
           window,
-          limit: 2,
         });
         deltas.push({
           key: metric.key,
           label: metric.label,
-          current: series[0] ? Number(series[0].value) : null,
-          previous: series[1] ? Number(series[1].value) : null,
+          current: trend.current,
+          previous: trend.previous,
           higherBetter: metric.higherBetter,
           unit: metric.unit,
         });
@@ -383,13 +480,19 @@ export default async function orgRoutes(
       const [findingCounts] = await opts.db
         .select({
           open: sql<number>`count(*) filter (where ${read.findings.status} in ('open','confirmed'))::int`,
-          recent: sql<number>`count(*) filter (where ${read.findings.firstSeenAt} > now() - interval '7 days')::int`,
+          // W20-20 (UX_TODO DSH-51): "raised this window" counts the window,
+          // not a fixed seven days.
+          // windowDays is an integer from the window enum, bound as a parameter
+          // (a Date bound inside raw sql is not serialised by the driver).
+          recent: sql<number>`count(*) filter (where ${read.findings.firstSeenAt} > now() - make_interval(days => ${windowDays}::int))::int`,
         })
         .from(read.findings)
         .where(
           and(
             eq(read.findings.workspaceId, workspaceId),
             repoIds.length > 0 ? inArray(read.findings.repoId, repoIds) : undefined,
+            // W20-20 (UX_TODO DSH-77): rules in trial are not headline findings.
+            eq(read.findings.experimental, false),
           ),
         );
 
@@ -417,7 +520,7 @@ export default async function orgRoutes(
             eq(plans.planItemEvents.workspaceId, workspaceId),
             eq(plans.improvementPlans.workspaceId, workspaceId),
             eq(plans.planItemEvents.toStatus, 'done'),
-            gte(plans.planItemEvents.createdAt, new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)),
+            gte(plans.planItemEvents.createdAt, new Date(Date.now() - windowDays * 86_400_000)),
             // Normalised on write (normalizeRepoIds), so array equality is the
             // same scope comparison the Plans page makes.
             repoIds.length > 0
@@ -428,7 +531,7 @@ export default async function orgRoutes(
 
       const bullets = buildPulse({
         repoLabel: repoIds.length > 0 ? 'these repositories' : 'this workspace',
-        windowDays: Number(window.replace('d', '')) || 30,
+        windowDays,
         deltas,
         openFindings: findingCounts?.open ?? 0,
         newFindingsThisWindow: findingCounts?.recent ?? 0,
@@ -442,6 +545,8 @@ export default async function orgRoutes(
         // must never imply a model wrote something it did not.
         provenance: 'template',
         window,
+        // W20-20 (UX_TODO DSH-51/74): what every change is measured against.
+        compared_with: `the value ${windowDays} days earlier`,
       });
     },
   );

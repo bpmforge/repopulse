@@ -33,8 +33,23 @@ export interface ViewEditorProps {
   repos?: { id: number; org: string; name: string }[];
 }
 
+/**
+ * Where a new widget goes (W20-20, UX_TODO DSH-47): beside the last one when
+ * it fits in the 12 columns, otherwise at the start of a new row. Every add
+ * used to get x: 0, and because the grid places by column start two width-6
+ * widgets never sat side by side.
+ */
+export function nextColumn(widgets: readonly Widget[], width: number): number {
+  const last = widgets[widgets.length - 1];
+  if (!last) return 0;
+  const after = last.layout.x + last.layout.w;
+  return after + width <= 12 ? after : 0;
+}
+
 export function ViewEditor({ widgets, onChange, repos = [] }: ViewEditorProps) {
   const [picker, setPicker] = useState(false);
+  // W20-20 (DSH-47): Remove is one click, so it can be undone.
+  const [removed, setRemoved] = useState<{ widget: Widget; index: number } | null>(null);
   const available = listWidgets();
   const byCategory = new Map<WidgetCategory, typeof available>();
   for (const def of available) {
@@ -73,6 +88,7 @@ export function ViewEditor({ widgets, onChange, repos = [] }: ViewEditorProps) {
 
   const add = (type: WidgetType) => {
     const def = getWidget(type);
+    const w = def?.defaultSize.w ?? 6;
     onChange([
       ...widgets,
       {
@@ -80,7 +96,7 @@ export function ViewEditor({ widgets, onChange, repos = [] }: ViewEditorProps) {
         // with the same trend at two windows is a real thing people build.
         id: `${type}-${widgets.length + 1}-${widgets.reduce((n, w) => n + w.id.length, 0)}`,
         type,
-        layout: { x: 0, y: 0, w: def?.defaultSize.w ?? 6, h: def?.defaultSize.h ?? 2 },
+        layout: { x: nextColumn(widgets, w), y: 0, w, h: def?.defaultSize.h ?? 2 },
       },
     ]);
     setPicker(false);
@@ -99,6 +115,24 @@ export function ViewEditor({ widgets, onChange, repos = [] }: ViewEditorProps) {
           Add widget
         </button>
         <span className="text-xs text-fg-muted">{widgets.length} widgets</span>
+        {removed && (
+          <span className="flex items-center gap-1.5 text-xs text-fg-muted" role="status">
+            Removed {getWidget(removed.widget.type)?.title ?? 'a widget'}.
+            <button
+              type="button"
+              className="text-accent hover:underline"
+              data-testid="undo-remove"
+              onClick={() => {
+                const next = [...widgets];
+                next.splice(Math.min(removed.index, next.length), 0, removed.widget);
+                onChange(next);
+                setRemoved(null);
+              }}
+            >
+              Undo
+            </button>
+          </span>
+        )}
       </div>
 
       {picker && (
@@ -199,6 +233,24 @@ export function ViewEditor({ widgets, onChange, repos = [] }: ViewEditorProps) {
               </>
             )}
 
+            {/* W20-20 (UX_TODO DSH-47): the column it starts at, 1-12, so two
+                widgets can be put side by side by hand as well. */}
+            <label className="flex items-center gap-1 text-xs text-fg-muted">
+              Column
+              <input
+                type="number"
+                min={1}
+                max={12}
+                value={widget.layout.x + 1}
+                data-testid={`column-${widget.id}`}
+                className="w-14 rounded-sm border border-border bg-surface-2 px-1 py-0.5 text-right"
+                onChange={(e) =>
+                  update(widget.id, {
+                    x: Math.min(11, Math.max(0, (Number(e.target.value) || 1) - 1)),
+                  })
+                }
+              />
+            </label>
             {/* Width in 12-col units. A number input rather than a drag handle
                 so the grid is operable from a keyboard (WCAG 2.2 AA). */}
             <label className="flex items-center gap-1 text-xs text-fg-muted">
@@ -254,7 +306,10 @@ export function ViewEditor({ widgets, onChange, repos = [] }: ViewEditorProps) {
               type="button"
               className="rounded-sm border border-border px-1.5 py-0.5 text-xs text-crit"
               data-testid={`remove-${widget.id}`}
-              onClick={() => onChange(widgets.filter((w) => w.id !== widget.id))}
+              onClick={() => {
+                setRemoved({ widget, index });
+                onChange(widgets.filter((w) => w.id !== widget.id));
+              }}
               aria-label={`Remove ${getWidget(widget.type)?.title ?? 'unavailable widget'}`}
             >
               Remove

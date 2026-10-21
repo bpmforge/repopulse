@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router';
 import { Chart, WidgetFrame, frameState, type ChartProps } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 import {
@@ -291,7 +292,15 @@ export function PrFlow({ repoId, window }: Props) {
               {(load?.items ?? []).map((r) => (
                 <tr key={r.login} className="border-t border-border">
                   <th scope="row" className="py-1 text-left font-normal">
-                    {r.login}
+                    {/* W20-20 (UX_TODO DSH-30): the PRs behind the row. */}
+                    <Link
+                      to="/pull-requests"
+                      search={{ repos: repoId, reviewer: r.login } as never}
+                      className="text-accent underline-offset-2 hover:underline"
+                      data-testid={`review-load-${r.login}`}
+                    >
+                      {r.login}
+                    </Link>
                   </th>
                   {/* PRs reviewed, not review events: four passes over one PR
                       is one PR's worth of load. */}

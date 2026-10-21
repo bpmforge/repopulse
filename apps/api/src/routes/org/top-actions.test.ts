@@ -99,12 +99,15 @@ describe('serializeTopActions (W17-16)', () => {
               repoId: 1,
               repoName: 'alpha',
               capability: 'depscan',
+              label: 'Dependency scan',
+              kind: 'scanner',
               state: 'failed',
               detail: 'boom',
             },
           ],
           unsupported: ['iac'],
           summary: 'Nothing has been measured yet.',
+          reposInScope: 2,
         },
       }),
     );
@@ -114,7 +117,17 @@ describe('serializeTopActions (W17-16)', () => {
       repos_measured: 0,
       repos_never_measured: 2,
       repos_stale: 0,
-      notices: [{ repo_id: 1, repo_name: 'alpha', capability: 'depscan', state: 'failed' }],
+      repos_in_scope: 2,
+      notices: [
+        {
+          repo_id: 1,
+          repo_name: 'alpha',
+          capability: 'depscan',
+          label: 'Dependency scan',
+          kind: 'scanner',
+          state: 'failed',
+        },
+      ],
       unsupported: ['iac'],
     });
   });
@@ -476,7 +489,7 @@ describeIfDb('collectTopActions (W17-16)', () => {
     const itemId = await addPlanItem({});
     const { actions } = await run();
     const found = actions.find((a) => a.kind === 'finding');
-    expect(found?.href).toBe(`/findings?finding=${findingId}`);
+    expect(found?.href).toBe(`/repos/${repoId}/findings?finding=${findingId}`);
     expect(found?.target).toEqual({ kind: 'finding', findingId, repoId });
     const item = actions.find((a) => a.kind === 'plan_item');
     expect(item?.target).toMatchObject({ kind: 'plan_item', planItemId: itemId });
@@ -541,10 +554,11 @@ describeIfDb('collectTopActions (W17-16)', () => {
     expect(coverage?.notices.every((n) => n.state !== 'open')).toBe(true);
   });
 
-  it('omits coverage when there is something to do', async () => {
+  it('still reports coverage when there is something to do (W20-20, DSH-91)', async () => {
     await addFinding({});
     const { actions, coverage } = await run();
     expect(actions).toHaveLength(1);
-    expect(coverage).toBeNull();
+    expect(coverage).not.toBeNull();
+    expect(coverage?.reposInScope).toBeGreaterThan(0);
   });
 });

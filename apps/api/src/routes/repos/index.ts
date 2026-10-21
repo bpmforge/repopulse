@@ -18,6 +18,7 @@ import { isMeasured, repoHealth, repoHealthMany } from '../org/health.js';
 import { repoCapabilities } from '../../lib/capability.js';
 import { readWorkspaceSettings } from '../../lib/workspace-settings.js';
 import { latestSnapshotAt } from '../../lib/scope-metrics.js';
+import { ciRunsForgeUrl, readRepoForge } from '../../lib/forge-links.js';
 
 // Drill-down levels 1–2 (FR-API-5, API_DESIGN §2 'repos'). Warehouse-only.
 // Every level returns `links` to its children so a client can walk
@@ -543,6 +544,9 @@ export default async function reposRoutes(
       // how a screen ends up drawing a flat zero line labelled "duration".
       // `duration === undefined` means "this row predates the components".
       const componentsAvailable = dims.duration !== undefined;
+      // W20-20 (DSH-29): each flaky row links out to its runs on the forge.
+      const forge =
+        (dims.flakiness?.length ?? 0) > 0 ? await readRepoForge(db, workspaceId, repo.id) : null;
 
       return reply.send({
         window: request.query.window,
@@ -558,6 +562,7 @@ export default async function reposRoutes(
           flakiness: f.flakinessRatio,
           rerun_groups: f.rerunGroups,
           flipped_groups: f.flippedGroups,
+          runs_url: ciRunsForgeUrl(forge, f.workflowName),
         })),
         flakiness_workflows: dims.flakinessWorkflows ?? null,
         // The screen shows "this repo has not been snapshotted since CI

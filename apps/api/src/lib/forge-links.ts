@@ -63,6 +63,27 @@ export function fileForgeUrl(forge: RepoForge | null, path: string): string | nu
   });
 }
 
+/**
+ * Where a workflow's runs are listed on the forge (W20-20, UX_TODO DSH-29), so
+ * a flaky row opens the runs that made it flaky. GitHub filters its Actions
+ * page by workflow name; Gitea and GitLab have no stable by-name filter in the
+ * URL, so they open the repository's runs / pipelines list. Null when the web
+ * root is unknown.
+ */
+export function ciRunsForgeUrl(forge: RepoForge | null, workflowName: string): string | null {
+  if (!forge?.webBase) return null;
+  const base = forge.webBase.replace(/\/+$/, '');
+  const repoPath = `${encodeURIComponent(forge.org)}/${encodeURIComponent(forge.name)}`;
+  switch (forge.kind) {
+    case 'github':
+      return `${base}/${repoPath}/actions?query=${encodeURIComponent(`workflow:"${workflowName}"`)}`;
+    case 'gitea':
+      return `${base}/${repoPath}/actions`;
+    case 'gitlab':
+      return `${base}/${repoPath}/-/pipelines`;
+  }
+}
+
 /** The pull request's own page on the forge, or null when unknown. */
 export function prForgeUrl(forge: RepoForge | null, number: number): string | null {
   if (!forge?.webBase) return null;

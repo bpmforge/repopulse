@@ -1,3 +1,4 @@
+import { csvFileName, downloadCsv, tableToRows, toCsv } from '../../lib/csv.js';
 import { useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table';
 import type { Density } from '../store/uiStore.js';
@@ -35,6 +36,11 @@ export interface DataTableProps<T> {
   loading?: boolean;
   hasMore?: boolean;
   onLoadMore?: () => void;
+  /**
+   * W20-20 (UX_TODO DSH-71): offer "Download CSV" of the rows on screen.
+   * On by default; a table of controls (settings, forms) turns it off.
+   */
+  exportable?: boolean;
 }
 
 /** Elements that own their own click and Enter (W20-04, UX_TODO ADM-58). */
@@ -61,7 +67,9 @@ export function DataTable<T>(props: DataTableProps<T>) {
     loading = false,
     hasMore = false,
     onLoadMore,
+    exportable = true,
   } = props;
+  const tableRef = useRef<HTMLTableElement | null>(null);
 
   const [activeIndex, setActiveIndex] = useState(0);
   const bodyRef = useRef<HTMLTableSectionElement | null>(null);
@@ -113,9 +121,28 @@ export function DataTable<T>(props: DataTableProps<T>) {
     }
   }
 
+  const exportCsv = () => {
+    if (!tableRef.current) return;
+    const { header, rows: cells } = tableToRows(tableRef.current);
+    downloadCsv(csvFileName(name), toCsv(header, cells));
+  };
+
   return (
     <div className="overflow-x-auto">
+      {exportable && data.length > 0 && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={exportCsv}
+            className="inline-flex min-h-6 items-center rounded-sm px-1.5 py-0.5 text-xs text-fg-muted hover:text-fg"
+            data-testid={`table-${name}-csv`}
+          >
+            Download CSV
+          </button>
+        </div>
+      )}
       <table
+        ref={tableRef}
         className="w-full border-collapse text-sm tabular-nums"
         data-testid={`table-${name}`}
         {...(interactive ? { tabIndex: 0, onKeyDown } : {})}

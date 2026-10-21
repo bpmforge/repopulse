@@ -125,18 +125,44 @@ export function ruleEmptyCopy(
   }
 }
 
+/**
+ * The change since the previous measurement (W20-20, UX_TODO DSH-31), in the
+ * headline's own unit. Every debt signal here is lower-is-better, so a rise is
+ * "worse". Null when there is no earlier point to compare with — one reading
+ * is not a trend.
+ */
+export function debtDelta(
+  points: { value: number; at: string }[] | undefined,
+  opts: { ratio?: boolean; suffix?: string } = {},
+): { text: string; tone: 'better' | 'worse' | 'same' } | null {
+  if (!points || points.length < 2) return null;
+  const last = points[points.length - 1]!;
+  const prev = points[points.length - 2]!;
+  const scale = opts.ratio ? 100 : 1;
+  const diff = Math.round((last.value - prev.value) * scale * 10) / 10;
+  const since = `since ${prev.at.slice(0, 10)}`;
+  if (diff === 0) return { text: `no change ${since}`, tone: 'same' };
+  const unit = opts.ratio ? ' pts' : (opts.suffix ?? '');
+  return {
+    text: `${diff > 0 ? '▲ up' : '▼ down'} ${Math.abs(diff)}${unit} ${since} (${diff > 0 ? 'worse' : 'better'})`,
+    tone: diff > 0 ? 'worse' : 'better',
+  };
+}
+
 function Headline({
   label,
-  value,
+  points,
   suffix,
   ratio,
 }: {
   label: string;
-  value: number | null;
+  points: { value: number; at: string }[] | undefined;
   suffix?: string;
   /** W20-12 (UX_TODO DSH-31): a 0–1 ratio, printed as a percentage. */
   ratio?: boolean;
 }) {
+  const value = latest(points);
+  const delta = debtDelta(points, { ...(ratio ? { ratio } : {}), ...(suffix ? { suffix } : {}) });
   return (
     <div className="flex flex-col" data-testid={`ch-headline-${label}`}>
       <span className="text-xs text-fg-muted">{label}</span>
@@ -149,6 +175,14 @@ function Headline({
           `${ratio ? Math.round(value * 1000) / 10 : Math.round(value * 100) / 100}${ratio ? '%' : (suffix ?? '')}`
         )}
       </span>
+      {delta && (
+        <span
+          className={`text-xs ${delta.tone === 'worse' ? 'text-warn' : 'text-fg-muted'}`}
+          data-testid={`ch-delta-${label}`}
+        >
+          {delta.text}
+        </span>
+      )}
     </div>
   );
 }
@@ -174,21 +208,17 @@ function CodeHealthTab() {
       <WidgetFrame title="Debt signals" state={state} {...retry} testId="ch-signals">
         {data && (
           <div className="flex flex-wrap gap-6" data-testid="ch-headlines">
-            <Headline
-              label="Duplication"
-              value={latest(data.series['ch_duplication_pct'])}
-              suffix="%"
-            />
+            <Headline label="Duplication" points={data.series['ch_duplication_pct']} suffix="%" />
             {/* W20-12 (UX_TODO DSH-31): the unit, and ratios as percentages —
                 "Revert rate 0.05" read as a twentieth of a percent. */}
             <Headline
               label="Complexity p90"
-              value={latest(data.series['ch_complexity_p90'])}
+              points={data.series['ch_complexity_p90']}
               suffix=" cyclomatic"
             />
-            <Headline label="Worst functions" value={latest(data.series['ch_worst_fn_count'])} />
-            <Headline label="Rework 14d" value={latest(data.series['M13'])} ratio />
-            <Headline label="Revert rate" value={latest(data.series['M14'])} ratio />
+            <Headline label="Worst functions" points={data.series['ch_worst_fn_count']} />
+            <Headline label="Rework 14d" points={data.series['M13']} ratio />
+            <Headline label="Revert rate" points={data.series['M14']} ratio />
           </div>
         )}
       </WidgetFrame>

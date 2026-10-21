@@ -53,6 +53,21 @@ function noticeLabel(state: string): string {
   return NOTICE_LABEL[state] ?? state;
 }
 
+/** Where a coverage notice is fixed (W20-20, UX_TODO DSH-91). */
+export function noticeTarget(n: { kind?: string; repo_id: number }): {
+  to: never;
+  params?: never;
+} {
+  if (n.kind === 'ai_review') return { to: '/admin/models' as never };
+  if (n.kind === 'metadata') {
+    return { to: '/repos/$repoId' as never, params: { repoId: String(n.repo_id) } as never };
+  }
+  return {
+    to: '/repos/$repoId/security' as never,
+    params: { repoId: String(n.repo_id) } as never,
+  };
+}
+
 /**
  * One action row.
  *
@@ -84,8 +99,11 @@ function ActionRow({ action, search }: { action: TopActionItem; search: Record<s
   return (
     <li>
       {action.target.kind === 'finding' ? (
+        // W20-20 (UX_TODO DSH-33): the repository's Findings tab, which is
+        // the server's href too, so the repo trail survives the click.
         <Link
-          to="/findings"
+          to="/repos/$repoId/findings"
+          params={{ repoId: String(action.target.repo_id) } as never}
           search={{ finding: action.target.finding_id } as never}
           className={className}
           data-testid={`top-action-${action.id}`}
@@ -125,10 +143,19 @@ function CoverageNote({ coverage }: { coverage: TopActionsCoverage }) {
         <ul className="flex flex-col gap-1 text-xs" data-testid="top-actions-notices">
           {coverage.notices.map((n) => (
             <li key={`${n.repo_id}:${n.capability}`} data-state={n.state}>
-              <span className="text-fg">{n.repo_name}</span>
-              {' · '}
-              {n.capability} {noticeLabel(n.state)}
-              {n.detail ? ` — ${n.detail}` : ''}
+              {/* W20-20 (UX_TODO DSH-91): plain capability names, and a way
+                  to act: AI review goes to Settings -> Models, a scanner to
+                  that repository's Security tab. */}
+              <Link
+                {...noticeTarget(n)}
+                className="hover:underline"
+                data-testid={`top-actions-notice-${n.repo_id}-${n.capability}`}
+              >
+                <span className="text-fg">{n.repo_name}</span>
+                {' · '}
+                {n.label ?? n.capability} {noticeLabel(n.state)}
+                {n.detail ? ` — ${n.detail}` : ''}
+              </Link>
             </li>
           ))}
         </ul>
@@ -183,6 +210,13 @@ export function TopActionsCard({ search }: Props) {
           <ActionRow key={action.id} action={action} search={search} />
         ))}
       </ul>
+      {/* W20-20 (UX_TODO DSH-91): a failing scanner is still said once one
+          action exists — it used to vanish with the first finding. */}
+      {coverage && (coverage.notices.length > 0 || coverage.unsupported.length > 0) && (
+        <div className="mt-3">
+          <CoverageNote coverage={coverage} />
+        </div>
+      )}
     </WidgetFrame>
   );
 }

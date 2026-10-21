@@ -679,6 +679,12 @@ function AppShell({ inert = false }: { inert?: boolean }) {
     items: { id: number; org: string; name: string; forge?: { host: string | null } | null }[];
   }>({ endpoint: '/repos', query: { window: search.window } }, { enabled: scope.repos });
   const repoOptions = topbarRepoOptions(repoList?.items ?? []);
+  // W20-20 (UX_TODO DSH-63): the person box suggested nothing, because no
+  // list of logins was ever passed. Fetched only where the box is shown.
+  const { data: people } = useApiQuery<{ items: string[] }>(
+    { endpoint: '/org/people' },
+    { enabled: scope.person },
+  );
 
   const onFilterChange = (patch: {
     window?: string;
@@ -802,6 +808,7 @@ function AppShell({ inert = false }: { inert?: boolean }) {
           onChange={onFilterChange}
           scope={scope}
           repoOptions={repoOptions}
+          personOptions={people?.items}
           actions={<Inbox />}
         />
         <Breadcrumb crumbs={crumbs} search={preservedSearch} />

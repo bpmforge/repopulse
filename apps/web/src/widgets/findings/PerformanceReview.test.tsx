@@ -87,8 +87,14 @@ let caps: RepoCapabilities;
 let items: Finding[];
 let history: { items: unknown[] };
 let requests: string[];
+/** GET /findings/:id bodies by id (W20-20). */
+let single: Record<string, unknown>;
+/** The list body; a page after the first when the URL carries a cursor. */
+let listBody: (url: string) => unknown;
 
 beforeEach(() => {
+  single = {};
+  listBody = () => ({ items, next_cursor: null });
   caps = capabilities([METADATA, cap({}), AI_OFF]);
   items = [FIXTURE];
   history = { items: [] };
@@ -105,8 +111,8 @@ beforeEach(() => {
         : url.includes('/findings/2/history')
           ? history
           : url.includes('/findings?')
-            ? { items, next_cursor: null }
-            : {};
+            ? listBody(url)
+            : (single[url.replace(/^.*\/findings\//, '')] ?? {});
       return Promise.resolve(
         new Response(JSON.stringify(body), {
           status: 200,
@@ -293,5 +299,35 @@ describe('Performance tab — nothing here was timed, and nothing here runs code
     }
     // Evidence renders as text through the shared detail panel, never as markup.
     expect(sources[0]).toMatch(/FindingDetail/);
+  });
+});
+
+describe('Performance tab - status, paging and linked findings (W20-20, UX_TODO DSH-92)', () => {
+  it('asks for open and confirmed findings by default, and refetches on a status change', async () => {
+    renderPerformance();
+    await screen.findByTestId('finding-2');
+    expect(requests.some((u) => u.includes('status=open%2Cconfirmed'))).toBe(true);
+    fireEvent.change(screen.getByTestId('performance-status'), { target: { value: 'resolved' } });
+    await waitFor(() => expect(requests.some((u) => u.includes('status=resolved'))).toBe(true));
+  });
+
+  it('says how many there are and pages with the cursor', async () => {
+    listBody = (url) =>
+      url.includes('cursor=c2')
+        ? { items: [{ ...FIXTURE, id: 3, title: 'Second page' }], next_cursor: null, total: 51 }
+        : { items, next_cursor: 'c2', total: 51 };
+    renderPerformance();
+    expect(await screen.findByTestId('performance-count')).toHaveTextContent('1–1 of 51');
+    fireEvent.click(screen.getByTestId('performance-next'));
+    expect(await screen.findByTestId('finding-3')).toBeInTheDocument();
+    expect(screen.getByTestId('performance-count')).toHaveTextContent('51–51 of 51');
+    expect(screen.getByTestId('performance-prev')).toBeInTheDocument();
+  });
+
+  it('opens a linked finding that is not on the loaded page by its id', async () => {
+    single['77'] = { ...FIXTURE, id: 77, title: 'Dismissed long ago', status: 'dismissed' };
+    renderPerformance('/repos/7/performance?finding=77');
+    expect(await screen.findByTestId('finding-detail')).toHaveTextContent(FIXTURE.evidence);
+    expect(screen.queryByTestId('performance-finding-missing')).toBeNull();
   });
 });

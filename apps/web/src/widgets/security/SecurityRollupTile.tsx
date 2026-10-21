@@ -41,39 +41,52 @@ export function SecurityRollupTile({ repos }: { repos?: string | undefined } = {
     >
       {data && (
         <div className="flex flex-col gap-2 text-sm" data-testid="security-rollup-body">
-          <div className="flex flex-wrap gap-3">
-            {[5, 4, 3, 2, 1].map((severity) => {
-              const fresh = data.new_by_severity?.[String(severity)] ?? 0;
-              return (
-                <div key={severity} className="flex flex-col" data-testid={`sev-${severity}`}>
-                  {/* Named, not "sev 5" (W18-28): every other surface uses the
+          {/* W20-20 (UX_TODO DSH-76): before any scan has finished, zeros in
+              every severity read as a clean audit. Say so instead. */}
+          {data.scanned === false ? (
+            <p className="text-fg-muted" data-testid="rollup-not-scanned">
+              Not scanned yet: no security scan has finished for these repositories.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-3">
+              {[5, 4, 3, 2, 1].map((severity) => {
+                const fresh = data.new_by_severity?.[String(severity)] ?? 0;
+                return (
+                  <div key={severity} className="flex flex-col" data-testid={`sev-${severity}`}>
+                    {/* Named, not "sev 5" (W18-28): every other surface uses the
                       severity words, and a bare number does not say which end
                       is bad. */}
-                  <span className="text-xs text-fg-muted">{SEVERITY_NAME[severity]}</span>
-                  {/* W20-21 (UX_TODO FND-55): each count opens the findings
+                    <span className="text-xs text-fg-muted">{SEVERITY_NAME[severity]}</span>
+                    {/* W20-21 (UX_TODO FND-55): each count opens the findings
                       behind it, and says what is new since yesterday. */}
-                  <Link
-                    to="/findings"
-                    search={
-                      withRepos(
-                        { dimension_group: 'security', severity: String(severity) },
-                        repos,
-                      ) as never
-                    }
-                    className="tabular-nums underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-                    data-testid={`sev-link-${severity}`}
-                  >
-                    {bySeverity[String(severity)] ?? 0}
-                  </Link>
-                  {fresh > 0 && (
-                    <span className="text-xs text-fg-muted" data-testid={`sev-new-${severity}`}>
-                      +{fresh} since yesterday
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                    <Link
+                      to="/findings"
+                      search={
+                        withRepos(
+                          { dimension_group: 'security', severity: String(severity) },
+                          repos,
+                        ) as never
+                      }
+                      className="tabular-nums underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                      data-testid={`sev-link-${severity}`}
+                    >
+                      {bySeverity[String(severity)] ?? 0}
+                    </Link>
+                    {fresh > 0 && (
+                      <span className="text-xs text-fg-muted" data-testid={`sev-new-${severity}`}>
+                        +{fresh} since yesterday
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {(data.experimental_open ?? 0) > 0 && (
+            <p className="text-xs text-fg-muted" data-testid="rollup-trial">
+              +{data.experimental_open} from rules in trial, not counted above.
+            </p>
+          )}
 
           <div className="flex flex-wrap gap-4">
             <span data-testid="rollup-kev">
@@ -86,7 +99,11 @@ export function SecurityRollupTile({ repos }: { repos?: string | undefined } = {
             <span data-testid="rollup-verified">
               {data.verified_secrets > 0
                 ? `! ${data.verified_secrets} verified live credentials`
-                : 'no credential confirmed live'}
+                : data.live_checks === false
+                  ? // W20-20 (DSH-76): nothing checks liveness, so "no credential
+                    // confirmed live" claimed a check that never ran.
+                    'live credential checks are off'
+                  : 'no credential confirmed live'}
             </span>
             <span data-testid="rollup-chain">
               {data.worst_chain
@@ -98,7 +115,11 @@ export function SecurityRollupTile({ repos }: { repos?: string | undefined } = {
           {/* The basis label, same discipline as the health score's "Tier-1
               only": what these numbers are actually built on. */}
           <p className="text-xs text-fg-muted" data-testid="rollup-basis">
-            Basis: {data.basis}
+            {data.scanners_run && data.scanners_run.length > 0
+              ? `Basis: ${data.scanners_run
+                  .map((r) => `${r.key} (last run ${r.last_finished_at.slice(0, 10)})`)
+                  .join(', ')}`
+              : `Basis: ${data.basis}`}
           </p>
 
           <Link

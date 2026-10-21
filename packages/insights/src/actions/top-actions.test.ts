@@ -123,9 +123,9 @@ describe('selectTopActions deduplication (W17-16)', () => {
 });
 
 describe('top action deep links (W17-16, W16-49)', () => {
-  it('a finding links with the explorer’s own param', () => {
+  it('a finding links to its repository’s Findings tab (W20-20, DSH-33)', () => {
     const [action] = selectTopActions({ findings: [finding({ findingId: 77 })], planItems: [] });
-    expect(action?.href).toBe('/findings?finding=77');
+    expect(action?.href).toBe('/repos/10/findings?finding=77');
     expect(action?.target).toEqual({ kind: 'finding', findingId: 77, repoId: 10 });
   });
 
@@ -227,7 +227,16 @@ describe('summarizeCoverage (W17-16)', () => {
       }),
     ]);
     expect(state.notices).toEqual([
-      { repoId: 1, repoName: 'alpha', capability: 'semgrep', state: 'failed', detail: 'boom' },
+      {
+        repoId: 1,
+        repoName: 'alpha',
+        capability: 'semgrep',
+        // W20-20 (DSH-91): the plain name (the id when none is given) and kind.
+        label: 'semgrep',
+        kind: 'scanner',
+        state: 'failed',
+        detail: 'boom',
+      },
     ]);
     expect(state.basis).toBe('partial');
   });

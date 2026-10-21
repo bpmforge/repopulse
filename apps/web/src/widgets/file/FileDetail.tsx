@@ -31,6 +31,12 @@ interface Props {
 
 type OwnerRow = FileDetailResponse['owners'][number];
 
+/** Patterns that tell the churn series apart without colour (W20-20, DSH-55). */
+export const CHURN_DECALS = {
+  net: { symbol: 'rect', dashArrayX: [1, 0], dashArrayY: [2, 4], rotation: Math.PI / 4 },
+  rework: { symbol: 'circle', symbolSize: 0.6, dashArrayX: [4, 2], dashArrayY: [4, 2] },
+};
+
 export function FileDetailScreen({ repoId, path }: Props) {
   const { data, isLoading, isError, error, refetch } = useApiQuery<FileDetailResponse>({
     endpoint: '/repos/{id}/files/{path}',
@@ -211,13 +217,26 @@ export function FileDetailScreen({ repoId, path }: Props) {
               // W20-12 (UX_TODO DSH-35): the axis names its unit, as TrendChart's do.
               yAxis: { type: 'value', name: 'lines', nameLocation: 'end' as const, nameGap: 8 },
               tooltip: { trigger: 'axis' },
+              // W20-20 (UX_TODO DSH-55): the three series differed only by
+              // colour; Net and Rework carry a pattern (decal) as well, so
+              // they stay apart in greyscale and for colour-blind readers.
               series: [
                 { name: 'Gross', type: 'bar', data: weeks.map((w) => w.gross) },
-                { name: 'Net', type: 'bar', data: weeks.map((w) => w.net) },
+                {
+                  name: 'Net',
+                  type: 'bar',
+                  data: weeks.map((w) => w.net),
+                  itemStyle: { decal: CHURN_DECALS.net },
+                },
                 // Rework is a SUBSET of gross, so it is drawn as its own bar
                 // rather than stacked on top — stacking would imply gross + rework
                 // is a total, and read as double the churn that actually happened.
-                { name: 'Rework', type: 'bar', data: weeks.map((w) => w.rework) },
+                {
+                  name: 'Rework',
+                  type: 'bar',
+                  data: weeks.map((w) => w.rework),
+                  itemStyle: { decal: CHURN_DECALS.rework },
+                },
               ],
             }}
           />

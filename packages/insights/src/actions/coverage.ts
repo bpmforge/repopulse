@@ -14,6 +14,8 @@
 /** The subset of a W17-10 capability row this summary needs. */
 export interface CoverageCapabilityInput {
   id: string;
+  /** Plain name for people (W20-20, UX_TODO DSH-91); the id when absent. */
+  label?: string;
   kind: string;
   state: string;
   lastSuccessAt: string | null;
@@ -39,6 +41,9 @@ export interface CoverageNotice {
   repoId: number;
   repoName: string;
   capability: string;
+  /** W20-20 (UX_TODO DSH-91): plain name and kind, so a notice can say and link. */
+  label: string;
+  kind: string;
   state: string;
   detail: string;
 }
@@ -78,6 +83,8 @@ function noticesFor(repo: RepoCoverageInput): CoverageNotice[] {
       repoId: repo.repoId,
       repoName: repo.repoName,
       capability: capability.id,
+      label: capability.label ?? capability.id,
+      kind: capability.kind,
       state: capability.state,
       detail: capability.detail ?? '',
     });

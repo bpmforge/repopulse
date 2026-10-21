@@ -336,8 +336,12 @@ export default async function securityRoutes(
         ),
       );
 
+    // W20-20 (UX_TODO DSH-77): shadow-rule (experimental) findings stay out of
+    // every headline count, as they already were on Reviews, Next actions and
+    // the risk axes; `experimental_open` says how many were left out.
+    const counted = findings.filter((f) => !f.experimental);
     const openBySeverity: Record<number, number> = {};
-    for (const f of findings) openBySeverity[f.severity] = (openBySeverity[f.severity] ?? 0) + 1;
+    for (const f of counted) openBySeverity[f.severity] = (openBySeverity[f.severity] ?? 0) + 1;
 
     const scanners = keys.map((key) => {
       const run = latestByKey.get(key);
@@ -450,7 +454,10 @@ export default async function securityRoutes(
     return reply.send({
       repo: { id: repo.id, org: repo.org, name: repo.name },
       open_by_severity: openBySeverity,
-      open_total: findings.length,
+      open_total: counted.length,
+      experimental_open: findings.filter(
+        (f) => f.experimental && SECURITY_DIMENSIONS.has(f.dimension),
+      ).length,
       // W20-13 (UX_TODO FND-73): what the Open findings panel lists from.
       // `open_total` counts every dimension (code health, performance…), so
       // "All 43 open findings" under a panel of 3 security findings read as
@@ -464,7 +471,7 @@ export default async function securityRoutes(
       // produced a screen that looked the same as one that had not, except
       // for a digit. Ten worst, security-shaped dimensions only — code health
       // and performance findings have their own tabs.
-      top_findings: findings
+      top_findings: counted
         .filter((f) => SECURITY_DIMENSIONS.has(f.dimension))
         .sort((a, b) => b.severity - a.severity || a.id - b.id)
         .slice(0, 10)
@@ -490,7 +497,7 @@ export default async function securityRoutes(
         unsupported_tools: UNSUPPORTED_TOOLS,
       },
       secrets: {
-        open: findings.filter((f) => f.dimension === 'secrets').length,
+        open: counted.filter((f) => f.dimension === 'secrets').length,
         // Two clocks, not one: stream mode says "we are watching new commits"
         // and history says "we have looked back". A repo with a recent stream
         // scan and no history sweep is not covered, and one number cannot say
@@ -563,6 +570,8 @@ export default async function securityRoutes(
           inScope,
           eq(read.findings.dimension, 'secrets'),
           inArray(read.findings.status, ['open', 'confirmed']),
+          // W20-20 (UX_TODO DSH-77): rules in trial never reach a headline.
+          eq(read.findings.experimental, false),
         ),
       )
       .groupBy(read.findings.severity);
@@ -576,6 +585,8 @@ export default async function securityRoutes(
           inScope,
           inArray(read.findings.dimension, [...SECURITY_ROLLUP_DIMENSIONS]),
           inArray(read.findings.status, ['open', 'confirmed']),
+          // W20-20 (UX_TODO DSH-77): rules in trial never reach a headline.
+          eq(read.findings.experimental, false),
         ),
       )
       .groupBy(read.findings.severity);
@@ -604,6 +615,8 @@ export default async function securityRoutes(
           eq(read.findings.workspaceId, workspaceId),
           inScope,
           inArray(read.findings.status, ['open', 'confirmed']),
+          // W20-20 (UX_TODO DSH-77): rules in trial never reach a headline.
+          eq(read.findings.experimental, false),
           sql`${read.findings.yields} ->> 'kev' = 'true'`,
         ),
       );
@@ -620,11 +633,53 @@ export default async function securityRoutes(
           inScope,
           isNotNull(read.findings.chainId),
           inArray(read.findings.status, ['open', 'confirmed']),
+          // W20-20 (UX_TODO DSH-77): rules in trial never reach a headline.
+          eq(read.findings.experimental, false),
         ),
       )
       .groupBy(read.findings.chainId)
       .orderBy(desc(sql`max(${read.findings.severity})`))
       .limit(1);
+
+    // W20-20 (UX_TODO DSH-77): the shadow-rule findings left out above, said
+    // separately so nobody wonders where the Security tab's extra rows went.
+    const [trial] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(read.findings)
+      .where(
+        and(
+          eq(read.findings.workspaceId, workspaceId),
+          inScope,
+          inArray(read.findings.dimension, [...SECURITY_DIMENSIONS]),
+          inArray(read.findings.status, ['open', 'confirmed']),
+          eq(read.findings.experimental, true),
+        ),
+      );
+
+    // W20-20 (UX_TODO DSH-76): the basis is the scanners that actually
+    // finished in scope, with their last finish — it was the fixed string
+    // "scanners: secrets" whatever had run, and zeros with no scan at all read
+    // as a clean audit.
+    const ran = await db
+      .select({
+        scannerKey: security.scanRuns.scannerKey,
+        lastAt: sql<Date>`max(${security.scanRuns.finishedAt})`,
+      })
+      .from(security.scanRuns)
+      .where(
+        and(
+          eq(security.scanRuns.workspaceId, workspaceId),
+          repoIds.length > 0 ? inArray(security.scanRuns.repoId, repoIds) : undefined,
+          isNotNull(security.scanRuns.finishedAt),
+          inArray(security.scanRuns.status, ['succeeded', 'budget_exceeded']),
+        ),
+      )
+      .groupBy(security.scanRuns.scannerKey)
+      .orderBy(security.scanRuns.scannerKey);
+    const scannersRun = ran.map((r) => ({
+      key: r.scannerKey,
+      last_finished_at: new Date(r.lastAt).toISOString(),
+    }));
 
     const bySeverity: Record<number, number> = {};
     for (const row of all) bySeverity[row.severity] = row.n;
@@ -640,10 +695,19 @@ export default async function securityRoutes(
       // Always red-flagged when non-zero (SECURITY_SUITE §5) — and honestly 0
       // while live verification is off (W8-04).
       verified_secrets: 0,
+      // W20-20 (UX_TODO DSH-76): no verifier exists, so the tile says "live
+      // checks are off" instead of "no credential confirmed live".
+      live_checks: false,
+      experimental_open: trial?.n ?? 0,
+      scanners_run: scannersRun,
+      scanned: scannersRun.length > 0,
       worst_chain: worst?.chainId ? { id: worst.chainId, severity: worst.severity } : null,
       // The basis label: what the security numbers are actually built on, so a
       // sub-score computed from one scanner does not read like a full audit.
-      basis: 'scanners: secrets',
+      basis:
+        scannersRun.length > 0
+          ? `scanners: ${scannersRun.map((r) => r.key).join(', ')}`
+          : 'no security scan has finished',
     });
   });
 }

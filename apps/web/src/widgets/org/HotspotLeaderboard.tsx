@@ -106,7 +106,13 @@ export function HotspotLeaderboard({ window, search, limit = 10 }: Props) {
       })}
       {...(error ? { errorMessage: error.message, error } : {})}
       onRetry={() => void refetch()}
-      emptyMessage="No churn in this window — nothing is hot."
+      // W20-20: with every hot file acknowledged the hidden-files note sat
+      // behind the empty state, which then claimed nothing was hot.
+      emptyMessage={
+        (data?.suppressed_count ?? 0) > 0
+          ? `No hotspots to show: ${data?.suppressed_count} acknowledged file${data?.suppressed_count === 1 ? ' is' : 's are'} hidden. Undo an acknowledgement on the file's page.`
+          : 'No churn in this window — nothing is hot.'
+      }
       definitionHref={docsUrl('/docs/design/METRICS.md')}
     >
       <div data-testid="hotspot-leaderboard">
@@ -116,9 +122,31 @@ export function HotspotLeaderboard({ window, search, limit = 10 }: Props) {
           <p className="mb-2 text-xs text-fg-muted" data-testid="hotspot-suppressed">
             {data?.suppressed_count} acknowledged file
             {data?.suppressed_count === 1 ? '' : 's'} hidden from this list
-            {data?.suppressed_paths && data.suppressed_paths.length > 0
-              ? `: ${data.suppressed_paths.join(', ')}`
-              : ''}
+            {/* W20-20 (UX_TODO DSH-70): org/repo/path, each linked to its
+                file page — the only place an acknowledgement is undone. */}
+            {data?.suppressed && data.suppressed.length > 0 ? (
+              <>
+                {': '}
+                {data.suppressed.map((h, i) => (
+                  <span key={`${h.repo_id}:${h.path}`}>
+                    {i > 0 ? ', ' : ''}
+                    <Link
+                      to="/repos/$repoId/files/$"
+                      params={{ repoId: String(h.repo_id), _splat: h.path } as never}
+                      search={search as never}
+                      className="underline-offset-2 hover:underline"
+                      data-testid={`hotspot-hidden-${h.repo_id}-${h.path}`}
+                    >
+                      {h.org}/{h.name}/{h.path}
+                    </Link>
+                  </span>
+                ))}
+              </>
+            ) : data?.suppressed_paths && data.suppressed_paths.length > 0 ? (
+              `: ${data.suppressed_paths.join(', ')}`
+            ) : (
+              ''
+            )}
           </p>
         )}
         <DataTable

@@ -122,3 +122,35 @@ describe('paging back as well as forward (W20-12, UX_TODO DSH-45)', () => {
     expect(validatePrListSearch({ prev: '<script>' })).toEqual({});
   });
 });
+
+describe('sorting (W20-20, UX_TODO DSH-45)', () => {
+  it('keeps a known sort in the URL and drops the default and junk', () => {
+    expect(validatePrListSearch({ sort: 'opened:asc' })).toEqual({ sort: 'opened:asc' });
+    expect(validatePrListSearch({ sort: 'updated:desc' })).toEqual({});
+    expect(validatePrListSearch({ sort: 'title:asc' })).toEqual({});
+  });
+
+  it('a sort change asks the API for it and starts from the first page', async () => {
+    const router = renderPrs('/pull-requests?cursor=c2');
+    fireEvent.change(await screen.findByTestId('pr-sort'), { target: { value: 'opened:asc' } });
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ sort: 'opened:asc' }));
+    expect(router.state.location.search).not.toHaveProperty('cursor');
+    await waitFor(() => expect(urls.some((u) => u.includes('sort=opened%3Aasc'))).toBe(true));
+  });
+});
+
+describe('reviewer drill-down (W20-20, UX_TODO DSH-30)', () => {
+  it('keeps a login and drops anything that is not one', () => {
+    expect(validatePrListSearch({ reviewer: 'alice-b' })).toEqual({ reviewer: 'alice-b' });
+    expect(validatePrListSearch({ reviewer: 'copilot[bot]' })).toEqual({
+      reviewer: 'copilot[bot]',
+    });
+    expect(validatePrListSearch({ reviewer: 'a b<script>' })).toEqual({});
+  });
+
+  it('asks the API for that reviewer’s PRs and shows the filter with a way out', async () => {
+    renderPrs('/pull-requests?reviewer=alice');
+    expect(await screen.findByTestId('pr-filter-reviewer')).toHaveTextContent('Reviewed by alice');
+    await waitFor(() => expect(urls.some((u) => u.includes('reviewer=alice'))).toBe(true));
+  });
+});

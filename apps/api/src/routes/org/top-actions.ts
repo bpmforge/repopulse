@@ -33,13 +33,14 @@ import { repoCapabilities } from '../../lib/capability.js';
 export const CANDIDATE_LIMIT = 20;
 
 /**
- * Repositories inspected for coverage state on the EMPTY path.
+ * Repositories inspected for coverage state.
  *
  * repoCapabilities is several queries per repository, so this is capped and the
  * summary reports the count it actually looked at rather than implying it
- * covered the whole workspace.
+ * covered the whole workspace. W20-20 (UX_TODO DSH-91): raised from 10, and
+ * the summary now says "the first N of M" when the scope is larger.
  */
-export const COVERAGE_REPO_LIMIT = 10;
+export const COVERAGE_REPO_LIMIT = 25;
 
 /**
  * Statuses a finding must be in to be worth acting on.
@@ -76,7 +77,12 @@ export interface TopActionsResult {
    * is fine when it has not looked. Non-empty responses leave it null rather
    * than paying for a capability fan-out nobody reads.
    */
-  coverage: CoverageState | null;
+  /**
+   * W20-20 (UX_TODO DSH-91): computed whether or not there are actions, so a
+   * failing scanner is still said once one finding exists. `reposInScope` is
+   * every repository in scope; `reposTotal` the ones inspected.
+   */
+  coverage: (CoverageState & { reposInScope: number }) | null;
   generatedAt: string;
 }
 
@@ -214,7 +220,16 @@ async function coverageFor(
   limit: number,
   now: Date,
   repoIds: readonly number[],
-): Promise<CoverageState> {
+): Promise<CoverageState & { reposInScope: number }> {
+  const scope = and(
+    eq(core.repos.workspaceId, workspaceId),
+    repoIds.length > 0 ? inArray(core.repos.id, [...repoIds]) : undefined,
+  );
+  const [counted] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(core.repos)
+    .where(scope);
+  const reposInScope = counted?.n ?? 0;
   const repos = await db
     .select({ id: core.repos.id, name: core.repos.name })
     .from(core.repos)
@@ -239,7 +254,16 @@ async function coverageFor(
       capabilities: capabilities.capabilities,
     });
   }
-  return summarizeCoverage(inputs);
+  const state = summarizeCoverage(inputs);
+  return {
+    ...state,
+    reposInScope,
+    // Never a statement about repositories nobody looked at (DSH-91).
+    summary:
+      reposInScope > repos.length
+        ? `${state.summary} (Checked the first ${repos.length} of ${reposInScope} repositories by name.)`
+        : state.summary,
+  };
 }
 
 /**
@@ -267,16 +291,13 @@ export async function collectTopActions(
 
   return {
     actions,
-    coverage:
-      actions.length === 0
-        ? await coverageFor(
-            db,
-            workspaceId,
-            opts.coverageRepoLimit ?? COVERAGE_REPO_LIMIT,
-            now,
-            repoIds,
-          )
-        : null,
+    coverage: await coverageFor(
+      db,
+      workspaceId,
+      opts.coverageRepoLimit ?? COVERAGE_REPO_LIMIT,
+      now,
+      repoIds,
+    ),
     generatedAt: now.toISOString(),
   };
 }
@@ -315,10 +336,13 @@ export function serializeTopActions(result: TopActionsResult): Record<string, un
             repos_measured: result.coverage.reposMeasured,
             repos_never_measured: result.coverage.reposNeverMeasured,
             repos_stale: result.coverage.reposStale,
+            repos_in_scope: result.coverage.reposInScope,
             notices: result.coverage.notices.map((n) => ({
               repo_id: n.repoId,
               repo_name: n.repoName,
               capability: n.capability,
+              label: n.label,
+              kind: n.kind,
               state: n.state,
               detail: n.detail,
             })),

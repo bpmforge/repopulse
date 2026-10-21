@@ -20,7 +20,7 @@ describe('custom window range', () => {
     expect(select.value).toBe('2026-09-01..2026-09-14');
     expect(screen.getByTestId('filter-window-custom')).toHaveTextContent(
       // W20-16: a 14-day range now has a 14d preset of its own.
-      '2026-09-01 → 2026-09-14 (numbers: last 14d)',
+      '2026-09-01 → 2026-09-14 (KPIs for these dates; other cards: last 14d)',
     );
   });
 
@@ -56,12 +56,18 @@ describe('custom window range', () => {
     expect(onChange).toHaveBeenCalledWith({ window: '2026-09-01..2026-09-10' });
   });
 
-  it('requests carry the covering preset, never the raw range', () => {
-    expect(buildUrl('/org/summary', { query: { window: '2026-09-01..2026-09-07' } })).toBe(
-      '/api/v1/org/summary?window=7d',
+  it('snapshot-backed requests carry the covering preset, never the raw range', () => {
+    expect(buildUrl('/repos/{id}/pr-flow', { query: { window: '2026-09-01..2026-09-07' } })).toBe(
+      '/api/v1/repos/{id}/pr-flow?window=7d',
     );
     expect(buildUrl('/org/summary', { query: { window: '90d' } })).toBe(
       '/api/v1/org/summary?window=90d',
+    );
+  });
+
+  it('the KPI summary receives the exact range (W20-20)', () => {
+    expect(buildUrl('/org/summary', { query: { window: '2026-09-01..2026-09-07' } })).toBe(
+      '/api/v1/org/summary?window=2026-09-01..2026-09-07',
     );
   });
 });

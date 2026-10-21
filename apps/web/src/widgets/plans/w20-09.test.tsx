@@ -1,6 +1,13 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClientProvider } from '@tanstack/react-query';
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  RouterProvider,
+} from '@tanstack/react-router';
 import { createQueryClient } from '../../api/queryClient.js';
 import { planForScope } from './PlanTile.js';
 import { RepoPulse } from '../repo/RepoPulse.js';
@@ -83,9 +90,25 @@ function wrap(ui: React.ReactNode) {
   return render(<QueryClientProvider client={createQueryClient()}>{ui}</QueryClientProvider>);
 }
 
+function wrapRouted(ui: React.ReactNode) {
+  // A router, because the KPI tiles link to their evidence (W20-20, DSH-18).
+  vi.stubGlobal('scrollTo', vi.fn());
+  const rootRoute = createRootRoute();
+  const route = createRoute({ getParentRoute: () => rootRoute, path: '/', component: () => ui });
+  const router = createRouter({
+    routeTree: rootRoute.addChildren([route]),
+    history: createMemoryHistory({ initialEntries: ['/'] }),
+  });
+  return render(
+    <QueryClientProvider client={createQueryClient()}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>,
+  );
+}
+
 describe('KpiRow under a repository scope (DSH-02)', () => {
   it('asks /org/summary for the view’s repositories and draws no workspace sparkline', async () => {
-    wrap(<KpiRow window="30d" repos="3,4" />);
+    wrapRouted(<KpiRow window="30d" repos="3,4" />);
     await screen.findByTestId('kpi-row');
     await waitFor(() => expect(urls.some((u) => u.includes('/org/summary'))).toBe(true));
     const summary = urls.find((u) => u.includes('/org/summary'))!;
@@ -95,7 +118,7 @@ describe('KpiRow under a repository scope (DSH-02)', () => {
   });
 
   it('one repository keeps its own sparkline series', async () => {
-    wrap(<KpiRow window="30d" repos="3" />);
+    wrapRouted(<KpiRow window="30d" repos="3" />);
     await screen.findByTestId('kpi-row');
     await waitFor(() => expect(urls.some((u) => u.includes('/metrics/series'))).toBe(true));
     expect(
