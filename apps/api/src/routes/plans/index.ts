@@ -45,7 +45,8 @@ type Queryable = Database | Parameters<Parameters<Database['transaction']>[0]>[0
  */
 export const HUMAN_TRANSITIONS: Readonly<Record<string, readonly string[]>> = {
   proposed: ['accepted', 'dismissed'],
-  accepted: ['in_progress', 'dismissed'],
+  // W20-20 (UX_TODO DSH-44): an accept made by mistake can be taken back.
+  accepted: ['proposed', 'in_progress', 'dismissed'],
   in_progress: ['accepted', 'dismissed'],
   // done/regressed are the verifier's to set; a human may still dismiss.
   done: ['dismissed'],

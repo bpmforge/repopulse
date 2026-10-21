@@ -1,3 +1,4 @@
+import { csvFileName, downloadCsv, toCsv } from '../../lib/csv.js';
 import { useEffect, useRef, useState } from 'react';
 // TYPE-ONLY import: pulling `initChart` as a value here put echarts into the
 // registry chunk, so every screen paid 175 KB gz for charts it might never
@@ -166,6 +167,20 @@ export function Chart({
             aria-pressed={asTable}
           >
             {asTable ? 'View as chart' : 'View as table'}
+          </button>
+        )}
+        {/* W20-20 (UX_TODO DSH-71): the chart's numbers as a file, for a
+            retro slide or a board deck, instead of retyping the table. */}
+        {tableData && tableData.rows.length > 0 && (
+          <button
+            type="button"
+            onClick={() =>
+              downloadCsv(csvFileName(testId), toCsv(tableData.columns, tableData.rows))
+            }
+            className="inline-flex min-h-6 items-center rounded-sm px-1.5 py-0.5 text-xs text-fg-muted hover:text-fg"
+            data-testid="chart-csv"
+          >
+            Download CSV
           </button>
         )}
       </div>

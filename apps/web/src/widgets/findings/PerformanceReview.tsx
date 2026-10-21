@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery, queryKeyFor } from '../../api/useApiQuery.js';
@@ -25,6 +25,17 @@ import { FindingSeverityBadge } from './FindingSeverity.js';
 // linked, and the open finding lives in the URL (`?finding=`), so a reload or
 // a pasted link lands on the same evidence and recommendation.
 
+/** W20-20 (UX_TODO DSH-92): what the list shows unless someone picks otherwise. */
+export const DEFAULT_PERF_STATUS = 'open,confirmed';
+const PERF_STATUS_OPTIONS = [
+  { value: DEFAULT_PERF_STATUS, label: 'Open' },
+  { value: 'dismissed,wont_fix', label: 'Dismissed' },
+  { value: 'resolved', label: 'Resolved' },
+  { value: '', label: 'All' },
+];
+/** The API's page size for /findings, for the "11–20 of 43" label. */
+const PERF_PAGE_SIZE_HINT = 50;
+
 interface Props {
   repoId: string;
   /** The finding open in the panel, from the URL. */
@@ -40,13 +51,28 @@ export function PerformanceReview({ repoId, openId, onOpen, search }: Props) {
     path: { id: repoId },
   });
 
+  // W20-20 (UX_TODO DSH-92): open + confirmed by default with a status
+  // filter, paged with the API's cursor and counted, instead of the first 50
+  // of every status mixed together with no word that the list was cut off.
+  const [status, setStatus] = useState<string>(DEFAULT_PERF_STATUS);
+  const [cursors, setCursors] = useState<string[]>([]);
+  const cursor = cursors[cursors.length - 1];
   const listDescriptor = {
     endpoint: '/findings',
-    query: { repo_id: repoId, dimension: PERFORMANCE_DIMENSION },
+    query: {
+      repo_id: repoId,
+      dimension: PERFORMANCE_DIMENSION,
+      ...(status ? { status } : {}),
+      ...(cursor ? { cursor } : {}),
+    },
   } as const;
-  const findings = useApiQuery<{ items: Finding[]; next_cursor: string | null }>(listDescriptor);
+  const findings = useApiQuery<{ items: Finding[]; next_cursor: string | null; total?: number }>(
+    listDescriptor,
+  );
 
   const items = findings.data?.items ?? [];
+  const total = findings.data?.total;
+  const pageStart = cursors.length * PERF_PAGE_SIZE_HINT;
   const review = performanceReviewState(capabilities.data?.capabilities);
 
   const detailRef = useRef<HTMLDivElement | null>(null);
@@ -54,7 +80,26 @@ export function PerformanceReview({ repoId, openId, onOpen, search }: Props) {
     if (openId === null) return;
     detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [openId]);
-  const openFinding = items.find((f) => f.id === openId);
+  const inPage = items.find((f) => f.id === openId);
+  // A linked finding that is not on this page (another status, a later page)
+  // is fetched by its id rather than declared missing (DSH-92).
+  const single = useApiQuery<Finding>(
+    { endpoint: '/findings/{id}', path: { id: openId ?? 0 } },
+    { enabled: openId !== null && findings.data !== undefined && !inPage },
+  );
+  const fetched =
+    single.data &&
+    single.data.id === openId &&
+    String(single.data.repo?.id) === repoId &&
+    single.data.dimension === PERFORMANCE_DIMENSION
+      ? single.data
+      : undefined;
+  const openFinding = inPage ?? fetched;
+  const missing =
+    openId !== null &&
+    findings.data !== undefined &&
+    !inPage &&
+    (single.isError || (single.data !== undefined && !fetched));
 
   return (
     <div className="flex flex-col gap-4" data-testid="performance-review">
@@ -130,6 +175,53 @@ export function PerformanceReview({ repoId, openId, onOpen, search }: Props) {
         emptyMessage={performanceEmptyCopy(review)}
         testId="performance-findings"
       >
+        <div className="mb-2 flex flex-wrap items-center gap-3 text-xs text-fg-muted">
+          <label className="flex items-center gap-1">
+            Status
+            <select
+              className="h-7 rounded-md border border-border bg-surface px-1 text-sm text-fg"
+              data-testid="performance-status"
+              value={status}
+              onChange={(e) => {
+                setStatus(e.target.value);
+                setCursors([]);
+              }}
+            >
+              {PERF_STATUS_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {total !== undefined && items.length > 0 && (
+            <span data-testid="performance-count">
+              {total > items.length
+                ? `${pageStart + 1}–${pageStart + items.length} of ${total}`
+                : `${items.length} of ${total}`}
+            </span>
+          )}
+          {cursors.length > 0 && (
+            <button
+              type="button"
+              className="text-accent hover:underline"
+              data-testid="performance-prev"
+              onClick={() => setCursors((c) => c.slice(0, -1))}
+            >
+              Previous page
+            </button>
+          )}
+          {findings.data?.next_cursor && (
+            <button
+              type="button"
+              className="text-accent hover:underline"
+              data-testid="performance-next"
+              onClick={() => setCursors((c) => [...c, findings.data!.next_cursor!])}
+            >
+              Next page
+            </button>
+          )}
+        </div>
         {/* W18-28: scrolls inside its own region at phone width instead of
             squeezing every column until the headers run together. */}
         <div
@@ -193,7 +285,7 @@ export function PerformanceReview({ repoId, openId, onOpen, search }: Props) {
           />
         </div>
       )}
-      {openId !== null && findings.data && !openFinding && (
+      {missing && (
         <p
           className="text-sm text-fg-muted"
           role="status"

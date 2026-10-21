@@ -168,7 +168,10 @@ function toAction(candidate: ActionCandidate): TopAction {
       // read as one somebody made.
       effort: null,
       target: { kind: 'finding', findingId: candidate.findingId, repoId: candidate.repoId },
-      href: `/findings?finding=${candidate.findingId}`,
+      // W20-20 (UX_TODO DSH-33): the repository's own Findings tab, so the
+      // trail (Overview > repo > Findings) is kept rather than dropped into
+      // the workspace-wide list.
+      href: `/repos/${candidate.repoId}/findings?finding=${candidate.findingId}`,
     };
   }
   return {

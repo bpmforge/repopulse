@@ -75,6 +75,13 @@ export type QueryParams = Record<string, string | number | boolean | undefined |
 export type PathParams = Record<string, string | number>;
 
 /**
+ * Endpoints that compute a custom `start..end` window for exactly those days
+ * (W20-20, UX_TODO DSH-56). Every other endpoint is still snapshot-backed and
+ * receives the preset that covers the range.
+ */
+export const RANGE_ENDPOINTS: ReadonlySet<string> = new Set(['/org/summary']);
+
+/**
  * Build a fully-qualified URL: substitute `{name}` path params, drop
  * undefined/null query params, and default the empty-window etc. handling to
  * the caller (serializeGlobalSearch already omits defaults).
@@ -90,11 +97,14 @@ export function buildUrl(
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(opts.query ?? {})) {
     if (v === undefined || v === null || v === '') continue;
-    // A custom `start..end` window travels in the URL but no endpoint can
-    // serve one yet (W20-09, UX_TODO DSH-56): it is read as the preset that
-    // covers it, and the window control says which. Without this every card
-    // on the page turned into a 400.
-    qs.append(k, k === 'window' ? presetCovering(String(v)) : String(v));
+    // A custom `start..end` window travels in the URL; only RANGE_ENDPOINTS
+    // compute one (W20-20). Elsewhere it is read as the preset that covers it,
+    // and the window control says which. Without this every other card on the
+    // page turned into a 400.
+    qs.append(
+      k,
+      k === 'window' && !RANGE_ENDPOINTS.has(endpoint) ? presetCovering(String(v)) : String(v),
+    );
   }
   const query = qs.toString();
   const base = path.startsWith('/api/v1') ? path : `${API_BASE}${path}`;

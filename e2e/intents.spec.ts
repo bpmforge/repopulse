@@ -9,7 +9,10 @@ import { expectNoA11yViolations } from './helpers/axe.js';
 // An earlier version hunted for a link and skipped when it found none, which
 // is a test that proves nothing while looking green.
 
-test('acknowledging a file hides it from the leaderboard AND says so', async ({ page, context }) => {
+test('acknowledging a file hides it from the leaderboard AND says so', async ({
+  page,
+  context,
+}) => {
   await loginAsFixture(page);
 
   const res = await context.request.get('/api/v1/hotspots?window=30d&limit=10');
@@ -18,7 +21,10 @@ test('acknowledging a file hides it from the leaderboard AND says so', async ({ 
     items: { repoId: number; path: string }[];
     suppressed_count?: number;
   };
-  expect(body.items.length, 'the fixture warehouse must have hotspots to acknowledge').toBeGreaterThan(0);
+  expect(
+    body.items.length,
+    'the fixture warehouse must have hotspots to acknowledge',
+  ).toBeGreaterThan(0);
   const target = body.items[0]!;
   const before = body.items.length;
 
@@ -26,8 +32,10 @@ test('acknowledging a file hides it from the leaderboard AND says so', async ({ 
   await expect(page.getByTestId('intent-control')).toBeVisible();
   await expectNoA11yViolations(page);
 
-  await page.getByTestId('intent-acknowledged').click();
-  await expect(page.getByTestId('intent-acknowledged')).toHaveAttribute('aria-pressed', 'true');
+  // W20-20 (UX_TODO DSH-36): choose, then Save — choosing alone saves nothing.
+  await page.getByTestId('intent-acknowledged').check();
+  await page.getByTestId('intent-save').click();
+  await expect(page.getByTestId('intent-current')).toContainText('Acknowledged since');
 
   // The API drops the row and reports the count in the same response.
   await expect

@@ -141,6 +141,8 @@ export interface RepoSecurity {
   open_total: number;
   /** Open security-dimension findings, what top_findings is drawn from (W20-13, FND-73). */
   security_open_total?: number;
+  /** W20-20 (UX_TODO DSH-77): open findings from rules in trial, left out of the counts. */
+  experimental_open?: number;
   scanners: ScannerStatus[];
   /**
    * The worst open security findings, newest API only (W17-20). Optional so a
@@ -193,6 +195,14 @@ export interface OrgSecurity {
   worst_chain: { id: string; severity: number } | null;
   /** What the numbers are built on, so one scanner does not read as an audit. */
   basis: string;
+  /** W20-20 (UX_TODO DSH-76): live credential checks run at all (none do yet). */
+  live_checks?: boolean;
+  /** W20-20 (DSH-76): scanners that finished in scope, with their last finish. */
+  scanners_run?: { key: string; last_finished_at: string }[];
+  /** W20-20 (DSH-76): false = no security scan has finished, so zeros mean nothing. */
+  scanned?: boolean;
+  /** W20-20 (DSH-77): open findings from rules in trial, left out of the counts. */
+  experimental_open?: number;
 }
 
 /**

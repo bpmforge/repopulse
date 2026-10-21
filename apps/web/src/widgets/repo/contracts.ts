@@ -227,6 +227,8 @@ export interface RepoCi {
     flakiness: number | null;
     rerun_groups: number;
     flipped_groups: number;
+    /** The workflow's runs on the forge (W20-20, DSH-29); null when unknown. */
+    runs_url?: string | null;
   }[];
   flakiness_workflows: number | null;
   /**

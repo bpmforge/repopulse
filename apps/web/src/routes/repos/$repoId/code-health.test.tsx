@@ -9,7 +9,12 @@ import {
   RouterProvider,
 } from '@tanstack/react-router';
 import { createQueryClient } from '../../../api/queryClient.js';
-import { complexityEmptyCopy, ruleEmptyCopy, Route as codeHealthRoute } from './code-health.js';
+import {
+  complexityEmptyCopy,
+  debtDelta,
+  ruleEmptyCopy,
+  Route as codeHealthRoute,
+} from './code-health.js';
 import type { ScannerState } from '../../../widgets/security/contracts.js';
 
 // The Code Health tab, trustworthy (W17-20).
@@ -227,5 +232,36 @@ describe('Code Health units, rule links and honest empties (W20-12)', () => {
     for (const state of ['never_run', 'error', 'running', 'not_enabled'] as const) {
       expect(ruleEmptyCopy('slop', 'anti-slop', { state })).toMatch(/not a measurement/);
     }
+  });
+});
+
+describe('debt signal deltas (W20-20, UX_TODO DSH-31)', () => {
+  const pts = (a: number, b: number) => [
+    { value: a, at: '2026-09-01T00:00:00.000Z' },
+    { value: b, at: '2026-09-08T00:00:00.000Z' },
+  ];
+
+  it('says how a lower-is-better signal moved since the previous reading', () => {
+    expect(debtDelta(pts(0.05, 0.08), { ratio: true })).toEqual({
+      text: '▲ up 3 pts since 2026-09-01 (worse)',
+      tone: 'worse',
+    });
+    expect(debtDelta(pts(12, 10), { suffix: ' cyclomatic' })?.text).toBe(
+      '▼ down 2 cyclomatic since 2026-09-01 (better)',
+    );
+    expect(debtDelta(pts(4, 4))?.tone).toBe('same');
+  });
+
+  it('renders the delta under its headline', async () => {
+    payload = base([scanner({ key: 'anti_slop', state: 'ok', open_findings: 0 })], {
+      series: { M14: pts(0.05, 0.08) },
+    });
+    renderCodeHealth();
+    expect(await screen.findByTestId('ch-delta-Revert rate')).toHaveTextContent('(worse)');
+  });
+
+  it('shows no trend from a single reading', () => {
+    expect(debtDelta([{ value: 1, at: '2026-09-01T00:00:00.000Z' }])).toBeNull();
+    expect(debtDelta(undefined)).toBeNull();
   });
 });

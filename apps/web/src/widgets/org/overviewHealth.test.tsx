@@ -109,6 +109,33 @@ describe('Repo health card (W20-05)', () => {
     renderInRouter(<HotspotLeaderboard window="90d" search={{ window: '90d', repos: '7' }} />);
     await waitFor(() => expect(urls.find((u) => u.includes('/hotspots'))).toContain('repos=7'));
   });
+
+  it('names each hidden file as org/repo/path, linked to its file page (W20-20, DSH-70)', async () => {
+    bodies['/hotspots'] = {
+      items: [
+        {
+          repoId: 7,
+          path: 'src/b.ts',
+          score: 0.5,
+          gross: 10,
+          repo: { id: 7, org: 'acme', name: 'api' },
+        },
+      ],
+      suppressed_count: 2,
+      suppressed_paths: ['src/a.ts', 'src/a.ts'],
+      suppressed: [
+        { repo_id: 7, org: 'acme', name: 'api', path: 'src/a.ts' },
+        { repo_id: 8, org: 'acme', name: 'web', path: 'src/a.ts' },
+      ],
+    };
+    renderInRouter(<HotspotLeaderboard window="30d" search={{}} />);
+    const link = await screen.findByTestId('hotspot-hidden-8-src/a.ts');
+    expect(link).toHaveTextContent('acme/web/src/a.ts');
+    expect(link.getAttribute('href')).toBe('/repos/8/files/src/a.ts');
+    expect(screen.getByTestId('hotspot-suppressed')).toHaveTextContent(
+      'acme/api/src/a.ts, acme/web/src/a.ts',
+    );
+  });
 });
 
 describe('Needs attention card (W20-05)', () => {
@@ -144,5 +171,19 @@ describe('Needs attention card (W20-05)', () => {
     expect(healthBand(72)).toBe('watch');
     expect(healthBand(75)).toBe('good');
     expect(healthBand(49)).toBe('attend');
+  });
+});
+
+describe('health tile change (W20-20, UX_TODO DSH-18)', () => {
+  it('shows the change over the window in points and words', async () => {
+    const t = tile(1, 60);
+    bodies['/org/health-tiles'] = {
+      items: [{ ...t, health: { ...t.health, delta: -4 } }, tile(2, 70)],
+    };
+    renderInRouter(<HealthTileGrid window="30d" search={{}} />);
+    expect(await screen.findByTestId('health-delta-1')).toHaveTextContent(
+      '▼ down 4 pts over 30d (worse)',
+    );
+    expect(screen.queryByTestId('health-delta-2')).toBeNull();
   });
 });

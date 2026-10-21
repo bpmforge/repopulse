@@ -24,6 +24,8 @@ export interface OrgSummary {
   }[];
   /** W20-12 (UX_TODO DSH-48): the newest snapshot in scope; null = none yet. */
   as_of?: string | null;
+  /** W20-20 (UX_TODO DSH-56): present when the tiles were computed for a custom range. */
+  range?: { from: string; to: string; days: number };
 }
 
 /**
@@ -122,6 +124,8 @@ export interface TopActionsCoverage {
   repos_measured: number;
   repos_never_measured: number;
   repos_stale: number;
+  /** W20-20 (UX_TODO DSH-91): every repository in scope; repos_total = inspected. */
+  repos_in_scope?: number;
   notices: TopActionsNotice[];
   unsupported: string[];
   /** Rendered VERBATIM. Recomputing it here would fork summarizeCoverage. */
@@ -132,6 +136,9 @@ export interface TopActionsNotice {
   repo_id: number;
   repo_name: string;
   capability: string;
+  /** W20-20 (UX_TODO DSH-91): plain name, and `ai_review` / `scanner` / `metadata`. */
+  label?: string;
+  kind?: string;
   /** `failed` (it ran and broke) vs `not_configured` (it never ran). */
   state: string;
   detail: string;
@@ -177,6 +184,8 @@ export interface HotspotItems {
    */
   suppressed_count?: number;
   suppressed_paths?: string[];
+  /** W20-20 (UX_TODO DSH-70): each hidden file with its repository. */
+  suppressed?: { repo_id: number; org: string; name: string; path: string }[];
 }
 
 /** GET /metrics/series?metric_key=&window= — oldest-first. */
@@ -315,6 +324,23 @@ export function deltaOf(
   if (unit === '%') return { value: delta * 100, kind: 'pts' };
   if (previous === 0) return { value: delta, kind: 'abs' };
   return { value: deltaPctOf(delta, previous), kind: 'pct' };
+}
+
+/**
+ * The change in words for a label (W20-20, UX_TODO DSH-55): "up 5.0 pts",
+ * "down 12%", "up 5 from 0"; null when nothing was compared.
+ */
+export function changeText(d: {
+  value: number | null;
+  kind: 'pct' | 'pts' | 'abs';
+}): string | null {
+  if (d.value === null) return null;
+  if (d.value === 0) return 'no change';
+  const dir = d.value > 0 ? 'up' : 'down';
+  const mag = Math.abs(d.value);
+  if (d.kind === 'pts') return `${dir} ${mag.toFixed(1)} pts`;
+  if (d.kind === 'abs') return `${dir} ${Number.isInteger(mag) ? mag : mag.toFixed(1)} from 0`;
+  return `${dir} ${Math.round(mag)}%`;
 }
 
 /** GET /org/ai-governance (W18-20). Aggregate only — no logins, no trailer values. */

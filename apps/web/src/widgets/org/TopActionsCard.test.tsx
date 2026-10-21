@@ -18,16 +18,19 @@ vi.mock('../../api/useApiQuery.js', () => ({ useApiQuery }));
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
     to,
+    params: routeParams,
     search,
     hash,
     children,
     ...rest
   }: {
     to: string;
+    params?: Record<string, string>;
     search?: Record<string, unknown>;
     hash?: string;
     children: React.ReactNode;
   }) => {
+    for (const [k, v] of Object.entries(routeParams ?? {})) to = to.replace(`$${k}`, v);
     const params = new URLSearchParams(
       Object.entries(search ?? {}).map(([k, v]) => [k, String(v)]),
     ).toString();
@@ -48,7 +51,7 @@ const finding = (overrides: Partial<TopActionItem> = {}): TopActionItem => ({
   repo_name: 'payments',
   effort: null,
   target: { kind: 'finding', finding_id: 42, repo_id: 7 },
-  href: '/findings?finding=42',
+  href: '/repos/7/findings?finding=42',
   ...overrides,
 });
 
@@ -93,9 +96,9 @@ describe('next actions card', () => {
     const findingLink = screen.getByTestId('top-action-finding:42');
     expect(findingLink).toHaveTextContent('Unbounded query in the report exporter');
     // The link is built from `target`, so this is the assertion that the two
-    // cannot drift: a card that reconstructed /repos/7/findings?finding=42
-    // would still "work" by eye and would not be the contract.
-    expect(findingLink).toHaveAttribute('href', '/findings?finding=42');
+    // cannot drift: since W20-20 (DSH-33) both say the repository's Findings
+    // tab, and a card that sent /findings instead would "work" by eye.
+    expect(findingLink).toHaveAttribute('href', '/repos/7/findings?finding=42');
 
     // A plan item has no per-item search param (W16-49: validateSearch REPLACES
     // the search object, so an invented key is stripped and the link opens
@@ -291,5 +294,48 @@ describe('next actions card', () => {
     expect(screen.getByText(/40 of 41 repositories/)).toBeInTheDocument();
     expect(screen.queryByText(/1 of 3 repositories/)).not.toBeInTheDocument();
     expect(screen.queryByTestId('top-actions-unsupported')).not.toBeInTheDocument();
+  });
+});
+
+describe('coverage notices (W20-20, UX_TODO DSH-91)', () => {
+  const coverage = {
+    basis: 'partial' as const,
+    repos_total: 25,
+    repos_in_scope: 60,
+    repos_measured: 25,
+    repos_never_measured: 0,
+    repos_stale: 0,
+    unsupported: [],
+    summary: 'Some gaps. (Checked the first 25 of 60 repositories by name.)',
+    notices: [
+      {
+        repo_id: 3,
+        repo_name: 'payments',
+        capability: 'dependency_cves',
+        label: 'Dependency CVEs',
+        kind: 'scanner',
+        state: 'failed',
+        detail: '',
+      },
+      {
+        repo_id: 4,
+        repo_name: 'web',
+        capability: 'ai_review',
+        label: 'AI review',
+        kind: 'ai_review',
+        state: 'not_configured',
+        detail: '',
+      },
+    ],
+  };
+
+  it('shows notices beside actions, in plain names, each linked to where it is fixed', () => {
+    renderWith({ data: response({ actions: [finding()], coverage }) });
+    const scanner = screen.getByTestId('top-actions-notice-3-dependency_cves');
+    expect(scanner).toHaveTextContent('payments · Dependency CVEs failing');
+    expect(scanner.getAttribute('href')).toBe('/repos/3/security');
+    expect(screen.getByTestId('top-actions-notice-4-ai_review').getAttribute('href')).toBe(
+      '/admin/models',
+    );
   });
 });

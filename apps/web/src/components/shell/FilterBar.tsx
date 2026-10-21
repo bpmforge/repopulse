@@ -40,9 +40,9 @@ export function FilterBar({
   const range = customRange(value.window);
 
   // W20-16 (UX_TODO DSH-56): "Custom range…" asks for two dates instead of
-  // asking people to hand-edit the URL. Metrics are still snapshotted per
-  // preset, so the chosen dates are read through the smallest preset that
-  // covers them, ending today — the option's label says which.
+  // asking people to hand-edit the URL. W20-20: the KPI tiles compute exactly
+  // those dates; the other cards are still snapshotted per preset and read the
+  // smallest preset that covers them, ending today — the label says both.
   const [picking, setPicking] = useState(false);
   const today = new Date().toISOString().slice(0, 10);
   const [from, setFrom] = useState(range?.start ?? '');
@@ -91,7 +91,8 @@ export function FilterBar({
             ))}
             {range && (
               <option value={value.window} data-testid="filter-window-custom">
-                {range.start} → {range.end} (numbers: last {presetCovering(value.window)})
+                {range.start} → {range.end} (KPIs for these dates; other cards: last{' '}
+                {presetCovering(value.window)})
               </option>
             )}
             <option value="__custom">Custom range…</option>
@@ -148,7 +149,8 @@ export function FilterBar({
           </button>
           {rangeValid && (
             <span data-testid="filter-window-range-note">
-              Numbers are read from the last {presetCovering(`${from}..${to}`)}, ending today.
+              The KPI tiles show exactly these dates; other cards read the last{' '}
+              {presetCovering(`${from}..${to}`)}, ending today.
             </span>
           )}
         </form>

@@ -141,10 +141,12 @@ function SecurityTab() {
                     data-testid={`security-finding-${finding.id}`}
                   >
                     <Link
-                      to="/findings"
-                      // W20-03 (FND-04): the repository rides along, so closing
-                      // the finding leaves a list of THIS repository's findings.
-                      search={{ finding: finding.id, repos: repoId } as never}
+                      // W20-20 (UX_TODO DSH-33): this repository's Findings
+                      // tab, so the repo trail survives (it used to open the
+                      // workspace list filtered to this repository).
+                      to="/repos/$repoId/findings"
+                      params={{ repoId }}
+                      search={{ finding: finding.id } as never}
                       className="truncate underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                       data-testid={`security-finding-link-${finding.id}`}
                     >
@@ -168,10 +170,16 @@ function SecurityTab() {
                   The {findings.length} worst of {data.security_open_total} open security findings.
                 </p>
               )}
+              {(data.experimental_open ?? 0) > 0 && (
+                <p className="mt-2 text-xs text-fg-muted" data-testid="security-findings-trial">
+                  +{data.experimental_open} from rules in trial, not counted here.
+                </p>
+              )}
               {data.open_total > findings.length && (
                 <Link
-                  to="/findings"
-                  search={{ repos: repoId } as never}
+                  to="/repos/$repoId/findings"
+                  params={{ repoId }}
+                  search={{} as never}
                   className="mt-2 inline-block text-sm underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                   data-testid="security-findings-all"
                 >
@@ -236,11 +244,11 @@ function SecurityTab() {
             // groups, and an <a> inside one is an axe violation — caught by
             // the a11y sweep on this very route.
             <Link
-              to="/findings"
-              // W20-03 (FND-04): the explorer now reads `dimension` from the
-              // URL (it used to strip it), and `repos` keeps the drill-down
-              // to this repository instead of the whole workspace.
-              search={{ repos: repoId, dimension: 'secrets' } as never}
+              // W20-03 (FND-04) kept the drill-down to this repository; W20-20
+              // (DSH-33) sends it to the repository's own Findings tab.
+              to="/repos/$repoId/findings"
+              params={{ repoId }}
+              search={{ dimension: 'secrets' } as never}
               className="mt-2 inline-block text-sm underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
               data-testid="secrets-drill"
             >
@@ -283,8 +291,9 @@ function SecurityTab() {
                             the reachability and the VEX form are. */}
                         {cve.finding_id ? (
                           <Link
-                            to="/findings"
-                            search={{ finding: cve.finding_id, repos: repoId } as never}
+                            to="/repos/$repoId/findings"
+                            params={{ repoId }}
+                            search={{ finding: cve.finding_id } as never}
                             className="underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                             data-testid={`cve-link-${cve.finding_id}`}
                           >

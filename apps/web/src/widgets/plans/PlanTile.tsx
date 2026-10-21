@@ -11,6 +11,7 @@ import {
   repoIdsFromFilter,
   sameScope,
   type Plan,
+  type RepoNames,
 } from './contracts.js';
 
 // Org Overview plan tile (W5-07). Drills to the Plans page.
@@ -51,6 +52,14 @@ export function PlanTile({ widget }: WidgetComponentProps) {
   const scopeIds = repoIdsFromFilter(search.repos);
   const plan = planForScope(data?.items ?? [], scopeIds);
   const progress = plan ? planProgress(plan) : null;
+  // W20-20 (UX_TODO DSH-50): the scope by name ("acme/api"), not "1 repository".
+  const { data: repoList } = useApiQuery<{ items: { id: number; org: string; name: string }[] }>(
+    { endpoint: '/repos' },
+    { enabled: plan !== undefined && plan.repo_ids.length > 0 },
+  );
+  const repoNames: RepoNames = Object.fromEntries(
+    (repoList?.items ?? []).map((r) => [r.id, `${r.org}/${r.name}`]),
+  );
 
   return (
     <WidgetFrame
@@ -87,7 +96,8 @@ export function PlanTile({ widget }: WidgetComponentProps) {
               and the newest plan may be one repository's. Said out loud, so a
               repository's 3/4 is not read as the organisation's. */}
           <p className="text-xs text-fg-faint" data-testid="plan-tile-scope">
-            Scope: {planScopeLabel(plan.repo_ids)}
+            Scope: {planScopeLabel(plan.repo_ids, repoNames)} · generated{' '}
+            {plan.created_at.slice(0, 10)}
           </p>
           {/* The worst news first, and never colour alone (UX_SPEC §7). */}
           {progress.regressed > 0 && (
@@ -95,8 +105,12 @@ export function PlanTile({ widget }: WidgetComponentProps) {
               ⚠ {progress.regressed} regressed
             </p>
           )}
+          {/* W20-20 (DSH-50): opens the Plans page on THIS plan's scope and
+              at this plan, not the unfiltered list. */}
           <Link
             to="/plans"
+            search={(plan.repo_ids.length > 0 ? { repos: plan.repo_ids.join(',') } : {}) as never}
+            hash={`plan-${plan.id}`}
             className="mt-1 text-xs text-accent hover:underline"
             data-testid="plan-tile-link"
           >

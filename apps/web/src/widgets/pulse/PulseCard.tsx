@@ -1,4 +1,7 @@
+import { EvidenceLink } from '../org/EvidenceLink.js';
+import { presetCovering } from '@repopulse/shared/url-state';
 import { WidgetFrame, frameState } from '../../components/index.js';
+import { metricEvidence } from '../org/metricLinks.js';
 import {
   registerWidget,
   type WidgetComponentProps,
@@ -18,6 +21,8 @@ interface PulseResponse {
   bullets: PulseBullet[];
   provenance: 'template' | 'narrated';
   window: string;
+  /** W20-20 (UX_TODO DSH-74): what each change is measured against. */
+  compared_with?: string;
 }
 
 /** Paired glyph + word; direction never depends on colour (UX_SPEC §7). */
@@ -38,9 +43,12 @@ export function PulseCard({ widget }: WidgetComponentProps) {
     query: withRepos({ window }, repos),
   });
 
+  // W20-20 (UX_TODO DSH-51): the card follows the window, so its title says
+  // which one instead of promising a week.
+  const period = presetCovering(window);
   return (
     <WidgetFrame
-      title="Weekly pulse"
+      title={`Pulse · last ${period}`}
       state={frameState({
         isLoading,
         isError,
@@ -53,22 +61,40 @@ export function PulseCard({ widget }: WidgetComponentProps) {
     >
       <div className="flex flex-col gap-2" data-testid="pulse-card">
         <ul className="flex flex-col gap-1 text-sm">
-          {(data?.bullets ?? []).map((b) => (
-            <li key={b.id} className="flex gap-2">
-              <span aria-hidden="true" className="text-fg-muted">
-                {MARK[b.direction]}
-              </span>
-              <span>{b.text}</span>
-            </li>
-          ))}
+          {(data?.bullets ?? []).map((b) => {
+            // W20-20 (UX_TODO DSH-51): each bullet opens its evidence.
+            const to = metricEvidence(b.id, repos);
+            return (
+              <li key={b.id} className="flex gap-2">
+                <span aria-hidden="true" className="text-fg-muted">
+                  {MARK[b.direction]}
+                </span>
+                {to ? (
+                  <EvidenceLink
+                    evidence={to}
+                    className="hover:underline"
+                    testId={`pulse-link-${b.id}`}
+                  >
+                    {b.text}
+                  </EvidenceLink>
+                ) : (
+                  <span>{b.text}</span>
+                )}
+              </li>
+            );
+          })}
         </ul>
+        <p className="text-xs text-fg-muted" data-testid="pulse-period">
+          Over the last {period}; changes compare with{' '}
+          {data?.compared_with ?? `the value ${period} earlier`}.
+        </p>
         {/* Provenance chip (R-D3). "Computed" is the honest label until a
             narrate pass has actually run — a card that claimed a model wrote
             it when a template did would misrepresent where the words came
             from, which is the one thing an AI-card family must never do. */}
         <p className="text-xs text-fg-muted" data-testid="pulse-provenance">
           {data?.provenance === 'narrated'
-            ? 'T2 · local — reworded, numbers computed'
+            ? 'Reworded by your local AI model; numbers computed from your warehouse'
             : 'computed from your warehouse'}
         </p>
       </div>

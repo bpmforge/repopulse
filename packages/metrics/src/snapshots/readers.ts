@@ -1,4 +1,4 @@
-import { and, eq, gte, sql } from 'drizzle-orm';
+import { and, eq, gte, lt, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { core, facts, type Database } from '@repopulse/shared';
 
@@ -14,8 +14,7 @@ import { core, facts, type Database } from '@repopulse/shared';
 // place of the merged one. One hop only — the API keeps chains flat by
 // resolving a merge target to ITS canonical before writing, so A→B→C cannot
 // exist and a recursive CTE is not needed.
-const canonicalOf = (id: typeof core.identities) =>
-  sql`coalesce(${id.mergedIntoId}, ${id.id})`;
+const canonicalOf = (id: typeof core.identities) => sql`coalesce(${id.mergedIntoId}, ${id.id})`;
 import { isNonHumanReviewer } from '../engine/review-bots.js';
 import type { ChurnFileTouch } from '../metrics/churn.js';
 import type { ReviewCoveragePr, ReviewCoverageReview } from '../metrics/review-coverage.js';
@@ -43,6 +42,18 @@ import type { ReviewBotMetricsInput } from '../metrics/review-bots.js';
 
 export interface RepoRef {
   repoId: number;
+}
+
+/**
+ * Optional extra bounds on a windowed read (W20-20, UX_TODO DSH-56). The
+ * nightly job reads "from windowStart until now"; a custom date range also
+ * needs an END (exclusive), and the API caller passes its workspace so the
+ * read is tenancy-filtered on its own rather than trusting the repo id alone.
+ */
+export interface ReadBounds {
+  /** Exclusive end of the window; absent = open-ended (until now). */
+  end?: Date | undefined;
+  workspaceId?: number | undefined;
 }
 
 /** The survivor of a merge, or the identity itself when it was never merged. */
@@ -76,6 +87,7 @@ export async function readChurnTouches(
   db: Database,
   repoId: number,
   windowStart: Date,
+  bounds: ReadBounds = {},
 ): Promise<ChurnFileTouch[]> {
   const rows = await db
     .select({
@@ -92,7 +104,16 @@ export async function readChurnTouches(
     .innerJoin(facts.commits, eq(facts.commitFiles.commitId, facts.commits.id))
     .innerJoin(core.identities, eq(facts.commits.authorIdentityId, core.identities.id))
     .innerJoin(canonicalIdentity, eq(canonicalIdentity.id, canonicalOf(core.identities)))
-    .where(and(eq(facts.commits.repoId, repoId), gte(facts.commits.authoredAt, windowStart)));
+    .where(
+      and(
+        eq(facts.commits.repoId, repoId),
+        gte(facts.commits.authoredAt, windowStart),
+        bounds.end ? lt(facts.commits.authoredAt, bounds.end) : undefined,
+        bounds.workspaceId === undefined
+          ? undefined
+          : eq(facts.commits.workspaceId, bounds.workspaceId),
+      ),
+    );
 
   return rows.map((r) => ({
     sha: r.sha,
@@ -112,6 +133,7 @@ async function prRowsWithReviews(
   repoId: number,
   windowStart: Date,
   botGlobs?: readonly string[],
+  bounds: ReadBounds = {},
 ) {
   const prRows = await db
     .select({
@@ -131,7 +153,14 @@ async function prRowsWithReviews(
     .innerJoin(core.identities, eq(facts.pullRequests.authorIdentityId, core.identities.id))
     .innerJoin(canonicalIdentity, eq(canonicalIdentity.id, canonicalOf(core.identities)))
     .where(
-      and(eq(facts.pullRequests.repoId, repoId), gte(facts.pullRequests.createdAt, windowStart)),
+      and(
+        eq(facts.pullRequests.repoId, repoId),
+        gte(facts.pullRequests.createdAt, windowStart),
+        bounds.end ? lt(facts.pullRequests.createdAt, bounds.end) : undefined,
+        bounds.workspaceId === undefined
+          ? undefined
+          : eq(facts.pullRequests.workspaceId, bounds.workspaceId),
+      ),
     );
 
   const reviewRows = await db
@@ -145,7 +174,14 @@ async function prRowsWithReviews(
     .from(facts.prReviews)
     .innerJoin(core.identities, eq(facts.prReviews.reviewerIdentityId, core.identities.id))
     .innerJoin(canonicalIdentity, eq(canonicalIdentity.id, canonicalOf(core.identities)))
-    .where(eq(facts.prReviews.repoId, repoId));
+    .where(
+      and(
+        eq(facts.prReviews.repoId, repoId),
+        bounds.workspaceId === undefined
+          ? undefined
+          : eq(facts.prReviews.workspaceId, bounds.workspaceId),
+      ),
+    );
 
   // METRICS.md §0: a bot's review is not review. Before W18-23 nothing here
   // looked at the REVIEWER, only at the PR author, so a CodeRabbit or Copilot
@@ -169,8 +205,9 @@ export async function readReviewCoveragePrs(
   repoId: number,
   windowStart: Date,
   botGlobs?: readonly string[],
+  bounds: ReadBounds = {},
 ): Promise<ReviewCoveragePr[]> {
-  const { prRows, byPr } = await prRowsWithReviews(db, repoId, windowStart, botGlobs);
+  const { prRows, byPr } = await prRowsWithReviews(db, repoId, windowStart, botGlobs, bounds);
   return prRows.map((p) => {
     const reviews: ReviewCoverageReview[] = (byPr.get(p.id) ?? []).map((rv) => ({
       reviewerLogin: rv.reviewerLogin,
@@ -206,8 +243,9 @@ export async function readCyclePrs(
   repoId: number,
   windowStart: Date,
   botGlobs?: readonly string[],
+  bounds: ReadBounds = {},
 ): Promise<CyclePr[]> {
-  const { prRows, byPr } = await prRowsWithReviews(db, repoId, windowStart, botGlobs);
+  const { prRows, byPr } = await prRowsWithReviews(db, repoId, windowStart, botGlobs, bounds);
   return prRows.map((p) => {
     const events: CycleEvent[] = (byPr.get(p.id) ?? [])
       .map((rv) => {
@@ -264,11 +302,21 @@ export async function readCiRuns(
   db: Database,
   repoId: number,
   windowStart: Date,
+  bounds: ReadBounds = {},
 ): Promise<CiRunInput[]> {
   const rows = await db
     .select()
     .from(facts.checkRuns)
-    .where(and(eq(facts.checkRuns.repoId, repoId), gte(facts.checkRuns.startedAt, windowStart)));
+    .where(
+      and(
+        eq(facts.checkRuns.repoId, repoId),
+        gte(facts.checkRuns.startedAt, windowStart),
+        bounds.end ? lt(facts.checkRuns.startedAt, bounds.end) : undefined,
+        bounds.workspaceId === undefined
+          ? undefined
+          : eq(facts.checkRuns.workspaceId, bounds.workspaceId),
+      ),
+    );
   return rows.map((r) => ({
     workflowName: r.workflowName,
     headSha: r.headSha,
@@ -282,8 +330,22 @@ export async function readCiRuns(
 }
 
 /** M10 issue throughput. */
-export async function readIssues(db: Database, repoId: number): Promise<IssueThroughputInput[]> {
-  const rows = await db.select().from(facts.issues).where(eq(facts.issues.repoId, repoId));
+export async function readIssues(
+  db: Database,
+  repoId: number,
+  bounds: ReadBounds = {},
+): Promise<IssueThroughputInput[]> {
+  const rows = await db
+    .select()
+    .from(facts.issues)
+    .where(
+      and(
+        eq(facts.issues.repoId, repoId),
+        bounds.workspaceId === undefined
+          ? undefined
+          : eq(facts.issues.workspaceId, bounds.workspaceId),
+      ),
+    );
   return rows.map((i) => ({
     number: i.number,
     isPullRequest: i.isPullRequest,

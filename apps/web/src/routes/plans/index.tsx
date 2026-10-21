@@ -135,7 +135,7 @@ function PlansPage() {
 
             const scopeLabel = planScopeLabel(plan.repo_ids, repoNames);
             const body = (
-              <section key={plan.id} data-testid={`plan-${plan.id}`}>
+              <section key={plan.id} id={`plan-${plan.id}`} data-testid={`plan-${plan.id}`}>
                 <div className="mb-2 flex flex-wrap items-baseline gap-2">
                   {/* The plan's OWN scope, from its row — never the filter's.
                       With its id and date (DSH-58): two plans for one scope
@@ -144,7 +144,13 @@ function PlansPage() {
                   <h2 className="text-sm font-medium" data-testid={`plan-scope-${plan.id}`}>
                     Plan #{plan.id} · {plan.window} · {scopeLabel}
                   </h2>
-                  <span className="text-xs text-fg-muted" data-testid={`plan-date-${plan.id}`}>
+                  {/* W20-20 (UX_TODO DSH-50): the date is the header's fact;
+                      the recommendation catalog version is only a tooltip. */}
+                  <span
+                    className="text-xs text-fg-muted"
+                    data-testid={`plan-date-${plan.id}`}
+                    title={`Recommendation catalog ${plan.catalog_version}`}
+                  >
                     {plan.status === 'active' ? 'generated' : 'superseded plan from'}{' '}
                     {plan.created_at.slice(0, 10)}
                   </span>
@@ -166,7 +172,6 @@ function PlansPage() {
                       ⚠ {progress.regressed} regressed
                     </span>
                   )}
-                  <span className="text-xs text-fg-faint">catalog {plan.catalog_version}</span>
                 </div>
 
                 {/* Progress bar with its numbers beside it: a bar alone cannot
@@ -195,6 +200,7 @@ function PlansPage() {
                         item={item}
                         metricNames={metricNames}
                         scopeLabel={scopeLabel}
+                        repoIds={plan.repo_ids}
                       />
                     ))}
                   </ul>
@@ -217,6 +223,7 @@ function PlansPage() {
                           item={item}
                           metricNames={metricNames}
                           scopeLabel={scopeLabel}
+                          repoIds={plan.repo_ids}
                         />
                       ))}
                     </ul>

@@ -169,7 +169,20 @@ export function CiTrends({ repoId, window }: Props) {
             {(ci?.flakiest ?? []).map((f) => (
               <tr key={f.workflow} className="border-t border-border">
                 <th scope="row" className="py-1 text-left font-normal">
-                  {f.workflow}
+                  {f.runs_url ? (
+                    <a
+                      href={f.runs_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-accent underline"
+                      data-testid={`ci-flaky-runs-${f.workflow}`}
+                    >
+                      {f.workflow}
+                      <span className="sr-only"> — open its runs on the forge (new tab)</span>
+                    </a>
+                  ) : (
+                    f.workflow
+                  )}
                 </th>
                 <td className="py-1 text-right tabular-nums">{f.flipped_groups}</td>
                 <td className="py-1 text-right tabular-nums">{f.rerun_groups}</td>

@@ -98,12 +98,22 @@ export default async function hotspotsRoutes(
       ranked,
       intents.map((i) => ({ ...i, intent: i.intent as 'refactor' | 'supervise' | 'acknowledged' })),
     );
+    const visible = new Set<unknown>(suppression.visible);
     return reply.send({
       // The lookup cannot miss: rankHotspots was handed repoIds drawn from this
       // very list, so every ranked row names a repo we already selected.
       items: suppression.visible.map((h) => ({ ...h, repo: repoById.get(h.repoId)! })),
       suppressed_count: suppression.suppressedCount,
       suppressed_paths: suppression.suppressedPaths,
+      // W20-20 (UX_TODO DSH-70): each hidden file with its repository, so the
+      // note can name `org/repo/path` and link to the file page where the
+      // acknowledgement is undone; bare paths could not tell two repos apart.
+      suppressed: ranked
+        .filter((h) => !visible.has(h))
+        .map((h) => {
+          const repo = repoById.get(h.repoId)!;
+          return { repo_id: h.repoId, org: repo.org, name: repo.name, path: h.path };
+        }),
     });
   });
 }

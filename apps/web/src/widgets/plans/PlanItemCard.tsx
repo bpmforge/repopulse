@@ -10,6 +10,12 @@ import {
   type PlanItem,
 } from './contracts.js';
 import { InternalLink } from './InternalLink.js';
+import { metricEvidence } from '../org/metricLinks.js';
+
+/** InternalLink takes string search values. */
+function stringSearch(search: Record<string, unknown>): Record<string, string> {
+  return Object.fromEntries(Object.entries(search).map(([k, v]) => [k, String(v)]));
+}
 
 // One ranked plan item (W5-07, UX_SPEC §4.h2).
 
@@ -31,9 +37,12 @@ export function PlanItemCard({
   item,
   metricNames,
   scopeLabel,
+  repoIds,
 }: {
   item: PlanItem;
   metricNames?: MetricNames;
+  /** The plan's repositories, so evidence links keep its scope (W20-20). */
+  repoIds?: readonly number[];
   /**
    * The plan's scope in words (W20-09, UX_TODO DSH-57), so the dismiss form
    * can say what it will hide BEFORE it hides it.
@@ -112,11 +121,30 @@ export function PlanItemCard({
       {/* Evidence keys, not a copy of the data — the item points at the
           numbers that raised it so a reader can go and check. */}
       {Array.isArray(item.evidence.metricKeys) && (
-        <p className="mt-1 text-xs text-fg-faint">
+        <p className="mt-1 text-xs text-fg-faint" data-testid={`plan-item-evidence-${item.id}`}>
           Evidence:{' '}
-          {(item.evidence.metricKeys as string[])
-            .map((k) => metricInWords(k, metricNames))
-            .join(', ')}
+          {(item.evidence.metricKeys as string[]).map((k, i) => {
+            // W20-20 (UX_TODO DSH-44): each metric opens the list or tab
+            // behind it, in the plan's own repositories, where one exists.
+            const to = metricEvidence(k, repoIds?.join(','));
+            return (
+              <span key={k}>
+                {i > 0 && ', '}
+                {to ? (
+                  <InternalLink
+                    to={to.params ? to.to.replace('$repoId', to.params.repoId ?? '') : to.to}
+                    {...(to.search ? { search: stringSearch(to.search) } : {})}
+                    className="text-accent underline-offset-2 hover:underline"
+                    testId={`plan-item-evidence-${item.id}-${k}`}
+                  >
+                    {metricInWords(k, metricNames)}
+                  </InternalLink>
+                ) : (
+                  metricInWords(k, metricNames)
+                )}
+              </span>
+            );
+          })}
         </p>
       )}
 
@@ -216,6 +244,18 @@ export function PlanItemCard({
             onClick={() => transition.mutate({ status: 'proposed' })}
           >
             Restore
+          </button>
+        )}
+        {/* W20-20 (UX_TODO DSH-44): an accept made by mistake goes back. */}
+        {item.status === 'accepted' && (
+          <button
+            type="button"
+            className="rounded-md border border-border px-2 py-0.5 text-xs hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            data-testid={`plan-unaccept-${item.id}`}
+            disabled={transition.isPending}
+            onClick={() => transition.mutate({ status: 'proposed' })}
+          >
+            Move back to proposed
           </button>
         )}
         {item.status === 'accepted' && (

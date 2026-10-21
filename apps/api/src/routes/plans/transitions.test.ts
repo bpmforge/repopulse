@@ -21,6 +21,8 @@ describe('human transitions (W17-25)', () => {
     expect(humanTransitionAllowed('regressed', 'in_progress')).toBe(true);
     expect(humanTransitionAllowed('done', 'dismissed')).toBe(true);
     expect(humanTransitionAllowed('dismissed', 'proposed')).toBe(true);
+    // W20-20 (DSH-44): an accept can be moved back to proposed.
+    expect(humanTransitionAllowed('accepted', 'proposed')).toBe(true);
     // An unknown state has no transitions at all.
     expect(humanTransitionAllowed('bogus', 'accepted')).toBe(false);
   });
