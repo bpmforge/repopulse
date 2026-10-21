@@ -746,3 +746,77 @@ scrolls sideways at 375 px.
 
 The source review file (`UX-REVIEW.md`) was not reachable from the machine that did this,
 so these five were built from the request's own description of them.
+
+## W19-14: diff mode and a scheduled pass, run for real (2026-10-21)
+
+Diff mode (W19-11) and the scheduler (W19-12) had only run against a fake provider and an
+injected clock. This ticket adds the pieces to run them for real on a dev machine, and
+records what happened.
+
+**Code.** The fake forge (`packages/shared/src/testing/fake/forge.ts`) now serves
+`GET /repos/{o}/{r}/pulls/{n}/files` with real unified patches: #12 adds a string-built SQL
+lookup (a real injection) beside a clean parameterised query, #13 weakens a session
+cookie. #13 is not in `FAKE_PRS`, so the ingestion fixtures and their counts are
+untouched. Its tests caught a hunk header that disagreed with its own lines. The worker's
+forge base-URL override already existed (`FORGE_BASE_URL` + `FORGE_ALLOW_INSECURE_LOOPBACK=1`,
+refused for any non-loopback host), so no new override was added. The harness is
+`apps/api/src/dev/ai-pass-live-check.ts`:
+
+```bash
+LIVE_MODEL=qwen/qwen3.8-27b pnpm --filter @repopulse/api exec tsx src/dev/ai-pass-live-check.ts
+```
+
+It starts the fake forge and the **shipping worker process**, points the worker at the
+fake with a 15 s scheduler tick, and refuses a model URL that is not loopback or a private
+IP, so nothing can reach a hosted model. Every row it makes is removed afterwards and the
+schedule is disabled. The evidence of the run is in
+`docs/design/evidence/w19-14-ai-pass-live.json`.
+
+**What ran for real:** the worker's `ai.pass` processor and scheduler tick, Redis queues,
+Postgres, the GitHub adapter and budgeted client over HTTP, and the model (LM Studio,
+qwen/qwen3.8-27b, on this machine). **What did not:** the forge is a fake with two
+made-up pull requests; the manual pass was queued by a row and a job rather than the POST
+route (which needs a login session); the schedule row carries the digest the PUT route
+would store, so the PUT route was not exercised live (it is covered by its tests).
+
+### Part 1: diff mode, pull request #12 (24 min, 6 of 6 calls)
+
+- The pass read the diff (2 files), through the forge adapter. Specialists run: security,
+  performance, code health, test coverage (best practices and AI slop were **dropped for the
+  call cap and recorded**).
+- **The real defect was found**: the SQL built from `req.query.id` was raised by security
+  (one line off: it said line 6, the quote is on line 7) and by code health (line 7, correct), and
+  noted by test coverage. The parameterised `LIMIT $1` query was **not** flagged as an injection
+  by any specialist.
+- Triage ran on the two rule-raised findings that sit on lines the change adds (the third,
+  in `src/legacy/old.ts`, is off the diff and was **not** triaged, by design). Verdicts:
+  the concatenated query **real, 5/5**, citing lines 6 and 7 of our copy of the file; the
+  parameterised query **likely false positive, 4/5** with a proposed VEX justification
+  (`vulnerable_code_not_present`), citing line 14. **All citations matched our stored copy**;
+  `dismissed` was 0 and **all three rule findings were still open afterwards**.
+- **Weak output, said plainly.** 9 specialist findings came back and not all are good:
+  a code-health finding titled `bpm-ch-silent-fallback-return` claims "findRefund returns []
+  for missing refund", which is not in the diff (its quote is a real line, `res.json(rows)`,
+  so the evidence check passed; the *claim* is not grounded); its title also borrows a rule-id
+  style string from the checklist. "formatMinor is defined but unused in diff" is speculation,
+  since a diff alone cannot show that. The test-coverage findings are generic. The evidence
+  check validates that a quote is a real line, not that the claim about it is true: this is a
+  known limit, and suggestions are labelled AI for that reason.
+
+### Part 2: a scheduled pass, found by the worker's own tick (636 s from enabling to finished)
+
+- A schedule (daily, new pull requests, the digest of "stays on your network") was enabled
+  on the dev repo, then pull request #13 appeared. **The worker's tick started the pass by
+  itself** (`ai_pass.scheduled_started` in its log), as `trigger: scheduled`, mode
+  pull_request #13.
+- The workspace's monthly cap left 6 calls; the pass used **5** (the cap's remaining
+  allowance reached the processor). It raised 3 findings on the changed cookie line and
+  triage returned **real, 5/5** on the insecure-cookie rule finding, citation matching our
+  copy. It stayed open.
+- **Disabled, then two more ticks: nothing started** (2 runs before, 2 after).
+- The only model connection was `127.0.0.1:1234`; the egress summary said "Stays on your
+  network". No egress-audit rows were written because no request left the network.
+
+**Still not run live:** the PUT route and the login session; a forge that is not a fake;
+the light path where a *hosted* link is acknowledged and used; and a skipped scheduled run
+(the refusal reasons are covered by tests, not exercised here).

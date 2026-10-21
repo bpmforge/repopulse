@@ -1,0 +1,570 @@
+{
+  "startedAt": "2026-10-21T23:18:26.968Z",
+  "model": "qwen/qwen3.8-27b",
+  "modelUrl": "http://127.0.0.1:1234/v1",
+  "maxCallsPerPass": 6,
+  "tickMs": 15000,
+  "ranForReal": [
+    "the shipping worker process, its ai.pass processor and its scheduler tick",
+    "real Redis queues and Postgres",
+    "the GitHub adapter and budgeted client over HTTP to a loopback fake forge",
+    "the model qwen/qwen3.8-27b at http://127.0.0.1:1234/v1"
+  ],
+  "notReal": [
+    "the forge is a fake serving two made-up pull requests",
+    "the manual pass was queued by a row and a job, not the POST route (needs a login session)",
+    "the schedule row carries the digest the PUT route would store; the PUT route was not exercised live"
+  ],
+  "fixtures": {
+    "workspace": 33,
+    "repo": 49,
+    "ruleFindings": [
+      {
+        "id": 49,
+        "file": "src/payments/refund.ts",
+        "line": 7
+      },
+      {
+        "id": 50,
+        "file": "src/payments/refund.ts",
+        "line": 14
+      },
+      {
+        "id": 51,
+        "file": "src/legacy/old.ts",
+        "line": 3
+      }
+    ]
+  },
+  "part1": {
+    "seconds": 1442,
+    "run": {
+      "id": 37,
+      "mode": "pull_request",
+      "trigger": "manual",
+      "status": "succeeded",
+      "reasonCode": null,
+      "reason": null,
+      "calls": 6,
+      "prNumber": 12,
+      "baseRef": "main",
+      "headRef": "live120000000000000000000000000000000000",
+      "commitSha": "live120000000000000000000000000000000000",
+      "specialists": {
+        "usage": {
+          "security": {
+            "calls": 1,
+            "chunks": 1,
+            "models": [
+              "qwen/qwen3.8-27b"
+            ],
+            "findings": 1,
+            "rejected": 0,
+            "tokensIn": 776,
+            "tokensOut": 2629
+          },
+          "code_health": {
+            "calls": 1,
+            "chunks": 1,
+            "models": [
+              "qwen/qwen3.8-27b"
+            ],
+            "findings": 4,
+            "rejected": 0,
+            "tokensIn": 987,
+            "tokensOut": 5838
+          },
+          "performance": {
+            "calls": 1,
+            "chunks": 1,
+            "models": [
+              "qwen/qwen3.8-27b"
+            ],
+            "findings": 1,
+            "rejected": 0,
+            "tokensIn": 1003,
+            "tokensOut": 5358
+          },
+          "test_coverage": {
+            "calls": 1,
+            "chunks": 1,
+            "models": [
+              "qwen/qwen3.8-27b"
+            ],
+            "findings": 3,
+            "rejected": 0,
+            "tokensIn": 743,
+            "tokensOut": 4839
+          }
+        },
+        "failures": [],
+        "rejected": 0,
+        "filesRead": 2,
+        "droppedForBudget": [
+          "best_practices",
+          "ai_slop"
+        ]
+      },
+      "triageFunnel": {
+        "skipped": {
+          "below_top_n": 0,
+          "budget_exhausted": 0
+        },
+        "triaged": 2,
+        "accepted": 2,
+        "rejected": {
+          "uncited": 0,
+          "malformed": 0,
+          "ungrounded": 0,
+          "citation_not_found": 0
+        },
+        "selected": 2,
+        "verdicts": {
+          "real": 1,
+          "needs_human": 0,
+          "likely_false_positive": 1
+        },
+        "dismissed": 0,
+        "candidates": 2
+      },
+      "triageSkipped": null,
+      "startedAt": "2026-10-21T23:18:32.063Z",
+      "finishedAt": "2026-10-21T23:42:32.010Z"
+    },
+    "specialistFindings": [
+      {
+        "specialist": "security",
+        "model": "qwen/qwen3.8-27b",
+        "route": {
+          "role": "security",
+          "model": "qwen/qwen3.8-27b",
+          "linkIndex": 0,
+          "providerId": 51,
+          "failedLinks": [],
+          "providerName": "LM Studio (live check)"
+        },
+        "title": "SQL injection via concatenated refund id",
+        "file": "src/payments/refund.ts",
+        "line": 6,
+        "status": "open",
+        "evidence": "  const rows = await db.query(\"SELECT * FROM refunds WHERE id = \" + id);"
+      },
+      {
+        "specialist": "performance",
+        "model": "qwen/qwen3.8-27b",
+        "route": {
+          "role": "performance",
+          "model": "qwen/qwen3.8-27b",
+          "linkIndex": 0,
+          "providerId": 51,
+          "failedLinks": [],
+          "providerName": "LM Studio (live check)"
+        },
+        "title": "listRefunds allows unbounded limit, so one request can fetch and serialize a huge result set",
+        "file": "src/payments/refund.ts",
+        "line": 13,
+        "status": "open",
+        "evidence": "  const limit = Number(req.query.limit ?? 20);"
+      },
+      {
+        "specialist": "code_health",
+        "model": "qwen/qwen3.8-27b",
+        "route": {
+          "role": "code_health",
+          "model": "qwen/qwen3.8-27b",
+          "linkIndex": 0,
+          "providerId": 51,
+          "failedLinks": [],
+          "providerName": "LM Studio (live check)"
+        },
+        "title": "SQL injection: refund id is concatenated into query",
+        "file": "src/payments/refund.ts",
+        "line": 7,
+        "status": "open",
+        "evidence": "  const rows = await db.query(\"SELECT * FROM refunds WHERE id = \" + id);"
+      },
+      {
+        "specialist": "code_health",
+        "model": "qwen/qwen3.8-27b",
+        "route": {
+          "role": "code_health",
+          "model": "qwen/qwen3.8-27b",
+          "linkIndex": 0,
+          "providerId": 51,
+          "failedLinks": [],
+          "providerName": "LM Studio (live check)"
+        },
+        "title": "Unvalidated limit can produce NaN, negative, or huge LIMIT",
+        "file": "src/payments/refund.ts",
+        "line": 13,
+        "status": "open",
+        "evidence": "  const limit = Number(req.query.limit ?? 20);"
+      },
+      {
+        "specialist": "code_health",
+        "model": "qwen/qwen3.8-27b",
+        "route": {
+          "role": "code_health",
+          "model": "qwen/qwen3.8-27b",
+          "linkIndex": 0,
+          "providerId": 51,
+          "failedLinks": [],
+          "providerName": "LM Studio (live check)"
+        },
+        "title": "bpm-ch-silent-fallback-return: findRefund returns [] for missing refund",
+        "file": "src/payments/refund.ts",
+        "line": 9,
+        "status": "open",
+        "evidence": "  res.json(rows);"
+      },
+      {
+        "specialist": "test_coverage",
+        "model": "qwen/qwen3.8-27b",
+        "route": {
+          "role": "test_coverage",
+          "model": "qwen/qwen3.8-27b",
+          "linkIndex": 0,
+          "providerId": 51,
+          "failedLinks": [],
+          "providerName": "LM Studio (live check)"
+        },
+        "title": "Untested SQL injection path in refund lookup",
+        "file": "src/payments/refund.ts",
+        "line": 7,
+        "status": "open",
+        "evidence": "  const rows = await db.query(\"SELECT * FROM refunds WHERE id = \" + id);"
+      },
+      {
+        "specialist": "code_health",
+        "model": "qwen/qwen3.8-27b",
+        "route": {
+          "role": "code_health",
+          "model": "qwen/qwen3.8-27b",
+          "linkIndex": 0,
+          "providerId": 51,
+          "failedLinks": [],
+          "providerName": "LM Studio (live check)"
+        },
+        "title": "Unwired scaffolding: formatMinor is defined but unused in diff",
+        "file": "src/payments/format.ts",
+        "line": 1,
+        "status": "open",
+        "evidence": "export function formatMinor(amountMinor: number, currency = \"USD\"): string {"
+      },
+      {
+        "specialist": "test_coverage",
+        "model": "qwen/qwen3.8-27b",
+        "route": {
+          "role": "test_coverage",
+          "model": "qwen/qwen3.8-27b",
+          "linkIndex": 0,
+          "providerId": 51,
+          "failedLinks": [],
+          "providerName": "LM Studio (live check)"
+        },
+        "title": "Untested money formatting logic",
+        "file": "src/payments/format.ts",
+        "line": 2,
+        "status": "open",
+        "evidence": "  const major = (amountMinor / 100).toFixed(2);"
+      },
+      {
+        "specialist": "test_coverage",
+        "model": "qwen/qwen3.8-27b",
+        "route": {
+          "role": "test_coverage",
+          "model": "qwen/qwen3.8-27b",
+          "linkIndex": 0,
+          "providerId": 51,
+          "failedLinks": [],
+          "providerName": "LM Studio (live check)"
+        },
+        "title": "Untested limit parsing in refund list",
+        "file": "src/payments/refund.ts",
+        "line": 13,
+        "status": "open",
+        "evidence": "  const limit = Number(req.query.limit ?? 20);"
+      }
+    ],
+    "suggestions": [
+      {
+        "finding": "src/payments/refund.ts:7",
+        "verdict": "real",
+        "confidence": 5,
+        "rationale": "Line 6 assigns id from req.query.id, and line 7 concatenates that request-controlled value directly into the SQL string passed to db.query. No validation, escaping, or parameterization appears before the query. Line 14 shows db.query supports parameterized queries, so the concatenation is the vulnerable pattern.",
+        "model": "qwen/qwen3.8-27b",
+        "route": {
+          "model": "qwen/qwen3.8-27b",
+          "linkIndex": 0,
+          "providerName": "LM Studio (live check)"
+        },
+        "citations": [
+          {
+            "file": "src/payments/refund.ts",
+            "line": 6,
+            "text": "  const id = req.query.id;",
+            "matchesOurCopy": true
+          },
+          {
+            "file": "src/payments/refund.ts",
+            "line": 7,
+            "text": "  const rows = await db.query(\"SELECT * FROM refunds WHERE id = \" + id);",
+            "matchesOurCopy": true
+          }
+        ],
+        "vex": null,
+        "decision": null,
+        "findingStatusAfter": "open"
+      },
+      {
+        "finding": "src/payments/refund.ts:14",
+        "verdict": "likely_false_positive",
+        "confidence": 4,
+        "rationale": "Line 14 uses a constant SQL string with a $1 placeholder and passes limit as a bound parameter. The variable is not concatenated or interpolated into the query text, so the rule's 'query built from a variable' pattern is not present in the way it fears. The shown line therefore neutralizes the finding.",
+        "model": "qwen/qwen3.8-27b",
+        "route": {
+          "model": "qwen/qwen3.8-27b",
+          "linkIndex": 0,
+          "providerName": "LM Studio (live check)"
+        },
+        "citations": [
+          {
+            "file": "src/payments/refund.ts",
+            "line": 14,
+            "text": "  const rows = await db.query('SELECT id, amount FROM refunds ORDER BY id DESC LIMIT $1', [limit]);",
+            "matchesOurCopy": true
+          }
+        ],
+        "vex": "vulnerable_code_not_present",
+        "decision": null,
+        "findingStatusAfter": "open"
+      }
+    ]
+  },
+  "egress": {
+    "sentence": "Stays on your network. Source is sent only to LM Studio (live check) (127.0.0.1:1234).",
+    "leavesNetwork": false,
+    "destinations": [
+      {
+        "provider_id": 51,
+        "provider_name": "LM Studio (live check)",
+        "host": "127.0.0.1:1234",
+        "leaves_network": false,
+        "roles": [
+          "security",
+          "performance",
+          "code_health",
+          "best_practices",
+          "ai_slop",
+          "test_coverage",
+          "triage"
+        ],
+        "models": [
+          "qwen/qwen3.8-27b"
+        ]
+      }
+    ]
+  },
+  "part2": {
+    "secondsFromEnableToFinish": 636,
+    "tickMs": 15000,
+    "run": {
+      "id": 38,
+      "mode": "pull_request",
+      "trigger": "scheduled",
+      "status": "succeeded",
+      "reasonCode": null,
+      "reason": null,
+      "calls": 5,
+      "prNumber": 13,
+      "baseRef": "main",
+      "headRef": "live130000000000000000000000000000000000",
+      "commitSha": "live130000000000000000000000000000000000",
+      "specialists": {
+        "usage": {
+          "security": {
+            "calls": 1,
+            "chunks": 1,
+            "models": [
+              "qwen/qwen3.8-27b"
+            ],
+            "findings": 1,
+            "rejected": 0,
+            "tokensIn": 610,
+            "tokensOut": 2313
+          },
+          "code_health": {
+            "calls": 1,
+            "chunks": 1,
+            "models": [
+              "qwen/qwen3.8-27b"
+            ],
+            "findings": 1,
+            "rejected": 0,
+            "tokensIn": 821,
+            "tokensOut": 1919
+          },
+          "test_coverage": {
+            "calls": 1,
+            "chunks": 1,
+            "models": [
+              "qwen/qwen3.8-27b"
+            ],
+            "findings": 1,
+            "rejected": 0,
+            "tokensIn": 577,
+            "tokensOut": 1627
+          },
+          "best_practices": {
+            "calls": 1,
+            "chunks": 1,
+            "models": [
+              "qwen/qwen3.8-27b"
+            ],
+            "findings": 0,
+            "rejected": 0,
+            "tokensIn": 963,
+            "tokensOut": 2704
+          }
+        },
+        "failures": [],
+        "rejected": 0,
+        "filesRead": 1,
+        "droppedForBudget": [
+          "ai_slop"
+        ]
+      },
+      "triageFunnel": {
+        "skipped": {
+          "below_top_n": 0,
+          "budget_exhausted": 0
+        },
+        "triaged": 1,
+        "accepted": 1,
+        "rejected": {
+          "uncited": 0,
+          "malformed": 0,
+          "ungrounded": 0,
+          "citation_not_found": 0
+        },
+        "selected": 1,
+        "verdicts": {
+          "real": 1,
+          "needs_human": 0,
+          "likely_false_positive": 0
+        },
+        "dismissed": 0,
+        "candidates": 1
+      },
+      "triageSkipped": null,
+      "startedAt": "2026-10-21T23:42:43.321Z",
+      "finishedAt": "2026-10-21T23:53:10.001Z"
+    },
+    "specialistFindings": [
+      {
+        "specialist": "security",
+        "model": "qwen/qwen3.8-27b",
+        "route": {
+          "role": "security",
+          "model": "qwen/qwen3.8-27b",
+          "linkIndex": 0,
+          "providerId": 51,
+          "failedLinks": [],
+          "providerName": "LM Studio (live check)"
+        },
+        "title": "Session cookie is JavaScript-readable and allowed over non-secure connections",
+        "file": "src/auth/session.ts",
+        "line": 21,
+        "status": "open",
+        "evidence": "  res.cookie('sid', token, { httpOnly: false, secure: false });"
+      },
+      {
+        "specialist": "code_health",
+        "model": "qwen/qwen3.8-27b",
+        "route": {
+          "role": "code_health",
+          "model": "qwen/qwen3.8-27b",
+          "linkIndex": 0,
+          "providerId": 51,
+          "failedLinks": [],
+          "providerName": "LM Studio (live check)"
+        },
+        "title": "Session cookie disables httpOnly, secure, and sameSite protections",
+        "file": "src/auth/session.ts",
+        "line": 21,
+        "status": "open",
+        "evidence": "  res.cookie('sid', token, { httpOnly: false, secure: false });"
+      },
+      {
+        "specialist": "test_coverage",
+        "model": "qwen/qwen3.8-27b",
+        "route": {
+          "role": "test_coverage",
+          "model": "qwen/qwen3.8-27b",
+          "linkIndex": 0,
+          "providerId": 51,
+          "failedLinks": [],
+          "providerName": "LM Studio (live check)"
+        },
+        "title": "Session cookie security attributes changed without tests",
+        "file": "src/auth/session.ts",
+        "line": 21,
+        "status": "open",
+        "evidence": "  res.cookie('sid', token, { httpOnly: false, secure: false });"
+      }
+    ],
+    "suggestions": [
+      {
+        "finding": "src/auth/session.ts:21",
+        "verdict": "real",
+        "confidence": 5,
+        "rationale": "Line 22 sets the session cookie 'sid' with httpOnly: false and secure: false, so it is script-readable and may be sent over non-HTTPS. No shown guard, validation, or later override neutralizes this; the line directly matches the rule's concern.",
+        "model": "qwen/qwen3.8-27b",
+        "route": {
+          "model": "qwen/qwen3.8-27b",
+          "linkIndex": 0,
+          "providerName": "LM Studio (live check)"
+        },
+        "citations": [
+          {
+            "file": "src/auth/session.ts",
+            "line": 22,
+            "text": "  res.cookie('sid', token, { httpOnly: false, secure: false });",
+            "matchesOurCopy": true
+          }
+        ],
+        "vex": null,
+        "decision": null,
+        "findingStatusAfter": "open"
+      }
+    ]
+  },
+  "disabled": {
+    "runsBefore": 2,
+    "runsAfterTwoTicks": 2,
+    "startedNothing": true
+  },
+  "ruleFindingsAfter": [
+    {
+      "file": "src/payments/refund.ts",
+      "line": 7,
+      "status": "open"
+    },
+    {
+      "file": "src/payments/refund.ts",
+      "line": 14,
+      "status": "open"
+    },
+    {
+      "file": "src/legacy/old.ts",
+      "line": 3,
+      "status": "open"
+    }
+  ],
+  "workerLogLines": {
+    "egressOrAiPassAudit": 1
+  },
+  "finishedAt": "2026-10-21T23:53:45.446Z",
+  "ok": true,
+  "cleanedUp": true
+}
