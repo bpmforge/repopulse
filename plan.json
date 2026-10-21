@@ -10291,7 +10291,7 @@
           "UX_TODO ADM-01 and ADM-02: Settings > Members shows the add-member form; Sign out is in the user menu and the phone drawer; every fix has a test and the workspace gate is green"
         ],
         "points": 3,
-        "status": "in_progress",
+        "status": "done",
         "notes": [
           "Requested by Brad 2026-10-19 (fix the UX_TODO findings and loop). The sixth P0, ADM-42 (report PDFs in the packaged install), needs docker builds, so it is W20-02 and is verified on the Mac.",
           "Found while fixing: Set as home sent POST to /me/default-view, which the API routes only as PUT, so it 404'd. Fixed here; DSH-03 (the home view is never honoured) stays open."
@@ -10354,7 +10354,7 @@
           "UX_TODO FND-15, FND-16, FND-06: rule moves offer every transition the lifecycle allows, with a confirm step for Promote and destructive steps, a success message and neutral destructive styling; the Security tab links Download VEX and Download attribution (NOTICE)"
         ],
         "points": 8,
-        "status": "in_progress",
+        "status": "done",
         "notes": [
           "Requested by Brad 2026-10-19 (fix the UX_TODO findings and loop), second batch after W20-01.",
           "FND-03 partial: every filter is in the URL (so a link, Back or a reload keeps it), but Saved Views store widget layouts and there is still no way to save the explorer's filters as a view.",
@@ -10387,7 +10387,7 @@
           "UX_TODO INS-14, X-02, ADM-43: failed OIDC/GitHub callbacks redirect to sign-in with a reason and request id (API tests); a mid-use 401 opens sign-in OVER the mounted app so drafts survive; a failed session probe with Postgres/Redis down shows one outage screen. Every fix has a test and the workspace gate is green"
         ],
         "points": 8,
-        "status": "in_progress",
+        "status": "done",
         "notes": [
           "Requested by Brad 2026-10-19 (fix the UX_TODO findings and loop). Batch of P1s from docs/work/UX_TODO.md.",
           "X-02 approach: the sign-in screen now renders in a modal overlay above AppShell, which stays mounted (inert, aria-hidden) at the same tree position, so every in-memory draft, selection and form edit survives the expiry; after signing in, queries that failed are refetched. The refused write is not replayed (the copy says to make the last change again), and drafts do not survive a full reload; sessionStorage drafts keyed by route would cover that and are not built.",
@@ -10434,7 +10434,7 @@
           "UX_TODO AI-11, AI-12, AI-13, AI-59: the AI pass and Draft a verified fix name their destinations before starting; a rejected draft keeps the section with Try again; unusable specialist answers are listed on the run row and an all-failed pass is failed, not finished"
         ],
         "points": 8,
-        "status": "in_progress",
+        "status": "done",
         "notes": [
           "Requested by Brad 2026-10-19 (fix the UX_TODO findings and loop). AI-08, AI-14, AI-15, AI-16, AI-73, AI-74 and AI-85 are larger features and stay open.",
           "AI-71 and AI-72 are fixed with honest copy, not by building the feature: the Tier-2 auto box is replaced by text (tier2_auto stays in the schema, unread), and the Tier-3 opt-in still records a choice but says it sends nothing because no Tier-3 transport exists. Building automatic per-PR review and Tier 3 remain separate work.",
@@ -10475,7 +10475,7 @@
           "Every fix has a test; lint, typecheck and the web suite are green"
         ],
         "points": 8,
-        "status": "in_progress",
+        "status": "done",
         "notes": [
           "Requested by Brad 2026-10-19 (fix the UX_TODO findings and loop).",
           "DSH-02 partial: window reaches every widget, and the repo scope reaches Repo health, Needs attention, Hotspots, AI governance and widget links. The KPI row, weekly pulse, top actions, plan, security and risk tiles read org-wide rollups (/org/summary, /metrics/series without repo_id, /org/pulse, /org/top-actions, ...) that take no repo set; the view page says so when a view is repo-scoped. Remaining: a repo-set filter on those endpoints.",
@@ -10520,7 +10520,7 @@
           "UX_TODO INS-04, INS-07, INS-12, INS-13, INS-64: docs say Settings; Gitea scope guidance matches INSTALL; the onboarding checklist shows at zero repos; connect:forge --dry-run saves nothing; connect failures say TLS/DNS/timeout instead of bad token. Every code fix has a test and the workspace gate is green"
         ],
         "points": 8,
-        "status": "in_progress",
+        "status": "done",
         "notes": [
           "Requested by Brad 2026-10-19 (fix the UX_TODO findings and loop). Section 1 install/connect/sign-in P1s from docs/work/UX_TODO.md.",
           "Decisions: a federated (OIDC/GitHub) first sign-in is NEVER auto-admin (GitHub stores no email, IdP emails may be unverified); ADMIN_EMAIL is required by configure.sh (--no-admin escape hatch) and up.sh warns when SSO is set without it. No COOKIE_SECURE override: the sign-in screen explains http-on-LAN instead. trustProxy is a hop FUNCTION (Fastify 5.12 fails closed on a numeric value), default 1 hop from a private address, TRUST_PROXY env.",
@@ -10565,7 +10565,7 @@
           "Every fix has a test; lint, typecheck and the web suite are green"
         ],
         "points": 8,
-        "status": "in_progress",
+        "status": "done",
         "notes": [
           "Requested by Brad 2026-10-19 (fix the UX_TODO findings and loop).",
           "DSH-56 partial: a pasted start..end range now shows its dates in the window control and is read as the smallest preset covering it (requests carry that preset, so no 400s). Remaining: a date picker, a 14d preset, and computing metrics for an arbitrary range.",
@@ -10694,7 +10694,7 @@
           "pnpm lint, pnpm typecheck and the web test suite are green; changed API/package test files pass"
         ],
         "points": 8,
-        "status": "in_progress",
+        "status": "done",
         "notes": [
           "Fixed: DSH-15 16 17 19 20 21 22 23 24 25 26 27 28 32 34 35 38 39 40 42 43 46 48 65 67 68 75 78 79 80 81 87 88 89 90 94 (P2), DSH-69 83 (P3). Bugs: report letter grades; catalog M3 dimPath busFactor.",
           "DSH-07 skipped: repo pages are still not WidgetGrid compositions; that is a page rebuild.",
