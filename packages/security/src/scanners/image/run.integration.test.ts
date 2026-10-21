@@ -176,6 +176,13 @@ describeIfDb('container image scan (W18-34)', () => {
     expect(result.status).toBe('succeeded');
     expect(result.imagesFailed).toEqual([{ ref: 'node:20-alpine', reason: expect.stringMatching(/timeout/) }]);
     expect(result.error).toMatch(/node:20-alpine/);
+    // W20-21 (FND-62): partial, and the pull failure is named as one.
+    expect(result.error).toMatch(/^Could not pull node:20-alpine/);
+    const [runRow] = await db
+      .select({ partial: security.scanRuns.partial })
+      .from(security.scanRuns)
+      .where(eq(security.scanRuns.id, result.scanRunId!));
+    expect(runRow?.partial).toBe(true);
 
     // Dockerfile names the image that failed, so it was not declared reviewed.
     const open = await db

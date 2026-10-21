@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+} from 'react';
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { WidgetFrame, frameState, PageHeader } from '../../components/index.js';
 import { useApiQuery, queryKeyFor } from '../../api/useApiQuery.js';
@@ -98,6 +105,17 @@ export interface FindingsSearch {
   confidence_min?: number;
   /** W20-13 (FND-46): one attack chain's findings. */
   chain_id?: string;
+  /** W20-21 (FND-22): an explicit list of ids ("Show these" after a bulk action). */
+  ids?: string;
+  /** W20-21 (FND-68): the findings one scan run raised, or closed. */
+  scan_run_id?: string;
+  closed_by_scan_run?: string;
+  /** W20-21 (AI-32): the findings one AI pass raised, or any model's. */
+  ai_pass_run_id?: string;
+  found_by?: 'model';
+  /** W20-21 (FND-55): from the Overview tile — every security dimension, one severity. */
+  dimension_group?: 'security';
+  severity?: number;
 }
 
 const FILTER_STATUSES = STATUS_FILTERS.map((s) => s.value);
@@ -136,6 +154,26 @@ function validateFilterSearch(search: Record<string, unknown>): Omit<FindingsSea
   if (Number.isInteger(conf) && conf >= 2 && conf <= 5) out.confidence_min = conf;
   const chain = str(search.chain_id);
   if (chain) out.chain_id = chain;
+  // Id lists: digits and commas only, so a link cannot smuggle anything else.
+  const idList = (v: unknown) => {
+    const raw = typeof v === 'number' ? String(v) : str(v);
+    return /^\d+(,\d+)*$/.test(raw) ? raw : '';
+  };
+  const ids =
+    typeof search.ids === 'string' && /^\d+(,\d+)*$/.test(search.ids) && search.ids.length <= 2000
+      ? search.ids
+      : '';
+  if (ids) out.ids = ids;
+  const scanRun = idList(search.scan_run_id);
+  if (scanRun) out.scan_run_id = scanRun;
+  const closedBy = idList(search.closed_by_scan_run);
+  if (closedBy) out.closed_by_scan_run = closedBy;
+  const pass = idList(search.ai_pass_run_id);
+  if (pass) out.ai_pass_run_id = pass;
+  if (search.found_by === 'model') out.found_by = 'model';
+  if (search.dimension_group === 'security') out.dimension_group = 'security';
+  const exact = Number(search.severity);
+  if (Number.isInteger(exact) && exact >= 1 && exact <= 5) out.severity = exact;
   return out;
 }
 
@@ -234,6 +272,13 @@ function FindingsExplorer() {
   const cveId = search.cve_id ?? '';
   const confidenceMin = search.confidence_min ? String(search.confidence_min) : '';
   const chainId = search.chain_id ?? '';
+  const idsFilter = search.ids ?? '';
+  const scanRunFilter = search.scan_run_id ?? '';
+  const closedByFilter = search.closed_by_scan_run ?? '';
+  const passFilter = search.ai_pass_run_id ?? '';
+  const foundByModel = search.found_by === 'model';
+  const securityGroup = search.dimension_group === 'security';
+  const severityExact = search.severity ? String(search.severity) : '';
   // The search box's draft: the URL changes on Enter or Search, not per key.
   const [draft, setDraft] = useState(text);
   useEffect(() => setDraft(text), [text]);
@@ -361,7 +406,97 @@ function FindingsExplorer() {
     ...(cveId ? { cve_id: cveId } : {}),
     ...(confidenceMin ? { confidence_min: confidenceMin } : {}),
     ...(chainId ? { chain_id: chainId } : {}),
+    ...(idsFilter ? { ids: idsFilter } : {}),
+    ...(scanRunFilter ? { scan_run_id: scanRunFilter } : {}),
+    ...(closedByFilter ? { closed_by_scan_run: closedByFilter } : {}),
+    ...(passFilter ? { ai_pass_run_id: passFilter } : {}),
+    ...(foundByModel ? { found_by: 'model' } : {}),
+    ...(securityGroup ? { dimension_group: 'security' } : {}),
+    ...(severityExact ? { severity: severityExact } : {}),
   } as const;
+
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const activeFilterCount = Object.keys(filterQuery).filter(
+    (k) => k !== 'repo_id' && k !== 'sort',
+  ).length;
+
+  // Filters that only arrive by link are said, and can be removed.
+  const count = (list: string) => list.split(',').length;
+  const linkFilters: { key: keyof FindingsSearch; label: ReactNode; testId: string }[] = [
+    ...(cveId
+      ? [
+          {
+            key: 'cve_id' as const,
+            testId: 'clear-cve',
+            label: (
+              <>
+                CVE <span className="font-mono">{cveId}</span>
+              </>
+            ),
+          },
+        ]
+      : []),
+    ...(chainId
+      ? [{ key: 'chain_id' as const, testId: 'clear-chain', label: 'One attack chain' }]
+      : []),
+    ...(idsFilter
+      ? [
+          {
+            key: 'ids' as const,
+            testId: 'clear-ids',
+            label: `${count(idsFilter)} chosen finding${count(idsFilter) === 1 ? '' : 's'}`,
+          },
+        ]
+      : []),
+    ...(scanRunFilter
+      ? [
+          {
+            key: 'scan_run_id' as const,
+            testId: 'clear-scan-run',
+            label: `Raised by scan run ${scanRunFilter.replace(/,/g, ', ')}`,
+          },
+        ]
+      : []),
+    ...(closedByFilter
+      ? [
+          {
+            key: 'closed_by_scan_run' as const,
+            testId: 'clear-closed-by',
+            label: `Closed by scan run ${closedByFilter.replace(/,/g, ', ')}`,
+          },
+        ]
+      : []),
+    ...(passFilter
+      ? [
+          {
+            key: 'ai_pass_run_id' as const,
+            testId: 'clear-ai-pass',
+            label: `Raised by AI pass ${passFilter}`,
+          },
+        ]
+      : []),
+    ...(foundByModel
+      ? [{ key: 'found_by' as const, testId: 'clear-found-by', label: 'Raised by a model' }]
+      : []),
+    ...(securityGroup
+      ? [
+          {
+            key: 'dimension_group' as const,
+            testId: 'clear-security-group',
+            label: 'Security findings (every security scanner)',
+          },
+        ]
+      : []),
+    ...(severityExact
+      ? [
+          {
+            key: 'severity' as const,
+            testId: 'clear-severity',
+            label: `Severity: ${SEVERITY_LABEL[Number(severityExact)] ?? severityExact} only`,
+          },
+        ]
+      : []),
+  ];
 
   /**
    * Keyset paging (W17-22). The API has returned `next_cursor` since W6-04 and
@@ -586,7 +721,24 @@ function FindingsExplorer() {
         }
       />
 
-      <div className="flex flex-wrap items-end gap-3" data-testid="finding-filters">
+      {/* W20-21 (UX_TODO FND-43): on a phone the seven-control bar pushed the
+          list off the first screen; below md it folds behind a disclosure
+          that says how many filters are on. */}
+      <button
+        type="button"
+        className="self-start rounded-md border border-border px-2 py-1 text-sm md:hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+        aria-expanded={filtersOpen}
+        aria-controls="finding-filters"
+        data-testid="filters-toggle"
+        onClick={() => setFiltersOpen((o) => !o)}
+      >
+        Filters ({activeFilterCount})
+      </button>
+      <div
+        id="finding-filters"
+        className={`${filtersOpen ? 'flex' : 'hidden'} flex-wrap items-end gap-3 md:flex`}
+        data-testid="finding-filters"
+      >
         {/* W20-13 (UX_TODO FND-20): "find the lodash one" without paging. */}
         <form
           role="search"
@@ -797,34 +949,21 @@ function FindingsExplorer() {
         </label>
       </div>
       {/* Filters that only arrive by link are said, and can be removed. */}
-      {(cveId || chainId) && (
+      {linkFilters.length > 0 && (
         <p className="flex flex-wrap items-center gap-2 text-xs" data-testid="link-filters">
-          {cveId && (
-            <span>
-              CVE <span className="font-mono">{cveId}</span>{' '}
+          {linkFilters.map((f) => (
+            <span key={f.key}>
+              {f.label}{' '}
               <button
                 type="button"
                 className="text-accent underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-                data-testid="clear-cve"
-                onClick={() => setFilters({ cve_id: '' })}
+                data-testid={f.testId}
+                onClick={() => setFilters({ [f.key]: '' })}
               >
                 remove
               </button>
             </span>
-          )}
-          {chainId && (
-            <span>
-              One attack chain{' '}
-              <button
-                type="button"
-                className="text-accent underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-                data-testid="clear-chain"
-                onClick={() => setFilters({ chain_id: '' })}
-              >
-                remove
-              </button>
-            </span>
-          )}
+          ))}
         </p>
       )}
 
@@ -914,6 +1053,12 @@ function FindingsExplorer() {
           setSelection({ key: selectionKey, ids: [] });
           setMatching(null);
         }}
+        onShowIds={(ids) =>
+          void navigate({
+            search: (prev: Record<string, unknown>) =>
+              ({ ...prev, ids: ids.join(','), status: 'any', finding: undefined }) as never,
+          })
+        }
         invalidate={[
           queryKeyFor(listDescriptor),
           queryKeyFor(LIST),
@@ -973,9 +1118,11 @@ function FindingsExplorer() {
             past 768), so the whole Reviews screen scrolled sideways — visible
             in the RP-01 baseline shot as a file column cut off mid-word. */}
         <div className="overflow-x-auto">
-          <table className="table-plain w-full min-w-[48rem] text-sm">
+          {/* W20-21 (UX_TODO FND-43): below md each row is a stacked card
+              (CSS only, one markup), so a phone no longer scrolls sideways. */}
+          <table className="table-plain w-full text-sm md:min-w-[48rem]">
             <caption className="sr-only">Findings across every analysed repository</caption>
-            <thead>
+            <thead className="max-md:sr-only">
               <tr className="text-left text-xs text-fg-muted">
                 <th scope="col">
                   {/* Select the page (W20-03, UX_TODO FND-12). The page only:
@@ -1018,7 +1165,7 @@ function FindingsExplorer() {
                 // so the list says which row the panel belongs to.
                 <tr
                   key={f.id}
-                  className={`cursor-pointer border-t border-border ${f.id === openId ? 'bg-accent/5' : ''}`}
+                  className={`cursor-pointer border-t border-border max-md:block max-md:py-2 [&>td]:max-md:mr-3 [&>td]:max-md:inline-block [&>th]:max-md:block ${f.id === openId ? 'bg-accent/5' : ''}`}
                   data-testid={`finding-${f.id}`}
                   aria-current={f.id === openId ? 'true' : undefined}
                   onClick={onRowClick(f)}
@@ -1065,6 +1212,17 @@ function FindingsExplorer() {
                     {/* Marked in the row, whatever the facet: a mixed list must
                         never leave the reader to guess which rows are proven. */}
                     {f.experimental ? <ShadowBadge className="ml-2" /> : null}
+                    {/* W20-21 (UX_TODO AI-32): a model's finding is marked in
+                        the list, not only in the panel. */}
+                    {f.found_by?.kind === 'model' ? (
+                      <span
+                        className="ml-2 rounded-sm border border-border px-1 text-xs text-fg-muted"
+                        title={`Raised by your AI model ${f.found_by.model}; a person should confirm it`}
+                        data-testid={`finding-ai-${f.id}`}
+                      >
+                        AI
+                      </span>
+                    ) : null}
                     {/* W20-18 (UX_TODO X-08): where the work is tracked. */}
                     <TicketLink
                       url={f.external_ticket_url}

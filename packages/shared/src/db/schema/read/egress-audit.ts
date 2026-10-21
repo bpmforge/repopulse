@@ -92,9 +92,19 @@ export const egressAudit = pgTable(
     tier: smallint('tier'),
     /** Failure detail. Never contains request content. */
     error: text('error'),
+
+    // ---- W20-21 (UX_TODO AI-29) ------------------------------------------
+    /** What the call was for: the routing role (triage, security, patch, ...). Null on older rows. */
+    role: text('role'),
+    /**
+     * The AI pass that made the call, when one did. No foreign key on purpose:
+     * this table is append-only and must not depend on a row that can be removed.
+     */
+    aiPassRunId: bigint('ai_pass_run_id', { mode: 'number' }),
   },
   (t) => [
     index('egress_audit_workspace_id_idx').on(t.workspaceId),
     index('egress_audit_attempt_id_idx').on(t.attemptId),
+    index('egress_audit_workspace_sent_at_idx').on(t.workspaceId, t.sentAt),
   ],
 );

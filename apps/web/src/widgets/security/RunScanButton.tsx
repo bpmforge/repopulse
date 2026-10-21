@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, buildUrl } from '../../api/client.js';
+import { useApiQuery } from '../../api/useApiQuery.js';
 import { ErrorNote } from '../../components/index.js';
+import { InternalLink } from '../plans/InternalLink.js';
 
 // Run it now (W16-10, F15).
 //
@@ -21,6 +23,19 @@ import { ErrorNote } from '../../components/index.js';
 // behind a first that is still running, and "Starting…" cannot outlive the
 // job. The server keeps its own guard (admin-only, deterministic jobId); this
 // is the client half, not a replacement for it.
+
+/** GET /repos/:id/scan-runs — what each run since the press reported (W20-21, FND-68). */
+export interface ScanRunSummary {
+  id: number;
+  scanner_key: string;
+  status: string;
+  partial: boolean;
+  finding_count: number;
+  new_count: number;
+  closed_count: number;
+  error: string | null;
+  finished_at: string | null;
+}
 
 interface RunResult {
   started: string[];
@@ -69,6 +84,9 @@ export function RunScanButton({
   const queryClient = useQueryClient();
   const [result, setResult] = useState<RunResult | null>(null);
   const [finished, setFinished] = useState(false);
+  // When the press was accepted, a little early so a skewed clock cannot hide
+  // the run it started (W20-21, FND-68).
+  const [since, setSince] = useState<string | null>(null);
 
   const run = useMutation<RunResult, Error, void>({
     mutationFn: () =>
@@ -79,6 +97,7 @@ export function RunScanButton({
     onSuccess: async (r) => {
       setResult(r);
       setFinished(false);
+      if (r.started.length > 0) setSince(new Date(Date.now() - 60_000).toISOString());
       onStarted?.();
       for (const key of invalidate) await queryClient.invalidateQueries({ queryKey: key });
     },
@@ -171,6 +190,7 @@ export function RunScanButton({
       ) : finished ? (
         <span className="text-xs text-fg-muted" data-testid="run-scan-finished" role="status">
           The scan has settled — the table above is current.
+          {since && <RunSummary repoId={repoId} since={since} />}
         </span>
       ) : null}
 
@@ -182,5 +202,69 @@ export function RunScanButton({
         </span>
       )}
     </div>
+  );
+}
+
+/**
+ * What the runs just started reported (W20-21, UX_TODO FND-68): per scanner,
+ * how many findings it reported, how many are new and how many earlier ones it
+ * closed, each linked to Reviews filtered to that run. The person who pressed
+ * Run to check a fix no longer compares counts by memory.
+ */
+export function RunSummary({ repoId, since }: { repoId: string; since: string }) {
+  const { data } = useApiQuery<{ runs: ScanRunSummary[] }>({
+    endpoint: '/repos/{id}/scan-runs',
+    path: { id: repoId },
+    query: { since },
+  });
+  const runs = (data?.runs ?? []).filter((r) => r.status !== 'running' && r.status !== 'queued');
+  if (runs.length === 0) return null;
+  const link = (key: string, value: number) => ({
+    repos: repoId,
+    status: 'any',
+    [key]: String(value),
+  });
+  return (
+    <ul className="mt-1 flex flex-col gap-0.5" data-testid="run-scan-summary">
+      {runs.map((r) => (
+        <li key={r.id} data-testid={`run-summary-${r.scanner_key}`}>
+          <span className="text-fg">{r.scanner_key.replace(/_/g, ' ')}</span>:{' '}
+          {r.status === 'failed' ? (
+            <>failed{r.error ? ` (${r.error.slice(0, 120)})` : ''}</>
+          ) : (
+            <>
+              reported {r.finding_count}
+              {r.partial ? ' (partial run)' : ''}
+              {' · '}
+              {r.new_count > 0 ? (
+                <InternalLink
+                  to="/findings"
+                  search={link('scan_run_id', r.id)}
+                  className="text-accent underline underline-offset-2"
+                  testId={`run-summary-new-${r.id}`}
+                >
+                  Review the {r.new_count} new
+                </InternalLink>
+              ) : (
+                '0 new'
+              )}
+              {' · '}
+              {r.closed_count > 0 ? (
+                <InternalLink
+                  to="/findings"
+                  search={link('closed_by_scan_run', r.id)}
+                  className="text-accent underline underline-offset-2"
+                  testId={`run-summary-closed-${r.id}`}
+                >
+                  See the {r.closed_count} closed
+                </InternalLink>
+              ) : (
+                '0 closed'
+              )}
+            </>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }

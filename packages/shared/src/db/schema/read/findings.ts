@@ -2,6 +2,7 @@ import {
   bigint,
   boolean,
   check,
+  date,
   jsonb,
   index,
   numeric,
@@ -131,6 +132,21 @@ export const findings = pgTable(
      * the API both say so), so it is always safe to render as a link.
      */
     externalTicketUrl: text('external_ticket_url'),
+    /**
+     * W20-21 (UX_TODO FND-25): when an accepted risk is looked at again. Set
+     * with a dismissal as accepted risk; the nightly reconcile reopens the
+     * finding once the date has passed. Null for every other finding.
+     */
+    reviewBy: date('review_by', { mode: 'string' }),
+    /**
+     * W20-21 (UX_TODO FND-51): the scan that last saw this finding. scan_run_id
+     * is the scan that RAISED it and stays so (the forge link pins its commit);
+     * this one moves with every sighting. Null for model findings and old rows.
+     */
+    lastSeenScanRunId: bigint('last_seen_scan_run_id', { mode: 'number' }).references(
+      () => scanRuns.id,
+      { onDelete: 'set null' },
+    ),
   },
   (t) => [
     unique('findings_workspace_repo_dedup_key').on(t.workspaceId, t.repoId, t.dedupKey),

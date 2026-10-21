@@ -43,6 +43,8 @@ export interface EgressAttempt {
   pullRequestId?: number | null;
   initiatorUserId?: number | null;
   initiatorLogin?: string | null;
+  /** W20-21 (UX_TODO AI-29): what the call was for - its routing role. */
+  role?: string | null;
 }
 
 export interface EgressOutcome {

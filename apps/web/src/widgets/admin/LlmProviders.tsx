@@ -63,6 +63,18 @@ interface ProviderRow {
   host?: string | null;
   leaves_network?: boolean;
   host_is_name?: boolean;
+  /** W20-21 (UX_TODO AI-63): from real gateway calls; null when none yet. */
+  last_success_at?: string | null;
+  last_error_at?: string | null;
+  last_error?: string | null;
+}
+
+/** W20-21 (UX_TODO AI-78): the deprecated LMSTUDIO_* fallback from .env. */
+interface EnvFallback {
+  configured: boolean;
+  in_use: boolean;
+  hosts: string[];
+  model: string | null;
 }
 
 // W19-01: what the probe found. 'unknown' is shown as unknown, never as 'no'.
@@ -157,6 +169,68 @@ interface TestResult {
   sample?: string;
   capabilities?: Capabilities;
   problems?: string[];
+  /** W20-21 (UX_TODO AI-20): what the server says it serves, from /v1/models. */
+  models?: string[];
+}
+
+/**
+ * The server's own model list as a picker (W20-21, UX_TODO AI-20). The Model
+ * field was free text and a guess failed every call; after Test the names the
+ * server lists are offered, and picking one fills the field exactly.
+ */
+export function ModelChoices({
+  models,
+  current,
+  onPick,
+  testId,
+}: {
+  models: readonly string[] | undefined;
+  current: string;
+  onPick: (model: string) => void;
+  testId: string;
+}) {
+  if (!models || models.length === 0) return null;
+  const known = models.includes(current.trim());
+  return (
+    <div className="flex flex-col gap-1 text-xs text-fg-muted" data-testid={testId}>
+      <label className="flex flex-col gap-1">
+        The server lists {models.length} model{models.length === 1 ? '' : 's'}; pick one
+        <select
+          className="rounded-sm border border-border bg-surface-2 px-2 py-1.5 font-mono text-sm text-fg"
+          data-testid={`${testId}-select`}
+          value={known ? current.trim() : ''}
+          onChange={(e) => {
+            if (e.target.value) onPick(e.target.value);
+          }}
+        >
+          <option value="">Choose…</option>
+          {models.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
+      </label>
+      {current.trim() !== '' && !known ? (
+        <span className="text-fg" data-testid={`${testId}-unknown`}>
+          ! &ldquo;{current.trim()}&rdquo; is not in the server&apos;s list; calls with it will
+          fail.
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+/** When a connection last answered, and its last failure (W20-21, AI-63). */
+export function lastCallText(p: {
+  last_success_at?: string | null;
+  last_error_at?: string | null;
+}): string {
+  const ok = p.last_success_at ? new Date(p.last_success_at) : null;
+  const bad = p.last_error_at ? new Date(p.last_error_at) : null;
+  if (!ok && !bad) return 'no call yet';
+  if (bad && (!ok || bad > ok)) return `failing since ${bad.toLocaleString()}`;
+  return `answered ${ok!.toLocaleString()}`;
 }
 
 const TRI_MARK: Record<Tri, string> = { yes: '✓', no: '✗', unknown: '?' };
@@ -496,7 +570,7 @@ export function ClaudeCliPanel({
 }
 
 export function LlmProviders() {
-  const list = useApiQuery<{ items: ProviderRow[] }>(LIST);
+  const list = useApiQuery<{ items: ProviderRow[]; env_fallback?: EnvFallback }>(LIST);
   const kindsQuery = useApiQuery<{ kinds: KindSpec[]; presets?: Preset[] }>(KINDS);
   const kinds = kindsQuery.data?.kinds ?? [];
   const presets = (kindsQuery.data as { presets?: Preset[] } | undefined)?.presets ?? [];
@@ -671,8 +745,15 @@ export function LlmProviders() {
                   the identifier and the endpoint 400s every call, which reads as
                   "the model is not loaded" rather than "nobody chose one". */}
             <span className="text-fg-faint">
-              Exactly as the endpoint names it — a guess produces a 400 on every call.
+              Exactly as the endpoint names it — a guess produces a 400 on every call. Test the
+              connection to pick from the server&apos;s own list.
             </span>
+            <ModelChoices
+              models={result?.models}
+              current={model}
+              onPick={setModel}
+              testId="provider-model-choices"
+            />
           </label>
 
           {isCli ? (
@@ -764,6 +845,21 @@ export function LlmProviders() {
         modelsForm
       )}
 
+      {list.data?.env_fallback?.configured ? (
+        // W20-21 (UX_TODO AI-78): the .env route said aloud, with how to retire it.
+        <p
+          className="rounded-sm border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-fg"
+          role="note"
+          data-testid="llm-env-fallback"
+        >
+          {list.data.env_fallback.in_use
+            ? `Using LMSTUDIO_* from .env: with no connection here, analysis goes to ${list.data.env_fallback.hosts.join(', ')}${list.data.env_fallback.model ? ` (model ${list.data.env_fallback.model})` : ''}. `
+            : 'LMSTUDIO_* is still set in .env but is ignored, because connections are configured here. '}
+          To retire it, remove LMSTUDIO_BASE_URLS and LMSTUDIO_MODEL from .env and restart the API
+          and the worker{list.data.env_fallback.in_use ? ', after adding a connection here' : ''}.
+        </p>
+      ) : null}
+
       <WidgetFrame
         title="Configured providers"
         state={frameState({
@@ -785,6 +881,7 @@ export function LlmProviders() {
               <th scope="col">Capabilities</th>
               <th scope="col">Key</th>
               <th scope="col">Off-network</th>
+              <th scope="col">Last call</th>
               <th scope="col" />
             </tr>
           </thead>
@@ -909,6 +1006,15 @@ function ProviderTableRow({ p, routedRoles }: { p: ProviderRow; routedRoles: str
         <td data-testid={`provider-off-network-${p.id}`}>
           {(p.leaves_network ?? (p.allow_public_host || isCli)) ? '⚠ yes' : 'no'}
         </td>
+        {/* W20-21 (UX_TODO AI-63): whether the model is actually answering. */}
+        <td className="text-xs" data-testid={`provider-last-call-${p.id}`}>
+          {lastCallText(p)}
+          {p.last_error &&
+          p.last_error_at &&
+          (!p.last_success_at || p.last_error_at > p.last_success_at) ? (
+            <span className="block text-fg-muted">{p.last_error.slice(0, 200)}</span>
+          ) : null}
+        </td>
         <td className="text-right whitespace-nowrap">
           <button
             type="button"
@@ -956,7 +1062,7 @@ function ProviderTableRow({ p, routedRoles }: { p: ProviderRow; routedRoles: str
       </tr>
       {confirm || editing || result || test.error || remove.error || patch.error ? (
         <tr data-testid={`provider-row-detail-${p.id}`}>
-          <td colSpan={7} className="pb-2">
+          <td colSpan={8} className="pb-2">
             <div className="flex flex-col gap-2">
               {result ? (
                 <TestResultNote result={result} testId={`provider-row-test-result-${p.id}`} />
@@ -1052,6 +1158,12 @@ function ProviderTableRow({ p, routedRoles }: { p: ProviderRow; routedRoles: str
                         value={model}
                         onChange={(e) => setModel(e.target.value)}
                         className="rounded-sm border border-border bg-surface-2 px-2 py-1 font-mono text-sm text-fg"
+                      />
+                      <ModelChoices
+                        models={result?.models}
+                        current={model}
+                        onPick={setModel}
+                        testId={`provider-edit-model-choices-${p.id}`}
                       />
                     </label>
                     {hasAddress ? (

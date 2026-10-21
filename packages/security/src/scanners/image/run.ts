@@ -134,9 +134,13 @@ export async function runImageScan(deps: ImageRunDeps): Promise<ImageRunResult> 
   const pullAndScan = (ref: string): Promise<{ ok: true; matches: DependencyMatch[]; grype: string | null } | { ok: false; reason: string }> =>
     withScratch(async (dir) => {
       const pulled = await pull(ref, dir);
-      if (!pulled.ok) return { ok: false as const, reason: pulled.reason };
+      // W20-21 (UX_TODO FND-62): the two failures say different things. A pull
+      // failure is the registry's answer (private, missing tag); a scan failure
+      // is the sandbox's, and only that one can mean the scan tools are missing.
+      if (!pulled.ok) return { ok: false as const, reason: `Could not pull ${ref}: ${pulled.reason}` };
       const scanned = await scan(dir);
-      if (scanned.status !== 'succeeded') return { ok: false as const, reason: scanned.error };
+      if (scanned.status !== 'succeeded')
+        return { ok: false as const, reason: `Scan of ${ref} failed: ${scanned.error}` };
       return { ok: true as const, matches: scanned.matches, grype: scanned.grypeVersion };
     });
 
@@ -223,14 +227,21 @@ export async function runImageScan(deps: ImageRunDeps): Promise<ImageRunResult> 
             );
         }
 
-        // Every image failing is a failed run; some failing is a successful run
-        // that says which ones, because a partial scan must not read as clean.
+        // Every image failing is a failed run. Some failing, or images left
+        // over the cap, is a PARTIAL run (W20-21, UX_TODO FND-62): it was stored
+        // as succeeded-with-an-error, which the Coverage table reads as "ran,
+        // but nothing was scanned" right beside the CVEs it had written.
+        const overCap = distinct.slice(maxImages).map(([ref]) => ref);
         const status = batch.length > 0 && scanned === 0 ? 'failed' : 'succeeded';
-        const error =
-          failed.length > 0
-            ? failed.map((f) => `${f.ref}: ${f.reason}`).join('; ').slice(0, 500)
-            : null;
-        await closeRun(deps.db, runId, status, priced.length, error, grypeVersion);
+        const partial = status === 'succeeded' && (failed.length > 0 || overCap.length > 0);
+        const notes = failed.map((f) => f.reason);
+        if (overCap.length > 0) {
+          notes.push(
+            `Not scanned (over the ${maxImages}-image limit per run): ${overCap.slice(0, 10).join(', ')}${overCap.length > 10 ? ` and ${overCap.length - 10} more` : ''}`,
+          );
+        }
+        const error = notes.length > 0 ? notes.join('; ').slice(0, 1000) : null;
+        await closeRun(deps.db, runId, status, priced.length, error, grypeVersion, partial);
 
         return {
           status,
@@ -259,11 +270,13 @@ async function closeRun(
   findingCount: number,
   error: string | null,
   grypeVersion: string | null,
+  partial = false,
 ): Promise<void> {
   await db
     .update(security.scanRuns)
     .set({
       status,
+      partial,
       findingCount,
       error,
       finishedAt: new Date(),

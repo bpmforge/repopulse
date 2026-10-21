@@ -53,6 +53,8 @@ export function imageFinding(
       ...(match.epss !== null ? { epss: match.epss } : {}),
       image: image.ref,
       package: `${match.packageName}@${match.packageVersion}`,
+      // W20-21 (UX_TODO FND-28): the fixed versions, for the "Fixed in" column.
+      fixed_in: match.fixVersions,
     },
   };
   const pricing = priceFinding({

@@ -11118,6 +11118,47 @@
           "Kept on purge, by design: egress_audit (append-only), audit_events (the purge is itself audited), reports (workspace documents; their repo ids are history), forge_etag (keyed by URL, expires on its own) and org-level snapshots (not per repository).",
           "Bugs noticed, not fixed: forge_etag rows and org-level snapshots that mention a purged repository are left behind; a sync job already queued for a repository when it is purged fails on its foreign key and lands in the DLQ (hard to trigger, harmless)."
         ]
+      },
+      {
+        "id": "W20-21",
+        "title": "Findings and AI remaining polish: review dates, rotated secrets, pack-rule shadow, scan proof and run summary, pass cancel and pickers, model health and egress export",
+        "phase": 20,
+        "module": "web",
+        "stories": [],
+        "write_scope": [
+          "apps/web/**",
+          "apps/api/**",
+          "packages/insights/src/**",
+          "packages/analysis/src/**",
+          "packages/security/src/scanners/**",
+          "packages/shared/drizzle/**",
+          "packages/shared/src/db/schema/read/findings.ts",
+          "packages/shared/src/db/schema/read/finding-events.ts",
+          "packages/shared/src/db/schema/read/egress-audit.ts",
+          "packages/shared/src/db/schema/core/llm-providers.ts",
+          "packages/shared/src/logger/audit.ts",
+          "docs/work/UX_TODO.md",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W20-19"
+        ],
+        "acceptance": [
+          "UX_TODO FND-22/25/43/47/51/61/70 (finding panel and Reviews): Show these (?ids=) for skipped bulk rows; accepted risk requires review_by (PATCH and bulk, 400 without) and the nightly reconcile reopens due ones; stacked rows and a Filters (n) disclosure below md; a hand-off statement; last-seen scan and the scan behind each automatic move in History plus an admin Re-scan to verify; POST /findings/:id/rotated resolves a secret with reason rotated (audited finding.secret_rotated) and a rotated secret stays closed on re-sighting; pull_request in the payload linked as Raised on PR #N",
+          "UX_TODO FND-28/52/55/62/68 (Security): CVE rows carry fixed_in; scanners carry runs (lib/scan-schedule.ts, shared with the worker's repeatable jobs); the Overview tile links each severity to Reviews (dimension_group=security&severity=N) with +n since yesterday; image scans with failed pulls or images over the cap are stored partial and listed, and missing-tools advice reads only the sandbox's errors; GET /repos/:id/scan-runs?since= gives reported/new/closed per run, linked from Run scans now through scan_run_id and closed_by_scan_run",
+          "UX_TODO FND-53: POST/DELETE /rules/:ruleId/pack-override (admin, reason >= 10, audited rule.pack_shadowed / rule.pack_restored) moves a shipped rule to shadow in this workspace through a rule_registry row with provenance.source pack_override, applied by persistFindings (applyPackOverrides); the precision table offers Move to shadow / Restore",
+          "UX_TODO AI-20/29/31/32/33/38/43/56/63/64/78/80: model list from /v1/models after Test as a picker; egress rows record role and ai_pass_run_id; PR, commit and file pickers (GET /repos/:id/ai-pass/pickers); Show the findings this pass raised (ai_pass_run_id, found_by=model) and an AI marker on rows; admin Cancel (POST .../:runId/cancel, audited, the worker checks before each call); scheduled skips and failures and members' requests (POST .../ask, audited ai_pass.requested) in the inbox; Record a VEX statement link; last success/error per connection from gateway calls in Models and System health; the LMSTUDIO_* env route only with no provider rows, Local only applied to it, and said on Models, System health and Analysis; egress date range and CSV export (audited egress_audit.exported)",
+          "Tenancy: every new query is workspace-filtered, including the scan route's repo_scanner_config read (was not); migration 0054 only"
+        ],
+        "points": 8,
+        "status": "done",
+        "notes": [
+          "Defaults chosen (cheap to change): FND-25 review date required for accepted risk, after today and within 730 days, reopened by the nightly reconcile with reason 'accepted risk due for review (review date X)'; FND-61 any member may record a rotation, dated today or earlier and not more than a year before first seen, note >= 10 characters, dismiss_reason 'rotated', and a rotated secret is never reopened by a later sighting (lifecycle staysClosed); FND-53 only 'Move to shadow' is offered (mute is covered by shadow: findings stay out of every count and visible under the shadow facet), a deprecated override row drops the rule's findings, Restore deletes the row; FND-47 no assignee, hand-off is via the ticket link; FND-62 registry credentials are not supported and the panel says so; AI-38 in-app inbox only (email is out of scope, D7), to the person who enabled the schedule; AI-56 the request goes to every admin's inbox and names the admins; AI-63 a success is written at most once a minute per connection, every error is written; AI-78 the env fallback applies only while the workspace has no provider rows at all; AI-80 CSV capped at 10,000 rows, dates inclusive; AI-31 pickers are a PR select, a commit datalist and a searchable file/directory datalist from ingested commit files (2000 paths), not a tree.",
+          "Migration 0054_findings_ai_polish (journal idx 52, when 1793600000000): findings.review_by and last_seen_scan_run_id, finding_events.scan_run_id, egress_audit.role and ai_pass_run_id plus an index on (workspace_id, sent_at), llm_providers.last_success_at, last_error_at, last_error.",
+          "FND-63 partial: the panel says triage is not sent back to GitHub and that a dismissed or fixed alert shows here as resolved; fetching dismissed and fixed alerts with GitHub's reason is not built (needs decision).",
+          "Bug fixed in passing: POST /repos/:id/scan read repo_scanner_config without a workspace filter (Law 5).",
+          "The AI pass id reaches the egress writer through AsyncLocalStorage (workers/ai-pass-context.ts), so the gateway's public types are unchanged."
+        ]
       }
   ]
 }

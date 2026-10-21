@@ -40,6 +40,13 @@ export interface GatewayDeps extends T2Deps {
   cli?: CliDeps;
   /** Told which link served each call, for logs and provenance. */
   onRouted?: (route: RouteRecord) => void;
+  /**
+   * W20-21 (UX_TODO AI-63): told how each call to a host ended, so the caller
+   * can record a connection's last success and last error from REAL calls
+   * (no extra probe). Never given request content. Must not throw; a
+   * rejection is ignored.
+   */
+  onHostResult?: (host: T2Host, result: { ok: true } | { ok: false; error: string }) => void;
   /** Per-repo Tier-3 opt-in (admin flag). Absent = not opted in. */
   isT3OptedIn?: (repoId: string) => Promise<boolean>;
   /** Tier-3 transport. Absent = Tier-3 unavailable in this deployment. */
@@ -95,10 +102,12 @@ export function createAnalysisGateway(deps: GatewayDeps): AnalysisGateway {
     tier: number,
     modelId: string,
     prompt: string,
-    meta: { repoId: string; initiator: string },
+    meta: { repoId: string; initiator: string; role?: string | undefined; dimension?: string },
     send: () => Promise<T>,
     usageOf: (result: T) => { tokensSent: number | null; tokensReceived: number | null },
   ): Promise<T> {
+    // W20-21 (UX_TODO AI-29): the role the call serves, on its audit rows.
+    const role = meta.role ?? (meta.dimension ? roleForDimension(meta.dimension) : null) ?? null;
     let host: string;
     try {
       host = new URL(destinationUrl).host;
@@ -133,6 +142,7 @@ export function createAnalysisGateway(deps: GatewayDeps): AnalysisGateway {
       contentSha256: contentDigest(prompt),
       initiatorUserId: ids.initiatorUserId ?? null,
       initiatorLogin: meta.initiator,
+      role,
     });
 
     try {
@@ -150,7 +160,35 @@ export function createAnalysisGateway(deps: GatewayDeps): AnalysisGateway {
   }
 
   /** One Tier-2 call to one host, audited when the host is not local. */
-  function callHost(host: T2Host, prompt: string, opts: CompleteOpts): Promise<CompleteResult> {
+  async function callHost(
+    host: T2Host,
+    prompt: string,
+    opts: CompleteOpts,
+  ): Promise<CompleteResult> {
+    try {
+      const result = await callHostAudited(host, prompt, opts);
+      report(host, { ok: true });
+      return result;
+    } catch (err) {
+      report(host, { ok: false, error: err instanceof Error ? err.message : String(err) });
+      throw err;
+    }
+  }
+
+  /** W20-21 (AI-63): the caller's record of how a call ended; never allowed to fail one. */
+  function report(host: T2Host, result: { ok: true } | { ok: false; error: string }): void {
+    try {
+      deps.onHostResult?.(host, result);
+    } catch {
+      // A bookkeeping failure must not turn a good answer into an error.
+    }
+  }
+
+  function callHostAudited(
+    host: T2Host,
+    prompt: string,
+    opts: CompleteOpts,
+  ): Promise<CompleteResult> {
     // Tier 2 is audited too when its host is not local: an OpenAI-compatible
     // provider row is configured exactly like a LAN LM Studio, and a public
     // one sends the customer's diffs off their network just as surely as
@@ -217,6 +255,7 @@ export function createAnalysisGateway(deps: GatewayDeps): AnalysisGateway {
               contentSha256: contentDigest(prompt),
               initiatorUserId: ids.initiatorUserId ?? null,
               initiatorLogin: opts.meta.initiator,
+              role: opts.meta.role ?? roleForDimension(opts.meta.dimension),
             },
             'Local-only is on for this workspace; Tier-3 would leave the network.',
           );
@@ -248,6 +287,7 @@ export function createAnalysisGateway(deps: GatewayDeps): AnalysisGateway {
                 contentSha256: contentDigest(prompt),
                 initiatorUserId: ids.initiatorUserId ?? null,
                 initiatorLogin: opts.meta.initiator,
+                role: opts.meta.role ?? roleForDimension(opts.meta.dimension),
               },
               'Tier-3 is not opted in for this repository.',
             );

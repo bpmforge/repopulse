@@ -220,7 +220,16 @@ function Suggestion({
           {VEX_JUSTIFICATION_LABEL[s.vex.justification as VexJustification] ?? s.vex.justification}{' '}
           (<span className="font-mono">{s.vex.justification}</span>)
           {s.vex.statement ? ` — ${s.vex.statement.replace(/[.\s]+$/, '')}` : ''}. Nothing is
-          recorded as VEX until a person does it.
+          recorded as VEX until a person does it.{' '}
+          {/* W20-21 (UX_TODO AI-43): where a person does it, one step away. */}
+          <button
+            type="button"
+            className={JUMP_LINK}
+            data-testid="ai-vex-record"
+            onClick={() => jumpTo('finding-vex')}
+          >
+            Record a VEX statement below
+          </button>
         </p>
       ) : null}
 

@@ -67,6 +67,36 @@ interface ChatChoice {
   finish_reason?: string | null;
 }
 
+/**
+ * The model ids the server says it can serve (W20-21, UX_TODO AI-20), from the
+ * OpenAI-compatible `GET /v1/models` (LM Studio, Ollama, vLLM, LiteLLM, the
+ * hosted gateways all answer it). Offered as a picker after Test so the admin
+ * does not have to type an exact identifier. Empty when the server does not
+ * answer it; never throws. A listing call, not a model call: nothing is sent
+ * but the credential the connection already uses.
+ */
+export async function listModels(
+  host: T2Host,
+  deps: Pick<ProbeDeps, 'fetchImpl' | 'timeoutMs'> = {},
+): Promise<string[]> {
+  const f = deps.fetchImpl ?? fetch;
+  try {
+    const res = await f(`${normalizeHost(host.baseUrl)}/v1/models`, {
+      headers: requestHeadersFor(host.auth),
+      signal: AbortSignal.timeout(deps.timeoutMs ?? 10_000),
+    });
+    if (!res.ok) return [];
+    const body = (await res.json()) as { data?: unknown };
+    if (!Array.isArray(body.data)) return [];
+    const ids = body.data
+      .map((m) => (m && typeof m === 'object' ? (m as { id?: unknown }).id : undefined))
+      .filter((id): id is string => typeof id === 'string' && id.length > 0 && id.length <= 200);
+    return [...new Set(ids)].sort().slice(0, 200);
+  } catch {
+    return [];
+  }
+}
+
 export async function probeCapabilities(host: T2Host, deps: ProbeDeps = {}): Promise<Capabilities> {
   const f = deps.fetchImpl ?? fetch;
   const timeoutMs = deps.timeoutMs ?? 120_000;

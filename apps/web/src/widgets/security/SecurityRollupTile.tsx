@@ -42,15 +42,37 @@ export function SecurityRollupTile({ repos }: { repos?: string | undefined } = {
       {data && (
         <div className="flex flex-col gap-2 text-sm" data-testid="security-rollup-body">
           <div className="flex flex-wrap gap-3">
-            {[5, 4, 3, 2, 1].map((severity) => (
-              <div key={severity} className="flex flex-col" data-testid={`sev-${severity}`}>
-                {/* Named, not "sev 5" (W18-28): every other surface uses the
-                    severity words, and a bare number does not say which end
-                    is bad. */}
-                <span className="text-xs text-fg-muted">{SEVERITY_NAME[severity]}</span>
-                <span className="tabular-nums">{bySeverity[String(severity)] ?? 0}</span>
-              </div>
-            ))}
+            {[5, 4, 3, 2, 1].map((severity) => {
+              const fresh = data.new_by_severity?.[String(severity)] ?? 0;
+              return (
+                <div key={severity} className="flex flex-col" data-testid={`sev-${severity}`}>
+                  {/* Named, not "sev 5" (W18-28): every other surface uses the
+                      severity words, and a bare number does not say which end
+                      is bad. */}
+                  <span className="text-xs text-fg-muted">{SEVERITY_NAME[severity]}</span>
+                  {/* W20-21 (UX_TODO FND-55): each count opens the findings
+                      behind it, and says what is new since yesterday. */}
+                  <Link
+                    to="/findings"
+                    search={
+                      withRepos(
+                        { dimension_group: 'security', severity: String(severity) },
+                        repos,
+                      ) as never
+                    }
+                    className="tabular-nums underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                    data-testid={`sev-link-${severity}`}
+                  >
+                    {bySeverity[String(severity)] ?? 0}
+                  </Link>
+                  {fresh > 0 && (
+                    <span className="text-xs text-fg-muted" data-testid={`sev-new-${severity}`}>
+                      +{fresh} since yesterday
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           <div className="flex flex-wrap gap-4">
@@ -81,7 +103,8 @@ export function SecurityRollupTile({ repos }: { repos?: string | undefined } = {
 
           <Link
             to="/findings"
-            search={{ dimension: 'secrets' } as never}
+            // W20-21 (FND-55): every security scanner's findings, not only secrets.
+            search={withRepos({ dimension_group: 'security' }, repos) as never}
             className="text-sm underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
             data-testid="rollup-drill"
           >

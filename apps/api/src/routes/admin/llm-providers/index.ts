@@ -14,6 +14,7 @@ import {
   capabilityProblems,
   chatCompletionsUrl,
   probeCapabilities,
+  listModels,
   requestHeadersFor,
   resolveProviderAsync,
   type Capabilities,
@@ -24,6 +25,7 @@ import { requireAdmin } from '../../../lib/rbac.js';
 import { isClaudeCliAccepted } from '../../../lib/claude-cli-acceptance.js';
 import { describeEndpoint } from '../../../lib/llm-routing.js';
 import { sendProblem } from '../../../lib/problem.js';
+import { hostsFromEnv } from '../../../workers/gateway.js';
 
 // Admin → Models (W16-07, D-LLM-1).
 //
@@ -192,12 +194,25 @@ export default async function llmProviderRoutes(
         capabilities: core.llmProviders.capabilities,
         probedAt: core.llmProviders.probedAt,
         createdAt: core.llmProviders.createdAt,
+        lastSuccessAt: core.llmProviders.lastSuccessAt,
+        lastErrorAt: core.llmProviders.lastErrorAt,
+        lastError: core.llmProviders.lastError,
       })
       .from(core.llmProviders)
       .where(eq(core.llmProviders.workspaceId, workspaceId))
       .orderBy(asc(core.llmProviders.name));
 
+    // W20-21 (UX_TODO AI-78): the deprecated LMSTUDIO_* route. The worker uses
+    // it only while this workspace has no connection rows at all, so the screen
+    // says when that is the case instead of "No model is configured".
+    const envHosts = hostsFromEnv();
     return reply.send({
+      env_fallback: {
+        configured: envHosts.length > 0,
+        in_use: envHosts.length > 0 && rows.length === 0,
+        hosts: envHosts.map((h) => h.baseUrl),
+        model: envHosts[0]?.modelSlot ?? null,
+      },
       items: rows.map((r) => ({
         id: r.id,
         name: r.name,
@@ -218,6 +233,10 @@ export default async function llmProviderRoutes(
         leaves_network: describeEndpoint(r.kind, r.baseUrl).leavesNetwork,
         host_is_name: describeEndpoint(r.kind, r.baseUrl).hostIsName,
         created_at: r.createdAt,
+        // W20-21 (UX_TODO AI-63): what real gateway calls last saw.
+        last_success_at: r.lastSuccessAt,
+        last_error_at: r.lastErrorAt,
+        last_error: r.lastError,
       })),
     });
   });
@@ -708,6 +727,11 @@ export default async function llmProviderRoutes(
       });
 
       const text = await res.text();
+      // W20-21 (UX_TODO AI-20): the models the server lists, so the form can
+      // offer a picker instead of a typed guess. Asked on a failure too: a
+      // "model not found" is exactly when the list is wanted.
+      const models =
+        res.status === 401 || res.status === 403 ? [] : await listModels(host, { fetchImpl });
       if (!res.ok) {
         return reply.send({
           ok: false,
@@ -716,6 +740,7 @@ export default async function llmProviderRoutes(
           // The endpoint's own words, truncated. "Invalid API key" and "model
           // not found" need different fixes.
           detail: text.slice(0, 400),
+          models,
         });
       }
 
@@ -750,6 +775,7 @@ export default async function llmProviderRoutes(
         // that here rather than discover it in a finding's provenance.
         model: parsed.model ?? host.modelSlot,
         sample: (parsed.choices?.[0]?.message?.content ?? '').slice(0, 120),
+        models,
       });
     } catch (err) {
       const hint = localhostHint(baseUrl, inContainer);

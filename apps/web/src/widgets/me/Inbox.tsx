@@ -34,6 +34,27 @@ export interface InboxScan {
   at: string;
 }
 
+/** W20-21 (UX_TODO AI-38): a scheduled pass you enabled that was skipped or failed. */
+export interface InboxAiPass {
+  id: number;
+  status: string;
+  reason: string | null;
+  repo_id: number;
+  repo: string;
+  at: string;
+}
+
+/** W20-21 (UX_TODO AI-56): a member asked the admins for a pass (admins only). */
+export interface InboxAiPassRequest {
+  id: number;
+  by: string | null;
+  repo_id: number | null;
+  repo: string | null;
+  paths: string[];
+  note: string | null;
+  at: string;
+}
+
 export interface InboxResponse {
   since: string;
   first_look: boolean;
@@ -42,6 +63,9 @@ export interface InboxResponse {
   failed_scans_count: number;
   findings: InboxFinding[];
   failed_scans: InboxScan[];
+  /** Absent from an API older than W20-21. */
+  ai_passes?: InboxAiPass[];
+  ai_pass_requests?: InboxAiPassRequest[];
 }
 
 /** Polled as well as refreshed by the sync stream: findings are not on the stream yet. */
@@ -125,8 +149,8 @@ export function Inbox() {
             <p className="text-xs text-fg-muted">Loading…</p>
           ) : unread === 0 ? (
             <p className="text-xs text-fg-muted" data-testid="inbox-empty">
-              Nothing new: no high, critical, known-exploited or secrets findings and no failed
-              scans since you last looked.
+              Nothing new: no high, critical, known-exploited or secrets findings, no failed scans
+              and no AI pass news since you last looked.
             </p>
           ) : (
             <>
@@ -152,6 +176,64 @@ export function Inbox() {
                             {f.title}
                           </span>
                           <span className="text-xs text-fg-muted">{f.repo}</span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
+              {(data.ai_passes ?? []).length > 0 ? (
+                <section aria-label="Scheduled AI passes" className="flex flex-col gap-1">
+                  <h3 className="text-xs text-fg-muted">Scheduled AI passes that did not run</h3>
+                  <ul className="flex flex-col gap-1" data-testid="inbox-ai-passes">
+                    {(data.ai_passes ?? []).map((p) => (
+                      <li key={p.id}>
+                        <Link
+                          to={'/repos/$repoId/security' as never}
+                          params={{ repoId: String(p.repo_id) } as never}
+                          hash="ai-review-pass"
+                          onClick={() => setOpen(false)}
+                          className="flex flex-col rounded-sm px-1 py-0.5 hover:bg-surface-2"
+                          data-testid={`inbox-ai-pass-${p.id}`}
+                        >
+                          <span>
+                            <span className="mr-1.5 text-xs font-medium text-warn">
+                              {p.status === 'skipped' ? 'Pass skipped' : 'Pass failed'}
+                            </span>
+                            {p.repo}
+                          </span>
+                          {p.reason ? (
+                            <span className="text-xs text-fg-muted">{p.reason}</span>
+                          ) : null}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
+              {(data.ai_pass_requests ?? []).length > 0 ? (
+                <section aria-label="Requests for an AI pass" className="flex flex-col gap-1">
+                  <h3 className="text-xs text-fg-muted">Asked for an AI pass</h3>
+                  <ul className="flex flex-col gap-1" data-testid="inbox-ai-requests">
+                    {(data.ai_pass_requests ?? []).map((r) => (
+                      <li key={r.id}>
+                        <Link
+                          to={'/repos/$repoId/security' as never}
+                          params={{ repoId: String(r.repo_id ?? '') } as never}
+                          hash="ai-review-pass"
+                          onClick={() => setOpen(false)}
+                          className="flex flex-col rounded-sm px-1 py-0.5 hover:bg-surface-2"
+                          data-testid={`inbox-ai-request-${r.id}`}
+                        >
+                          <span>
+                            <span className="mr-1.5 text-xs font-medium text-accent">Request</span>
+                            {r.by ?? 'A member'} asked for a pass on {r.repo ?? 'a repository'}
+                          </span>
+                          {r.note || r.paths.length > 0 ? (
+                            <span className="text-xs text-fg-muted">
+                              {[r.paths.join(', '), r.note].filter(Boolean).join(' — ')}
+                            </span>
+                          ) : null}
                         </Link>
                       </li>
                     ))}

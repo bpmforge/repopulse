@@ -32,6 +32,15 @@ export interface ScannerStatus {
    */
   validation_funnel: { proposed?: number; rejected?: number; created?: number } | null;
   open_findings: number;
+  /** W20-21 (FND-52): when it runs on its own; absent from older payloads. */
+  runs?: {
+    on_change: boolean;
+    cadence: string | null;
+    cron: string | null;
+    next_run_at: string | null;
+    manual: boolean;
+    text: string;
+  };
 }
 
 export interface ChainNode {
@@ -160,6 +169,8 @@ export interface RepoSecurity {
     scanner_key?: string | null;
     /** W20-13 (FND-28): the dependency scanner's reachability tier. */
     reachability?: string | null;
+    /** W20-21 (FND-28): versions that fix it; empty when none is published. */
+    fixed_in?: string[];
   }[];
   chains: { id: string; severity: number; nodes: ChainNode[] }[];
   /** false = chain analysis has never run, which is not the same as no chains. */
@@ -174,6 +185,8 @@ export interface RepoSecurity {
 export interface OrgSecurity {
   open_by_severity: Record<string, number>;
   open_total: number;
+  /** W20-21 (FND-55): open findings first seen in the last 24 hours, by severity. */
+  new_by_severity?: Record<string, number>;
   kev_count: number;
   secrets_open: number;
   verified_secrets: number;

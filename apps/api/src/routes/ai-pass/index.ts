@@ -1,7 +1,14 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Queue } from 'bullmq';
 import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
-import { auditLog, core, isConstraintViolation, read, type Database } from '@repopulse/shared';
+import {
+  auditLog,
+  core,
+  facts,
+  isConstraintViolation,
+  read,
+  type Database,
+} from '@repopulse/shared';
 import { QUEUE, createQueue, createRedisConnection, type QueueName } from '@repopulse/ingest';
 import { requireAdmin } from '../../lib/rbac.js';
 import { sendProblem } from '../../lib/problem.js';
@@ -24,6 +31,11 @@ import scheduleRoutes from './schedule.js';
 // reads only this API, which reads only our Postgres.
 
 export const AI_PASSES_PER_DAY = 10;
+
+/** W20-21 (UX_TODO AI-31): how much the start form's pickers offer. */
+export const PICKER_PRS = 50;
+export const PICKER_COMMITS = 50;
+export const PICKER_FILES = 2000;
 
 /** W20-11 (UX_TODO AI-40): how long the person who answered a suggestion may withdraw it. */
 export const AI_DECISION_UNDO_MINUTES = 15;
@@ -364,9 +376,218 @@ export default async function aiPassRoutes(
         more: rows.length > limit,
         // W20-18 (UX_TODO AI-77): the panel says why Start is off.
         ai_paused: await aiPauseState(db, workspaceId),
+        // W20-21 (UX_TODO AI-56): who can start one, named for a member.
+        admins: await adminLogins(workspaceId),
       });
     },
   );
+
+  /** The workspace's admins, by login, for "ask an admin" (W20-21, AI-56). */
+  async function adminLogins(workspaceId: number): Promise<string[]> {
+    const rows = await db
+      .select({ login: core.users.login })
+      .from(core.workspaceMembers)
+      .innerJoin(core.users, eq(core.users.id, core.workspaceMembers.userId))
+      .where(
+        and(
+          eq(core.workspaceMembers.workspaceId, workspaceId),
+          eq(core.workspaceMembers.role, 'admin'),
+        ),
+      )
+      .orderBy(core.users.login)
+      .limit(20);
+    return rows.map((r) => r.login);
+  }
+
+  /**
+   * POST /repos/:id/ai-pass/:runId/cancel — stop a queued or running pass
+   * (W20-21, UX_TODO AI-33). Admin-only, like starting one.
+   *
+   * The row is marked failed with reason `cancelled` at once, which frees the
+   * repository for another pass. A queued job is removed; a running one stops
+   * at its next model call, because the worker checks the row before each call
+   * (ai-pass-processor's cancellation check) and never overwrites a cancelled
+   * row when it ends. Calls already made stay counted.
+   */
+  app.post<{ Params: { id: string; runId: string } }>(
+    '/repos/:id/ai-pass/:runId/cancel',
+    { preHandler: requireAdmin },
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      const userId = request.session?.get('userId');
+      if (workspaceId === undefined || userId === undefined)
+        return fail(request, reply, 401, 'No active session');
+      const repoId = Number(request.params.id);
+      const runId = Number(request.params.runId);
+      if (!Number.isInteger(repoId) || !Number.isInteger(runId)) {
+        return fail(request, reply, 400, 'Invalid id');
+      }
+      const [login] = await db
+        .select({ login: core.users.login })
+        .from(core.users)
+        .where(eq(core.users.id, userId))
+        .limit(1);
+      const [cancelled] = await db
+        .update(read.aiPassRuns)
+        .set({
+          status: 'failed',
+          reasonCode: 'cancelled',
+          reason: `Cancelled by ${login?.login ?? 'an admin'}. Model calls already made still count toward the monthly total.`,
+          finishedAt: now(),
+        })
+        .where(
+          and(
+            eq(read.aiPassRuns.id, runId),
+            eq(read.aiPassRuns.workspaceId, workspaceId),
+            eq(read.aiPassRuns.repoId, repoId),
+            inArray(read.aiPassRuns.status, ['pending', 'running']),
+          ),
+        )
+        .returning();
+      if (!cancelled) {
+        // Tenancy (Law 5): another workspace's pass reads as absent too.
+        const [exists] = await db
+          .select({ status: read.aiPassRuns.status })
+          .from(read.aiPassRuns)
+          .where(
+            and(
+              eq(read.aiPassRuns.id, runId),
+              eq(read.aiPassRuns.workspaceId, workspaceId),
+              eq(read.aiPassRuns.repoId, repoId),
+            ),
+          )
+          .limit(1);
+        if (!exists) return fail(request, reply, 404, 'No such pass');
+        return fail(request, reply, 409, 'The pass has already ended', `It is ${exists.status}.`);
+      }
+      // A queued job is taken off the queue. A running one cannot be removed
+      // (its lock is held); the worker sees the row and stops by itself.
+      const queue = queueFor(QUEUE.aiPass);
+      if (queue) {
+        try {
+          const job = await queue.getJob(`ai-pass-${runId}`);
+          if (job && (await job.getState()) !== 'active') await job.remove();
+        } catch {
+          // Best effort: the worker skips a job whose row is no longer pending.
+        }
+      }
+      auditLog(request.log, {
+        event: 'ai_pass.cancelled',
+        actorUserId: userId,
+        workspaceId,
+        ip: request.ip,
+        ua: request.headers['user-agent'] ?? null,
+        detail: { run_id: runId, repo_id: repoId },
+      });
+      return reply.send({ run: runView(cancelled, null) });
+    },
+  );
+
+  /**
+   * POST /repos/:id/ai-pass/ask — a member asks the admins for a pass (W20-21,
+   * UX_TODO AI-56). Members cannot start one; they could only read "An admin
+   * starts a pass." This records the request (audited, `ai_pass.requested`),
+   * which the admins' inbox lists. Nothing is sent to a model.
+   */
+  app.post<{ Params: { id: string }; Body: { paths?: unknown; note?: unknown } | undefined }>(
+    '/repos/:id/ai-pass/ask',
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      const userId = request.session?.get('userId');
+      if (workspaceId === undefined || userId === undefined)
+        return fail(request, reply, 401, 'No active session');
+      const repoId = Number(request.params.id);
+      if (!Number.isInteger(repoId)) return fail(request, reply, 400, 'Invalid repository id');
+      const [repo] = await db
+        .select({ org: core.repos.org, name: core.repos.name })
+        .from(core.repos)
+        .where(and(eq(core.repos.id, repoId), eq(core.repos.workspaceId, workspaceId)))
+        .limit(1);
+      if (!repo) return fail(request, reply, 404, 'No such repository');
+      let paths: string[] = [];
+      if (request.body?.paths !== undefined && request.body.paths !== null) {
+        const cleaned = cleanPaths(request.body.paths);
+        if (typeof cleaned === 'string') return fail(request, reply, 400, 'Invalid paths', cleaned);
+        paths = cleaned;
+      }
+      const note =
+        typeof request.body?.note === 'string' ? request.body.note.trim().slice(0, 500) : '';
+      auditLog(request.log, {
+        event: 'ai_pass.requested',
+        actorUserId: userId,
+        workspaceId,
+        ip: request.ip,
+        ua: request.headers['user-agent'] ?? null,
+        repo_id: repoId,
+        repo: `${repo.org}/${repo.name}`,
+        paths,
+        note: note === '' ? null : note,
+      });
+      return reply.code(202).send({ asked: true, admins: await adminLogins(workspaceId) });
+    },
+  );
+
+  /**
+   * GET /repos/:id/ai-pass/pickers — what the start form can offer instead of
+   * typing (W20-21, UX_TODO AI-31): ingested pull requests, recent non-merge
+   * commits and the repository's known file paths. All from our own database
+   * (Law 4); workspace-filtered (Law 5).
+   */
+  app.get<{ Params: { id: string } }>('/repos/:id/ai-pass/pickers', async (request, reply) => {
+    const workspaceId = request.workspace?.id;
+    if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
+    const repoId = Number(request.params.id);
+    if (!Number.isInteger(repoId)) return fail(request, reply, 400, 'Invalid repository id');
+    if (!(await ownRepo(workspaceId, repoId))) {
+      return fail(request, reply, 404, 'No such repository');
+    }
+    const prs = await db
+      .select({
+        number: facts.pullRequests.number,
+        title: facts.pullRequests.title,
+        state: facts.pullRequests.state,
+      })
+      .from(facts.pullRequests)
+      .where(
+        and(eq(facts.pullRequests.workspaceId, workspaceId), eq(facts.pullRequests.repoId, repoId)),
+      )
+      .orderBy(desc(facts.pullRequests.updatedAt))
+      .limit(PICKER_PRS);
+    const commits = await db
+      .select({
+        sha: facts.commits.sha,
+        message: facts.commits.messageHead,
+        at: facts.commits.committedAt,
+      })
+      .from(facts.commits)
+      .where(
+        and(
+          eq(facts.commits.workspaceId, workspaceId),
+          eq(facts.commits.repoId, repoId),
+          eq(facts.commits.isMerge, false),
+        ),
+      )
+      .orderBy(desc(facts.commits.committedAt))
+      .limit(PICKER_COMMITS);
+    const files = await db
+      .selectDistinct({ path: facts.commitFiles.path })
+      .from(facts.commitFiles)
+      .where(
+        and(eq(facts.commitFiles.workspaceId, workspaceId), eq(facts.commitFiles.repoId, repoId)),
+      )
+      .orderBy(facts.commitFiles.path)
+      .limit(PICKER_FILES + 1);
+    return reply.send({
+      prs: prs.map((p) => ({ number: p.number, title: p.title, state: p.state })),
+      commits: commits.map((c) => ({
+        sha: c.sha,
+        message: c.message.slice(0, 120),
+        at: c.at.toISOString(),
+      })),
+      files: files.slice(0, PICKER_FILES).map((f) => f.path),
+      files_truncated: files.length > PICKER_FILES,
+    });
+  });
 
   app.get<{ Params: { id: string } }>('/findings/:id/ai', async (request, reply) => {
     const workspaceId = request.workspace?.id;

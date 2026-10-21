@@ -18,6 +18,7 @@ import {
   foundByText,
   SEVERITY_LABEL,
   statusLabel,
+  tomorrow,
   undoTargetFor,
   isDismissReason,
   type Finding,
@@ -35,6 +36,7 @@ import { DependencyWhy } from './DependencyWhy.js';
 import { VexForm } from './VexForm.js';
 import { ExternalTicket } from './ExternalTicket.js';
 import { ProposeRuleForm } from '../rules/ProposeRuleForm.js';
+import { SecretRotated, RescanToVerify } from './FindingProof.js';
 
 /** The by-id query's endpoint; its key prefix covers every finding's copy. */
 const FINDING_BY_ID_ENDPOINT = '/findings/{id}';
@@ -66,6 +68,8 @@ export function FindingDetail({
 }) {
   const [note, setNote] = useState('');
   const [reason, setReason] = useState<string>('false_positive');
+  // W20-21 (UX_TODO FND-25): an accepted risk carries the date it is reviewed again.
+  const [reviewBy, setReviewBy] = useState('');
   const [copied, setCopied] = useState<'idle' | 'copied' | 'failed'>('idle');
   const [linkCopied, setLinkCopied] = useState<'idle' | 'copied' | 'failed'>('idle');
   const noteRef = useRef<HTMLInputElement>(null);
@@ -91,6 +95,7 @@ export function FindingDetail({
     from: string;
     to: FindingLifecycleStatus;
     fromReason: string | null;
+    fromReviewBy: string | null;
     /** The reason this change recorded, for "Dismissed as false positive". */
     reason: string | null;
     undone: boolean;
@@ -103,7 +108,7 @@ export function FindingDetail({
   const { data: history } = useApiQuery<{ items: FindingEvent[] }>(historyDescriptor);
 
   const transition = useApiMutation<
-    { status: string; note: string; dismiss_reason?: string },
+    { status: string; note: string; dismiss_reason?: string; review_by?: string },
     unknown
   >(
     { endpoint: '/findings/{id}', path: { id: finding.id }, method: 'PATCH' },
@@ -145,6 +150,9 @@ export function FindingDetail({
             // Back to the reason it had, not a default: an undo that quietly
             // turned "duplicate" into "false positive" would move the FP rate.
             ...(change.fromReason ? { dismiss_reason: change.fromReason } : {}),
+            ...(change.fromReason === 'accepted_risk' && change.fromReviewBy
+              ? { review_by: change.fromReviewBy }
+              : {}),
           }
         : { status: target, note: undoNote },
       { onSuccess: () => setLastChange({ ...change, undone: true }) },
@@ -205,8 +213,12 @@ export function FindingDetail({
               the button that was just pressed (W17-23). */}
           <span data-testid="finding-status">
             Status: {statusLabel(finding.status)}
-            {finding.dismiss_reason && finding.status === 'dismissed'
+            {finding.dismiss_reason &&
+            (finding.status === 'dismissed' || finding.dismiss_reason === 'rotated')
               ? ` (${dismissReasonLabel(finding.dismiss_reason)})`
+              : ''}
+            {finding.review_by && finding.status === 'dismissed'
+              ? `, reopens for review on ${finding.review_by}`
               : ''}
           </span>
           {finding.rule_id ? (
@@ -256,7 +268,32 @@ export function FindingDetail({
           {/* W20-13 (FND-51, part): when a scan last saw it, the evidence a
               resolved finding has for being gone. */}
           <dt className="text-fg-muted">Last seen</dt>
-          <dd data-testid="finding-meta-last-seen">{day(finding.last_seen_at)}</dd>
+          <dd data-testid="finding-meta-last-seen">
+            {day(finding.last_seen_at)}
+            {/* W20-21 (FND-51): which scan, at which commit, still saw it. */}
+            {finding.last_seen_scan ? (
+              <span className="text-fg-muted">
+                {' '}
+                by the scan of{' '}
+                <span className="font-mono">{finding.last_seen_scan.commit_sha.slice(0, 7)}</span>
+              </span>
+            ) : null}
+          </dd>
+          {finding.pull_request ? (
+            <>
+              <dt className="text-fg-muted">Raised on</dt>
+              <dd>
+                {/* W20-21 (FND-70): the pull request a reviewer may need to block. */}
+                <InternalLink
+                  to={`/repos/${finding.repo.id}/prs/${finding.pull_request.number}`}
+                  className={`text-accent underline-offset-2 hover:underline ${FOCUS_RING}`}
+                  testId="finding-pr-link"
+                >
+                  PR #{finding.pull_request.number}
+                </InternalLink>
+              </dd>
+            </>
+          ) : null}
           {finding.file ? (
             <>
               <dt className="text-fg-muted">File</dt>
@@ -345,10 +382,33 @@ export function FindingDetail({
           url={finding.external_ticket_url}
           invalidate={[...invalidate, [FINDING_BY_ID_ENDPOINT]]}
         />
+        {/* W20-21 (UX_TODO FND-47): said, rather than left to be discovered. */}
+        <p className="text-xs text-fg-faint" data-testid="finding-handoff-note">
+          Findings have no assignee in RepoPulse. To hand one to a developer, open a ticket in your
+          tracker (Copy review summary gives you the text) and link it above.
+        </p>
+
+        {/* W20-21 (UX_TODO FND-63, part): imported alerts are triaged twice. */}
+        {finding.found_by?.kind === 'imported' && finding.found_by.source === 'code_scanning' && (
+          <p className="text-xs text-fg-muted" data-testid="finding-code-scanning-note" role="note">
+            Imported from GitHub code scanning. Triage here is not sent back to GitHub, and an alert
+            dismissed or fixed on GitHub shows here as resolved because it is no longer reported.
+          </p>
+        )}
+
+        {/* W20-21 (UX_TODO FND-61): a leaked secret closes when it is rotated. */}
+        {finding.dimension === 'secrets' && (
+          <SecretRotated
+            finding={finding}
+            invalidate={[...invalidate, queryKeyFor(historyDescriptor), [FINDING_BY_ID_ENDPOINT]]}
+          />
+        )}
 
         {/* W20-08 (UX_TODO FND-05): a person records the VEX statement here. */}
         {finding.dimension === 'dependency' && (finding.cve_id || finding.rule_id) && (
-          <VexForm finding={finding} invalidate={invalidate} />
+          <div id="finding-vex" className="scroll-mt-4">
+            <VexForm finding={finding} invalidate={invalidate} />
+          </div>
         )}
 
         {/* W18-19: a model-drafted patch, shown only once the re-scan proved it
@@ -401,6 +461,16 @@ export function FindingDetail({
                   ({e.automatic ? 'automatic' : (e.actor_login ?? 'by a person')}
                   {e.reason ? `: ${e.reason}` : ''})
                 </span>
+                {/* W20-21 (FND-51): the scan that moved it, so "resolved
+                    automatically" names the commit that no longer had it. */}
+                {e.scan ? (
+                  <span className="text-fg-faint" data-testid="finding-history-scan">
+                    {' '}
+                    {e.to_status === 'resolved' ? 'not seen by' : 'seen again by'} the scan of{' '}
+                    <span className="font-mono">{e.scan.commit_sha.slice(0, 7)}</span> on{' '}
+                    {day(e.scan.at)}
+                  </span>
+                ) : null}
               </li>
             ))}
             {(history?.items ?? []).length === 0 && (
@@ -446,10 +516,24 @@ export function FindingDetail({
               </span>
             </label>
           )}
+          {allowed.includes('dismissed') && reason === 'accepted_risk' && (
+            <label className="flex flex-col gap-1 text-xs text-fg-muted">
+              Review by (required)
+              <input
+                type="date"
+                className="panel px-2 py-1 text-sm"
+                data-testid="finding-review-by"
+                min={tomorrow()}
+                value={reviewBy}
+                onChange={(e) => setReviewBy(e.target.value)}
+              />
+            </label>
+          )}
           {allowed.map((to) => {
             const action = FINDING_ACTIONS[to];
             const closing = CLOSING.includes(to);
             const locked = closing && closingLocked;
+            const needsReview = to === 'dismissed' && reason === 'accepted_risk' && reviewBy === '';
             return (
               <button
                 key={to}
@@ -462,15 +546,25 @@ export function FindingDetail({
                     : action.hint
                 }
                 disabled={
-                  pending === to || note.trim() === '' || locked || (closing && noteTooShort)
+                  pending === to ||
+                  note.trim() === '' ||
+                  locked ||
+                  (closing && noteTooShort) ||
+                  needsReview
                 }
                 aria-busy={pending === to || undefined}
                 onClick={() => {
                   const from = finding.status;
                   const fromReason = finding.dismiss_reason;
+                  const fromReviewBy = finding.review_by ?? null;
                   transition.mutate(
                     to === 'dismissed'
-                      ? { status: to, note, dismiss_reason: reason }
+                      ? {
+                          status: to,
+                          note,
+                          dismiss_reason: reason,
+                          ...(reason === 'accepted_risk' ? { review_by: reviewBy } : {}),
+                        }
                       : { status: to, note },
                     {
                       onSuccess: () => {
@@ -480,6 +574,7 @@ export function FindingDetail({
                           from,
                           to,
                           fromReason,
+                          fromReviewBy,
                           reason: to === 'dismissed' ? reason : null,
                           undone: false,
                         });
@@ -522,6 +617,10 @@ export function FindingDetail({
           {/* To the plan for this finding's repository (W17-24): a link that
               carries the id, and only navigates. */}
           <PlanForRepoLink repoId={finding.repo.id} />
+          {/* W20-21 (UX_TODO FND-51): ask the scanner to look again. */}
+          {isAdmin && finding.scanner_key && finding.found_by?.kind !== 'imported' && (
+            <RescanToVerify repoId={finding.repo.id} scannerKey={finding.scanner_key} />
+          )}
           {/* W20-08 (UX_TODO FND-65): an admin turns a finding pattern into a
               rule proposal; it lands proposed and runs nowhere until accepted. */}
           {isAdmin && !proposing && (

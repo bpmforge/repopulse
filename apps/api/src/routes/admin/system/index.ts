@@ -6,6 +6,7 @@ import { orgSyncStatus, type SyncStatusPhase } from '@repopulse/ingest';
 import { requireAdmin } from '../../../lib/rbac.js';
 import { sendProblem } from '../../../lib/problem.js';
 import { readWorkerHeartbeats } from '../../../workers/heartbeat.js';
+import { hostsFromEnv } from '../../../workers/gateway.js';
 import { appVersion, diskSpace, diskState, formatBytes } from '../../../lib/release.js';
 
 // GET /admin/system (W17-06/W17-07) — "is this install actually working?"
@@ -427,11 +428,28 @@ export default async function systemRoutes(
           name: core.llmProviders.name,
           kind: core.llmProviders.kind,
           enabled: core.llmProviders.enabled,
+          lastSuccessAt: core.llmProviders.lastSuccessAt,
+          lastErrorAt: core.llmProviders.lastErrorAt,
+          lastError: core.llmProviders.lastError,
         })
         .from(core.llmProviders)
         .where(eq(core.llmProviders.workspaceId, workspaceId));
 
       const enabled = providers.filter((p) => p.enabled);
+      // W20-21 (UX_TODO AI-63): what REAL calls last saw, per connection, as
+      // the worker records them. A connection whose newest result is an error
+      // is not answering, whatever "enabled" says.
+      const failing = enabled.filter(
+        (p) =>
+          p.lastErrorAt !== null &&
+          (p.lastSuccessAt === null || p.lastErrorAt.getTime() > p.lastSuccessAt.getTime()),
+      );
+      const newestSuccess = enabled
+        .map((p) => p.lastSuccessAt?.getTime() ?? 0)
+        .reduce((a, b) => Math.max(a, b), 0);
+      // W20-21 (UX_TODO AI-78): the deprecated LMSTUDIO_* fallback, said by name
+      // when it is what passes would actually run on.
+      const envHosts = providers.length === 0 ? hostsFromEnv() : [];
       // W20-16 (UX_TODO AI-74): an enabled Claude Code CLI connection whose
       // CLI the WORKER cannot find. A restart without the CLI overlay drops
       // its volume and every pass then fails; the worker's own check (in its
@@ -445,19 +463,26 @@ export default async function systemRoutes(
         label: 'AI review models',
         state:
           providers.length === 0
-            ? 'setup_needed'
-            : enabled.length === 0 || cliGone
+            ? envHosts.length > 0
+              ? 'degraded'
+              : 'setup_needed'
+            : enabled.length === 0 || cliGone || failing.length > 0
               ? 'degraded'
               : 'ready',
         reason:
           providers.length === 0
-            ? 'No model configured. This is OPTIONAL — delivery metrics, hotspots and deterministic scanners all work without one. Only AI code review is unavailable.'
+            ? envHosts.length > 0
+              ? `Using LMSTUDIO_BASE_URLS / LMSTUDIO_MODEL from .env (${envHosts.length} host${envHosts.length === 1 ? '' : 's'}, model ${envHosts[0]!.modelSlot}). This route is deprecated and is not shown in Models: add the model in Admin → Models (which then replaces it), or remove both lines from .env and restart the worker to turn AI off.`
+              : 'No model configured. This is OPTIONAL — delivery metrics, hotspots and deterministic scanners all work without one. Only AI code review is unavailable.'
             : enabled.length === 0
               ? `${providers.length} configured, none enabled. AI review will not run.`
               : cliGone
                 ? `The worker cannot find the Claude Code CLI (${workerCli.reason ?? 'not found'}), so ${cliConns.map((c) => c.name).join(', ')} will fail. If the stack was restarted without the CLI overlay, start it again with it (deploy/up.sh --with-claude-cli).`
-                : `${enabled.length} of ${providers.length} enabled (${[...new Set(enabled.map((p) => p.kind))].join(', ')}).`,
-        lastSuccessAt: null,
+                : failing.length > 0
+                  ? `${failing.map((p) => p.name).join(', ')}: the last call failed (${(failing[0]!.lastError ?? 'no detail').slice(0, 160)}). Test it in Admin → Models; the model may be down, still loading or out of memory.`
+                  : `${enabled.length} of ${providers.length} enabled (${[...new Set(enabled.map((p) => p.kind))].join(', ')}).${newestSuccess === 0 ? ' No call has succeeded yet.' : ''}`,
+        // The newest successful real call across the enabled connections.
+        lastSuccessAt: newestSuccess === 0 ? null : new Date(newestSuccess).toISOString(),
         action: SYSTEM_ACTIONS.models,
       });
     });
