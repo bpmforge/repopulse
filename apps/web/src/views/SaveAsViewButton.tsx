@@ -21,7 +21,7 @@ export interface SaveAsViewProps {
   /** The dashboard's widgets, as rendered. */
   widgets: Widget[];
   /**
-   * W20-16 (UX_TODO FND-03): a screen that is not a widget grid (the Reviews
+   * W20-16 (UX_TODO FND-03): a screen that is not a widget grid (the Findings
    * explorer) hands over its own config — target and filters — instead.
    */
   config?: ViewConfig;
@@ -29,7 +29,7 @@ export interface SaveAsViewProps {
   label?: string;
   /**
    * Stay on this screen after saving and say where the view went, rather
-   * than opening it (the Reviews explorer: the person is mid-triage).
+   * than opening it (the Findings explorer: the person is mid-triage).
    */
   stay?: boolean;
   window: string;

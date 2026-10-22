@@ -315,7 +315,7 @@ describe('Security tab — the empty states are different sentences', () => {
 
 // W20-03 (UX_TODO FND-04, FND-06).
 describe('Security tab — drill-downs and exports', () => {
-  it('every link to Reviews carries this repository, and the secrets one its dimension', async () => {
+  it('every link to Findings carries this repository, and the secrets one its dimension', async () => {
     security = base({
       open_total: 3,
       scanners: [scanner({ state: 'ok', open_findings: 3 })],

@@ -5,7 +5,7 @@ import type { MeContext } from '../org/contracts.js';
 //
 // The welcome CTA and the setup checklist live only on Overview, but the
 // persona picker sends a Security, Developer or Executive first sign-in to
-// Reviews, My Focus or Reports. Those are empty on a new install and said
+// Findings, My Focus or Reports. Those are empty on a new install and said
 // nothing about why, so the admin lost the path to setup. While the workspace
 // tracks no repository, every other screen opens with this panel.
 

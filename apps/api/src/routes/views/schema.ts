@@ -12,10 +12,14 @@ export const viewConfigSchema = z.object({
   layout: z.array(z.record(z.string(), z.unknown())),
   /**
    * W20-16 (UX_TODO FND-03). What the view opens: a widget dashboard (the
-   * default, and every view saved before this) or the Reviews explorer with
+   * default, and every view saved before this) or the Findings explorer with
    * `search` as its filters. Absent = dashboard.
+   *
+   * W20-23 (UX_TODO X-06): `repos` is a saved repository set — a view holding
+   * only `repo_ids`, picked from the topbar's Repositories filter. Per user,
+   * like every view: listed to its owner, never to the workspace unless shared.
    */
-  target: z.enum(['dashboard', 'findings']).optional(),
+  target: z.enum(['dashboard', 'findings', 'repos']).optional(),
   /** The target screen's URL filters, as the web app validates them. */
   search: z
     .record(z.string().max(64), z.union([z.string().max(200), z.number(), z.boolean()]))

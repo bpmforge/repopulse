@@ -19,6 +19,8 @@ export function Topbar({
   personOptions,
   scope,
   actions,
+  savedRepoSets,
+  onSaveRepoSet,
 }: TopbarProps) {
   const sseConnection = useUiStore((s) => s.sseConnection);
   const setPalette = useUiStore((s) => s.setPalette);
@@ -36,6 +38,8 @@ export function Topbar({
         repoOptions={repoOptions}
         personOptions={personOptions}
         scope={scope}
+        savedRepoSets={savedRepoSets}
+        onSaveRepoSet={onSaveRepoSet}
       />
       <div className="flex items-center gap-3">
         {actions}

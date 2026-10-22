@@ -42,7 +42,7 @@ describe('deriveCrumbs', () => {
     ]);
     expect(deriveCrumbs('/findings', payments).map((c) => c.label)).toEqual([
       'Overview',
-      'Reviews',
+      'Findings',
     ]);
   });
 
@@ -65,7 +65,7 @@ describe('deriveCrumbs', () => {
 describe('trail wording and the document title', () => {
   it('uses the rail labels for top-level sections', () => {
     const top = (path: string) => deriveCrumbs(path).map((c) => c.label)[1];
-    expect(top('/findings')).toBe('Reviews');
+    expect(top('/findings')).toBe('Findings');
     expect(top('/plans')).toBe('Improvement plans');
     expect(top('/views')).toBe('Saved Views');
     expect(top('/admin/sync')).toBe('Settings');
@@ -100,7 +100,7 @@ describe('trail wording and the document title', () => {
       'Security · payments · RepoPulse',
     );
     expect(documentTitle(deriveCrumbs('/'))).toBe('Overview · RepoPulse');
-    expect(documentTitle(deriveCrumbs('/findings'))).toBe('Reviews · RepoPulse');
+    expect(documentTitle(deriveCrumbs('/findings'))).toBe('Findings · RepoPulse');
   });
 });
 

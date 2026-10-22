@@ -154,6 +154,18 @@ export function UserMenu({ placement = 'up' }: { placement?: 'up' | 'down' } = {
               <span aria-hidden="true" className="w-3" />
               Your account
             </a>
+            {/* W20-23 (UX_TODO X-11): the installed version and this release's
+                published accuracy, for everyone signed in. */}
+            <a
+              href="/about"
+              role="menuitem"
+              data-testid="user-menu-about"
+              tabIndex={-1}
+              className="flex w-full items-center gap-2 rounded-sm px-1.5 py-1 text-left text-sm text-fg-muted hover:bg-surface-2 hover:text-fg focus-visible:bg-surface-2 focus-visible:outline-none"
+            >
+              <span aria-hidden="true" className="w-3" />
+              About RepoPulse
+            </a>
             <button
               type="button"
               role="menuitem"

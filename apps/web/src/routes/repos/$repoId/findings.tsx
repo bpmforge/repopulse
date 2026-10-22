@@ -141,7 +141,7 @@ function RepoFindings() {
   });
 
   // W20-13 (UX_TODO FND-36): on a phone the panel covers the list as a
-  // dialog, as on Reviews, instead of rendering below a 44rem-wide table.
+  // dialog, as on Findings, instead of rendering below a 44rem-wide table.
   const overlay = useOverlayLayout();
 
   // Scroll the panel into view, for the reason W16-05 records: it renders below
@@ -188,7 +188,7 @@ function RepoFindings() {
           </select>
         </label>
         {/* Every other filter, the triage queue and bulk actions live in
-            Reviews; this hands over the repository and the status. */}
+            Findings; this hands over the repository and the status. */}
         <Link
           to="/findings"
           search={
@@ -200,10 +200,10 @@ function RepoFindings() {
           className="text-sm underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           data-testid="repo-findings-in-reviews"
         >
-          Open in Reviews, with every filter
+          Open in Findings, with every filter
         </Link>
       </div>
-      {/* W20-13 (UX_TODO FND-37): never hidden silently, as on Reviews. */}
+      {/* W20-13 (UX_TODO FND-37): never hidden silently, as on Findings. */}
       {!withShadow && shadowHidden > 0 && (
         <p
           className="flex flex-wrap items-center gap-2 text-xs text-fg-muted"

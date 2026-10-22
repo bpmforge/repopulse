@@ -7,6 +7,7 @@ import type { Widget } from '../../components/widget/types.js';
 import {
   fromWidgets,
   isFindingsView,
+  isRepoSetView,
   scopeLabel,
   scopeWidgets,
   toWidgets,
@@ -100,6 +101,10 @@ export function ViewDetail({ viewId }: { viewId: string }) {
   // answer 403. An older API without the flag is treated as the owner's.
   const isOwner = data?.is_owner !== false;
   const findingsView = data ? isFindingsView(data.config) : false;
+  // W20-23 (UX_TODO X-06): a repository set is applied from the topbar; here
+  // it is only named, re-picked or deleted. Per user (W20_DECISIONS_2 row 6),
+  // so it offers no Share, and no Set as home: it has nothing to show as one.
+  const repoSetView = data ? isRepoSetView(data.config) : false;
   const duplicate = useApiMutation<{ name: string; config: ViewConfig }, ViewResponse>(
     { endpoint: '/views', method: 'POST' },
     { invalidate: [LIST] },
@@ -150,7 +155,7 @@ export function ViewDetail({ viewId }: { viewId: string }) {
           repo_ids: draft.repoIds,
           window: draft.window,
           layout: fromWidgets(draft.widgets),
-          // A Reviews view keeps what it opens (W20-16, FND-03).
+          // A Findings view keeps what it opens (W20-16, FND-03).
           ...(data.config.target ? { target: data.config.target } : {}),
           ...(data.config.search ? { search: data.config.search } : {}),
         },
@@ -166,7 +171,7 @@ export function ViewDetail({ viewId }: { viewId: string }) {
           <h1 className="text-lg font-semibold" data-testid="view-name">
             {data?.name ?? 'View'}
           </h1>
-          {shown && (
+          {shown && !repoSetView && (
             <p className="text-xs text-fg-muted" data-testid="view-scope">
               {scopeLabel(shown.window, shown.repoIds, repoNames)}
             </p>
@@ -175,7 +180,7 @@ export function ViewDetail({ viewId }: { viewId: string }) {
               repositories. What a set cannot have is said, not hidden: KPI
               sparklines are per-series, so a multi-repository view shows the
               values and deltas without the line. */}
-          {shown && shown.repoIds.length > 1 && (
+          {shown && !repoSetView && shown.repoIds.length > 1 && (
             <p className="text-xs text-fg-faint" data-testid="view-scope-note">
               Every tile follows this scope. KPI tiles show values and changes without sparklines,
               which exist per repository and for the whole workspace only.
@@ -194,7 +199,12 @@ export function ViewDetail({ viewId }: { viewId: string }) {
               type="button"
               className={PRIMARY}
               data-testid="save-layout"
-              disabled={save.isPending || !data || draft.name.trim().length === 0}
+              disabled={
+                save.isPending ||
+                !data ||
+                draft.name.trim().length === 0 ||
+                (repoSetView && draft.repoIds.length === 0)
+              }
               onClick={commit}
             >
               Save
@@ -250,7 +260,7 @@ export function ViewDetail({ viewId }: { viewId: string }) {
             >
               Edit
             </button>
-            {data?.is_default ? (
+            {repoSetView ? null : data?.is_default ? (
               <>
                 <span className="text-sm text-fg-muted" data-testid="home-label">
                   ★ Home
@@ -278,7 +288,7 @@ export function ViewDetail({ viewId }: { viewId: string }) {
             )}
             {/* Share once; after that the link is copied, reset or revoked —
                 never silently replaced (DSH-04). */}
-            {!data?.share_slug && (
+            {!data?.share_slug && !repoSetView && (
               <button
                 type="button"
                 className={BUTTON}
@@ -360,11 +370,12 @@ export function ViewDetail({ viewId }: { viewId: string }) {
             draft={draft}
             repos={repos}
             nameOnly={findingsView}
+            windowless={repoSetView}
             onName={(name) => patchDraft({ name })}
             onWindow={(window) => patchDraft({ window })}
             onRepos={(repoIds) => patchDraft({ repoIds })}
           />
-          {!findingsView && (
+          {!findingsView && !repoSetView && (
             <ViewEditor
               widgets={draft.widgets}
               repos={repos}
@@ -374,7 +385,9 @@ export function ViewDetail({ viewId }: { viewId: string }) {
         </>
       )}
 
-      {data && findingsView ? (
+      {data && repoSetView ? (
+        <RepoSetPanel repoIds={data.config.repo_ids} names={repoNames} />
+      ) : data && findingsView ? (
         <FindingsViewPanel search={data.config.search ?? {}} />
       ) : (
         <WidgetFrame
@@ -407,7 +420,7 @@ export function ViewDetail({ viewId }: { viewId: string }) {
   );
 }
 
-/** Plain words for a Reviews view's stored filters (W20-16, FND-03). */
+/** Plain words for a Findings view's stored filters (W20-16, FND-03). */
 const FILTER_WORDS: Record<string, string> = {
   dimension: 'Kind',
   status: 'Status',
@@ -428,7 +441,7 @@ const FILTER_WORDS: Record<string, string> = {
 };
 
 /**
- * A Reviews view has no widgets: it is a set of explorer filters. Its page
+ * A Findings view has no widgets: it is a set of explorer filters. Its page
  * says which, and opens the explorer with them.
  */
 export function FindingsViewPanel({
@@ -438,7 +451,7 @@ export function FindingsViewPanel({
 }) {
   const entries = Object.entries(search);
   return (
-    <WidgetFrame title="Reviews filters" state="ready">
+    <WidgetFrame title="Findings filters" state="ready">
       <div className="flex flex-col gap-2 text-sm" data-testid="findings-view-panel">
         {entries.length === 0 ? (
           <p className="text-fg-muted">
@@ -460,7 +473,44 @@ export function FindingsViewPanel({
           className="self-start rounded-md border border-accent bg-accent/10 px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           data-testid="open-findings-view"
         >
-          Open in Reviews
+          Open in Findings
+        </Link>
+      </div>
+    </WidgetFrame>
+  );
+}
+
+/**
+ * A saved repository set (W20-23, UX_TODO X-06): which repositories it holds,
+ * and the way to apply it. The topbar's Repositories filter applies it too.
+ */
+export function RepoSetPanel({
+  repoIds,
+  names,
+}: {
+  repoIds: number[];
+  names: Record<number, string>;
+}) {
+  return (
+    <WidgetFrame title="Repository set" state="ready">
+      <div className="flex flex-col gap-2 text-sm" data-testid="repo-set-panel">
+        <p className="text-fg-muted">
+          Pick it from the Repositories filter at the top of any screen to narrow that screen to
+          these repositories.
+        </p>
+        <ul className="flex flex-col gap-0.5" data-testid="repo-set-repos">
+          {repoIds.map((id) => (
+            <li key={id}>{names[id] ?? `repository ${id} (no longer tracked)`}</li>
+          ))}
+        </ul>
+        {/* Repositories honours ?repos=; Overview does not (filterScope.ts). */}
+        <Link
+          to="/repos"
+          search={{ repos: repoIds.join(',') } as never}
+          className="self-start rounded-md border border-accent bg-accent/10 px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          data-testid="open-repo-set"
+        >
+          Open Repositories narrowed to this set
         </Link>
       </div>
     </WidgetFrame>
@@ -527,14 +577,17 @@ function ScopeEditor({
   draft,
   repos,
   nameOnly = false,
+  windowless = false,
   onName,
   onWindow,
   onRepos,
 }: {
   draft: Draft;
   repos: { id: number; org: string; name: string }[];
-  /** A Reviews view: its filters are its scope, so only the name is editable here. */
+  /** A Findings view: its filters are its scope, so only the name is editable here. */
   nameOnly?: boolean;
+  /** A repository set (W20-23): name and repositories, no window. */
+  windowless?: boolean;
   onName: (name: string) => void;
   onWindow: (window: ViewWindow) => void;
   onRepos: (repoIds: number[]) => void;
@@ -554,7 +607,7 @@ function ScopeEditor({
             onChange={(e) => onName(e.target.value)}
           />
         </label>
-        {!nameOnly && (
+        {!nameOnly && !windowless && (
           <label className="flex flex-col gap-1 text-xs text-fg-muted">
             Window
             <select
@@ -575,7 +628,12 @@ function ScopeEditor({
       {!nameOnly && (
         <fieldset className="flex flex-col gap-1">
           <legend className="text-xs text-fg-muted">
-            Repositories {draft.repoIds.length === 0 ? '(none ticked = every repository)' : ''}
+            Repositories{' '}
+            {draft.repoIds.length > 0
+              ? ''
+              : windowless
+                ? '(tick at least one)'
+                : '(none ticked = every repository)'}
           </legend>
           <div className="max-h-40 overflow-y-auto" data-testid="view-repos">
             {repos.map((r) => (

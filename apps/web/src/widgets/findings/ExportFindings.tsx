@@ -1,6 +1,6 @@
 import { buildUrl } from '../../api/client.js';
 
-// "Export CSV / SARIF (current filters)" on Reviews (W20-18, UX_TODO X-08).
+// "Export CSV / SARIF (current filters)" on Findings (W20-18, UX_TODO X-08).
 //
 // Plain links to GET /findings/export with the list's own filters, so the file
 // holds what the list shows (every page, not just this one), up to the server's

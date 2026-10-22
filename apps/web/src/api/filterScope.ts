@@ -73,7 +73,7 @@ export function filterScopeFor(pathname: string): FilterScope {
   // it, and a window would quietly hide the oldest ones, which are the ones
   // that matter most.
   if (pathname.startsWith('/findings')) return { window: false, repos: true, person: false };
-  // Sensitive changes honours ?repos= (Reviews carries it across), so the
+  // Sensitive changes honours ?repos= (Findings carries it across), so the
   // picker must show there or the narrowing is invisible and cannot be
   // cleared (W20-15, UX_TODO X-26). Like findings, it has no window.
   if (pathname.startsWith('/sensitive-changes'))

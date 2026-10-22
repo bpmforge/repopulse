@@ -312,8 +312,8 @@ export default async function runRoutes(
    * the person who pressed it — usually to check a fix — to compare counts by
    * memory. Per run: what the scanner reported, how many findings are new
    * (first raised by this run) and how many earlier findings it closed, so the
-   * button can link straight to each set in Reviews. Any member may read it:
-   * it is the same data the Coverage table and Reviews already show them.
+   * button can link straight to each set in Findings. Any member may read it:
+   * it is the same data the Coverage table and Findings already show them.
    */
   app.get<{ Params: { id: string }; Querystring: { since?: string } }>(
     '/repos/:id/scan-runs',

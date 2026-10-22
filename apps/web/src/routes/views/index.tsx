@@ -5,7 +5,12 @@ import { serializeGlobalSearch } from '@repopulse/shared/url-state';
 import { WidgetFrame, frameState, PageHeader } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import type { MeContext } from '../../widgets/org/contracts.js';
-import { isFindingsView, type ViewListResponse, type ViewResponse } from '../../views/contracts.js';
+import {
+  isFindingsView,
+  isRepoSetView,
+  type ViewListResponse,
+  type ViewResponse,
+} from '../../views/contracts.js';
 import { templateConfig, templatesFor } from '../../views/templates.js';
 
 // Views list (W5-02, UX_SPEC §4.g/§6).
@@ -20,14 +25,25 @@ const LIST = { endpoint: '/views' } as const;
 const SHARED = { endpoint: '/views', query: { scope: 'shared' } } as const;
 
 /**
- * One saved view's row. A Reviews view (W20-16, FND-03) opens the explorer
- * with its filters directly; a dashboard opens its own page.
+ * One saved view's row. A Findings view (W20-16, FND-03) opens the explorer
+ * with its filters directly; a repository set (W20-23, X-06) opens the
+ * repository list narrowed to it; a dashboard opens its own page.
  */
 function ViewRow({ view, preserved }: { view: ViewResponse; preserved: Record<string, unknown> }) {
   const findings = isFindingsView(view.config);
+  const repoSet = isRepoSetView(view.config);
   return (
     <li className="flex flex-wrap items-center gap-2 border-t border-border py-1.5 first:border-t-0">
-      {findings ? (
+      {repoSet ? (
+        <Link
+          to="/repos"
+          search={{ ...preserved, repos: view.config.repo_ids.join(',') } as never}
+          className="flex-1 text-accent hover:underline"
+          data-testid={`view-link-${view.id}`}
+        >
+          {view.name}
+        </Link>
+      ) : findings ? (
         <Link
           to="/findings"
           search={(view.config.search ?? {}) as never}
@@ -47,8 +63,14 @@ function ViewRow({ view, preserved }: { view: ViewResponse; preserved: Record<st
           {view.name}
         </Link>
       )}
-      {findings && <span className="text-xs text-fg-muted">Reviews filters</span>}
-      {findings && (
+      {findings && <span className="text-xs text-fg-muted">Findings filters</span>}
+      {repoSet && (
+        <span className="text-xs text-fg-muted" data-testid={`view-kind-${view.id}`}>
+          Repository set · {view.config.repo_ids.length}{' '}
+          {view.config.repo_ids.length === 1 ? 'repository' : 'repositories'}
+        </span>
+      )}
+      {(findings || repoSet) && (
         <Link
           to="/views/$viewId"
           params={{ viewId: String(view.id) }}
@@ -106,7 +128,8 @@ function ViewsIndex() {
         ) : (
           <p className="text-sm text-fg-muted">
             No saved views yet. Start from a template below — you can change everything afterwards.
-            On Reviews, &ldquo;Save filters as view…&rdquo; keeps a set of filters here too.
+            On Findings, &ldquo;Save filters as view…&rdquo; keeps a set of filters here too, and
+            the Repositories filter at the top can save a repository set.
           </p>
         )}
       </WidgetFrame>

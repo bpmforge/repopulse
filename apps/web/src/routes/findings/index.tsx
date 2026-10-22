@@ -678,10 +678,10 @@ function FindingsExplorer() {
 
   return (
     <div className="flex flex-col gap-4" data-testid="findings">
-      {/* W18-28: titled after the rail entry ("Reviews") that leads here, with
+      {/* W18-28: titled after the rail entry ("Findings") that leads here, with
           the triage action beside the title instead of floating alone. */}
       <PageHeader
-        title="Reviews"
+        title="Findings"
         description="Findings from every scanner and model review, across repositories."
         actions={
           <>
@@ -697,7 +697,7 @@ function FindingsExplorer() {
               widgets={[]}
               window="30d"
               repos={undefined}
-              defaultName="Reviews — my filters"
+              defaultName="Findings — my filters"
               label="Save filters as view…"
               stay
               config={findingsViewConfig(search as Record<string, unknown>)}
@@ -1115,7 +1115,7 @@ function FindingsExplorer() {
       >
         {/* W17-31: the table scrolls inside its own wrapper. Six columns of
             min-content pushed <main> 272px past a 390px viewport (and 134px
-            past 768), so the whole Reviews screen scrolled sideways — visible
+            past 768), so the whole Findings screen scrolled sideways — visible
             in the RP-01 baseline shot as a file column cut off mid-word. */}
         <div className="overflow-x-auto">
           {/* W20-21 (UX_TODO FND-43): below md each row is a stacked card

@@ -94,7 +94,7 @@ export function rejectedEverything(funnel: Record<string, unknown> | null | unde
  */
 export const STALE_RUN_AFTER_MS = 60 * 60 * 1000;
 
-/** The dimensions the Overview tile counts; the Reviews `dimension_group=security`. */
+/** The dimensions the Overview tile counts; the Findings `dimension_group=security`. */
 export const SECURITY_ROLLUP_DIMENSIONS = [
   'secrets',
   'dependency',
@@ -337,7 +337,7 @@ export default async function securityRoutes(
       );
 
     // W20-20 (UX_TODO DSH-77): shadow-rule (experimental) findings stay out of
-    // every headline count, as they already were on Reviews, Next actions and
+    // every headline count, as they already were on Findings, Next actions and
     // the risk axes; `experimental_open` says how many were left out.
     const counted = findings.filter((f) => !f.experimental);
     const openBySeverity: Record<number, number> = {};

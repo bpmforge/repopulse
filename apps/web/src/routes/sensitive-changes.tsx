@@ -3,7 +3,7 @@ import { serializeGlobalSearch } from '@repopulse/shared/url-state';
 import { PageHeader } from '../components/index.js';
 import { SensitiveChanges } from '../widgets/security/SensitiveChanges.js';
 
-// Sensitive changes (W18-29) — the radar's review list. Reached from Reviews.
+// Sensitive changes (W18-29) — the radar's review list. Reached from Findings.
 export const Route = createFileRoute('/sensitive-changes')({
   component: SensitiveChangesRoute,
 });

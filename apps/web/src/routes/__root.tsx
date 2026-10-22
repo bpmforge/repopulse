@@ -26,6 +26,7 @@ import { SESSION_ENDPOINT, queryKeyFor, useApiQuery, useSession } from '../api/u
 import { apiFetch, errorDetailOf } from '../api/client.js';
 import type { MeContext } from '../widgets/org/contracts.js';
 import { filterScopeFor } from '../api/filterScope.js';
+import { useRepoSets } from '../views/repoSets.js';
 import { PersonaPicker } from '../widgets/onboarding/PersonaPicker.js';
 import { SignedOut } from '../widgets/auth/SignedOut.js';
 import { ForgeLinkBanner } from '../widgets/auth/ForgeLinkBanner.js';
@@ -50,13 +51,13 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 });
 
 // The rail's own words (W18-28). The trail used to say "Findings", "Plans",
-// "Views" and "Admin" under a rail that says "Reviews", "Improvement plans",
+// "Views" and "Admin" under a rail that says "Findings", "Improvement plans",
 // "Saved Views" and "Settings", so the two halves of the wayfinding named the
 // same screen differently and neither matched the page heading.
 const SEGMENT_LABELS: Record<string, string> = {
   repos: 'Repositories',
   'pull-requests': 'Pull Requests',
-  findings: 'Reviews',
+  findings: 'Findings',
   plans: 'Improvement plans',
   reports: 'Reports',
   views: 'Saved Views',
@@ -64,7 +65,9 @@ const SEGMENT_LABELS: Record<string, string> = {
   me: 'My Focus',
   setup: 'Setup',
   account: 'Account',
-  // W18-29. Not rail entries: reached from the Overview tile and from Reviews.
+  // W20-23 (UX_TODO X-11). From the user menu.
+  about: 'About',
+  // W18-29. Not rail entries: reached from the Overview tile and from Findings.
   governance: 'AI-code governance',
   'sensitive-changes': 'Sensitive changes',
 };
@@ -84,8 +87,8 @@ const SUBPAGE_LABELS: Record<string, string> = {
   'pr-flow': 'PR Flow',
   'ai-reviewers': 'AI Reviewers',
   ci: 'CI',
-  // W20-22 (UX_TODO ADM-34): the repo tab's name, the rail's word.
-  findings: 'Reviews',
+  // W20-23 (UX_TODO ADM-34, DSH-33): the repo tab's name, the rail's word.
+  findings: 'Findings',
   security: 'Security',
   'code-health': 'Code Health',
   prs: 'Pull Requests',
@@ -642,7 +645,7 @@ function AppShell({ inert = false }: { inert?: boolean }) {
   // query My Focus makes, so react-query serves both from one request rather
   // than adding a count endpoint that could disagree with the list.
   //
-  // The Reviews badge (W20-10, UX_TODO X-03) counts NEW serious findings
+  // The Findings badge (W20-10, UX_TODO X-03) counts NEW serious findings
   // since this person last looked — the same request as the top-bar Inbox, so
   // the two cannot disagree. Absent until it has answered, never a fake 0.
   const { data: reviewQueue } = useApiQuery<{ items: { requested?: boolean | null }[] }>({
@@ -680,6 +683,8 @@ function AppShell({ inert = false }: { inert?: boolean }) {
     items: { id: number; org: string; name: string; forge?: { host: string | null } | null }[];
   }>({ endpoint: '/repos', query: { window: search.window } }, { enabled: scope.repos });
   const repoOptions = topbarRepoOptions(repoList?.items ?? []);
+  // W20-23 (UX_TODO X-06): the user's saved repository sets, in the picker.
+  const repoSets = useRepoSets(scope.repos);
   // W20-20 (UX_TODO DSH-63): the person box suggested nothing, because no
   // list of logins was ever passed. Fetched only where the box is shown.
   const { data: people } = useApiQuery<{ items: string[] }>(
@@ -816,6 +821,8 @@ function AppShell({ inert = false }: { inert?: boolean }) {
           onChange={onFilterChange}
           scope={scope}
           repoOptions={repoOptions}
+          savedRepoSets={repoSets.sets}
+          onSaveRepoSet={repoSets.save}
           personOptions={people?.items}
           actions={<Inbox />}
         />

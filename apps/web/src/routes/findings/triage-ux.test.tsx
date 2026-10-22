@@ -8,7 +8,7 @@ import { Route as findingsRoute, validateFindingsSearch } from './index.js';
 import { createQueryClient } from '../../api/queryClient.js';
 import type { Finding } from '../../widgets/findings/contracts.js';
 
-// W20-03: Reviews filters in the URL (FND-03, FND-04), the selection held to
+// W20-03: Findings filters in the URL (FND-03, FND-04), the selection held to
 // the page it was made on with a select-all (FND-12), a bulk bar with every
 // lifecycle move, a dismiss reason and a confirm step (FND-11, FND-13), Undo
 // after a bulk action (FND-02), and an honest triage label (FND-10).

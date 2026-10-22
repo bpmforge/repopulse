@@ -51,6 +51,35 @@ export function pickerSummary(
   return `${selected.length} repos`;
 }
 
+/**
+ * A saved repository set (W20-23, UX_TODO X-06): a Saved View holding only
+ * `repo_ids`, per user. Ids are strings here, like the options.
+ */
+export interface SavedRepoSet {
+  id: number;
+  name: string;
+  repoIds: string[];
+}
+
+/**
+ * What applying a set selects: its repositories that are still offered. A set
+ * keeps ids of repositories that were untracked since; putting those in the
+ * URL would narrow every screen to something it cannot show. With no options
+ * loaded yet nothing can be judged, so the set applies as saved.
+ */
+export function applicableIds(set: SavedRepoSet, options: readonly RepoChoice[]): string[] {
+  if (options.length === 0) return [...set.repoIds];
+  const known = new Set(options.map((o) => o.id));
+  return set.repoIds.filter((id) => known.has(id));
+}
+
+/** True when a set holds exactly the selected repositories, in any order. */
+export function sameIds(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const s = new Set(a);
+  return b.every((id) => s.has(id));
+}
+
 export interface RepoPickerProps {
   options: readonly RepoChoice[];
   /** Selected ids; empty means every repository. */
@@ -61,6 +90,13 @@ export interface RepoPickerProps {
   label?: string;
   testId?: string;
   buttonClassName?: string;
+  /**
+   * W20-23 (UX_TODO X-06): the caller's saved repository sets. Absent = the
+   * picker offers no sets (the agreement form, which saves its own scope).
+   */
+  savedSets?: readonly SavedRepoSet[] | undefined;
+  /** Saves the ticked repositories as a named set; rejects with the reason. */
+  onSaveSet?: ((name: string, ids: string[]) => Promise<void>) | undefined;
 }
 
 export function RepoPicker({
@@ -71,10 +107,16 @@ export function RepoPicker({
   label = 'Repositories',
   testId = 'repo-picker',
   buttonClassName = 'h-8 min-w-0 max-w-[14rem] truncate rounded-md border border-border bg-surface px-2 text-left text-sm text-fg hover:border-border-strong',
+  savedSets,
+  onSaveSet,
 }: RepoPickerProps) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<string[]>([...selected]);
   const [query, setQuery] = useState('');
+  // Naming a new set: null while not naming.
+  const [setName, setSetName] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const panelId = useId();
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
@@ -97,6 +139,28 @@ export function RepoPicker({
     onChange(draft);
     close();
   };
+  const applySet = (set: SavedRepoSet) => {
+    onChange(applicableIds(set, options));
+    close();
+  };
+  const saveSet = () => {
+    const name = (setName ?? '').trim();
+    if (!onSaveSet || name === '' || draft.length === 0) return;
+    setSaving(true);
+    setSaveError(null);
+    onSaveSet(name, draft).then(
+      () => {
+        setSaving(false);
+        setSetName(null);
+        // Saving what is ticked is choosing it, too.
+        apply();
+      },
+      (err: unknown) => {
+        setSaving(false);
+        setSaveError(err instanceof Error ? err.message : 'The set was not saved.');
+      },
+    );
+  };
   const toggle = (id: string) =>
     setDraft((d) => (d.includes(id) ? d.filter((x) => x !== id) : [...d, id]));
   const groups = groupByOrg(options, query);
@@ -117,6 +181,8 @@ export function RepoPicker({
           // Reopening starts from what is applied, not an abandoned draft.
           setDraft([...selected]);
           setQuery('');
+          setSetName(null);
+          setSaveError(null);
           setOpen(true);
         }}
       >
@@ -136,6 +202,41 @@ export function RepoPicker({
             }
           }}
         >
+          {savedSets && savedSets.length > 0 && (
+            <div
+              className="flex flex-col gap-0.5 border-b border-border pb-2"
+              role="group"
+              aria-label="Saved repository sets"
+              data-testid={`${testId}-sets`}
+            >
+              <span className="px-1 text-xs font-medium text-fg-muted">Your saved sets</span>
+              {savedSets.map((set) => {
+                const usable = applicableIds(set, options);
+                const gone = set.repoIds.length - usable.length;
+                const current = selected.length > 0 && sameIds(usable, selected);
+                return (
+                  <button
+                    key={set.id}
+                    type="button"
+                    className="flex items-baseline gap-2 rounded-sm px-1 py-0.5 text-left text-sm hover:bg-surface-2 disabled:opacity-50"
+                    data-testid={`${testId}-set-${set.id}`}
+                    aria-current={current ? 'true' : undefined}
+                    disabled={usable.length === 0}
+                    onClick={() => applySet(set)}
+                  >
+                    <span className="min-w-0 flex-1 truncate">
+                      {current ? '✓ ' : ''}
+                      {set.name}
+                    </span>
+                    <span className="shrink-0 text-xs text-fg-muted">
+                      {usable.length} {usable.length === 1 ? 'repo' : 'repos'}
+                      {gone > 0 && ` · ${gone} no longer tracked`}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <input
             type="search"
             // The one thing to do on opening is to type a name.
@@ -204,7 +305,57 @@ export function RepoPicker({
               </fieldset>
             ))}
           </div>
-          <div className="flex justify-end gap-2">
+          {onSaveSet && setName !== null && (
+            <form
+              className="flex flex-wrap items-center gap-1.5 border-t border-border pt-2"
+              data-testid={`${testId}-save-form`}
+              onSubmit={(e) => {
+                e.preventDefault();
+                saveSet();
+              }}
+            >
+              <label className="flex min-w-0 flex-1 items-center gap-1 text-xs text-fg-muted">
+                Name
+                <input
+                  type="text"
+                  autoFocus
+                  maxLength={200}
+                  value={setName}
+                  onChange={(e) => setSetName(e.target.value)}
+                  className="min-w-0 flex-1 rounded-sm border border-border bg-surface px-2 py-0.5 text-sm text-fg"
+                  data-testid={`${testId}-set-name`}
+                />
+              </label>
+              <button
+                type="submit"
+                className="rounded-md border border-accent bg-accent/10 px-2 py-1 text-xs disabled:opacity-50"
+                disabled={saving || setName.trim() === ''}
+                data-testid={`${testId}-set-save`}
+              >
+                Save set
+              </button>
+              {saveError && (
+                <p
+                  role="alert"
+                  className="w-full text-xs text-crit"
+                  data-testid={`${testId}-set-error`}
+                >
+                  {saveError}
+                </p>
+              )}
+            </form>
+          )}
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {onSaveSet && setName === null && draft.length > 0 && (
+              <button
+                type="button"
+                className="mr-auto text-xs text-accent hover:underline"
+                data-testid={`${testId}-save-set`}
+                onClick={() => setSetName('')}
+              >
+                Save these {draft.length} as a set…
+              </button>
+            )}
             <button
               type="button"
               className="rounded-md border border-border px-2 py-1 text-xs"

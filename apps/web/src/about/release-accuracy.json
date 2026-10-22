@@ -1,0 +1,102 @@
+{
+  "release": "0.1.0",
+  "source": "docs/benchmarks/report.json",
+  "method": "docs/BENCHMARKS.md",
+  "measured": {
+    "date": "2026-10-16",
+    "commit": "e49421c6ccd61c52d3db5034859d1f4fa44a1e16",
+    "engine": "opengrep 1.27.1",
+    "adapters": "checkov 3.3.29, actionlint 1.7.12, hadolint 2.15.1, shellcheck 0.11.0"
+  },
+  "scope": "Deterministic checks only: the in-process fast lane (AI-slop arithmetic and graph checks, the secrets rulepack), the YAML rulepacks and the four infrastructure tool adapters. No AI model tier is measured.",
+  "rows": [
+    {
+      "id": "owasp-benchmark",
+      "label": "OWASP Benchmark for Java v1.2",
+      "kind": "public",
+      "labels": 2740,
+      "tp": 1129,
+      "fp": 238,
+      "fn": 286,
+      "precision": 0.826,
+      "recall": 0.798,
+      "from": "bySuite → owasp-benchmark"
+    },
+    {
+      "id": "juliet-java",
+      "label": "NIST Juliet Test Suite for Java v1.3 (sample)",
+      "kind": "public",
+      "labels": 3785,
+      "tp": 314,
+      "fp": 247,
+      "fn": 854,
+      "precision": 0.56,
+      "recall": 0.269,
+      "from": "bySuite → juliet-java"
+    },
+    {
+      "id": "juice-shop",
+      "label": "OWASP Juice Shop code-fix snippets",
+      "kind": "public",
+      "labels": 24,
+      "tp": 7,
+      "fp": 0,
+      "fn": 4,
+      "precision": 1,
+      "recall": 0.636,
+      "from": "bySuite → juice-shop"
+    },
+    {
+      "id": "sampleco",
+      "label": "SampleCo planted-defect app (AI-slop corpus)",
+      "kind": "own",
+      "labels": 15,
+      "tp": 4,
+      "fp": 1,
+      "fn": 8,
+      "precision": 0.8,
+      "recall": 0.333,
+      "from": "bySuite → sampleco"
+    },
+    {
+      "id": "changes",
+      "label": "Bug-introducing changes (before/after pairs)",
+      "kind": "own",
+      "labels": 23,
+      "tp": 21,
+      "fp": 1,
+      "fn": 2,
+      "precision": 0.955,
+      "recall": 0.913,
+      "from": "bySuite → changes"
+    },
+    {
+      "id": "iac-adapters",
+      "label": "Infrastructure tools: checkov, actionlint, hadolint, shellcheck",
+      "kind": "own",
+      "labels": 123,
+      "tp": 115,
+      "fp": 7,
+      "fn": 2,
+      "precision": 0.943,
+      "recall": 0.983,
+      "from": "bySuite → iac-adapters"
+    }
+  ],
+  "total": {
+    "label": "Every suite together, including the rule fixtures",
+    "tp": 1725,
+    "fp": 494,
+    "fn": 1156,
+    "precision": 0.777,
+    "recall": 0.599,
+    "from": "totals"
+  },
+  "notShown": [
+    {
+      "id": "rule-fixtures",
+      "reason": "Each rule's own trigger and clean fixtures. Every rule scores 100% there by construction, so it is a regression floor, not a measure of accuracy. It is counted in the total."
+    }
+  ],
+  "previous": null
+}

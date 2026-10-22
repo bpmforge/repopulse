@@ -32,8 +32,8 @@ test.describe('desktop navigation', () => {
 
   test('the renamed destinations keep their old paths', async ({ page }) => {
     await page.goto('/');
-    // "Reviews" is /findings; "Settings" is /admin.
-    await expect(page.getByTestId('rail-findings')).toHaveText(/Reviews/);
+    // "Findings" is /findings (W20-23); "Settings" is /admin.
+    await expect(page.getByTestId('rail-findings')).toHaveText(/Findings/);
     await expect(page.getByTestId('rail-admin')).toHaveText(/Settings/);
     expect(await page.getByTestId('rail-findings').getAttribute('href')).toContain('/findings');
     expect(await page.getByTestId('rail-admin').getAttribute('href')).toContain('/admin');
@@ -111,7 +111,9 @@ test.describe('narrow screens (390px)', () => {
     await expect(page.getByTestId('nav-drawer')).toBeVisible();
     // Focus moved INTO the drawer rather than being left on the page behind.
     const inside = await page.evaluate(() =>
-      Boolean(document.querySelector('[data-testid="nav-drawer"]')?.contains(document.activeElement)),
+      Boolean(
+        document.querySelector('[data-testid="nav-drawer"]')?.contains(document.activeElement),
+      ),
     );
     expect(inside).toBe(true);
   });
