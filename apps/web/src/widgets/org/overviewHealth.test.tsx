@@ -144,7 +144,10 @@ describe('Needs attention card (W20-05)', () => {
     bodies['/org/attention'] = { items: [] };
     renderInRouter(<AttentionFeed window="30d" search={{}} />);
     expect(
-      await screen.findByText('Every measured repository is in the healthy band (75 or above).'),
+      // W20-24: the card also lists lapsed file intents, and says none need a look.
+      await screen.findByText(
+        'Every measured repository is in the healthy band (75 or above), and no file intent needs a look.',
+      ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/since your last visit/)).toBeNull();
     expect(useUiStore.getState().lastSeenAt).toBe('2026-10-01T00:00:00Z');

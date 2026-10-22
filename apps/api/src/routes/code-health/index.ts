@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { core, read, security, type Database } from '@repopulse/shared';
 import { sendProblem } from '../../lib/problem.js';
 import { stateOf } from '../security/index.js';
+import { readWorkspaceSettings } from '../../lib/workspace-settings.js';
 
 // Code Health API (W9-06, CODE_HEALTH_SUITE.md §6, FR-CH-6).
 //
@@ -122,8 +123,14 @@ export default async function codeHealthRoutes(
       byRule.set(key, (byRule.get(key) ?? 0) + 1);
     }
 
+    // W20-24 (UX_TODO DSH-31): the workspace's debt-signal ceilings, set in
+    // Settings. Empty by default; the tab shows target vs current only for a
+    // signal that has one.
+    const { effective } = await readWorkspaceSettings(db, workspaceId);
+
     return reply.send({
       repo: { id: repo.id, org: repo.org, name: repo.name },
+      targets: effective.debtTargets,
       // Oldest-first for charting; the API reversed it once rather than every
       // consumer reversing it differently.
       series: Object.fromEntries(

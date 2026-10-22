@@ -12,6 +12,7 @@ import { computeIssueThroughput } from '../metrics/issues.js';
 import { computeReleaseCadence } from '../metrics/releases.js';
 import { computeDeploymentFrequency } from '../metrics/dora.js';
 import { writeMetricSnapshot } from './writer.js';
+import { INTENT_HOTSPOT_WINDOW, recordIntentHotspotScores } from './intent-hotspots.js';
 import { computeRework14d, computeRevertRate } from '../metrics/debt.js';
 import {
   readChurnTouches,
@@ -122,6 +123,17 @@ export async function computeRepoSnapshots(
     // `hotspots[0]` was an arbitrary file rather than the repo's top hotspot.
     const hotspots = computeHotspots(touches, asOf, botGlobs).sort((a, b) => b.score - a.score);
     const ownership = computeOwnership(touches, asOf, botGlobs);
+    // W20-24 (UX_TODO DSH-37): each intent file's score on this run, from the
+    // list just computed, so "has it improved since the intent?" has a
+    // history even after the file drops out of M2's top-files list.
+    if (w.key === INTENT_HOTSPOT_WINDOW.key) {
+      await recordIntentHotspotScores(db, {
+        workspaceId: params.workspaceId,
+        repoId: params.repoId,
+        asOf,
+        hotspots,
+      });
+    }
 
     // --- PR family (shared read → M4/M5/M6/M7/M8) ---
     const reviewPrs = await readReviewCoveragePrs(db, params.repoId, windowStart, botGlobs);

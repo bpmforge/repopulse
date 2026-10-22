@@ -14,6 +14,7 @@ import {
 } from './contracts.js';
 import { AiAuthorshipPatternsPanel } from './AiAuthorshipPatterns.js';
 import { LicensePolicyPanel } from './LicensePolicy.js';
+import { DebtTargetsPanel } from './DebtTargets.js';
 
 // Admin → Settings (W4-09, UX_SPEC §4.i). The knobs that decide what every
 // other number on every other screen means: health-score weights, which logins
@@ -344,6 +345,26 @@ export function Settings() {
               onSuccess: () => onSaved('License policy saved — applies from the next scan'),
               onError: onFailed,
             })
+          }
+        />
+      )}
+
+      {/* W20-24 (UX_TODO DSH-31): debt-signal targets, none by default. */}
+      {data?.effective.debtTargets && (
+        <DebtTargetsPanel
+          effective={data.effective.debtTargets}
+          isDefaulted={isDefaulted(stored, 'debt_targets')}
+          saving={save.isPending}
+          onSave={(targets) =>
+            save.mutate(
+              // An empty set is "no targets": the stored key goes, so the
+              // tab shows no target line at all.
+              { debt_targets: Object.keys(targets).length === 0 ? null : targets },
+              {
+                onSuccess: () => onSaved('Debt signal targets saved'),
+                onError: onFailed,
+              },
+            )
           }
         />
       )}

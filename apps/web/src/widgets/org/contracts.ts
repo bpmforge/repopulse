@@ -81,6 +81,38 @@ export interface AttentionItems {
     band: 'watch' | 'attend';
     score: number;
   }[];
+  /**
+   * W20-24 (UX_TODO DSH-37): file intents whose promise lapsed. Absent on an
+   * older API.
+   */
+  intents?: IntentAttentionItem[];
+}
+
+/** A refactor whose hotspot has not come down, or a supervised file that got hotter. */
+export interface IntentAttentionItem {
+  kind: 'refactor_stalled' | 'supervised_decline';
+  repo_id: number;
+  org: string;
+  name: string;
+  path: string;
+  intent: string;
+  /** When the intent was declared. */
+  since: string;
+  /** Hotspot score at the declaration and now. */
+  from: number;
+  to: number;
+  months?: number;
+}
+
+/** The sentence an intent warning reads as (W20-24, DSH-37). */
+export function intentWarningText(i: IntentAttentionItem): string {
+  const day = i.since.slice(0, 10);
+  const scores = `hotspot ${i.from.toFixed(2)} → ${i.to.toFixed(2)}`;
+  if (i.kind === 'refactor_stalled') {
+    const m = i.months ?? 0;
+    return `Refactor since ${day}: no improvement in ${m} month${m === 1 ? '' : 's'} (${scores})`;
+  }
+  return `Supervised since ${day}: hotspot rising (${scores})`;
 }
 
 /**

@@ -17,6 +17,67 @@ export interface EffectiveSettings {
   aiAuthorshipPatterns?: AiAuthorshipPatterns;
   /** W20-08 (FND-18). Absent on an older API — the panel then hides. */
   licensePolicy?: LicensePolicy;
+  /** W20-24 (DSH-31). Absent on an older API — the panel then hides. */
+  debtTargets?: DebtTargets;
+}
+
+/**
+ * W20-24 (UX_TODO DSH-31): debt-signal ceilings, in each signal's stored unit
+ * (rework and revert rate are 0-1 ratios). None set by default.
+ */
+export type DebtSignalKey =
+  'ch_duplication_pct' | 'ch_complexity_p90' | 'ch_worst_fn_count' | 'M13' | 'M14';
+export type DebtTargets = Partial<Record<DebtSignalKey, number>>;
+
+/**
+ * The five signals as the Code Health tab names them. `ratio` signals are
+ * stored 0-1 and typed and shown as a percentage.
+ */
+export const DEBT_SIGNALS: {
+  key: DebtSignalKey;
+  label: string;
+  unit: string;
+  ratio?: boolean;
+  integer?: boolean;
+}[] = [
+  { key: 'ch_duplication_pct', label: 'Duplication', unit: '%' },
+  { key: 'ch_complexity_p90', label: 'Complexity p90', unit: 'cyclomatic' },
+  { key: 'ch_worst_fn_count', label: 'Worst functions', unit: 'functions', integer: true },
+  { key: 'M13', label: 'Rework 14d', unit: '%', ratio: true },
+  { key: 'M14', label: 'Revert rate', unit: '%', ratio: true },
+];
+
+/**
+ * The form's text boxes as a PATCH value: blank = no target for that signal,
+ * percentages back to ratios. Returns the first problem instead when a box
+ * holds something that is not a usable number.
+ */
+export function debtTargetsFromForm(
+  form: Partial<Record<DebtSignalKey, string>>,
+): { targets: DebtTargets } | { problem: string } {
+  const targets: DebtTargets = {};
+  for (const s of DEBT_SIGNALS) {
+    const raw = (form[s.key] ?? '').trim();
+    if (raw === '') continue;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0)
+      return { problem: `${s.label}: enter a number of 0 or more.` };
+    if (s.ratio || s.key === 'ch_duplication_pct') {
+      if (n > 100) return { problem: `${s.label}: a percentage is at most 100.` };
+    }
+    if (s.integer && !Number.isInteger(n)) {
+      return { problem: `${s.label}: enter a whole number.` };
+    }
+    targets[s.key] = s.ratio ? Math.round(n * 1000) / 100000 : n;
+  }
+  return { targets };
+}
+
+/** A stored target as the form shows it (ratios as percentages). */
+export function debtTargetToForm(key: DebtSignalKey, value: number | undefined): string {
+  if (value === undefined) return '';
+  const s = DEBT_SIGNALS.find((d) => d.key === key);
+  return s?.ratio ? String(Math.round(value * 100000) / 1000) : String(value);
 }
 
 /** W20-08 (UX_TODO FND-18): the license register's policy, as `effective` returns it. */
@@ -63,6 +124,7 @@ export interface StoredSettings {
     allow?: string[];
     flag?: string[];
   };
+  debt_targets?: DebtTargets;
 }
 
 /** One entry per non-blank line, trimmed — the textarea format for every pattern list. */

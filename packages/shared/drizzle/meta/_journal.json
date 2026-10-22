@@ -371,6 +371,13 @@
       "when": 1793800000000,
       "tag": "0056_token_expiry_verifier",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1793900000000,
+      "tag": "0057_owners_targets_history",
+      "breakpoints": true
     }
   ]
 }

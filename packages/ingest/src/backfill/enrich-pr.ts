@@ -1,11 +1,23 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { facts } from '@repopulse/shared';
-import type { CallCtx, ForgeCheckRun, ForgeProvider, ForgeReviewComment } from '@repopulse/forge';
+import type {
+  CallCtx,
+  ForgeCheckRun,
+  ForgeProvider,
+  ForgeReviewComment,
+  ForgeReviewRequest,
+} from '@repopulse/forge';
 import type { Database } from '@repopulse/shared';
 import type { DbOrTx } from './db.js';
 import { fetchOrRefusal, recordEnrichmentOutcome } from './entity-error.js';
 import { IdentityResolver } from './identity.js';
-import { upsertCheckRuns, upsertReviewComments, upsertReviews, type RepoScope } from './writers.js';
+import {
+  upsertCheckRuns,
+  upsertReviewComments,
+  upsertReviewRequests,
+  upsertReviews,
+  type RepoScope,
+} from './writers.js';
 
 // Per-PR enrichment: reviews and check runs (W12-05 follow-up, founder decision
 // 2026-08-13 to broaden enrichment from "commit file churn" to "per-parent
@@ -45,7 +57,7 @@ export interface EnrichPrParams {
 export async function enrichPullRequest(
   deps: EnrichPrDeps,
   params: EnrichPrParams,
-): Promise<{ reviews: number; checks: number; reviewComments: number }> {
+): Promise<{ reviews: number; checks: number; reviewComments: number; reviewRequests: number }> {
   // Lowest-priority lane, matching enrich.ts: §2 says enrichment is drained by
   // leftover budget, and `Lane` has no 'enrich' member — 'reconcile' IS the
   // bottom lane.
@@ -94,6 +106,24 @@ export async function enrichPullRequest(
     : null;
   const observedAt = new Date();
 
+  // W20-24 (UX_TODO DSH-41): when each reviewer was asked, through the same
+  // budgeted client. Optional per adapter (GitHub has it). A refusal is not
+  // recorded as an entity error: without these times the review queue falls
+  // back to the opening time and says so, which is the honest answer anyway.
+  const listRequests = deps.provider.listReviewRequests?.bind(deps.provider);
+  const requests = listRequests
+    ? await fetchOrRefusal(async () => {
+        const all: ForgeReviewRequest[] = [];
+        let cursor: string | undefined;
+        do {
+          const page = await listRequests(ctx, params.repo, params.prNumber, cursor);
+          all.push(...page.items);
+          cursor = page.nextCursor;
+        } while (cursor !== undefined);
+        return all;
+      })
+    : null;
+
   return deps.db.transaction(async (tx) => {
     const resolver = new IdentityResolver(
       tx,
@@ -120,6 +150,10 @@ export async function enrichPullRequest(
       }
       await recordEnrichmentOutcome(tx, scope, 'review_comments', comments.refused ?? null);
     }
+    const rr =
+      requests && !requests.refused
+        ? await upsertReviewRequests(tx, scope, resolver, params.prNumber, requests.value)
+        : 0;
     // Stamp the PR as enriched so the work-list below stops returning it. This
     // is the reviews/checks analogue of commits.stats_source='detail'; without
     // a marker the predicate would have to count child rows, and a PR with
@@ -135,7 +169,7 @@ export async function enrichPullRequest(
           eq(facts.pullRequests.number, params.prNumber),
         ),
       );
-    return { reviews: r, checks: c, reviewComments: rc };
+    return { reviews: r, checks: c, reviewComments: rc, reviewRequests: rr };
   });
 }
 

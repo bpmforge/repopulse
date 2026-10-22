@@ -24,6 +24,7 @@ import type {
   ForgeRepo,
   ForgeReview,
   ForgeReviewComment,
+  ForgeReviewRequest,
   ForgeTarball,
   ForgeTokenInfo,
   Page,
@@ -45,6 +46,7 @@ import {
   normalizePR,
   normalizeRelease,
   normalizeReviewComment,
+  normalizeReviewRequest,
   normalizeRepo,
   normalizeReview,
   type RawCheckRun,
@@ -54,6 +56,7 @@ import {
   type RawDiffFile,
   type RawFileContent,
   type RawIssue,
+  type RawIssueEvent,
   type RawPR,
   type RawRelease,
   type RawRepo,
@@ -308,6 +311,32 @@ export class GitHubProvider implements ForgeProvider {
       (c) => normalizeReviewComment(c, n),
       { entity: 'review_comments' },
     );
+  }
+
+  // W20-24 (UX_TODO DSH-41). A pull request's issue events, kept to the
+  // `review_requested` ones naming a person. Metered in the 'issues' family:
+  // the endpoint lives under /issues, and this is the enrichment lane's
+  // leftover budget like the other per-PR fetches.
+  async listReviewRequests(
+    ctx: CallCtx,
+    repo: string,
+    n: number,
+    cursor?: ForgeCursor,
+  ): Promise<Page<ForgeReviewRequest>> {
+    const res = await this.get(
+      ctx,
+      withPage(`${this.base}/repos/${repo}/issues/${n}/events?per_page=100`, cursor),
+      'issues',
+    );
+    const page = this.pageOf<RawIssueEvent, ForgeReviewRequest | null>(
+      res,
+      (e) => normalizeReviewRequest(e, n),
+      { entity: 'review_requests' },
+    );
+    return {
+      items: page.items.filter((r): r is ForgeReviewRequest => r !== null),
+      ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
+    };
   }
 
   async listCheckRuns(

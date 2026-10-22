@@ -20,6 +20,40 @@ export interface PlanItem {
     dimPath?: string[];
   };
   verified_at: string | null;
+  /**
+   * W20-24 (UX_TODO DSH-44): the workspace member picking the item up, or
+   * null. Absent on an older API. A hand-off, never a score (N-9).
+   */
+  owner?: PlanOwner | null;
+}
+
+/** A workspace member an item can be handed to (`/plans/owners`). */
+export interface PlanOwner {
+  id: number;
+  login: string;
+  name: string | null;
+}
+
+/** "Name (login)" when a name is known, the login alone otherwise. */
+export function ownerLabel(o: PlanOwner): string {
+  return o.name && o.name !== o.login ? `${o.name} (${o.login})` : o.login;
+}
+
+/**
+ * The Plans page's owner filter (W20-24, DSH-44): `''` every item, `none`
+ * nobody has picked it up, `me` mine, or a member's user id.
+ */
+export function matchesOwnerFilter(
+  item: Pick<PlanItem, 'owner'>,
+  filter: string | undefined,
+  myUserId: number | undefined,
+): boolean {
+  if (!filter) return true;
+  const ownerId = item.owner?.id ?? null;
+  if (filter === 'none') return ownerId === null;
+  if (filter === 'me') return myUserId !== undefined && ownerId === myUserId;
+  const id = Number(filter);
+  return Number.isInteger(id) && ownerId === id;
 }
 
 export interface Plan {

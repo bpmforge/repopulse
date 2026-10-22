@@ -89,6 +89,33 @@ export const licensePolicySchema = z
   })
   .strict();
 
+/**
+ * W20-24 (UX_TODO DSH-31; decision 2026-10-21): per-workspace targets for the
+ * Code Health debt signals. None by default — an absent key means "no target",
+ * and the tab then shows the value and its change alone. Each value is in the
+ * signal's own stored unit (a 0-1 ratio for rework and revert rate; percent
+ * for duplication), and every signal is lower-is-better, so a target is a
+ * ceiling.
+ */
+export const DEBT_SIGNAL_KEYS = [
+  'ch_duplication_pct',
+  'ch_complexity_p90',
+  'ch_worst_fn_count',
+  'M13',
+  'M14',
+] as const;
+export type DebtSignalKey = (typeof DEBT_SIGNAL_KEYS)[number];
+
+export const debtTargetsSchema = z
+  .object({
+    ch_duplication_pct: z.number().min(0).max(100).optional(),
+    ch_complexity_p90: z.number().min(0).max(10_000).optional(),
+    ch_worst_fn_count: z.number().int().min(0).max(1_000_000).optional(),
+    M13: z.number().min(0).max(1).optional(),
+    M14: z.number().min(0).max(1).optional(),
+  })
+  .strict();
+
 export const workspaceSettingsSchema = z.object({
   health_weights: healthWeightsSchema.optional(),
   /** Absent = METRICS.md §0 defaults. `[]` = bot exclusion deliberately off. */
@@ -130,6 +157,8 @@ export const workspaceSettingsSchema = z.object({
    * migration.
    */
   scheduled_sync_only_connection_ids: z.array(z.number().int().positive()).max(200).optional(),
+  /** W20-24 (UX_TODO DSH-31): debt-signal ceilings. Absent = no targets. */
+  debt_targets: debtTargetsSchema.optional(),
 });
 
 export type WorkspaceSettings = z.infer<typeof workspaceSettingsSchema>;
@@ -148,6 +177,8 @@ export interface EffectiveWorkspaceSettings {
     allow: string[];
     flag: string[];
   };
+  /** W20-24 (DSH-31): signal key → ceiling. Empty = no targets set. */
+  debtTargets: Partial<Record<DebtSignalKey, number>>;
 }
 
 export const SETTINGS_DEFAULTS: EffectiveWorkspaceSettings = {
@@ -164,6 +195,8 @@ export const SETTINGS_DEFAULTS: EffectiveWorkspaceSettings = {
     allow: [...DEFAULT_LICENSE_POLICY.allow],
     flag: [...DEFAULT_LICENSE_POLICY.flag],
   },
+  // None by default (decision 2026-10-21): a target is the team's to set.
+  debtTargets: {},
 };
 
 export function applyDefaults(stored: WorkspaceSettings): EffectiveWorkspaceSettings {
@@ -189,6 +222,9 @@ export function applyDefaults(stored: WorkspaceSettings): EffectiveWorkspaceSett
         flag: [...p.flag],
       };
     })(),
+    debtTargets: Object.fromEntries(
+      Object.entries(stored.debt_targets ?? {}).filter(([, v]) => typeof v === 'number'),
+    ) as Partial<Record<DebtSignalKey, number>>,
   };
 }
 

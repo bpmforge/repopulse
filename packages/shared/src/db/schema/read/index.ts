@@ -1,4 +1,5 @@
 export * from './metric-snapshots.js';
+export * from './file-hotspot-scores.js';
 export * from './analysis-runs.js';
 export * from './findings.js';
 export * from './finding-events.js';

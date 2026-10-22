@@ -40,7 +40,29 @@ export interface ReviewQueueItem {
    * else, not reviewed by you.
    */
   requested?: boolean | null;
+  /**
+   * W20-24 (UX_TODO DSH-41): what the wait is measured from. Older API: absent,
+   * and `opened_at` is the measure.
+   */
+  waiting_since?: string;
+  waiting_basis?: 'review_request' | 'opened';
+  /** 'observed': the request was first seen on a sync, so it is no later than this. */
+  request_source?: 'timeline' | 'observed' | null;
   links: { self: string };
+}
+
+/** Where a queue row's wait starts, and whether that is the request (W20-24). */
+export function waitingOf(row: ReviewQueueItem): {
+  since: string;
+  fromRequest: boolean;
+  approximate: boolean;
+} {
+  const fromRequest = row.waiting_basis === 'review_request' && !!row.waiting_since;
+  return {
+    since: fromRequest ? row.waiting_since! : row.opened_at,
+    fromRequest,
+    approximate: fromRequest && row.request_source === 'observed',
+  };
 }
 
 export interface ReviewQueue {

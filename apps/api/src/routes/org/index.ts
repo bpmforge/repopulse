@@ -8,6 +8,7 @@ import { computeAiGovernance, computeRangeHeadline, rangeBounds } from '@repopul
 import { healthBand } from '@repopulse/shared/health-band';
 import { sendProblem } from '../../lib/problem.js';
 import { readWorkspaceSettings } from '../../lib/workspace-settings.js';
+import { intentsWithStatus } from '../../lib/intent-status.js';
 import { latestSnapshotAt, scopedMetrics } from '../../lib/scope-metrics.js';
 import { isMeasured, repoHealthMany } from './health.js';
 import { collectTopActions, serializeTopActions } from './top-actions.js';
@@ -235,9 +236,9 @@ export default async function orgRoutes(
       // One batched read for every repo (W17-32), not one loader call per row.
       const healths = await repoHealthMany(opts.db, workspaceId, repos, window, nowMs);
       // W20-20 (UX_TODO DSH-18): the same score from the snapshots one window
-      // back, for the tile's change. Open security findings are read as they
-      // are now in both (no history of them is kept), so the change is the
-      // movement of the measured metrics.
+      // back, for the tile's change. Since W20-24 the earlier reading takes
+      // security findings as they were then (first seen by that date, with the
+      // status their history gives for it), not today's in both readings.
       const windowMs = (Number(window.replace('d', '')) || 30) * 86_400_000;
       const before = await repoHealthMany(
         opts.db,
@@ -351,7 +352,31 @@ export default async function orgRoutes(
       // merely sorted.
       items.sort((a, b) => a.score - b.score || a.name.localeCompare(b.name));
 
-      return reply.send({ items });
+      // W20-24 (UX_TODO DSH-37): file intents whose promise has lapsed — a
+      // refactor whose hotspot has not come down by its review date, or a
+      // supervised file that got hotter. From insights' intentWarnings over
+      // the stored score history; acknowledged files never appear.
+      const repoById = new Map(repos.map((r) => [r.id, r]));
+      const intents = (await intentsWithStatus(opts.db, workspaceId, repoIds, new Date(nowMs)))
+        .filter((i) => repoById.has(i.repoId))
+        .flatMap((i) =>
+          i.status.warnings.map((w) => ({
+            kind: w.kind,
+            repo_id: i.repoId,
+            org: repoById.get(i.repoId)!.org,
+            name: repoById.get(i.repoId)!.name,
+            path: i.path,
+            intent: i.intent,
+            since: i.createdAt.toISOString(),
+            from: w.from,
+            to: w.to,
+            ...(w.kind === 'refactor_stalled' ? { months: w.months } : {}),
+          })),
+        )
+        // Longest-standing first, then by file, so the order is stable.
+        .sort((a, b) => a.since.localeCompare(b.since) || a.path.localeCompare(b.path));
+
+      return reply.send({ items, intents });
     },
   );
 

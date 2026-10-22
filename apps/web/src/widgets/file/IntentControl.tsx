@@ -24,14 +24,47 @@ interface IntentRow {
   note: string | null;
   warn_after_months?: number;
   created_at?: string;
+  /** W20-24 (UX_TODO DSH-37): the hotspot since the declaration. Older API: absent. */
+  hotspot?: IntentHotspot;
+}
+
+interface IntentHotspot {
+  first: { at: string; score: number } | null;
+  latest: { at: string; score: number } | null;
+  points: number;
+  improved: boolean | null;
+  warnings: { kind: string; months?: number; from: number; to: number }[];
+}
+
+/**
+ * Whether the hotspot improved since the intent was declared (W20-24, UX_TODO
+ * DSH-37), from the stored score history. Says "not enough history yet" when
+ * there is one reading or none, rather than guessing.
+ */
+export function hotspotSinceIntent(row: IntentRow): string | null {
+  const h = row.hotspot;
+  if (!h || row.intent === 'acknowledged') return null;
+  if (h.improved === null || !h.first || !h.latest) {
+    return 'Not enough hotspot history since the intent was set to say whether it improved; it is recorded on each daily update.';
+  }
+  const scores = `${h.first.score.toFixed(2)} on ${h.first.at.slice(0, 10)} → ${h.latest.score.toFixed(2)} on ${h.latest.at.slice(0, 10)}`;
+  const warning = h.warnings[0];
+  if (warning?.kind === 'refactor_stalled') {
+    const m = warning.months ?? 0;
+    return `⚠ No improvement in ${m} month${m === 1 ? '' : 's'}: hotspot ${scores}.`;
+  }
+  if (warning?.kind === 'supervised_decline') return `⚠ Hotspot rising: ${scores}.`;
+  return h.improved
+    ? `Improved since the intent: hotspot ${scores}.`
+    : `Not improved yet: hotspot ${scores}.`;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * How long the intent has stood and, for a refactor, when it is due to be
- * judged (W20-20, UX_TODO DSH-37). Says only what the dates show: whether the
- * score improved needs a hotspot history this screen does not have yet.
+ * judged (W20-20, UX_TODO DSH-37). Whether the score improved is
+ * hotspotSinceIntent's line (W20-24).
  */
 export function intentStatus(row: IntentRow, now: Date = new Date()): string | null {
   if (!row.created_at) return null;
@@ -75,6 +108,7 @@ export function IntentControl({ repoId, path }: { repoId: number; path: string }
   const busy = save.isPending || clear.isPending;
   const dirty = choice !== (current?.intent ?? '') || note !== (current?.note ?? '');
   const status = current ? intentStatus(current) : null;
+  const sinceLine = current ? hotspotSinceIntent(current) : null;
 
   return (
     <form
@@ -92,6 +126,14 @@ export function IntentControl({ repoId, path }: { repoId: number; path: string }
           <>
             <span className="font-medium">{status}</span>
             {current.note ? <span className="text-fg-muted"> · “{current.note}”</span> : null}
+            {sinceLine && (
+              <span
+                className={`block ${current.hotspot?.warnings.length ? 'text-warn' : 'text-fg-muted'}`}
+                data-testid="intent-hotspot"
+              >
+                {sinceLine}
+              </span>
+            )}
           </>
         ) : (
           <span className="text-fg-muted">

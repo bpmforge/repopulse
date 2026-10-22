@@ -113,10 +113,15 @@ export async function repoHealthMany(
   // buildHealthSubScores falls back to DEFAULT_WEIGHTS per key, so an unset
   // workspace scores exactly as before.
   const { effective } = await readWorkspaceSettings(db, workspaceId);
+  // W20-24: an earlier reading uses the findings as they were then — first
+  // seen by `asOf`, with the status they had at `asOf` — so the tile's change
+  // includes findings fixed or raised in between.
   const securityInputs = await securityInputsMany(
     db,
     workspaceId,
     repos.map((r) => r.id),
+    asOf,
+    { statusAtAsOf: true },
   );
 
   for (const repo of repos) {
