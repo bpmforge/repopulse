@@ -40,7 +40,7 @@ const SCREENS: { path: string; ready: string; name: string }[] = [
   { path: '/', ready: 'health-tile-grid', name: 'overview' },
   { path: '/repos', ready: 'repo-list', name: 'repos' },
   { path: '/pull-requests', ready: 'main', name: 'pull-requests' },
-  { path: '/findings', ready: 'findings', name: 'reviews' },
+  { path: '/findings', ready: 'findings', name: 'findings' },
   { path: '/plans', ready: 'plans', name: 'plans' },
   { path: '/reports', ready: 'report-center', name: 'reports' },
   { path: '/views', ready: 'views', name: 'views' },
@@ -336,7 +336,9 @@ test.describe('keyboard only: the primary workflows', () => {
     });
   });
 
-  test('Reviews: open a finding, read it, close it, focus returns to the row', async ({ page }) => {
+  test('Findings: open a finding, read it, close it, focus returns to the row', async ({
+    page,
+  }) => {
     await loginAsFixture(page);
     await page.goto('/findings');
     await settle(page, 'findings');
@@ -350,7 +352,7 @@ test.describe('keyboard only: the primary workflows', () => {
     // a keyboard user back to the top of the page.
     await expect(page.getByTestId(opener)).toBeFocused();
 
-    recordEvidence('keyboard.jsonl', { workflow: 'reviews→open→escape', opener, result: 'pass' });
+    recordEvidence('keyboard.jsonl', { workflow: 'findings→open→escape', opener, result: 'pass' });
   });
 
   test('Improvement plans: generate a plan and open it', async ({ page }) => {
@@ -494,7 +496,7 @@ test.describe('keyboard only: the primary workflows', () => {
 test.describe('keyboard only: narrow screens', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
-  test('Menu → Reviews, by Tab and Enter alone', async ({ page }) => {
+  test('Menu → Findings, by Tab and Enter alone', async ({ page }) => {
     await loginAsFixture(page);
     await page.goto('/');
     await settle(page, 'health-tile-grid');
@@ -506,7 +508,7 @@ test.describe('keyboard only: narrow screens', () => {
     await expect(page).toHaveURL(/\/findings/);
     await expect(page.getByTestId('nav-drawer')).toHaveCount(0);
     recordEvidence('keyboard.jsonl', {
-      workflow: 'narrow menu→reviews',
+      workflow: 'narrow menu→findings',
       tabsToTrigger: toTrigger,
       tabsToLink: toLink,
       result: 'pass',

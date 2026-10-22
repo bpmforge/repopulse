@@ -3,7 +3,7 @@
 //
 // PURE FORMATTERS. The route (findings/index.ts) selects the rows with the
 // list's own filters (listFilters, workspace-filtered), so an export holds
-// exactly what the Reviews list shows under the same filters, up to the cap.
+// exactly what the Findings list shows under the same filters, up to the cap.
 // Nothing here reads the forge: an export is our own Postgres, written out.
 
 /** The most findings one export writes; over it the file says it was cut. */

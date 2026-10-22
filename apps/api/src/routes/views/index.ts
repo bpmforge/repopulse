@@ -202,7 +202,7 @@ export default async function viewsRoutes(
       // spreading a Partial<ViewConfig> over a full ViewConfig types each
       // overlapping field as possibly-undefined even though every field is
       // actually resolved below.
-      // W20-16: target/search (a Reviews view's filters) are kept unless the
+      // W20-16: target/search (a Findings view's filters) are kept unless the
       // body replaces them — a rename must not turn a findings view into an
       // empty dashboard.
       const target = body.config?.target ?? existingConfig.target;

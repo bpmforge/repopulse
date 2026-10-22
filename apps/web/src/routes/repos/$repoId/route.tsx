@@ -85,9 +85,9 @@ const TABS: { to: string; label: string; exact?: boolean; testId?: string }[] = 
   // PR Flow measures human review, this measures the tools.
   { to: '/repos/$repoId/ai-reviewers', label: 'AI Reviewers' },
   { to: '/repos/$repoId/ci', label: 'CI' },
-  // W20-22 (UX_TODO ADM-34): the place is "Reviews" everywhere (rail, trail,
+  // W20-23 (UX_TODO ADM-34, DSH-33): the place is "Findings" everywhere (rail, trail,
   // heading, palette, this tab); a "finding" is one item in it.
-  { to: '/repos/$repoId/findings', label: 'Reviews', testId: 'findings' },
+  { to: '/repos/$repoId/findings', label: 'Findings', testId: 'findings' },
   { to: '/repos/$repoId/security', label: 'Security' },
   { to: '/repos/$repoId/code-health', label: 'Code Health' },
 ];

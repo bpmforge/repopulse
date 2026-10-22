@@ -8,7 +8,7 @@ import { VerifiedFix } from './VerifiedFix.js';
 import { reviewSummary, ticketLabel, type Finding } from './contracts.js';
 import type { AiSuggestion, SecondOpinionInfo } from './aiContracts.js';
 
-// W20-18: decisions of 2026-10-20 in the finding drawer and on Reviews.
+// W20-18: decisions of 2026-10-20 in the finding drawer and on Findings.
 //   AI-14  a second opinion from another model, shown as agree/disagree; a hosted
 //          model only on a Tier-3 opted-in repository, counted as a pass.
 //   AI-77  "AI off" also stops verified-fix drafts a person asks for.

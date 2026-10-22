@@ -208,7 +208,7 @@ export function RunScanButton({
 /**
  * What the runs just started reported (W20-21, UX_TODO FND-68): per scanner,
  * how many findings it reported, how many are new and how many earlier ones it
- * closed, each linked to Reviews filtered to that run. The person who pressed
+ * closed, each linked to Findings filtered to that run. The person who pressed
  * Run to check a fix no longer compares counts by memory.
  */
 export function RunSummary({ repoId, since }: { repoId: string; since: string }) {

@@ -16,7 +16,7 @@ import {
   type FindingLifecycleStatus,
 } from './contracts.js';
 
-// The Reviews bulk bar and what it last did (W17-23, W20-03).
+// The Findings bulk bar and what it last did (W17-23, W20-03).
 //
 // W20-03 (UX_TODO FND-11, FND-13, FND-02): the bar offered only Mark confirmed
 // and Mark dismissed, sent no dismiss reason, dismissed any number of findings

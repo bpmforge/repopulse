@@ -48,6 +48,7 @@ import pullsRoutes from '../routes/pulls/index.js';
 import ciTokenRoutes from '../routes/admin/ci-tokens/index.js';
 import systemRoutes from '../routes/admin/system/index.js';
 import auditRoutes from '../routes/admin/audit/index.js';
+import aboutRoutes from '../routes/about/index.js';
 
 export interface ApiV1Options {
   db: Database;
@@ -245,6 +246,8 @@ export default async function apiV1(app: FastifyInstance, opts: ApiV1Options): P
   await app.register(systemRoutes, { db: opts.db, redisUrl: opts.redisUrl });
   // W20-10 (UX_TODO X-04): Settings → Audit log reads the persisted audit trail.
   await app.register(auditRoutes, { db: opts.db });
+  // W20-23 (UX_TODO X-11): the installed version, for any signed-in member.
+  await app.register(aboutRoutes);
   await app.register(securityRoutes, { db: opts.db });
   // W18-29: the sensitive-change radar's screen.
   await app.register(sensitiveChangesRoutes, { db: opts.db });

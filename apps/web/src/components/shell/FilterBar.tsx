@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { WINDOW_PRESETS, type GlobalSearch } from '../../api/urlState.js';
 import { customRange, presetCovering } from '@repopulse/shared/url-state';
 import type { FilterScope } from '../../api/filterScope.js';
-import { RepoPicker } from './RepoPicker.js';
+import { RepoPicker, type SavedRepoSet } from './RepoPicker.js';
 
 // Global filters (UX §3.4): time window, repo set, person. Controlled — the
 // topbar wires `onChange` to router.navigate so every change serializes to the
@@ -25,6 +25,9 @@ export interface FilterBarProps {
    * the worse of the two.
    */
   scope?: FilterScope | undefined;
+  /** W20-23 (UX_TODO X-06): the signed-in user's saved repository sets. */
+  savedRepoSets?: readonly SavedRepoSet[] | undefined;
+  onSaveRepoSet?: ((name: string, ids: string[]) => Promise<void>) | undefined;
 }
 
 export function FilterBar({
@@ -33,6 +36,8 @@ export function FilterBar({
   repoOptions = [],
   personOptions = [],
   scope = { window: true, repos: true, person: true },
+  savedRepoSets,
+  onSaveRepoSet,
 }: FilterBarProps) {
   // W20-09 (UX_TODO DSH-56). A pasted `start..end` set the select's value to
   // 'custom' while the extra option's value was the range itself, so nothing
@@ -167,6 +172,9 @@ export function FilterBar({
           // String(): the router parses a bare `?repos=4` as the number 4.
           selected={value.repos ? String(value.repos).split(',').filter(Boolean) : []}
           onChange={(ids) => onChange({ repos: ids.length === 0 ? null : ids.join(',') })}
+          // W20-23 (UX_TODO X-06): a set is one click; saving one is two.
+          savedSets={savedRepoSets}
+          onSaveSet={onSaveRepoSet}
         />
       )}
 

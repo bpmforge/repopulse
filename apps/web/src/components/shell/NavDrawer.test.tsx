@@ -185,13 +185,13 @@ describe('nav grouping (W17-14)', () => {
     expect(secondary?.items.map((i) => i.to)).toEqual(['/me', '/pull-requests', '/views']);
   });
 
-  it('renames Findings to Reviews and Admin to Settings without moving them', () => {
+  it('calls the findings area Findings (W20-23) and Admin Settings, without moving them', () => {
     const byPath = new Map(
       navGroups(true)
         .flatMap((g) => g.items)
         .map((i) => [i.to, i.label]),
     );
-    expect(byPath.get('/findings')).toBe('Reviews');
+    expect(byPath.get('/findings')).toBe('Findings');
     expect(byPath.get('/admin')).toBe('Settings');
   });
 });

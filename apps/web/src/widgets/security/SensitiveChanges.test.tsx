@@ -189,9 +189,9 @@ describe('Sensitive changes after triage (W20-13)', () => {
     ).toBeNull();
   });
 
-  it('links to the rest in Reviews when only the most recent are shown (FND-38)', () => {
+  it('links to the rest in Findings when only the most recent are shown (FND-38)', () => {
     renderWith(response({ active: [item(1)], totals: { active: 30, shadow: 0 } }));
-    expect(screen.getByTestId('radar-see-all')).toHaveTextContent('See all 30 in Reviews');
+    expect(screen.getByTestId('radar-see-all')).toHaveTextContent('See all 30 in Findings');
   });
 
   it('says where the radar is switched back on (FND-39)', () => {

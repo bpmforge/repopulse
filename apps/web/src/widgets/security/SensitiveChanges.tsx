@@ -72,7 +72,7 @@ const LIFECYCLE_LABEL: Record<RadarRule['lifecycle'], string> = {
 
 const PREFIX = 'Needs human review: ';
 
-/** The radar's scanner key, for the Reviews drill-down (W20-13, FND-38). */
+/** The radar's scanner key, for the Findings drill-down (W20-13, FND-38). */
 export const RADAR_SCANNER_KEY = 'sensitive_change';
 
 /** Where the radar is switched on and off, said in words (FND-39). */
@@ -252,7 +252,7 @@ export function SensitiveChanges({ search }: { search: Record<string, string> })
             {data.totals.active > data.active.length && (
               <p className="text-xs text-fg-muted" data-testid="radar-more">
                 Showing the {data.active.length} most recent of {data.totals.active}.{' '}
-                {/* W20-13 (UX_TODO FND-38): the rest, in Reviews. */}
+                {/* W20-13 (UX_TODO FND-38): the rest, in Findings. */}
                 <Link
                   to="/findings"
                   search={
@@ -264,7 +264,7 @@ export function SensitiveChanges({ search }: { search: Record<string, string> })
                   className="text-accent underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                   data-testid="radar-see-all"
                 >
-                  See all {data.totals.active} in Reviews
+                  See all {data.totals.active} in Findings
                 </Link>
               </p>
             )}

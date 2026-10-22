@@ -80,16 +80,18 @@ interface NavItem {
  * of them (My Focus, Pull Requests, Saved Views) are personal working surfaces,
  * not places you go to answer "what is wrong with our code?".
  *
- * TWO ARE RENAMED IN PRESENTATION ONLY, and the URLs are deliberately untouched:
- * "Findings" reads like a database table, "Reviews" like something you do; and
- * "Admin" describes who may enter rather than what is inside. /findings and
- * /admin still resolve, every bookmark still works, and the admin RBAC gate is
- * exactly where it was.
+ * "Admin" is RENAMED IN PRESENTATION ONLY, and the URL is deliberately
+ * untouched: it describes who may enter rather than what is inside. /admin
+ * still resolves, every bookmark still works, and the admin RBAC gate is
+ * exactly where it was. W20-23 (UX_TODO DSH-33, ADM-34): the findings area is
+ * "Findings" again — W17-14 had called it "Reviews", which collided with pull
+ * request reviews and the Automated review panel. Its URL was /findings all
+ * along, so nothing moved.
  */
 const NAV: NavItem[] = [
   { to: '/', label: 'Overview', icon: 'overview' },
   { to: '/repos', label: 'Repositories', icon: 'repos' },
-  { to: '/findings', label: 'Reviews', icon: 'findings' },
+  { to: '/findings', label: 'Findings', icon: 'findings' },
   { to: '/plans', label: 'Improvement plans', icon: 'plans' },
   { to: '/reports', label: 'Reports', icon: 'reports' },
   { to: '/admin', label: 'Settings', icon: 'admin' },

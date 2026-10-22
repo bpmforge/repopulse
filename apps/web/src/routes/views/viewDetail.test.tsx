@@ -218,3 +218,48 @@ describe('saved view detail (W20-05)', () => {
     );
   });
 });
+
+// W20-23 (UX_TODO X-06): a saved repository set is a view holding only
+// repo_ids. Its page names the repositories and offers no window, layout,
+// Share or Set as home: it is per user and is applied from the topbar.
+describe('a saved repository set (W20-23)', () => {
+  it('lists its repositories and offers only rename, re-pick and delete', async () => {
+    views[3] = view(3, {
+      name: 'Payments team',
+      config: { repo_ids: [7, 99], window: '30d', layout: [], target: 'repos' },
+    });
+    renderView('/views/3');
+    await screen.findByText('Payments team', { selector: 'h1' });
+    const panel = await screen.findByTestId('repo-set-panel');
+    await waitFor(() => expect(panel).toHaveTextContent('acme/web'));
+    expect(panel).toHaveTextContent('repository 99 (no longer tracked)');
+    expect(screen.getByTestId('open-repo-set').getAttribute('href')).toMatch(/^\/repos\?repos=/);
+    expect(screen.queryByTestId('view-scope')).toBeNull();
+    expect(screen.queryByTestId('set-as-home')).toBeNull();
+    expect(screen.queryByTestId('share-view')).toBeNull();
+    expect(screen.getByTestId('delete-view')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('toggle-edit'));
+    expect(screen.queryByTestId('view-window')).toBeNull();
+    expect(screen.queryByTestId('view-editor')).toBeNull();
+    fireEvent.click(screen.getByTestId('view-repo-8'));
+    fireEvent.click(screen.getByTestId('save-layout'));
+    await waitFor(() =>
+      expect(calls.find((c) => c.method === 'PATCH')?.body).toEqual({
+        name: 'Payments team',
+        config: { repo_ids: [7, 99, 8], window: '30d', layout: [], target: 'repos' },
+      }),
+    );
+  });
+
+  it('cannot be saved empty', async () => {
+    views[3] = view(3, {
+      config: { repo_ids: [7], window: '30d', layout: [], target: 'repos' },
+    });
+    renderView('/views/3');
+    await screen.findByTestId('repo-set-panel');
+    fireEvent.click(screen.getByTestId('toggle-edit'));
+    fireEvent.click(await screen.findByTestId('view-repo-7'));
+    expect(screen.getByTestId('save-layout')).toBeDisabled();
+  });
+});

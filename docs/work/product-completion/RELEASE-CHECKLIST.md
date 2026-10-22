@@ -295,7 +295,7 @@ Accepted residuals and known gaps. None of these alone flip HOLD (E-1/E-2 do); t
 | R-04 | Real-forge half of customer journey **BLOCKED** — no `SMOKE_FORGE_PAT` on host; W11-05 stays blocked | W17-30 | BLOCKED |
 | R-05 | nginx DNS sticky (compose overlay / demo networking) | W17-30 | accepted for now |
 | R-06 | 390px @ 200% zoom horizontal overflow on 14/28 paths (`test.fail`, below WCAG reflow floor) | W17-31 / E-3 | declared residual |
-| R-07 | Findings vs Reviews breadcrumb / rail label mismatch | W17-31 | accepted residual |
+| R-07 | Findings vs Reviews breadcrumb / rail label mismatch | W17-31 | fixed: W18-28 aligned the trail, W20-23 named the area "Findings" everywhere |
 | R-08 | Security scanner `all_rejected` label conflates dedupe-noop with true rejections | W17-30 | small follow-up |
 | R-09 | Repo / health-tiles / attention list payloads unpaged (grow with N) | W17-32 | accepted residual |
 | R-10 | `GITHUB_APP_PRIVATE_KEY` / `WEBHOOK_SECRET` written by `configure.mjs` but unread | W17-33 | template fix pending |

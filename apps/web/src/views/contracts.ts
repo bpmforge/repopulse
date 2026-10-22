@@ -14,16 +14,30 @@ export interface ViewConfig {
   layout: Record<string, unknown>[];
   /**
    * W20-16 (UX_TODO FND-03). What the view opens: the widget dashboard
-   * (absent, the default) or the Reviews explorer under `search`.
+   * (absent, the default) or the Findings explorer under `search`.
    */
-  target?: 'dashboard' | 'findings';
-  /** The Reviews explorer's URL filters, as it validates them. */
+  target?: 'dashboard' | 'findings' | 'repos';
+  /** The Findings explorer's URL filters, as it validates them. */
   search?: Record<string, string | number | boolean>;
 }
 
-/** True when a view opens the Reviews explorer rather than a dashboard. */
+/** True when a view opens the Findings explorer rather than a dashboard. */
 export function isFindingsView(config: ViewConfig): boolean {
   return config.target === 'findings';
+}
+
+/**
+ * True when a view is a saved repository set (W20-23, UX_TODO X-06): it holds
+ * only `repo_ids` and is applied from the topbar's Repositories filter rather
+ * than opened as a page of its own.
+ */
+export function isRepoSetView(config: ViewConfig): boolean {
+  return config.target === 'repos';
+}
+
+/** The stored form of a repository set. Window and layout are unused filler. */
+export function repoSetConfig(repoIds: readonly number[]): ViewConfig {
+  return { repo_ids: [...repoIds], window: '30d', layout: [], target: 'repos' };
 }
 
 export interface ViewResponse {

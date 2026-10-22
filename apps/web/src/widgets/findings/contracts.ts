@@ -235,7 +235,7 @@ export const REACHABILITY_LABEL: Record<string, string> = {
 };
 
 /**
- * `?status=` values the Reviews filter offers (W20-08, UX_TODO FND-49).
+ * `?status=` values the Findings filter offers (W20-08, UX_TODO FND-49).
  *
  * `active` (open AND confirmed) is the default and means what every "N open"
  * count on the Security tab and Sensitive changes means. `open` alone dropped

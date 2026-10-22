@@ -27,7 +27,7 @@ export function chainName(chain: RepoSecurity['chains'][number]): string {
   return last && last !== first ? `${first} → ${last}` : first;
 }
 
-/** Reviews, filtered to one chain's findings in every status (FND-46). */
+/** Findings, filtered to one chain's findings in every status (FND-46). */
 function chainSearch(chainId: string, repoId: string | undefined): Record<string, string> {
   return { chain_id: chainId, status: 'any', ...(repoId ? { repos: repoId } : {}) };
 }
