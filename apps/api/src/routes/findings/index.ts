@@ -301,6 +301,20 @@ function findingsQuery(db: Database) {
         lastSeenScanRunId: read.findings.lastSeenScanRunId,
         lastSeenScanCommit: lastSeenRun.commitSha,
         lastSeenScanAt: lastSeenRun.startedAt,
+        // W20-25 (UX_TODO X-10): the model and connection that last judged it
+        // (its newest triage answer, a second opinion aside), same workspace.
+        verifiedVerdict: sql<
+          string | null
+        >`(select v.verdict from ${read.aiTriageVerdicts} v where v.finding_id = ${read.findings.id} and v.workspace_id = ${read.findings.workspaceId} and v.second_opinion_of is null order by v.created_at desc, v.id desc limit 1)`,
+        verifiedModel: sql<
+          string | null
+        >`(select v.model from ${read.aiTriageVerdicts} v where v.finding_id = ${read.findings.id} and v.workspace_id = ${read.findings.workspaceId} and v.second_opinion_of is null order by v.created_at desc, v.id desc limit 1)`,
+        verifiedConnection: sql<
+          string | null
+        >`(select coalesce(p.name, v.connection_name) from ${read.aiTriageVerdicts} v left join ${core.llmProviders} p on p.id = v.llm_provider_id and p.workspace_id = v.workspace_id where v.finding_id = ${read.findings.id} and v.workspace_id = ${read.findings.workspaceId} and v.second_opinion_of is null order by v.created_at desc, v.id desc limit 1)`,
+        verifiedAt: sql<
+          string | null
+        >`(select v.created_at from ${read.aiTriageVerdicts} v where v.finding_id = ${read.findings.id} and v.workspace_id = ${read.findings.workspaceId} and v.second_opinion_of is null order by v.created_at desc, v.id desc limit 1)`,
       })
       .from(read.findings)
       .innerJoin(core.repos, eq(core.repos.id, read.findings.repoId))
@@ -377,6 +391,17 @@ function toFinding(r: FindingRow) {
     // W20-15 (UX_TODO X-10): rule, model or another tool — the "mechanical
     // first, then AI" promise, said on every finding instead of "Tier N".
     found_by: foundByOf(r),
+    // W20-25 (UX_TODO X-10): which of the customer's AI models judged it, on
+    // which connection, and what it said. Null when no model has.
+    verified_by:
+      r.verifiedModel === null || r.verifiedModel === undefined
+        ? null
+        : {
+            model: r.verifiedModel,
+            connection: r.verifiedConnection ?? null,
+            verdict: r.verifiedVerdict ?? null,
+            at: r.verifiedAt === null ? null : new Date(r.verifiedAt).toISOString(),
+          },
     // W20-18 (UX_TODO X-08): the tracker issue (Jira, Linear, ...) someone
     // linked, http(s) only; null when nobody has.
     external_ticket_url: r.externalTicketUrl,

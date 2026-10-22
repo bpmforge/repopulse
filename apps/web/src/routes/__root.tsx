@@ -30,6 +30,7 @@ import { useRepoSets } from '../views/repoSets.js';
 import { PersonaPicker } from '../widgets/onboarding/PersonaPicker.js';
 import { SignedOut } from '../widgets/auth/SignedOut.js';
 import { ForgeLinkBanner } from '../widgets/auth/ForgeLinkBanner.js';
+import { ForgeTokenBanner } from '../widgets/admin/ForgeTokenExpiry.js';
 import { Inbox, useInbox } from '../widgets/me/Inbox.js';
 import { FirstRunPanel } from '../widgets/onboarding/FirstRunPanel.js';
 import { mergeGlobalSearch, validateGlobalSearch, type GlobalSearch } from '../api/urlState.js';
@@ -813,6 +814,9 @@ function AppShell({ inert = false }: { inert?: boolean }) {
             not connected to a committer — at the shell, because that is true on
             every personalized screen and not just one of them. */}
         <ForgeLinkBanner />
+        {/* W20-25 (UX_TODO ADM-50): admins, from 14 days before a forge
+            token expires. Reads the inbox request the top bar already makes. */}
+        <ForgeTokenBanner />
         {/* Global: ⌘K works from every screen (UX_SPEC §3.3). W20-17: named
             and gated like the rail, and keeps the global filters. */}
         <CommandPalette isAdmin={isAdmin} search={preservedSearch} />

@@ -71,6 +71,8 @@ function alert(
 function mockProvider(
   pages: ForgeCodeScanningAlert[][] | Error,
   calls: { lane: string; cursor?: ForgeCursor }[] = [],
+  /** W20-25 (FND-63): one page each of dismissed and fixed alerts. */
+  closed: { dismissed?: ForgeCodeScanningAlert[]; fixed?: ForgeCodeScanningAlert[] } = {},
 ): ForgeProvider {
   return {
     kind: 'github',
@@ -79,7 +81,11 @@ function mockProvider(
       ctx: { lane: string },
       _repo: string,
       cursor?: ForgeCursor,
+      opts?: { state?: string },
     ): Promise<Page<ForgeCodeScanningAlert>> => {
+      if (opts?.state === 'dismissed' || opts?.state === 'fixed') {
+        return { items: closed[opts.state] ?? [] };
+      }
       calls.push({ lane: ctx.lane, ...(cursor ? { cursor } : {}) });
       if (pages instanceof Error) throw pages;
       const i = cursor ? Number(cursor) : 0;
@@ -587,6 +593,74 @@ describeIfDb('external findings (W18-24)', () => {
         .from(security.scanRuns)
         .where(eq(security.scanRuns.id, result.scanRunId!));
       expect(run).toMatchObject({ partial: true });
+    });
+
+    it("copies GitHub's dismissed and fixed state, with who and why (W20-25, FND-63)", async () => {
+      const dismissed = (n: number, file: string, line: number): ForgeCodeScanningAlert => ({
+        ...alert(n, 'CodeQL', 'js/xss', file, line),
+        state: 'dismissed',
+        dismissedBy: 'ada',
+        dismissedReason: 'false positive',
+        dismissedComment: 'input is sanitised upstream',
+        dismissedAt: '2026-10-01T00:00:00Z',
+        fixedAt: null,
+      });
+      const fixed: ForgeCodeScanningAlert = {
+        ...alert(9, 'CodeQL', 'js/other', 'src/c.js', 1),
+        state: 'fixed',
+        fixedAt: '2026-10-02T08:00:00Z',
+      };
+      const result = await runCodeScanningPull({
+        db,
+        provider: mockProvider([[]], [], {
+          // #1 is open here; #2 was resolved by an earlier sweep, which read
+          // the dismissal as a fix and is corrected now.
+          dismissed: [dismissed(1, 'src/a.js', 10), dismissed(2, 'src/b.js', 3)],
+          fixed: [fixed],
+        }),
+        workspaceId,
+        repoId: pullRepoId,
+        repo: 'acme/pulled',
+      });
+      expect(result).toMatchObject({ status: 'succeeded', githubDismissed: 2, githubFixed: 1 });
+      const codeql = await external(pullRepoId, 'external:codeql:code-scanning');
+      const byFile = new Map(codeql.map((f) => [f.file, f]));
+      expect(byFile.get('src/a.js')).toMatchObject({
+        status: 'dismissed',
+        dismissReason: 'false_positive',
+      });
+      expect(byFile.get('src/b.js')).toMatchObject({ status: 'dismissed' });
+      expect(byFile.get('src/c.js')).toMatchObject({ status: 'resolved' });
+
+      const events = await db
+        .select()
+        .from(read.findingEvents)
+        .where(eq(read.findingEvents.findingId, byFile.get('src/a.js')!.id));
+      const last = events.sort((a, b) => b.id - a.id)[0]!;
+      expect(last).toMatchObject({
+        fromStatus: 'open',
+        toStatus: 'dismissed',
+        actor: null,
+        reason: 'dismissed on GitHub by ada: false positive (input is sanitised upstream)',
+      });
+      const cEvents = await db
+        .select()
+        .from(read.findingEvents)
+        .where(eq(read.findingEvents.findingId, byFile.get('src/c.js')!.id));
+      expect(cEvents.map((e) => e.reason)).toContain('fixed on GitHub (2026-10-02)');
+
+      // Pulled again: nothing changes twice.
+      const again = await runCodeScanningPull({
+        db,
+        provider: mockProvider([[]], [], {
+          dismissed: [dismissed(1, 'src/a.js', 10)],
+          fixed: [fixed],
+        }),
+        workspaceId,
+        repoId: pullRepoId,
+        repo: 'acme/pulled',
+      });
+      expect(again).toMatchObject({ githubDismissed: 0, githubFixed: 0 });
     });
   });
 });

@@ -42,6 +42,7 @@ import {
   type WorkerProviderDeps,
 } from './forge-provider.js';
 import { autoAddNewRepos } from './auto-add.js';
+import { readMissingTokenInfo } from './token-info.js';
 
 // The queue processors (W12-03).
 //
@@ -626,6 +627,17 @@ async function processReconcileSweep(deps: ProcessorDeps) {
       );
       autoAdded += added.added;
     }
+
+    // W20-25 (UX_TODO ADM-50): a connection made before token owner and
+    // expiry were read has them read once, so its expiry can be warned about.
+    await readMissingTokenInfo(
+      {
+        db: deps.db,
+        providerFor: (workspaceId, connectionId) =>
+          providerForConnection(deps, workspaceId, connectionId),
+      },
+      ws.id,
+    );
 
     // Repos stuck in `error` get a fresh plan (§5). requeueErrorRepos was
     // implemented in W2 and had no caller until now.

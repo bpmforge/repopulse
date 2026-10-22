@@ -219,6 +219,20 @@ export interface ForgeCapabilities {
 }
 
 /**
+ * Who owns the token a connection uses, and when it stops working (W20-25,
+ * UX_TODO ADM-50). Read once at connect time, never the token itself. Either
+ * field is null when the forge does not say: a classic GitHub token with no
+ * expiry, a Gitea token (Gitea has no token expiry), an App installation.
+ */
+export interface ForgeTokenInfo {
+  ownerLogin: string | null;
+  expiresAt: Date | null;
+}
+
+/** GitHub's state for one code-scanning alert, and who dismissed it (W20-25, FND-63). */
+export type ForgeCodeScanningState = 'open' | 'dismissed' | 'fixed' | 'closed';
+
+/**
  * One open alert from a forge-hosted code scanner (W18-24, GitHub code
  * scanning). Read-only: RepoPulse never dismisses, reopens or uploads here.
  *
@@ -246,6 +260,15 @@ export interface ForgeCodeScanningAlert {
   message: string | null;
   commitSha: string | null;
   htmlUrl: string | null;
+  /**
+   * W20-25 (UX_TODO FND-63): set for a dismissed alert. The reason is GitHub's
+   * own words ('false positive', "won't fix", 'used in tests', 'mitigated').
+   */
+  dismissedBy?: string | null;
+  dismissedReason?: string | null;
+  dismissedComment?: string | null;
+  dismissedAt?: string | null;
+  fixedAt?: string | null;
 }
 
 export interface SinceQuery {

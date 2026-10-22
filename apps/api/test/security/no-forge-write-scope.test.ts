@@ -94,6 +94,8 @@ describe('D9a: RepoPulse holds no forge write scope (W18-18)', () => {
       'getFileContent',
       'getTarball',
       'listCodeScanningAlerts', // optional, a read
+      // W20-25 (UX_TODO ADM-50): optional, a read of the token's owner and expiry.
+      'getTokenInfo',
       'registerWebhook',
       // W20-15 (UX_TODO X-27): uninstall removes the push hook RepoPulse itself
       // registered, matched by its delivery URL. Same hook scope as

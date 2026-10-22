@@ -7,6 +7,7 @@ import type {
   ForgeCapabilities,
   ForgeCheckRun,
   ForgeCodeScanningAlert,
+  ForgeCodeScanningState,
   ForgeCommit,
   ForgeDiffFile,
   ForgeFileContent,
@@ -16,6 +17,7 @@ import type {
   ForgeRelease,
   ForgeDeployment,
   ForgeRepo,
+  ForgeTokenInfo,
   ForgeReview,
   ForgeReviewComment,
   ForgeCursor,
@@ -79,17 +81,27 @@ export interface ForgeProvider {
   getTarball(ctx: CallCtx, repo: string, sha: string): Promise<ForgeTarball>;
 
   /**
-   * OPEN code-scanning alerts (W18-24) — guarded by
+   * Code-scanning alerts (W18-24) — guarded by
    * `capabilities.supportsCodeScanningAlerts`, and optional so an adapter for
    * a forge without the feature does not have to carry a stub that throws.
    * A missing permission surfaces as ForgeHttpError 403 (the caller says so);
    * a repository with code scanning off answers 404.
+   *
+   * OPEN alerts by default. W20-25 (UX_TODO FND-63): `state` also reads the
+   * dismissed and fixed ones, most recently updated first. Read-only (D9a).
    */
   listCodeScanningAlerts?(
     ctx: CallCtx,
     repo: string,
     cursor?: ForgeCursor,
+    opts?: { state?: ForgeCodeScanningState },
   ): Promise<Page<ForgeCodeScanningAlert>>;
+  /**
+   * The token's owner login and expiry, where the forge reports them (W20-25,
+   * UX_TODO ADM-50). Personal-token connections only: an App installation has
+   * no owner account. Throws ForgeHttpError when the forge refuses.
+   */
+  getTokenInfo?(ctx: CallCtx): Promise<ForgeTokenInfo>;
   registerWebhook(
     ctx: CallCtx,
     repo: string,

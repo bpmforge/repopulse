@@ -16,6 +16,7 @@ import { sql } from 'drizzle-orm';
 import { workspaces } from '../core/workspaces.js';
 import { repos } from '../core/repos.js';
 import { users } from '../core/users.js';
+import { llmProviders } from '../core/llm-providers.js';
 import { findings } from './findings.js';
 
 // The AI pass (W19-09): planned specialists and evidence-fed triage over a
@@ -211,6 +212,17 @@ export const aiTriageVerdicts = pgTable(
       (): AnyPgColumn => aiTriageVerdicts.id,
       { onDelete: 'cascade' },
     ),
+    /**
+     * W20-25 (UX_TODO X-10): the AI connection that answered, as a column the
+     * finding panel can show as "verified by <model> (<connection>)". SET NULL
+     * so removing a connection keeps the record; its name is kept beside it
+     * for the same reason finding_events keeps actor_login. `model` above is
+     * the model. Null on rows from before this column with no route.
+     */
+    llmProviderId: bigint('llm_provider_id', { mode: 'number' }).references(() => llmProviders.id, {
+      onDelete: 'set null',
+    }),
+    connectionName: text('connection_name'),
   },
   (t) => [
     index('ai_triage_verdicts_workspace_finding_idx').on(

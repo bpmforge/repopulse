@@ -11318,6 +11318,49 @@
         "notes": [
           "Requested by the coordinator 2026-10-22. The reference came in with W20-15 (ingest status code) and failed the rule on main. ingest keeps re-exporting connectionHost so the repositories route is unchanged."
         ]
+      },
+      {
+        "id": "W20-25",
+        "title": "Token owner and expiry, pinned docs links, verifying model shown, GitHub code-scanning alert state",
+        "phase": 20,
+        "module": "web",
+        "stories": [],
+        "write_scope": [
+          "apps/web/**",
+          "apps/api/**",
+          "packages/forge/src/**",
+          "packages/forge/test/**",
+          "packages/ingest/src/connect/**",
+          "packages/security/src/external/**",
+          "packages/shared/drizzle/**",
+          "packages/shared/src/db/schema/core/forge-connections.ts",
+          "packages/shared/src/db/schema/read/ai-pass.ts",
+          "Dockerfile",
+          "deploy/bundle.sh",
+          "apps/api/test/security/no-forge-write-scope.test.ts",
+          "docs/DEPLOYMENT.md",
+          "docs/work/UX_TODO.md",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W20-22"
+        ],
+        "acceptance": [
+          "UX_TODO ADM-50 (W20_DECISIONS_2 row 4): forge_connections stores token_owner_login, token_expires_at and token_checked_at, read at connect and on token replace through an optional ForgeProvider.getTokenInfo (GitHub GET /user plus the GitHub-Authentication-Token-Expiration header; GitLab GET /user plus /personal_access_tokens/self; Gitea GET /user, no expiry), and once by the nightly sweep for an active personal-token connection never read; a failed read never fails the connect; GET /connections returns token_owner, token_expires_at, token_expiry (expired/expiring/ok/unknown) and token_days_left; Connections shows a Token column; from 14 days before expiry admins see a shell banner and an inbox notice (GET /me/inbox expiring_tokens, admins only); the token itself is stored nowhere new",
+          "UX_TODO ADM-31 (row 5): the web image build takes ARG DOCS_REF into VITE_DOCS_REF; deploy/bundle.sh passes v<version>; any other build leaves it empty and keeps main; no script creates a git tag",
+          "UX_TODO X-10 (row 7): ai_triage_verdicts records llm_provider_id (SET NULL) and connection_name beside model, written by the AI pass and the second opinion and backfilled from the stored route; GET /findings returns verified_by {model, connection, verdict, at} from the newest primary answer, workspace-filtered; the panel shows 'verified by <model> (<connection>): <verdict>' next to 'Found by'",
+          "UX_TODO FND-63 (row 9): the code-scanning pull also GETs dismissed and fixed alerts (sort=updated, 5 pages each) and, before its sweep, dismisses our finding with 'dismissed on GitHub by X: reason (comment)' in History (correcting one an earlier sweep resolved) and resolves one fixed on GitHub; read-only on GitHub; FND-62 and FND-47 marked decided, not built",
+          "Tenancy: every new query is workspace-filtered; migration 0056 only; workspace lint, typecheck and vitest green against a migrated database"
+        ],
+        "points": 8,
+        "status": "done",
+        "notes": [
+          "Fixed: ADM-31, ADM-50, X-10, FND-63. Decided, not built (W20_DECISIONS_2 rows 10 and 11): FND-62 (registry credentials, not now), FND-47 (no assignee).",
+          "Defaults chosen (cheap to change): the warning starts 14 days before expiry and stays while the token is expiring or expired; the inbox lists every such token to admins and counts one as unread on a first look or when its warning began after the admin last looked; a GitLab expires_at date is read as 00:00 UTC that day; a GitHub expiry header is parsed in its 'YYYY-MM-DD HH:MM:SS UTC' and '+0000' forms (and ISO); an App-installation connection is never asked (no owner account); a failed read leaves token_checked_at null and the nightly sweep tries again; replacing a token clears the old owner and expiry before reading the new ones; verified_by is the newest triage answer that is not a second opinion, whatever its verdict, and the verdict is shown with it; GitHub 'false positive' maps to dismiss_reason false_positive and every other GitHub reason to not_applicable (GitHub's words stay in History); a finding someone dismissed here is not reopened by an alert reopened on GitHub; dismissed and fixed alerts are read newest-updated first, 500 of each per pull; DOCS_REF is v<version> from bundle.sh, main otherwise.",
+          "Migration 0056_token_expiry_verifier (journal idx 54, when 1793800000000): forge_connections.token_owner_login, token_expires_at, token_checked_at; ai_triage_verdicts.llm_provider_id (FK llm_providers, SET NULL) and connection_name, backfilled from route.providerId / route.providerName.",
+          "Not verified here: a real GitHub, GitLab or Gitea token read (contract tests use recorded shapes; GitHub's header format is not in its REST reference, only the 2021-07-26 changelog, so the parser accepts both forms seen in the wild); the image build with DOCS_REF (no container build here); the banner and inbox section on a device.",
+          "Bugs noticed: the connect-time smoke listing and the new token read go through the unbudgeted discovery provider (as the smoke listing always has: no connection row exists yet); the nightly read is budgeted."
+        ]
       }
   ]
 }

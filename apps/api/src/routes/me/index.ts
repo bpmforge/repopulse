@@ -1,9 +1,10 @@
-import { and, desc, eq, gt, gte, inArray, ne, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, lte, ne, or, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { core, facts, read, security, type Database } from '@repopulse/shared';
 import { identity, workspace as workspaceModule } from '@repopulse/auth';
 import { prSizeBucket } from '@repopulse/metrics';
 import { sendProblem } from '../../lib/problem.js';
+import { TOKEN_EXPIRY_WARNING_DAYS, daysLeft, warningStartsAt } from '../../lib/token-expiry.js';
 
 // Personalized widgets (FR-AUTH-6, FR-WEB-7). Each resolves the logged-in user
 // → their forge author identity (identity map) and filters warehouse rows by
@@ -671,10 +672,54 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
             .orderBy(desc(read.auditEvents.occurredAt))
             .limit(INBOX_ITEMS);
 
+    // W20-25 (UX_TODO ADM-50): forge tokens that expire within 14 days (or
+    // already have), for admins. Listed for as long as that is true; counted
+    // as unread on a first look, or when the warning began after this admin
+    // last looked, so the badge does not stay lit for two weeks.
+    const warnFrom = new Date(Date.now() + TOKEN_EXPIRY_WARNING_DAYS * 24 * 60 * 60 * 1000);
+    const tokens =
+      request.role !== 'admin'
+        ? []
+        : await db
+            .select({
+              id: core.forgeConnections.id,
+              provider: core.forgeConnections.provider,
+              baseUrl: core.forgeConnections.baseUrl,
+              owner: core.forgeConnections.tokenOwnerLogin,
+              expiresAt: core.forgeConnections.tokenExpiresAt,
+            })
+            .from(core.forgeConnections)
+            .where(
+              and(
+                eq(core.forgeConnections.workspaceId, workspaceId),
+                eq(core.forgeConnections.status, 'active'),
+                isNotNull(core.forgeConnections.tokenExpiresAt),
+                lte(core.forgeConnections.tokenExpiresAt, warnFrom),
+              ),
+            )
+            .orderBy(asc(core.forgeConnections.tokenExpiresAt))
+            .limit(INBOX_ITEMS);
+    const newTokens = tokens.filter(
+      (t) => firstLook || (t.expiresAt !== null && warningStartsAt(t.expiresAt) > since),
+    );
+
     return reply.send({
       since: since.toISOString(),
       first_look: firstLook,
-      unread: (findingCount?.n ?? 0) + (scanCount?.n ?? 0) + passes.length + asks.length,
+      unread:
+        (findingCount?.n ?? 0) +
+        (scanCount?.n ?? 0) +
+        passes.length +
+        asks.length +
+        newTokens.length,
+      expiring_tokens: tokens.map((t) => ({
+        connection_id: t.id,
+        provider: t.provider,
+        base_url: t.baseUrl,
+        owner: t.owner,
+        expires_at: t.expiresAt!.toISOString(),
+        days_left: daysLeft(t.expiresAt!),
+      })),
       findings_count: findingCount?.n ?? 0,
       failed_scans_count: scanCount?.n ?? 0,
       ai_passes: passes.map((p) => ({

@@ -67,6 +67,8 @@ export interface Finding {
   tier: number;
   /** Who raised it (W20-15, UX_TODO X-10). Optional for an older API. */
   found_by?: FoundBy;
+  /** Which AI model judged it, on which connection (W20-25, UX_TODO X-10). */
+  verified_by?: VerifiedBy | null;
   /** W6-05. 'unverified' is honest, not missing: nobody re-judged it. */
   verify_status: 'unverified' | 'confirmed' | 'contradicted';
   // W8-10 scanner delta. NULL on an analysis finding, and null rather than ''
@@ -224,6 +226,31 @@ export function foundByText(f: {
   if (by.kind === 'model') return `Found by: your AI model ${by.model}`;
   const rule = f.rule_id ? `, rule ${f.rule_id}` : '';
   return `Found by: the ${by.scanner.replace(/_/g, ' ')} scanner${by.version ? ` ${by.version}` : ''}${rule}`;
+}
+
+/** GET /findings → verified_by (W20-25, UX_TODO X-10). */
+export interface VerifiedBy {
+  model: string;
+  connection: string | null;
+  verdict: string | null;
+  at: string | null;
+}
+
+const VERDICT_WORDS: Record<string, string> = {
+  real: 'judged real',
+  likely_false_positive: 'judged a likely false positive',
+  needs_human: 'left for a person to judge',
+};
+
+/**
+ * "verified by <model> (<connection>): judged real" beside "Found by" (W20-25,
+ * UX_TODO X-10). Null when no model has judged the finding.
+ */
+export function verifiedByText(v: VerifiedBy | null | undefined): string | null {
+  if (!v) return null;
+  const via = v.connection ? ` (${v.connection})` : '';
+  const said = v.verdict ? `: ${VERDICT_WORDS[v.verdict] ?? v.verdict.replace(/_/g, ' ')}` : '';
+  return `verified by ${v.model}${via}${said}`;
 }
 
 /** Each reachability tier in a sentence a person can act on (FR-SEC-13). */

@@ -92,7 +92,12 @@ COPY . .
 # The SPA talks only to /api/v1 on its own origin (Law 4), so there is no API
 # URL to bake in at build time — nginx routes it. That is what keeps one image
 # usable at any customer hostname.
-RUN pnpm --filter @repopulse/web exec vite build
+#
+# W20-25 (UX_TODO ADM-31): DOCS_REF pins the in-app help links to this
+# release's docs tag (deploy/bundle.sh passes v<version>). Empty = `main`,
+# which is what a development build wants. Only a ref is baked in, no URL.
+ARG DOCS_REF=
+RUN VITE_DOCS_REF="$DOCS_REF" pnpm --filter @repopulse/web exec vite build
 
 # ---------- runtime: api ----------
 FROM base AS api

@@ -599,10 +599,31 @@ async function triageStep(a: {
         patchStatus: p.patch?.status ?? 'not_attempted',
         patchReason: p.patch?.reason ?? null,
         route: p.route as Record<string, unknown> | null,
+        // W20-25 (UX_TODO X-10): which connection answered, as columns.
+        ...verifierColumns(p.route),
       })
       .onConflictDoNothing();
   }
   return { funnel: result.funnel, skipped: null, calls: result.calls };
+}
+
+/**
+ * The connection behind a triage answer (W20-25, UX_TODO X-10), from the route
+ * the gateway recorded: its id while it exists, and its name kept beside it.
+ */
+export function verifierColumns(route: unknown): {
+  llmProviderId: number | null;
+  connectionName: string | null;
+} {
+  const r = (route ?? {}) as { providerId?: unknown; providerName?: unknown };
+  return {
+    llmProviderId:
+      typeof r.providerId === 'number' && Number.isInteger(r.providerId) ? r.providerId : null,
+    connectionName:
+      typeof r.providerName === 'string' && r.providerName !== ''
+        ? r.providerName.slice(0, 200)
+        : null,
+  };
 }
 
 /** A rule-raised finding with stored context, as triage reads it. */
@@ -769,6 +790,7 @@ async function secondOpinionStep(a: {
       // No patch proof runs for a second opinion: it is a verdict, not a fix.
       patchStatus: 'not_attempted',
       route: p.route as Record<string, unknown> | null,
+      ...verifierColumns(p.route),
     })
     .onConflictDoNothing();
   return a.finish('succeeded', { calls: result.calls, triageFunnel: funnel });

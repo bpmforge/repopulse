@@ -364,6 +364,12 @@ export interface RawCodeScanningAlert {
     } | null;
     message?: { text?: string | null } | null;
   } | null;
+  /** W20-25 (UX_TODO FND-63): GitHub's own record of a dismissal or fix. */
+  dismissed_by?: { login?: string | null } | null;
+  dismissed_reason?: string | null;
+  dismissed_comment?: string | null;
+  dismissed_at?: string | null;
+  fixed_at?: string | null;
 }
 
 const positiveInt = (n: number | null | undefined): number | null =>
@@ -390,5 +396,10 @@ export function normalizeCodeScanningAlert(a: RawCodeScanningAlert): ForgeCodeSc
     message: instance?.message?.text ?? null,
     commitSha: instance?.commit_sha ?? null,
     htmlUrl: a.html_url ?? null,
+    dismissedBy: a.dismissed_by?.login ?? null,
+    dismissedReason: a.dismissed_reason ?? null,
+    dismissedComment: a.dismissed_comment ?? null,
+    dismissedAt: a.dismissed_at ?? null,
+    fixedAt: a.fixed_at ?? null,
   };
 }

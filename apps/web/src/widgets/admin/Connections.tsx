@@ -14,6 +14,7 @@ import { errorDetailOf, requestIdOf } from '../../api/client.js';
 import { errorToast, type Toast } from '../../components/store/uiStore.js';
 import type { ConnectionList, ConnectionSummary } from './contracts.js';
 import { RepoPicker } from './RepoPicker.js';
+import { tokenExpiryText, tokenOwnerText } from './forge-token.js';
 
 // Admin → Connections (UX_SPEC §4.i). This is the screen docs/INSTALL.md sends
 // operators to, and the only way to connect an organization.
@@ -660,6 +661,27 @@ export function Connections() {
       cell: (row) => (
         <span className="text-xs text-fg-muted" data-testid={`connection-added-${row.id}`}>
           {addedByText(row)}
+        </span>
+      ),
+    },
+    {
+      id: 'token',
+      header: 'Token',
+      // W20-25 (UX_TODO ADM-50): whose forge account the token is and when it
+      // stops working, as the forge reported at connect time. Never the token.
+      cell: (row) => (
+        <span className="flex flex-col text-xs" data-testid={`connection-token-${row.id}`}>
+          <span>{tokenOwnerText(row)}</span>
+          <span
+            className={
+              row.token_expiry === 'expired' || row.token_expiry === 'expiring'
+                ? 'font-medium text-warn'
+                : 'text-fg-muted'
+            }
+            data-expiry={row.token_expiry ?? 'unknown'}
+          >
+            {tokenExpiryText(row)}
+          </span>
         </span>
       ),
     },
