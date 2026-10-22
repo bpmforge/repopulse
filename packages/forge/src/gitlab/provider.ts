@@ -18,6 +18,7 @@ import type {
   ForgeRepo,
   ForgeReview,
   ForgeTarball,
+  ForgeTokenInfo,
   Page,
   SinceQuery,
 } from '../types.js';
@@ -30,6 +31,7 @@ import {
   withPage,
 } from './pagination.js';
 import { verifyWebhookToken } from './webhook.js';
+import { loginOf, parseGitlabTokenExpiry } from '../token-info.js';
 import {
   normalizeApproval,
   normalizeCommit,
@@ -371,6 +373,23 @@ export class GitLabProvider implements ForgeProvider {
    */
   async getTarball(_ctx: CallCtx, _repo: string, _sha: string): Promise<ForgeTarball> {
     throw new Error('GitLab archive download is not implemented — check supportsTarball first');
+  }
+
+  /**
+   * The token's owner and expiry (W20-25, UX_TODO ADM-50): GET /user for the
+   * username, then GET /personal_access_tokens/self for `expires_at` (a date,
+   * null when the token never expires). An instance too old for the self
+   * lookup answers 404 and the expiry stays unknown; the owner is still read.
+   */
+  async getTokenInfo(ctx: CallCtx): Promise<ForgeTokenInfo> {
+    const user = await this.get(ctx, `${this.base}/user`, 'commits');
+    assertListOk(user, 'token_owner');
+    const self = await this.get(ctx, `${this.base}/personal_access_tokens/self`, 'commits');
+    const expiresAt =
+      self.status >= 200 && self.status < 300
+        ? parseGitlabTokenExpiry((self.body as { expires_at?: unknown } | null)?.expires_at)
+        : null;
+    return { ownerLogin: loginOf(user.body, 'username'), expiresAt };
   }
 
   async registerWebhook(

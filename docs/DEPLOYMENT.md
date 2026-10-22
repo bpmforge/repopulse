@@ -87,6 +87,7 @@ generated and mode `0600`, and never rewrites it, because rotating
 | `FORGE_BASE_URL` | api, worker | deployment-wide default for a self-hosted forge; each connection can also carry its own |
 | `SCAN_RULES_DIR`, `SCAN_SCRATCH_SIZE`, `SCAN_IMAGE`, `SCAN_RUNNER_TOKEN` | worker, scan-runner | scan data directory, scratch size, sandbox image, the shared secret between worker and runner (generated) |
 | `REPOPULSE_VERSION`, `REPOPULSE_IMAGE_PREFIX` | compose | pinned by `install.sh`; change `REPOPULSE_VERSION` to roll to another loaded version |
+| `DOCS_REF` (Dockerfile build argument) | web image build | the docs tag in-app help links point at; `deploy/bundle.sh` passes `v<version>`, any other build leaves it empty and the links use `main` |
 | `NODE_ENV`, `LOG_LEVEL` | all | `production` (secure cookies) / `info` |
 
 Not read by this release, though older templates mention them: `GITHUB_PAT`,

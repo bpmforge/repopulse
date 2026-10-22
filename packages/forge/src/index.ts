@@ -4,6 +4,7 @@ export * from './types.js';
 export * from './provider.js';
 export * from './blob-url.js';
 export * from './host.js';
+export * from './token-info.js';
 export * from './client/index.js';
 export * from './github/index.js';
 // Named exports only: both adapters define normalize*/verifyWebhookSignature,

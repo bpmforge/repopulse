@@ -23,11 +23,11 @@ const DOCS_REPO = 'https://github.com/bpmforge/repopulse/blob';
 /**
  * `VITE_DOCS_BASE_URL`, or the public repository at `VITE_DOCS_REF`.
  *
- * W20-22 (UX_TODO ADM-31): `VITE_DOCS_REF` lets a release build pin its links
- * to its own tag, so an install reads the docs for the version it runs rather
- * than whatever `main` says today. It defaults to `main` because no release
- * tag is published yet; a link to a tag that does not exist is a 404, which is
- * worse than slightly newer docs.
+ * W20-22 (UX_TODO ADM-31): `VITE_DOCS_REF` pins the links to a release's own
+ * tag, so an install reads the docs for the version it runs rather than
+ * whatever `main` says today. W20-25: the release image build sets it to
+ * `v<version>` (Dockerfile ARG DOCS_REF, passed by deploy/bundle.sh); a
+ * development build leaves it unset and links to `main`.
  */
 export function docsBase(env: Record<string, unknown> | undefined = import.meta.env): string {
   const configured = env?.VITE_DOCS_BASE_URL;

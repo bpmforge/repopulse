@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import { core, type Database, safeErrorText } from '@repopulse/shared';
-import { splitRepoFullName, type ForgeRepo } from '@repopulse/forge';
+import { splitRepoFullName, type ForgeRepo, type ForgeTokenInfo } from '@repopulse/forge';
 
 // Connect flow (FR-INGEST-1, INGESTION §1). Orchestration only — this module
 // never imports @repopulse/auth (ARCHITECTURE §3 forbids ingest→auth), so the
@@ -162,6 +162,33 @@ export interface CreateConnectionDeps {
   smokeListRepos: () => Promise<ForgeRepo[]>;
   /** The forge's host, named in a cannot-reach message (W20-07, INS-64). */
   host?: string | undefined;
+  /**
+   * The token's owner and expiry (W20-25, UX_TODO ADM-50). Optional, and a
+   * failure never fails the connect: the columns stay empty and the nightly
+   * sweep tries again.
+   */
+  readTokenInfo?: (() => Promise<ForgeTokenInfo>) | undefined;
+}
+
+/** The token columns to write, or {} when the forge could not be asked. */
+export async function tokenInfoColumns(
+  read: (() => Promise<ForgeTokenInfo>) | undefined,
+): Promise<{
+  tokenOwnerLogin?: string | null;
+  tokenExpiresAt?: Date | null;
+  tokenCheckedAt?: Date;
+}> {
+  if (!read) return {};
+  try {
+    const info = await read();
+    return {
+      tokenOwnerLogin: info.ownerLogin,
+      tokenExpiresAt: info.expiresAt,
+      tokenCheckedAt: new Date(),
+    };
+  } catch {
+    return {};
+  }
 }
 
 /**
@@ -224,6 +251,7 @@ export async function createConnection(
   }
 
   const enc = deps.encrypt(params.credential);
+  const token = await tokenInfoColumns(deps.readTokenInfo);
   const [conn] = await deps.db
     .insert(core.forgeConnections)
     .values({
@@ -239,6 +267,7 @@ export async function createConnection(
       baseUrl: params.baseUrl ?? null,
       status: 'active',
       createdBy: params.createdBy,
+      ...token,
     })
     .returning();
   if (!conn) throw new Error('connection insert returned no row');
@@ -277,6 +306,9 @@ export async function replaceConnectionCredential(
     throw new ConnectValidationError('no_repos', 'The credential can see no repositories.');
   }
   const enc = deps.encrypt(params.credential);
+  // A new token has its own owner and expiry; the old one's are cleared even
+  // when the forge cannot be asked, so a stale expiry never warns about it.
+  const token = await tokenInfoColumns(deps.readTokenInfo);
   const updated = await deps.db
     .update(core.forgeConnections)
     .set({
@@ -285,6 +317,10 @@ export async function replaceConnectionCredential(
       keyVersion: enc.keyVersion,
       credentialFingerprint: enc.fingerprint,
       status: 'active',
+      tokenOwnerLogin: null,
+      tokenExpiresAt: null,
+      tokenCheckedAt: null,
+      ...token,
     })
     .where(
       and(

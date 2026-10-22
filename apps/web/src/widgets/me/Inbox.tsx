@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { useApiMutation, useApiQuery, queryKeyFor } from '../../api/useApiQuery.js';
+import { expiryWords } from '../admin/CiTokenExpiry.js';
 
 // The in-app inbox (W20-10, UX_TODO X-03).
 //
@@ -55,6 +56,16 @@ export interface InboxAiPassRequest {
   at: string;
 }
 
+/** W20-25 (UX_TODO ADM-50): a forge token expiring within 14 days (admins only). */
+export interface InboxExpiringToken {
+  connection_id: number;
+  provider: string;
+  base_url: string | null;
+  owner: string | null;
+  expires_at: string;
+  days_left: number;
+}
+
 export interface InboxResponse {
   since: string;
   first_look: boolean;
@@ -66,6 +77,8 @@ export interface InboxResponse {
   /** Absent from an API older than W20-21. */
   ai_passes?: InboxAiPass[];
   ai_pass_requests?: InboxAiPassRequest[];
+  /** Absent from an API older than W20-25, and for members. */
+  expiring_tokens?: InboxExpiringToken[];
 }
 
 /** Polled as well as refreshed by the sync stream: findings are not on the stream yet. */
@@ -92,6 +105,8 @@ export function Inbox() {
     { invalidate: [queryKeyFor(INBOX)] },
   );
   const unread = data?.unread ?? 0;
+  // Listed while true, whether or not it is new (W20-25, ADM-50).
+  const tokens = data?.expiring_tokens ?? [];
 
   useEffect(() => {
     if (!open) return;
@@ -147,13 +162,39 @@ export function Inbox() {
           </div>
           {data === undefined ? (
             <p className="text-xs text-fg-muted">Loading…</p>
-          ) : unread === 0 ? (
+          ) : unread === 0 && tokens.length === 0 ? (
             <p className="text-xs text-fg-muted" data-testid="inbox-empty">
               Nothing new: no high, critical, known-exploited or secrets findings, no failed scans
               and no AI pass news since you last looked.
             </p>
           ) : (
             <>
+              {tokens.length > 0 ? (
+                <section aria-label="Forge tokens expiring" className="flex flex-col gap-1">
+                  <h3 className="text-xs text-fg-muted">Forge tokens to replace</h3>
+                  <ul className="flex flex-col gap-1" data-testid="inbox-tokens">
+                    {tokens.map((t) => (
+                      <li key={t.connection_id}>
+                        <Link
+                          to={'/admin' as never}
+                          onClick={() => setOpen(false)}
+                          className="flex flex-col rounded-sm px-1 py-0.5 hover:bg-surface-2"
+                          data-testid={`inbox-token-${t.connection_id}`}
+                        >
+                          <span>
+                            <span className="mr-1.5 text-xs font-medium text-warn">Token</span>
+                            {t.provider} connection{t.owner ? ` (${t.owner})` : ''}{' '}
+                            {expiryWords(t.expires_at)}
+                          </span>
+                          <span className="text-xs text-fg-muted">
+                            Syncing stops when it expires: replace it in Settings → Connections.
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
               {data.findings.length > 0 ? (
                 <section aria-label="New findings" className="flex flex-col gap-1">
                   <h3 className="text-xs text-fg-muted">

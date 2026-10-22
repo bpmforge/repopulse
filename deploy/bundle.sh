@@ -175,7 +175,11 @@ BASE_IMAGES="docker.io/library/postgres:16 docker.io/library/redis:7-alpine"
 if [ "$BUILD" = 1 ]; then
   for target in migrate api worker scan-runner web; do
     echo "== build $PREFIX/$target:$VERSION (Dockerfile target $target)"
-    "$RT" build ${PLATFORM_ARGS[@]+"${PLATFORM_ARGS[@]}"} -f Dockerfile --target "$target" -t "$PREFIX/$target:$VERSION" .
+    # W20-25 (UX_TODO ADM-31): the web bundle's help links point at this
+    # release's docs tag, v<version>. The tag itself is made by hand at
+    # release time; this script never creates one.
+    "$RT" build ${PLATFORM_ARGS[@]+"${PLATFORM_ARGS[@]}"} -f Dockerfile --target "$target" \
+      --build-arg "DOCS_REF=v$VERSION" -t "$PREFIX/$target:$VERSION" .
   done
   echo "== build $PREFIX/scan:$VERSION (Containerfile.scan)"
   "$RT" build ${PLATFORM_ARGS[@]+"${PLATFORM_ARGS[@]}"} -f Containerfile.scan -t "$PREFIX/scan:$VERSION" .

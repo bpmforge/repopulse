@@ -407,6 +407,8 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
       decidedBy: null,
       patchStatus: 'not_attempted',
       patchDiff: null,
+      // W20-25 (UX_TODO X-10): which connection answered, as a column.
+      connectionName: 'LM Studio',
     });
     expect(v!.citations[0]).toMatchObject({ file: 'src/routes/users.ts', line: 3 });
     expect(v!.citations[0]!.text).toContain('db.query');

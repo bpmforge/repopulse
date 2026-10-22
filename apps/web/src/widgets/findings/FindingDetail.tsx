@@ -16,6 +16,7 @@ import {
   RISK_BAND_LABEL,
   findingUrl,
   foundByText,
+  verifiedByText,
   SEVERITY_LABEL,
   statusLabel,
   tomorrow,
@@ -209,6 +210,9 @@ export function FindingDetail({
           <span>{dimensionLabel(finding.dimension)}</span>
           <span>seen {finding.occurrence_count}×</span>
           <span data-testid="finding-found-by">{foundByText(finding)}</span>
+          {verifiedByText(finding.verified_by) ? (
+            <span data-testid="finding-verified-by">{verifiedByText(finding.verified_by)}</span>
+          ) : null}
           {/* The status, from the server's copy of the finding — never from
               the button that was just pressed (W17-23). */}
           <span data-testid="finding-status">
@@ -388,11 +392,12 @@ export function FindingDetail({
           tracker (Copy review summary gives you the text) and link it above.
         </p>
 
-        {/* W20-21 (UX_TODO FND-63, part): imported alerts are triaged twice. */}
+        {/* W20-21 / W20-25 (UX_TODO FND-63): what crosses between the two tools. */}
         {finding.found_by?.kind === 'imported' && finding.found_by.source === 'code_scanning' && (
           <p className="text-xs text-fg-muted" data-testid="finding-code-scanning-note" role="note">
-            Imported from GitHub code scanning. Triage here is not sent back to GitHub, and an alert
-            dismissed or fixed on GitHub shows here as resolved because it is no longer reported.
+            Imported from GitHub code scanning. An alert dismissed on GitHub is dismissed here, with
+            who dismissed it and why in History; one fixed there is resolved here. Triage here is
+            not sent back to GitHub.
           </p>
         )}
 

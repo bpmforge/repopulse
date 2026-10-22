@@ -18,6 +18,12 @@ export interface ConnectionSummary {
   /** When and by whom it was added (W20-22, UX_TODO ADM-50); optional for an older API. */
   created_at?: string;
   created_by?: string | null;
+  /** W20-25 (UX_TODO ADM-50): read from the forge at connect time; optional for an older API. */
+  token_owner?: string | null;
+  token_expires_at?: string | null;
+  token_checked_at?: string | null;
+  token_expiry?: 'expired' | 'expiring' | 'ok' | 'unknown';
+  token_days_left?: number | null;
 }
 
 export interface ConnectionList {

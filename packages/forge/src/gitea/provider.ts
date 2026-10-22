@@ -21,6 +21,7 @@ import type {
   ForgeRepo,
   ForgeReview,
   ForgeTarball,
+  ForgeTokenInfo,
   Page,
   SinceQuery,
 } from '../types.js';
@@ -33,6 +34,7 @@ import {
   withPage,
 } from './pagination.js';
 import { verifyWebhookSignature } from './webhook.js';
+import { loginOf } from '../token-info.js';
 import {
   normalizeCommit,
   normalizeCommitFile,
@@ -338,6 +340,16 @@ export class GiteaProvider implements ForgeProvider {
         throw new Error('Gitea archive responded with a redirect; not followed');
       },
     });
+  }
+
+  /**
+   * The token's owner (W20-25, UX_TODO ADM-50): GET /user. Gitea access
+   * tokens carry no expiry, so there is none to read.
+   */
+  async getTokenInfo(ctx: CallCtx): Promise<ForgeTokenInfo> {
+    const res = await this.get(ctx, `${this.base}/user`, 'commits');
+    assertListOk(res, 'token_owner');
+    return { ownerLogin: loginOf(res.body, 'login'), expiresAt: null };
   }
 
   async registerWebhook(

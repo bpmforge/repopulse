@@ -96,6 +96,12 @@ describe('GitHub code-scanning alerts (W18-24)', () => {
         message: 'This query depends on a user-provided value.',
         commitSha: 'a'.repeat(40),
         htmlUrl: 'https://github.com/acme/widgets/security/code-scanning/42',
+        // W20-25 (FND-63): an open alert has no dismissal or fix.
+        dismissedBy: null,
+        dismissedReason: null,
+        dismissedComment: null,
+        dismissedAt: null,
+        fixedAt: null,
       },
     ]);
   });

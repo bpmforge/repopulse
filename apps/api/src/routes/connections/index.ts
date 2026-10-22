@@ -18,10 +18,12 @@ import {
   type ForgeCursor,
   type ForgeProvider,
   type ForgeRepo,
+  type ForgeTokenInfo,
   type GitHubAuth,
 } from '@repopulse/forge';
 import { sendProblem } from '../../lib/problem.js';
 import { requireAdmin } from '../../lib/rbac.js';
+import { daysLeft, tokenExpiryState } from '../../lib/token-expiry.js';
 import {
   buildDiscoveryProvider,
   isMisresolvedGitlabRow,
@@ -203,6 +205,18 @@ export default async function connectionsRoutes(
     );
   }
 
+  /**
+   * The token's owner and expiry (W20-25, UX_TODO ADM-50), for a personal
+   * token on a forge that can say. An App installation has no owner account.
+   */
+  function tokenReader(
+    forge: ForgeProvider,
+    authKind: string,
+  ): (() => Promise<ForgeTokenInfo>) | undefined {
+    if (authKind !== 'pat' || !forge.getTokenInfo) return undefined;
+    return () => forge.getTokenInfo!(CTX);
+  }
+
   /** A removed connection holds no credential to call the forge with. */
   function removedConnection(request: FastifyRequest, reply: FastifyReply): FastifyReply {
     return fail(
@@ -375,6 +389,7 @@ export default async function connectionsRoutes(
             encrypt: (pt) => credentials.encryptCredential(pt, tokenKey),
             smokeListRepos: () => forge.listRepos(CTX).then((p) => p.items),
             host: hostOf(baseUrl),
+            readTokenInfo: tokenReader(forge, auth_kind),
           },
           {
             workspaceId: ctx.workspaceId,
@@ -435,6 +450,9 @@ export default async function connectionsRoutes(
           repoCount: sql<number>`(select count(*)::int from ${core.repos} where ${core.repos.connectionId} = ${core.forgeConnections.id})`,
           createdAt: core.forgeConnections.createdAt,
           createdBy: core.users.login,
+          tokenOwnerLogin: core.forgeConnections.tokenOwnerLogin,
+          tokenExpiresAt: core.forgeConnections.tokenExpiresAt,
+          tokenCheckedAt: core.forgeConnections.tokenCheckedAt,
         })
         .from(core.forgeConnections)
         .leftJoin(core.users, eq(core.users.id, core.forgeConnections.createdBy))
@@ -456,6 +474,14 @@ export default async function connectionsRoutes(
           scheduled_sync_only: isScheduledOnly(stored, r.id),
           created_at: r.createdAt.toISOString(),
           created_by: r.createdBy ?? null,
+          // W20-25 (UX_TODO ADM-50): read from the forge, never the token.
+          token_owner: r.tokenOwnerLogin,
+          token_expires_at: r.tokenExpiresAt?.toISOString() ?? null,
+          token_checked_at: r.tokenCheckedAt?.toISOString() ?? null,
+          // A removed connection has no token left to expire.
+          token_expiry:
+            r.status === 'active' ? tokenExpiryState(r.tokenExpiresAt) : ('unknown' as const),
+          token_days_left: r.tokenExpiresAt ? daysLeft(r.tokenExpiresAt) : null,
         })),
       });
     },
@@ -667,6 +693,7 @@ export default async function connectionsRoutes(
             encrypt: (pt) => credentials.encryptCredential(pt, tokenKey),
             smokeListRepos: () => forge.listRepos(CTX).then((p) => p.items),
             host: hostOf(baseUrl),
+            readTokenInfo: tokenReader(forge, row.authKind),
           },
           { workspaceId: ctx.workspaceId, connectionId: row.id, credential },
         );

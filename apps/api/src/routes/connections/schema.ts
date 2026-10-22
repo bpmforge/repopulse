@@ -45,6 +45,17 @@ export const connectionSummarySchema = z.object({
    */
   created_at: z.string(),
   created_by: z.string().nullable(),
+  /**
+   * W20-25 (UX_TODO ADM-50): the forge account the token belongs to and when
+   * it expires, as the forge reported them at connect time. Null where the
+   * forge does not say; token_checked_at null = not read yet.
+   */
+  token_owner: z.string().nullable(),
+  token_expires_at: z.string().nullable(),
+  token_checked_at: z.string().nullable(),
+  /** 'expiring' from 14 days before; 'unknown' when no expiry is known. */
+  token_expiry: z.enum(['expired', 'expiring', 'ok', 'unknown']),
+  token_days_left: z.number().nullable(),
 });
 
 /** PUT /connections/{id}/auto-add (W20-17, UX_TODO INS-09). */

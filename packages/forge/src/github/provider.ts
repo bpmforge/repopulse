@@ -12,6 +12,7 @@ import type {
   ForgeCapabilities,
   ForgeCheckRun,
   ForgeCodeScanningAlert,
+  ForgeCodeScanningState,
   ForgeCommit,
   ForgeCursor,
   ForgeDeployment,
@@ -24,6 +25,7 @@ import type {
   ForgeReview,
   ForgeReviewComment,
   ForgeTarball,
+  ForgeTokenInfo,
   Page,
   SinceQuery,
 } from '../types.js';
@@ -31,6 +33,7 @@ import type { AuthHeaderProvider } from './auth.js';
 import { listPullRequestsGraphql } from './graphql.js';
 import { linkHeaderOf, nextPageCursor } from './pagination.js';
 import { verifyWebhookSignature } from './webhook.js';
+import { headerOf, loginOf, parseGithubTokenExpiration } from '../token-info.js';
 import {
   normalizeCheckRun,
   normalizeCodeScanningAlert,
@@ -398,19 +401,27 @@ export class GitHubProvider implements ForgeProvider {
   }
 
   /**
-   * Open code-scanning alerts (W18-24). READ-ONLY: GET only, state=open, and
-   * nothing here can dismiss, reopen or upload. Drawn from the `checks`
-   * secondary bucket — it is CI output read about a repository, the same
-   * family of cost — and every page is one budgeted core point.
+   * Code-scanning alerts (W18-24). READ-ONLY: GET only, and nothing here can
+   * dismiss, reopen or upload. Drawn from the `checks` secondary bucket — it
+   * is CI output read about a repository, the same family of cost — and every
+   * page is one budgeted core point. Open alerts by default; W20-25 (UX_TODO
+   * FND-63) also reads dismissed and fixed ones, most recently updated first,
+   * so the newest decisions on GitHub are on the first pages.
    */
   async listCodeScanningAlerts(
     ctx: CallCtx,
     repo: string,
     cursor?: ForgeCursor,
+    opts: { state?: ForgeCodeScanningState } = {},
   ): Promise<Page<ForgeCodeScanningAlert>> {
+    const state = opts.state ?? 'open';
+    const order = state === 'open' ? '' : '&sort=updated&direction=desc';
     const res = await this.get(
       ctx,
-      withPage(`${this.base}/repos/${repo}/code-scanning/alerts?state=open&per_page=100`, cursor),
+      withPage(
+        `${this.base}/repos/${repo}/code-scanning/alerts?state=${state}${order}&per_page=100`,
+        cursor,
+      ),
       'checks',
     );
     // No emptyOn: a 404 ("no analysis found") and a 403 (permission missing)
@@ -420,6 +431,24 @@ export class GitHubProvider implements ForgeProvider {
       normalizeCodeScanningAlert,
       { entity: 'code_scanning_alerts' },
     );
+  }
+
+  /**
+   * The token's owner and expiry (W20-25, UX_TODO ADM-50): one GET /user. The
+   * owner is its `login`; the expiry is GitHub's
+   * GitHub-Authentication-Token-Expiration header, absent for a token that
+   * never expires. A personal token only: an App installation token cannot
+   * read /user and answers 403, which is thrown for the caller to skip.
+   */
+  async getTokenInfo(ctx: CallCtx): Promise<ForgeTokenInfo> {
+    const res = await this.get(ctx, `${this.base}/user`, 'commits');
+    assertListOk(res, 'token_owner');
+    return {
+      ownerLogin: loginOf(res.body, 'login'),
+      expiresAt: parseGithubTokenExpiration(
+        headerOf(res.headers, 'github-authentication-token-expiration'),
+      ),
+    };
   }
 
   async registerWebhook(

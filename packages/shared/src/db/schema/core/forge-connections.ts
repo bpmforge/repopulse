@@ -49,6 +49,16 @@ export const forgeConnections = pgTable(
       onDelete: 'set null',
     }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * W20-25 (UX_TODO ADM-50): the forge account the token belongs to and when
+     * it stops working, read from the forge at connect time (and once by the
+     * nightly sweep for a connection made before this). Never the token. Null
+     * where the forge does not say: an App installation, a token that never
+     * expires, a Gitea token. token_checked_at is null until the read worked.
+     */
+    tokenOwnerLogin: text('token_owner_login'),
+    tokenExpiresAt: timestamp('token_expires_at', { withTimezone: true }),
+    tokenCheckedAt: timestamp('token_checked_at', { withTimezone: true }),
   },
   (t) => [
     index('forge_connections_workspace_id_idx').on(t.workspaceId),
