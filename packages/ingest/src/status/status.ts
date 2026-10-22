@@ -1,3 +1,4 @@
+import { connectionHost } from '@repopulse/forge';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { core, facts, type Database } from '@repopulse/shared';
 
@@ -104,21 +105,9 @@ function refinePhase(
   }
 }
 
-/** The host a connection talks to, for a person to read (W20-15, X-18). */
-export function connectionHost(provider: string, baseUrl: string | null): string | null {
-  if (baseUrl) {
-    try {
-      const host = new URL(baseUrl).hostname;
-      // api.github.com is how GitHub's API is addressed, not what people call it.
-      return host === 'api.github.com' ? 'github.com' : host;
-    } catch {
-      return null;
-    }
-  }
-  if (provider === 'github') return 'github.com';
-  if (provider === 'gitlab') return 'gitlab.com';
-  return null;
-}
+// The host a connection talks to is forge knowledge and lives in packages/forge;
+// re-exported so existing importers of the status module keep working.
+export { connectionHost };
 
 export interface StatusClock {
   nowMs?: number;

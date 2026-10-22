@@ -11262,6 +11262,29 @@
           "Requested by the coordinator 2026-10-21 on Brad's yes. Evidence: docs/design/evidence/w19-14-ai-pass-live.json; write-up in docs/design/AI_LAYER.md.",
           "Ran 2026-10-21 with qwen/qwen3.8-27b on LM Studio. Diff mode on PR #12: 6 of 6 calls in 24 min, the real SQL injection found, the parameterised query not flagged, triage real 5/5 and likely false positive 4/5 with citations matching our copy, off-diff rule finding not triaged, nothing dismissed. Scheduled pass on PR #13 started by the worker's own tick: 5 calls (cap left 6), triage real 5/5; disabled, and two ticks started nothing. Weak output recorded: one code-health finding makes an ungrounded claim (its quote is a real line, the claim is not in the diff). Not run live: the PUT route and login session, a real forge, a hosted link, a skipped scheduled run."
         ]
+      },
+      {
+        "id": "W19-15",
+        "title": "Fix validate-arch rule 4: the connection host lives in packages/forge",
+        "phase": 19,
+        "module": "forge",
+        "stories": [],
+        "write_scope": [
+          "packages/forge/**",
+          "packages/ingest/**",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W19-14"
+        ],
+        "acceptance": [
+          "validate-arch rule 4 passes with no rule exception: api.github.com is referenced only inside packages/forge; connectionHost moves to packages/forge with its tests, and ingest imports it from there; behaviour unchanged; full gate green"
+        ],
+        "points": 1,
+        "status": "done",
+        "notes": [
+          "Requested by the coordinator 2026-10-22. The reference came in with W20-15 (ingest status code) and failed the rule on main. ingest keeps re-exporting connectionHost so the repositories route is unchanged."
+        ]
       }
   ]
 }

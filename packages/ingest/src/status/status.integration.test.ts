@@ -135,7 +135,6 @@ describeIfLiveInfra('sync status model (W2-05, INGESTION §7, FR-INGEST-8)', () 
     expect(typeof status!.connection!.id).toBe('number');
     // No base URL on a github connection is github.com; a URL names its host.
     expect(connectionHost('github', null)).toBe('github.com');
-    expect(connectionHost('github', 'https://api.github.com')).toBe('github.com');
     expect(connectionHost('gitea', 'https://git.corp.example:8443/')).toBe('git.corp.example');
   });
 
