@@ -760,10 +760,10 @@ cookie. #13 is not in `FAKE_PRS`, so the ingestion fixtures and their counts are
 untouched. Its tests caught a hunk header that disagreed with its own lines. The worker's
 forge base-URL override already existed (`FORGE_BASE_URL` + `FORGE_ALLOW_INSECURE_LOOPBACK=1`,
 refused for any non-loopback host), so no new override was added. The harness is
-`apps/api/src/dev/ai-pass-live-check.ts`:
+`apps/api/scripts/ai-pass-live-check.ts`:
 
 ```bash
-LIVE_MODEL=qwen/qwen3.8-27b pnpm --filter @repopulse/api exec tsx src/dev/ai-pass-live-check.ts
+LIVE_MODEL=qwen/qwen3.8-27b pnpm --filter @repopulse/api exec tsx scripts/ai-pass-live-check.ts
 ```
 
 It starts the fake forge and the **shipping worker process**, points the worker at the

@@ -27,7 +27,10 @@ function envVarsInSource(): Set<string> {
           // scanned, and documenting JWT_KEY as a RepoPulse knob would be a
           // lie in the customer-facing reference.
           ':(exclude)**/fixtures/**',
-          ':(exclude)e2e/**'],
+          ':(exclude)e2e/**',
+          // Dev harnesses that are run by hand and are not shipped (W19-14: the AI-pass
+          // live check reads LIVE_* knobs of its own).
+          ':(exclude)apps/api/scripts/**'],
         { cwd: repoRoot, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] },
       );
     } catch (error) {

@@ -4,7 +4,7 @@
 //   worker (not a test double), a real model, and a forge that is a loopback fake.
 //
 //   LIVE_MODEL=qwen/qwen3.8-27b LIVE_OUT=/tmp/ai-pass-live.json \
-//     pnpm --filter @repopulse/api exec tsx src/dev/ai-pass-live-check.ts
+//     pnpm --filter @repopulse/api exec tsx scripts/ai-pass-live-check.ts
 //
 // WHAT RUNS FOR REAL
 //   - The worker process (apps/api/src/workers/index.ts) with its real ai.pass
@@ -43,7 +43,7 @@ import {
   security,
   startFakeForge,
 } from '@repopulse/shared';
-import { passEgress } from '../lib/ai-pass-egress.js';
+import { passEgress } from '../src/lib/ai-pass-egress.js';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 const REDIS_URL = process.env.REDIS_URL;
