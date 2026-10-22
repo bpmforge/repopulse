@@ -20,6 +20,7 @@ import type {
   ForgeTokenInfo,
   ForgeReview,
   ForgeReviewComment,
+  ForgeReviewRequest,
   ForgeCursor,
   Page,
   SinceQuery,
@@ -59,6 +60,17 @@ export interface ForgeProvider {
     n: number,
     cursor?: ForgeCursor,
   ): Promise<Page<ForgeReviewComment>>;
+  /**
+   * When each reviewer was asked (W20-24, UX_TODO DSH-41), from the forge's
+   * issue events. OPTIONAL: an adapter without it leaves the review queue
+   * measuring from when the pull request opened, and the screen says so.
+   */
+  listReviewRequests?(
+    ctx: CallCtx,
+    repo: string,
+    n: number,
+    cursor?: ForgeCursor,
+  ): Promise<Page<ForgeReviewRequest>>;
   listCheckRuns(
     ctx: CallCtx,
     repo: string,

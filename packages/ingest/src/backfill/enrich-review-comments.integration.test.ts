@@ -62,6 +62,8 @@ function githubCanned(repo: string, n: number, sha: string, comments: Canned): C
       status: 200,
       body: { total_count: 0, check_runs: [] },
     },
+    // W20-24 (DSH-41): enrichment also reads the PR's review-request events.
+    [`${GH}/${repo}/issues/${n}/events?per_page=100`]: { status: 200, body: [] },
     ...comments,
   };
 }
@@ -237,7 +239,7 @@ describeIfLiveInfra('review-comment anchors in PR enrichment (W18-23)', () => {
       { db, provider },
       { workspaceId, repoId, repo, prNumber: 7, headSha: 'sha7' },
     );
-    expect(out).toEqual({ reviews: 1, checks: 0, reviewComments: 2 });
+    expect(out).toEqual({ reviews: 1, checks: 0, reviewComments: 2, reviewRequests: 0 });
 
     const rows = await db
       .select()
@@ -291,7 +293,7 @@ describeIfLiveInfra('review-comment anchors in PR enrichment (W18-23)', () => {
       { workspaceId, repoId, repo, prNumber: 8, headSha: 'sha8' },
     );
     // The other fetches still landed.
-    expect(out).toEqual({ reviews: 1, checks: 0, reviewComments: 0 });
+    expect(out).toEqual({ reviews: 1, checks: 0, reviewComments: 0, reviewRequests: 0 });
     expect(await observedAt(prId)).toBeNull();
     expect(await refusal(repoId)).toMatch(/^review_comments not ingested — HTTP 403/);
   });

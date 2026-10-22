@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { WidgetFrame, frameState, PageHeader } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 import { PlanItemCard } from '../../widgets/plans/PlanItemCard.js';
@@ -6,19 +6,40 @@ import { GeneratePlanButton } from '../../widgets/plans/GeneratePlanButton.js';
 import { Agreements } from '../../widgets/agreements/Agreements.js';
 import type { MeContext } from '../../widgets/org/contracts.js';
 import {
+  matchesOwnerFilter,
+  ownerLabel,
   planProgress,
   planScopeLabel,
   repoIdsFromFilter,
   sameScope,
   type MetricNames,
   type Plan,
+  type PlanOwner,
   type RepoNames,
 } from '../../widgets/plans/contracts.js';
 
 // Plans page (W5-07, UX_SPEC §4.h2). The rail has linked to /plans since W4-02
 // with no route behind it.
 
-export const Route = createFileRoute('/plans/')({ component: PlansPage });
+/**
+ * This page's own filter (W20-24, UX_TODO DSH-44): `?owner=` is `none`, `me`
+ * or a member's user id. Lenient: anything else is dropped, not an error.
+ */
+export interface PlansSearch {
+  owner?: string;
+}
+
+export function validatePlansSearch(search: Record<string, unknown>): PlansSearch {
+  const raw = search.owner;
+  const owner = typeof raw === 'number' ? String(raw) : typeof raw === 'string' ? raw : '';
+  if (owner === 'none' || owner === 'me' || /^[1-9][0-9]*$/.test(owner)) return { owner };
+  return {};
+}
+
+export const Route = createFileRoute('/plans/')({
+  validateSearch: validatePlansSearch,
+  component: PlansPage,
+});
 
 const LIST = { endpoint: '/plans' } as const;
 
@@ -28,7 +49,15 @@ function PlansPage() {
   // a 30-day plan labelled 30d: the control moved nothing and the result
   // quietly disagreed with it.
   const search = Route.useSearch();
+  const navigate = useNavigate();
   const { data: me } = useApiQuery<MeContext>({ endpoint: '/me/context' });
+  // W20-24 (UX_TODO DSH-44): the members an item can be handed to.
+  const { data: ownerList } = useApiQuery<{ items: PlanOwner[] }>({
+    endpoint: '/plans/owners',
+  });
+  const owners = ownerList?.items ?? [];
+  const ownerFilter = search.owner;
+  const byOwner = (i: Plan['items'][number]) => matchesOwnerFilter(i, ownerFilter, me?.user_id);
   const { data, isLoading, isError, error, refetch } = useApiQuery<{
     items: Plan[];
     truncated?: boolean;
@@ -100,6 +129,36 @@ function PlansPage() {
         </p>
       )}
 
+      {/* W20-24 (UX_TODO DSH-44): items by who is picking them up. */}
+      <label className="flex items-center gap-2 text-xs text-fg-muted">
+        Owner
+        <select
+          className="rounded-sm border border-border bg-surface-2 px-1.5 py-0.5 text-xs text-fg"
+          data-testid="plans-owner-filter"
+          value={ownerFilter ?? ''}
+          onChange={(e) =>
+            void navigate({
+              to: '/plans',
+              search: ((prev: Record<string, unknown>) => {
+                const next = { ...prev };
+                if (e.target.value) next.owner = e.target.value;
+                else delete next.owner;
+                return next;
+              }) as never,
+            })
+          }
+        >
+          <option value="">Anyone or nobody</option>
+          <option value="me">Me</option>
+          <option value="none">Nobody yet</option>
+          {owners.map((o) => (
+            <option key={o.id} value={String(o.id)}>
+              {ownerLabel(o)}
+            </option>
+          ))}
+        </select>
+      </label>
+
       <WidgetFrame
         title="Plans"
         state={frameState({
@@ -121,7 +180,7 @@ function PlansPage() {
             // Regressed first, then rank. Something that came undone outranks
             // new advice: it is work already paid for that is being lost.
             const items = [...plan.items]
-              .filter((i) => i.status !== 'dismissed')
+              .filter((i) => i.status !== 'dismissed' && byOwner(i))
               .sort((a, b) => {
                 const ra = a.status === 'regressed' ? 0 : 1;
                 const rb = b.status === 'regressed' ? 0 : 1;
@@ -130,7 +189,7 @@ function PlansPage() {
             // Kept, not hidden for good (W20-05, UX_TODO DSH-14): a dismissal
             // is reversible, so the dismissed items stay one disclosure away.
             const dismissed = plan.items
-              .filter((i) => i.status === 'dismissed')
+              .filter((i) => i.status === 'dismissed' && byOwner(i))
               .sort((a, b) => a.rank - b.rank);
 
             const scopeLabel = planScopeLabel(plan.repo_ids, repoNames);
@@ -201,9 +260,14 @@ function PlansPage() {
                         metricNames={metricNames}
                         scopeLabel={scopeLabel}
                         repoIds={plan.repo_ids}
+                        owners={owners}
                       />
                     ))}
                   </ul>
+                ) : ownerFilter ? (
+                  <p className="text-sm text-fg-muted" data-testid={`plan-owner-empty-${plan.id}`}>
+                    No item in this plan matches the owner filter.
+                  </p>
                 ) : (
                   <p className="text-sm text-fg-muted">
                     Nothing outstanding in this plan — every threshold in the catalog is currently
@@ -224,6 +288,7 @@ function PlansPage() {
                           metricNames={metricNames}
                           scopeLabel={scopeLabel}
                           repoIds={plan.repo_ids}
+                          owners={owners}
                         />
                       ))}
                     </ul>

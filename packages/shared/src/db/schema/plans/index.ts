@@ -18,11 +18,12 @@ import { reports } from '../read/reports.js';
 
 // Improvement plans (W5-06, DATABASE.md D9, FR-PLANS-1/2/3).
 //
-// Team-scoped by construction: there is no person column anywhere below, and
-// there must never be one (N-9). A plan item names a repository, a file or a
-// finding set — never who is responsible for it. The moment an item can name a
-// person, the product becomes a performance-management tool, which the founding
-// brief rules out.
+// Team-scoped by construction (N-9): a plan item names a repository, a file or
+// a finding set. The one person column, plan_items.owner_user_id (W20-24,
+// decision 2026-10-21, UX_TODO DSH-44), is an optional hand-off — who on the
+// team is picking the item up — and nothing ever counts, ranks or scores items
+// per owner. The moment it does, the product becomes a performance-management
+// tool, which the founding brief rules out.
 
 export const improvementPlans = pgTable(
   'improvement_plans',
@@ -76,9 +77,25 @@ export const planItems = pgTable(
       onDelete: 'set null',
     }),
     statusChangedAt: timestamp('status_changed_at', { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * W20-24 (UX_TODO DSH-44): the workspace member picking this item up.
+     * Optional; SET NULL when the account goes, so the work outlives them.
+     * A hand-off, never a score (N-9): no screen counts items per owner.
+     */
+    ownerUserId: bigint('owner_user_id', { mode: 'number' }).references(() => users.id, {
+      onDelete: 'set null',
+    }),
   },
   (t) => [
-    index('plan_items_workspace_plan_status_rank_idx').on(t.workspaceId, t.planId, t.status, t.rank),
+    index('plan_items_workspace_owner_idx')
+      .on(t.workspaceId, t.ownerUserId)
+      .where(sql`${t.ownerUserId} is not null`),
+    index('plan_items_workspace_plan_status_rank_idx').on(
+      t.workspaceId,
+      t.planId,
+      t.status,
+      t.rank,
+    ),
     check(
       'plan_items_source_check',
       sql`${t.source} in ('metric', 'finding', 'chain', 'compound', 'agreement')`,

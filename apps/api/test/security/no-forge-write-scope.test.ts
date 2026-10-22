@@ -87,6 +87,7 @@ describe('D9a: RepoPulse holds no forge write scope (W18-18)', () => {
       'getPullRequestFiles',
       'listReviews',
       'listReviewComments', // optional, a read
+      'listReviewRequests', // optional, a read (W20-24)
       'listCheckRuns',
       'listReleases',
       'listDeployments',

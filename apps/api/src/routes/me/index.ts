@@ -321,6 +321,13 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
         createdAt: facts.pullRequests.createdAt,
         author: core.identities.forgeLogin,
         requested: facts.pullRequests.requestedReviewerIdentityIds,
+        // W20-24 (UX_TODO DSH-41): the newest time I was asked, when known.
+        requestedAt: sql<
+          Date | string | null
+        >`(select max(${facts.prReviewRequests.requestedAt}) from ${facts.prReviewRequests} where ${facts.prReviewRequests.pullRequestId} = ${facts.pullRequests.id} and ${facts.prReviewRequests.workspaceId} = ${ctx.workspaceId} and ${facts.prReviewRequests.reviewerIdentityId} = ${me})`,
+        requestSource: sql<
+          string | null
+        >`(select ${facts.prReviewRequests.source} from ${facts.prReviewRequests} where ${facts.prReviewRequests.pullRequestId} = ${facts.pullRequests.id} and ${facts.prReviewRequests.workspaceId} = ${ctx.workspaceId} and ${facts.prReviewRequests.reviewerIdentityId} = ${me} order by ${facts.prReviewRequests.requestedAt} desc limit 1)`,
       })
       .from(facts.pullRequests)
       .innerJoin(core.identities, eq(facts.pullRequests.authorIdentityId, core.identities.id))
@@ -343,15 +350,31 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
           ),
         ),
       )
-      .orderBy(facts.pullRequests.createdAt); // oldest first (age-sorted review load)
+      .orderBy(facts.pullRequests.createdAt);
+    // W20-24 (UX_TODO DSH-41): waiting is measured from the newest request to
+    // me when it is known, and from the opening otherwise — and each row says
+    // which. Oldest wait first (age-sorted review load).
+    const items = rows
+      .map((p) => {
+        const requestedAt = p.requestedAt === null ? null : new Date(p.requestedAt);
+        const since = requestedAt ?? p.createdAt;
+        return { p, requestedAt, since };
+      })
+      .sort((a, b) => a.since.getTime() - b.since.getTime());
     return reply.send({
-      items: rows.map((p) => ({
+      items: items.map(({ p, requestedAt, since }) => ({
         number: p.number,
         title: p.title,
         repo_id: p.repoId,
         repo: { id: p.repoId, org: p.repoOrg, name: p.repoName },
         author: p.author,
         opened_at: p.createdAt.toISOString(),
+        waiting_since: since.toISOString(),
+        // 'review_request': from when I was asked. 'opened': the request's
+        // time is not known (not ingested yet, or the forge does not say).
+        waiting_basis: requestedAt ? 'review_request' : 'opened',
+        // 'observed' = seen on a later sync; the request was no later than this.
+        ...(requestedAt ? { request_source: p.requestSource } : {}),
         // true: the forge says I was asked. null: not captured for this PR yet.
         requested: p.requested === null ? null : true,
         links: { self: `/api/v1/repos/${p.repoId}/prs/${p.number}` },

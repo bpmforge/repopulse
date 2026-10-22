@@ -11,6 +11,7 @@ import type {
   ForgeRepo,
   ForgeReview,
   ForgeReviewComment,
+  ForgeReviewRequest,
 } from '../types.js';
 import { repoFeatures } from '../types.js';
 
@@ -230,6 +231,28 @@ export function normalizeReviewComment(c: RawReviewComment, prNumber: number): F
     originalCommitSha: c.original_commit_id,
     commitSha: c.commit_id,
   };
+}
+
+/**
+ * An issue event (GET /repos/{owner}/{repo}/issues/{n}/events). Only the
+ * fields the review-request reader uses; `review_requested` carries
+ * `requested_reviewer` (a person) or `requested_team` (W20-24, DSH-41).
+ */
+export interface RawIssueEvent {
+  event?: string;
+  created_at?: string;
+  requested_reviewer?: { login?: string } | null;
+}
+
+/** A person's review request, or null for any other event or a team request. */
+export function normalizeReviewRequest(
+  e: RawIssueEvent,
+  prNumber: number,
+): ForgeReviewRequest | null {
+  if (e.event !== 'review_requested') return null;
+  const login = e.requested_reviewer?.login;
+  if (!login || !e.created_at) return null;
+  return { prNumber, reviewerLogin: login, requestedAt: e.created_at };
 }
 
 export interface RawCheckRun {

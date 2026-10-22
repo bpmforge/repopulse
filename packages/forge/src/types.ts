@@ -143,6 +143,18 @@ export interface ForgeReviewComment {
   commitSha: string;
 }
 
+/**
+ * One "review requested" event (W20-24, UX_TODO DSH-41): who was asked to
+ * review, and when. Only person requests — a team request names no reviewer
+ * whose queue it lands in. The review queue measures waiting from the newest
+ * of these for the person, instead of from when the pull request was opened.
+ */
+export interface ForgeReviewRequest {
+  prNumber: number;
+  reviewerLogin: string;
+  requestedAt: string;
+}
+
 export interface ForgeCheckRun {
   externalId: string;
   headSha: string;

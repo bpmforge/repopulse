@@ -23,6 +23,7 @@ import {
   type MyStats,
   type ReviewQueue,
   type ReviewQueueItem,
+  waitingOf,
 } from './contracts.js';
 
 // My Focus (UX_SPEC §4.f, FR-WEB-7). Everything here is the caller's OWN data:
@@ -211,20 +212,31 @@ export function MyFocus({ search }: Props) {
     { id: 'author', header: 'Author', cell: (row) => row.author },
     {
       id: 'age',
-      // W20-12 (UX_TODO DSH-41, partial): the age is measured from when the
-      // PR was OPENED — review-request times are not ingested — so the header
-      // says that instead of "Waiting", which implied the request's age.
-      header: 'Open for',
+      // W20-24 (UX_TODO DSH-41): the wait is measured from when you were
+      // asked, where the request's time is ingested; otherwise from when the
+      // PR was opened, and the row says so. A late request is no longer
+      // "overdue" the moment it arrives.
+      header: 'Waiting',
       align: 'right',
       cell: (row) => {
-        const over = isOverSla(row.opened_at, now);
+        const wait = waitingOf(row);
+        const over = isOverSla(wait.since, now);
         return (
           <span
             className={`flex items-center justify-end gap-1.5 tabular-nums ${over ? 'text-warn' : ''}`}
             {...(over ? { 'data-testid': 'over-sla' } : {})}
           >
             {over && <SeverityBadge severity="medium" label="overdue" />}
-            {formatAge(row.opened_at, now)}
+            <span data-testid="queue-waiting">
+              {formatAge(wait.since, now)}
+              <span className="ml-1 text-xs text-fg-muted" data-testid="queue-waiting-basis">
+                {wait.fromRequest
+                  ? wait.approximate
+                    ? 'since requested (seen at sync)'
+                    : 'since requested'
+                  : 'since opened'}
+              </span>
+            </span>
           </span>
         );
       },

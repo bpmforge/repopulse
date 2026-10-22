@@ -50,7 +50,11 @@ export const Route = createFileRoute('/repos/$repoId/code-health')({ component: 
  * this ticket's write scope.
  */
 type CodeHealthScanner = Omit<ChScannerStatus, 'state'> & { state: ScannerState };
-type CodeHealthPayload = Omit<RepoCodeHealth, 'scanners'> & { scanners: CodeHealthScanner[] };
+type CodeHealthPayload = Omit<RepoCodeHealth, 'scanners'> & {
+  scanners: CodeHealthScanner[];
+  /** W20-24 (UX_TODO DSH-31): the workspace's ceilings. Absent on an older API. */
+  targets?: Partial<Record<string, number>>;
+};
 
 /** Latest value of a series, or null when the series has no points. */
 function latest(points: { value: number }[] | undefined): number | null {
@@ -149,20 +153,44 @@ export function debtDelta(
   };
 }
 
+/**
+ * Target vs current (W20-24, UX_TODO DSH-31). Every debt signal is
+ * lower-is-better, so the target is a ceiling: at or under it is "within
+ * target", above it says by how much. Null when no target is set or nothing
+ * was measured — an unmeasured signal neither meets nor misses a target.
+ */
+export function targetLine(
+  value: number | null,
+  target: number | undefined,
+  opts: { ratio?: boolean; suffix?: string } = {},
+): { text: string; met: boolean } | null {
+  if (target === undefined || value === null) return null;
+  const scale = opts.ratio ? 100 : 1;
+  const fmt = (n: number) =>
+    `${Math.round(n * scale * 100) / 100}${opts.ratio ? '%' : (opts.suffix ?? '')}`;
+  if (value <= target) return { text: `within target (at most ${fmt(target)})`, met: true };
+  return { text: `${fmt(value - target)} over the target of ${fmt(target)}`, met: false };
+}
+
 function Headline({
   label,
   points,
   suffix,
   ratio,
+  target,
 }: {
   label: string;
   points: { value: number; at: string }[] | undefined;
   suffix?: string;
   /** W20-12 (UX_TODO DSH-31): a 0–1 ratio, printed as a percentage. */
   ratio?: boolean;
+  /** W20-24 (UX_TODO DSH-31): the workspace's ceiling, when one is set. */
+  target?: number | undefined;
 }) {
   const value = latest(points);
-  const delta = debtDelta(points, { ...(ratio ? { ratio } : {}), ...(suffix ? { suffix } : {}) });
+  const unitOpts = { ...(ratio ? { ratio } : {}), ...(suffix ? { suffix } : {}) };
+  const delta = debtDelta(points, unitOpts);
+  const vsTarget = targetLine(value, target, unitOpts);
   return (
     <div className="flex flex-col" data-testid={`ch-headline-${label}`}>
       <span className="text-xs text-fg-muted">{label}</span>
@@ -181,6 +209,15 @@ function Headline({
           data-testid={`ch-delta-${label}`}
         >
           {delta.text}
+        </span>
+      )}
+      {vsTarget && (
+        <span
+          className={`text-xs ${vsTarget.met ? 'text-fg-muted' : 'text-warn'}`}
+          data-testid={`ch-target-${label}`}
+        >
+          {vsTarget.met ? '✓ ' : '⚠ '}
+          {vsTarget.text}
         </span>
       )}
     </div>
@@ -208,17 +245,37 @@ function CodeHealthTab() {
       <WidgetFrame title="Debt signals" state={state} {...retry} testId="ch-signals">
         {data && (
           <div className="flex flex-wrap gap-6" data-testid="ch-headlines">
-            <Headline label="Duplication" points={data.series['ch_duplication_pct']} suffix="%" />
+            <Headline
+              label="Duplication"
+              points={data.series['ch_duplication_pct']}
+              suffix="%"
+              target={data.targets?.['ch_duplication_pct']}
+            />
             {/* W20-12 (UX_TODO DSH-31): the unit, and ratios as percentages —
                 "Revert rate 0.05" read as a twentieth of a percent. */}
             <Headline
               label="Complexity p90"
               points={data.series['ch_complexity_p90']}
               suffix=" cyclomatic"
+              target={data.targets?.['ch_complexity_p90']}
             />
-            <Headline label="Worst functions" points={data.series['ch_worst_fn_count']} />
-            <Headline label="Rework 14d" points={data.series['M13']} ratio />
-            <Headline label="Revert rate" points={data.series['M14']} ratio />
+            <Headline
+              label="Worst functions"
+              points={data.series['ch_worst_fn_count']}
+              target={data.targets?.['ch_worst_fn_count']}
+            />
+            <Headline
+              label="Rework 14d"
+              points={data.series['M13']}
+              ratio
+              target={data.targets?.['M13']}
+            />
+            <Headline
+              label="Revert rate"
+              points={data.series['M14']}
+              ratio
+              target={data.targets?.['M14']}
+            />
           </div>
         )}
       </WidgetFrame>

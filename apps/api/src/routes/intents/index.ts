@@ -1,7 +1,10 @@
 import { and, eq } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { auditLog, plans, type Database } from '@repopulse/shared';
+import { auditLog, core, plans, type Database } from '@repopulse/shared';
+import { recordIntentHotspotScores } from '@repopulse/metrics';
 import { sendProblem } from '../../lib/problem.js';
+import { intentsWithStatus } from '../../lib/intent-status.js';
+import { readWorkspaceSettings } from '../../lib/workspace-settings.js';
 
 // Artifact intents API (W6-07, FR-PLANS-5).
 
@@ -34,14 +37,13 @@ export default async function intentsRoutes(
     if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
     const repoId = Number(request.query.repo_id);
 
-    const rows = await db
-      .select()
-      .from(plans.fileIntents)
-      .where(
-        Number.isInteger(repoId)
-          ? and(eq(plans.fileIntents.workspaceId, workspaceId), eq(plans.fileIntents.repoId, repoId))
-          : eq(plans.fileIntents.workspaceId, workspaceId),
-      );
+    // W20-24 (UX_TODO DSH-37): each intent with whether its hotspot improved
+    // since it was declared, from the stored score history.
+    const rows = await intentsWithStatus(
+      db,
+      workspaceId,
+      Number.isInteger(repoId) && repoId > 0 ? [repoId] : [],
+    );
 
     return reply.send({
       items: rows.map((r) => ({
@@ -52,6 +54,7 @@ export default async function intentsRoutes(
         note: r.note,
         warn_after_months: r.warnAfterMonths,
         created_at: r.createdAt.toISOString(),
+        hotspot: r.status,
       })),
     });
   });
@@ -72,8 +75,22 @@ export default async function intentsRoutes(
         return fail(request, reply, 400, 'repo_id and path are required');
       }
       if (typeof intent !== 'string' || !INTENTS.includes(intent as (typeof INTENTS)[number])) {
-        return fail(request, reply, 400, 'Invalid intent', `intent must be one of ${INTENTS.join(', ')}`);
+        return fail(
+          request,
+          reply,
+          400,
+          'Invalid intent',
+          `intent must be one of ${INTENTS.join(', ')}`,
+        );
       }
+      // Law 5 (W20-24): the repository must be this workspace's. file_intents
+      // has no foreign key to repos, so another tenant's id was stored as-is.
+      const [repo] = await db
+        .select({ id: core.repos.id })
+        .from(core.repos)
+        .where(and(eq(core.repos.id, repoId), eq(core.repos.workspaceId, workspaceId)))
+        .limit(1);
+      if (!repo) return fail(request, reply, 404, 'Not Found');
 
       // One intent per file (DATABASE.md D9 unique key): setting a new one
       // REPLACES the old. Two live intents on one path would make "is this
@@ -100,6 +117,22 @@ export default async function intentsRoutes(
           },
         })
         .returning();
+
+      // The baseline (W20-24, DSH-37): the file's score as the intent is
+      // declared, so the first snapshot after it already has something to be
+      // compared with. Best effort — the intent is saved either way.
+      try {
+        const { effective } = await readWorkspaceSettings(db, workspaceId);
+        await recordIntentHotspotScores(db, {
+          workspaceId,
+          repoId,
+          asOf: row!.createdAt,
+          botGlobs: effective.botLoginGlobs,
+          paths: [path],
+        });
+      } catch (err) {
+        request.log.warn({ err }, 'intent baseline hotspot score not recorded');
+      }
 
       auditLog(request.log, {
         event: 'file.intent_set',

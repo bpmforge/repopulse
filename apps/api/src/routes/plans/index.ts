@@ -27,9 +27,11 @@ import { actorLoginFor } from '../../lib/actor.js';
 
 // Plans API (W5-06, FR-PLANS-2/6).
 //
-// Team-scoped by construction: nothing here reads or writes a person, and the
-// tables have no column for one (N-9). Items name a repository, a metric or a
-// finding set — never who should fix it.
+// Team-scoped by construction (N-9): items name a repository, a metric or a
+// finding set. The one exception is the optional owner (W20-24, decision
+// 2026-10-21, UX_TODO DSH-44): a workspace member who is picking the item up,
+// set by hand, shown on the item and usable as a filter — never counted or
+// ranked per person.
 
 export interface PlansRoutesOptions {
   db: Database;
@@ -395,6 +397,9 @@ export default async function plansRoutes(
         );
         const carried = new Map<string, { status: string; verifiedAt: Date | null }>();
         let carriedDismissed: (typeof plansSchema.planItems.$inferSelect)[] = [];
+        // W20-24 (DSH-44): who had picked an item up comes along with it,
+        // whatever its status — a regeneration is not a hand-back.
+        const carriedOwner = new Map<string, number>();
         if (superseded.length > 0) {
           const supersededIds = superseded.map((c) => c.id);
           const previous = await tx
@@ -412,6 +417,9 @@ export default async function plansRoutes(
           for (const item of previous) {
             if (CARRIED_STATUSES.includes(item.status) && !carried.has(item.catalogId)) {
               carried.set(item.catalogId, { status: item.status, verifiedAt: item.verifiedAt });
+            }
+            if (item.ownerUserId !== null && !carriedOwner.has(item.catalogId)) {
+              carriedOwner.set(item.catalogId, item.ownerUserId);
             }
           }
           // The dismissed items come along as dismissed, so "Dismissed (n)" and
@@ -453,6 +461,7 @@ export default async function plansRoutes(
                       effort: item.effort,
                       status: kept?.status ?? 'proposed',
                       verifiedAt: kept?.verifiedAt ?? null,
+                      ownerUserId: carriedOwner.get(item.catalogId) ?? null,
                       statusChangedAt: now,
                       verifyCriterion: item.verifyCriterion as unknown as Record<string, unknown>,
                     };
@@ -565,6 +574,26 @@ export default async function plansRoutes(
             )
             .orderBy(plansSchema.planItems.rank);
 
+    // Owners by id (W20-24, DSH-44): login and name only, for the item's label.
+    const ownerIds = [
+      ...new Set(itemRows.map((i) => i.ownerUserId).filter((id): id is number => id !== null)),
+    ];
+    const ownerRows =
+      ownerIds.length === 0
+        ? []
+        : await db
+            .select({ id: core.users.id, login: core.users.login, name: core.users.name })
+            .from(core.users)
+            .innerJoin(
+              core.workspaceMembers,
+              and(
+                eq(core.workspaceMembers.userId, core.users.id),
+                eq(core.workspaceMembers.workspaceId, workspaceId),
+              ),
+            )
+            .where(inArray(core.users.id, ownerIds));
+    const ownerById = new Map(ownerRows.map((o) => [o.id, o]));
+
     return reply.send({
       truncated,
       items: planRows.map((p) => ({
@@ -588,6 +617,12 @@ export default async function plansRoutes(
             evidence: i.evidence,
             verify_criterion: i.verifyCriterion,
             verified_at: i.verifiedAt?.toISOString() ?? null,
+            // null = nobody has picked it up. An owner who has since left the
+            // workspace is shown as nobody rather than as a stranger's id.
+            owner: (() => {
+              const o = i.ownerUserId === null ? undefined : ownerById.get(i.ownerUserId);
+              return o ? { id: o.id, login: o.login, name: o.name } : null;
+            })(),
           })),
       })),
     });
@@ -697,6 +732,102 @@ export default async function plansRoutes(
       });
 
       return reply.send({ id, status: next });
+    },
+  );
+
+  /**
+   * GET /plans/owners — the workspace members an item can be handed to
+   * (W20-24, UX_TODO DSH-44). Any member may read it: the plan page is every
+   * member's, and the list is login and name only.
+   */
+  app.get('/plans/owners', async (request, reply) => {
+    const workspaceId = request.workspace?.id;
+    if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
+    const rows = await db
+      .select({ id: core.users.id, login: core.users.login, name: core.users.name })
+      .from(core.workspaceMembers)
+      .innerJoin(core.users, eq(core.users.id, core.workspaceMembers.userId))
+      .where(eq(core.workspaceMembers.workspaceId, workspaceId))
+      .orderBy(core.users.login)
+      .limit(1000);
+    return reply.send({ items: rows });
+  });
+
+  /**
+   * PATCH /plans/items/:id/owner — hand an item to a workspace member, or
+   * back to nobody (W20-24, UX_TODO DSH-44). `owner_user_id: null` clears it.
+   * Another workspace's item is a 404; a user who is not a member of this
+   * workspace is a 400, never stored.
+   */
+  app.patch<{ Params: { id: string }; Body: { owner_user_id?: unknown } }>(
+    '/plans/items/:id/owner',
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      const userId = request.session.get('userId');
+      if (workspaceId === undefined || userId === undefined) {
+        return fail(request, reply, 401, 'No active session');
+      }
+      const id = Number(request.params.id);
+      if (!Number.isInteger(id)) return fail(request, reply, 400, 'Invalid item id');
+      const raw = request.body?.owner_user_id;
+      if (raw !== null && !(typeof raw === 'number' && Number.isInteger(raw) && raw > 0)) {
+        return fail(
+          request,
+          reply,
+          400,
+          'Invalid body',
+          'owner_user_id must be a member user id, or null to clear',
+        );
+      }
+      const ownerUserId = raw as number | null;
+
+      const [item] = await db
+        .select({ id: plansSchema.planItems.id, ownerUserId: plansSchema.planItems.ownerUserId })
+        .from(plansSchema.planItems)
+        .where(
+          and(eq(plansSchema.planItems.id, id), eq(plansSchema.planItems.workspaceId, workspaceId)),
+        )
+        .limit(1);
+      if (!item) return fail(request, reply, 404, 'Not Found');
+
+      let owner: { id: number; login: string; name: string | null } | null = null;
+      if (ownerUserId !== null) {
+        const [member] = await db
+          .select({ id: core.users.id, login: core.users.login, name: core.users.name })
+          .from(core.workspaceMembers)
+          .innerJoin(core.users, eq(core.users.id, core.workspaceMembers.userId))
+          .where(
+            and(
+              eq(core.workspaceMembers.workspaceId, workspaceId),
+              eq(core.workspaceMembers.userId, ownerUserId),
+            ),
+          )
+          .limit(1);
+        if (!member) {
+          return fail(request, reply, 400, 'Invalid owner', 'not a member of this workspace');
+        }
+        owner = member;
+      }
+
+      await db
+        .update(plansSchema.planItems)
+        .set({ ownerUserId })
+        .where(
+          and(eq(plansSchema.planItems.id, id), eq(plansSchema.planItems.workspaceId, workspaceId)),
+        );
+
+      auditLog(request.log, {
+        event: 'plan.item.owner_set',
+        actorUserId: userId,
+        workspaceId,
+        ip: request.ip,
+        ua: request.headers['user-agent'] ?? null,
+        planItemId: id,
+        fromOwnerUserId: item.ownerUserId,
+        toOwnerUserId: ownerUserId,
+      });
+
+      return reply.send({ id, owner });
     },
   );
 }

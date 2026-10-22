@@ -10,6 +10,7 @@ import type {
   ForgeRelease,
   ForgeReview,
   ForgeReviewComment,
+  ForgeReviewRequest,
 } from '@repopulse/forge';
 import { parseCommitTrailers } from '@repopulse/metrics';
 import type { DbOrTx } from './db.js';
@@ -97,6 +98,24 @@ export async function upsertPullRequests(
         requested.push(await resolver.resolve({ login }));
       }
     }
+    // W20-24 (UX_TODO DSH-41): the request list as stored before this
+    // listing, so a reviewer who appears on an OPEN pull request between two
+    // listings is recorded as asked no later than this listing's updated time.
+    // Only against a list we already had: on a first sight the request's time
+    // is unknown, and the enrichment fetch reads it from the forge's events.
+    let previous: { id: number; requested: number[] | null } | undefined;
+    if (requested !== null && p.state === 'open') {
+      [previous] = await db
+        .select({
+          id: facts.pullRequests.id,
+          requested: facts.pullRequests.requestedReviewerIdentityIds,
+        })
+        .from(facts.pullRequests)
+        .where(
+          and(eq(facts.pullRequests.repoId, scope.repoId), eq(facts.pullRequests.number, p.number)),
+        )
+        .limit(1);
+    }
     await db
       .insert(facts.pullRequests)
       .values({
@@ -137,8 +156,74 @@ export async function upsertPullRequests(
           ...(requested !== null ? { requestedReviewerIdentityIds: requested } : {}),
         },
       });
+    if (previous && previous.requested !== null && requested !== null) {
+      const before = new Set(previous.requested);
+      const added = [...new Set(requested)].filter((id) => !before.has(id));
+      if (added.length > 0) {
+        await db
+          .insert(facts.prReviewRequests)
+          .values(
+            added.map((reviewerIdentityId) => ({
+              workspaceId: scope.workspaceId,
+              repoId: scope.repoId,
+              pullRequestId: previous!.id,
+              reviewerIdentityId,
+              requestedAt: new Date(p.updatedAt),
+              source: 'observed',
+            })),
+          )
+          .onConflictDoNothing();
+      }
+    }
   }
   return prs.length;
+}
+
+/**
+ * Review requests read from the forge's events for one PR (W20-24, UX_TODO
+ * DSH-41). The events are the exact record, so they replace every `observed`
+ * row this PR had: those were stamped with a listing's time, which is only an
+ * upper bound for the same requests. Idempotent on (PR, reviewer, time).
+ */
+export async function upsertReviewRequests(
+  db: DbOrTx,
+  scope: RepoScope,
+  resolver: IdentityResolver,
+  prNumber: number,
+  requests: readonly ForgeReviewRequest[],
+): Promise<number> {
+  const [pr] = await db
+    .select({ id: facts.pullRequests.id })
+    .from(facts.pullRequests)
+    .where(
+      and(eq(facts.pullRequests.repoId, scope.repoId), eq(facts.pullRequests.number, prNumber)),
+    )
+    .limit(1);
+  if (!pr) return 0;
+  await db
+    .delete(facts.prReviewRequests)
+    .where(
+      and(
+        eq(facts.prReviewRequests.workspaceId, scope.workspaceId),
+        eq(facts.prReviewRequests.pullRequestId, pr.id),
+        eq(facts.prReviewRequests.source, 'observed'),
+      ),
+    );
+  for (const r of requests) {
+    const reviewerIdentityId = await resolver.resolve({ login: r.reviewerLogin });
+    await db
+      .insert(facts.prReviewRequests)
+      .values({
+        workspaceId: scope.workspaceId,
+        repoId: scope.repoId,
+        pullRequestId: pr.id,
+        reviewerIdentityId,
+        requestedAt: new Date(r.requestedAt),
+        source: 'timeline',
+      })
+      .onConflictDoNothing();
+  }
+  return requests.length;
 }
 
 /** Reviews are fetched per-PR; the PR must already be ingested (we look up its id). */

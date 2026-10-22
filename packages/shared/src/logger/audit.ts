@@ -60,6 +60,8 @@ export type AuditEvent =
   // verifier's transitions are audited too, with a null actor.
   | 'plan.generated'
   | 'plan.item.transitioned'
+  // W20-24 (UX_TODO DSH-44): who picked a plan item up, and who changed that.
+  | 'plan.item.owner_set'
   // W5-08. An agreement threshold decides what counts as a breach on every
   // screen that reads it, so a change to one is a change to the numbers.
   | 'agreement.configured'

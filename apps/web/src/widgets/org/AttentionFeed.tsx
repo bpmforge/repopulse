@@ -7,7 +7,7 @@ import {
 } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 import { useBackfill } from '../../lib/backfill.js';
-import type { AttentionItems } from './contracts.js';
+import { intentWarningText, type AttentionItems } from './contracts.js';
 
 // UX_SPEC §4.a "Needs attention": every measured repository scoring below the
 // healthy band, worst first.
@@ -44,6 +44,10 @@ export function AttentionFeed({ window, search }: Props) {
   });
 
   const items = data?.items ?? [];
+  // W20-24 (UX_TODO DSH-37): intents whose promise lapsed, beside the
+  // repositories. A file someone said they would refactor and has not is
+  // exactly the thing this card is for.
+  const intents = data?.intents ?? [];
   const backfill = useBackfill();
 
   return (
@@ -54,17 +58,23 @@ export function AttentionFeed({ window, search }: Props) {
       state={frameState({
         isLoading,
         isError,
-        isEmpty: data !== undefined && items.length === 0,
+        isEmpty: data !== undefined && items.length === 0 && intents.length === 0,
         isSyncing: backfill.syncing,
       })}
       syncPct={backfill.pct}
       {...(error ? { errorMessage: error.message, error } : {})}
       onRetry={() => void refetch()}
-      emptyMessage="Every measured repository is in the healthy band (75 or above)."
+      emptyMessage="Every measured repository is in the healthy band (75 or above), and no file intent needs a look."
     >
-      <p className="mb-2 text-xs text-fg-muted" data-testid="attention-caption">
-        Repositories scoring below 75, lowest first.
-      </p>
+      {items.length > 0 ? (
+        <p className="mb-2 text-xs text-fg-muted" data-testid="attention-caption">
+          Repositories scoring below 75, lowest first.
+        </p>
+      ) : (
+        <p className="mb-2 text-xs text-fg-muted" data-testid="attention-caption">
+          Every measured repository is in the healthy band (75 or above).
+        </p>
+      )}
       <ul className="flex flex-col gap-2" data-testid="attention-feed">
         {items.map((item) => (
           <li key={`${item.kind}:${item.repo_id}`}>
@@ -90,6 +100,34 @@ export function AttentionFeed({ window, search }: Props) {
           </li>
         ))}
       </ul>
+      {intents.length > 0 && (
+        <>
+          <p className="mb-2 mt-3 text-xs text-fg-muted" data-testid="attention-intents-caption">
+            File intents that need a look, longest-standing first.
+          </p>
+          <ul className="flex flex-col gap-2" data-testid="attention-intents">
+            {intents.map((i) => (
+              <li key={`${i.repo_id}:${i.path}:${i.kind}`}>
+                <Link
+                  to="/repos/$repoId/files/$"
+                  params={{ repoId: String(i.repo_id), _splat: i.path } as never}
+                  search={search as never}
+                  className="flex flex-col gap-0.5 panel px-3 py-2 hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                  data-testid={`attention-intent-${i.repo_id}-${i.path}`}
+                >
+                  <span className="truncate">
+                    <span className="text-fg-muted">
+                      {i.org}/{i.name} ·{' '}
+                    </span>
+                    {i.path}
+                  </span>
+                  <span className="text-xs text-warn">⚠ {intentWarningText(i)}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </WidgetFrame>
   );
 }

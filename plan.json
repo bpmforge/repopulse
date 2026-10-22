@@ -11270,6 +11270,47 @@
         ]
       },
       {
+        "id": "W20-24",
+        "title": "Dashboard product decisions: plan item owners, debt-signal targets, hotspot and review-request history",
+        "phase": 20,
+        "module": "web",
+        "stories": [],
+        "write_scope": [
+          "apps/web/**",
+          "apps/api/**",
+          "packages/shared/src/db/schema/**",
+          "packages/shared/drizzle/0057_owners_targets_history.sql",
+          "packages/shared/drizzle/meta/_journal.json",
+          "packages/shared/src/logger/audit.ts",
+          "packages/forge/src/**",
+          "packages/forge/test/**",
+          "packages/ingest/src/backfill/**",
+          "packages/metrics/src/snapshots/**",
+          "packages/insights/src/score/security-inputs.ts",
+          "docs/work/UX_TODO.md",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W20-20"
+        ],
+        "acceptance": [
+          "UX_TODO DSH-44 (decision 2026-10-21 row 2): plan_items.owner_user_id (optional workspace member, SET NULL); GET /plans/owners lists members; PATCH /plans/items/:id/owner sets or clears it (404 for another workspace's item, 400 for a non-member, audited plan.item.owner_set); the owner carries over a regeneration; the item shows it with a member picker and the Plans page filters by ?owner=me|none|<id>",
+          "UX_TODO DSH-31 (decision row 3): workspace settings debt_targets (none by default, strict keys, ratios 0-1) set in Settings → Debt signal targets; /repos/:id/code-health returns targets and each debt signal shows target vs current only when one is set",
+          "UX_TODO DSH-37: file_hotspot_scores written for intent files at intent save (baseline) and by every snapshot run (30d window); GET /intents returns whether the hotspot improved since the declaration with insights intentWarnings; /org/attention lists lapsed intents; PUT /intents refuses another workspace's repository",
+          "UX_TODO DSH-41: pr_review_requests from GitHub issue events (review_requested, persons only) through the budgeted client in PR enrichment, plus 'observed' rows for reviewers added between listings of an open PR; /me/review-queue measures waiting from my newest request when known, else from opening, and says which",
+          "Health tile change: the earlier reading takes security findings as of then (first seen by then, status from finding_events); pnpm lint, typecheck and test green"
+        ],
+        "points": 8,
+        "status": "done",
+        "notes": [
+          "Fixed: DSH-31, DSH-37, DSH-41, DSH-44, and the health-score change reading today's security findings in both readings.",
+          "Defaults chosen (cheap to change): no debt targets by default; a target is a ceiling (every debt signal is lower-is-better) stored in the signal's own unit, typed as a percentage for rework and revert rate; clearing every target removes the key. An owner is any workspace member; an owner who leaves shows as nobody; owners carry over a plan regeneration whatever the item's status; the owner filter is client-side over GET /plans. Hotspot history uses the file page's 30d window; a file with no touch in the window scores 0 but a repository with no touches at all writes nothing; the baseline is written when an intent is saved (best effort, the intent saves either way). Waiting is measured from my newest review request; a request first seen on a listing is stamped with that listing's updated time and labelled 'seen at sync'; forge events replace observed rows for the same PR; a team request is ignored; a refused events read leaves the queue on opening time and is not recorded as an entity error.",
+          "Migration 0057_owners_targets_history (journal when 1793900000000; renumbered at landing after 0056): plan_items.owner_user_id, file_hotspot_scores, pr_review_requests. Repository purge removes both new tables' rows.",
+          "Not done: Gitea and GitLab adapters do not read review-request times (the queue says 'since opened' there); review requests are only re-read when a PR is enriched, so a re-request on an already-enriched PR is known only from the next listing ('observed').",
+          "Bugs noticed: PUT /intents stored an intent for any repo_id, including another workspace's (fixed: 404); the health tile's earlier reading used today's security findings (fixed); plan_items had no owner despite the N-9 comment now superseded by the decision (comment updated: owners are a hand-off, never counted per person)."
+        ]
+      },
+      {
         "id": "W19-14",
         "title": "Run AI-pass diff mode and a scheduled pass for real against a local model, and record the result",
         "phase": 19,

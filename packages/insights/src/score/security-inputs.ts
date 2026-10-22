@@ -53,19 +53,42 @@ export async function securityInputsMany(
    * which is the same basis the report's own findings table already has.
    */
   asOf?: Date,
+  /**
+   * W20-24: read each finding's status AS IT WAS at `asOf`, from its history
+   * (finding_events), instead of today's. The health tile's change compares
+   * the score now with the score one window ago; with today's statuses in both
+   * readings, a finding fixed this week lowered the score "a window ago" too
+   * and the change could never show it. Ignored without `asOf`.
+   */
+  opts: { statusAtAsOf?: boolean } = {},
 ): Promise<Map<number, SecurityInputs>> {
   const out = new Map<number, SecurityInputs>();
   if (repoIds.length === 0) return out;
   const ids = [...repoIds];
+  // The status at `asOf`: the newest event at or before it, else the status
+  // the earliest later event moved it FROM, else today's (no history at all).
+  const statusExpr =
+    asOf && opts.statusAtAsOf
+      ? sql`coalesce(
+          (select fe.to_status from ${read.findingEvents} fe
+            where fe.finding_id = ${read.findings.id} and fe.workspace_id = ${workspaceId}
+              and fe.at <= ${asOf.toISOString()}
+            order by fe.at desc, fe.id desc limit 1),
+          (select fe.from_status from ${read.findingEvents} fe
+            where fe.finding_id = ${read.findings.id} and fe.workspace_id = ${workspaceId}
+              and fe.at > ${asOf.toISOString()}
+            order by fe.at asc, fe.id asc limit 1),
+          ${read.findings.status})`
+      : sql`${read.findings.status}`;
 
   const findingRows = await db
     .select({
       repoId: read.findings.repoId,
       everRecorded: sql<number>`count(*)::int`,
-      weighted: sql<number>`coalesce(sum(${read.findings.severity}) filter (where ${read.findings.status} in ('open','confirmed')), 0)::int`,
+      weighted: sql<number>`coalesce(sum(${read.findings.severity}) filter (where ${statusExpr} in ('open','confirmed')), 0)::int`,
       worst: sql<
         number | null
-      >`max(${read.findings.severity}) filter (where ${read.findings.status} in ('open','confirmed'))`,
+      >`max(${read.findings.severity}) filter (where ${statusExpr} in ('open','confirmed'))`,
     })
     .from(read.findings)
     .where(

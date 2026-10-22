@@ -5,9 +5,11 @@ import {
   criterionInWords,
   findingIdsOf,
   metricInWords,
+  ownerLabel,
   progressInWords,
   type MetricNames,
   type PlanItem,
+  type PlanOwner,
 } from './contracts.js';
 import { InternalLink } from './InternalLink.js';
 import { metricEvidence } from '../org/metricLinks.js';
@@ -38,8 +40,14 @@ export function PlanItemCard({
   metricNames,
   scopeLabel,
   repoIds,
+  owners,
 }: {
   item: PlanItem;
+  /**
+   * W20-24 (UX_TODO DSH-44): the workspace members the item can be handed to.
+   * Absent = the owner is shown but cannot be changed here.
+   */
+  owners?: readonly PlanOwner[];
   metricNames?: MetricNames;
   /** The plan's repositories, so evidence links keep its scope (W20-20). */
   repoIds?: readonly number[];
@@ -52,6 +60,10 @@ export function PlanItemCard({
   const findingIds = findingIdsOf(item);
   const transition = useApiMutation<{ status: string; reason?: string }, unknown>(
     { endpoint: '/plans/items/{id}', path: { id: item.id }, method: 'PATCH' },
+    { invalidate: [queryKeyFor(LIST)] },
+  );
+  const setOwner = useApiMutation<{ owner_user_id: number | null }, unknown>(
+    { endpoint: '/plans/items/{id}/owner', path: { id: item.id }, method: 'PATCH' },
     { invalidate: [queryKeyFor(LIST)] },
   );
 
@@ -193,6 +205,43 @@ export function PlanItemCard({
           ))}
         </p>
       )}
+
+      {/* W20-24 (UX_TODO DSH-44): who is picking it up. Optional, a workspace
+          member, changed here; never counted per person anywhere. */}
+      <div
+        className="mt-1 flex flex-wrap items-center gap-2 text-xs text-fg-muted"
+        data-testid={`plan-item-owner-${item.id}`}
+      >
+        {owners && owners.length > 0 && item.status !== 'dismissed' ? (
+          <label className="flex items-center gap-1.5">
+            Owner
+            <select
+              className="rounded-sm border border-border bg-surface-2 px-1.5 py-0.5 text-xs text-fg"
+              data-testid={`plan-item-owner-select-${item.id}`}
+              value={item.owner ? String(item.owner.id) : ''}
+              disabled={setOwner.isPending}
+              onChange={(e) =>
+                setOwner.mutate({
+                  owner_user_id: e.target.value === '' ? null : Number(e.target.value),
+                })
+              }
+            >
+              <option value="">Nobody yet</option>
+              {/* An owner who is no longer listed still shows as chosen. */}
+              {item.owner && !owners.some((o) => o.id === item.owner!.id) && (
+                <option value={String(item.owner.id)}>{ownerLabel(item.owner)}</option>
+              )}
+              {owners.map((o) => (
+                <option key={o.id} value={String(o.id)}>
+                  {ownerLabel(o)}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <span>Owner: {item.owner ? ownerLabel(item.owner) : 'nobody yet'}</span>
+        )}
+      </div>
 
       <div className="mt-2 flex flex-wrap gap-1.5">
         {/* W20-12 (UX_TODO DSH-89): a regressed item is the verifier's verdict
@@ -341,6 +390,11 @@ export function PlanItemCard({
         </form>
       )}
       <ErrorNote error={transition.error} testId={`plan-item-error-${item.id}`} className="mt-2" />
+      <ErrorNote
+        error={setOwner.error}
+        testId={`plan-item-owner-error-${item.id}`}
+        className="mt-2"
+      />
     </li>
   );
 }
