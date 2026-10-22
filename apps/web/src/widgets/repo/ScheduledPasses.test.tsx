@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScheduledPasses } from './ScheduledPasses.js';
-import type { ScheduleResponse } from '../findings/aiContracts.js';
+import { localDateTime, type ScheduleResponse } from '../findings/aiContracts.js';
 
 // W19-12. Off by default and said so; enabling shows where source would be sent
 // (the server's own statement) and needs it ticked; a stale acknowledgement is
@@ -182,8 +182,10 @@ describe('ScheduledPasses', () => {
     expect(screen.getByTestId('schedule-on').textContent).toMatch(
       /Weekly, reviewing src\/payments/,
     );
-    expect(screen.getByTestId('schedule-times').textContent).toMatch(
-      /Next run Oct 25, 2026, 09:00/,
+    // Local time with its zone (W20-11): computed with the same helper, so the test
+    // says the same thing in any timezone instead of only where the machine is UTC.
+    expect(screen.getByTestId('schedule-times').textContent).toContain(
+      `Next run ${localDateTime('2026-10-25T09:00:00Z')}`,
     );
     expect(screen.getByTestId('schedule-times').textContent).toMatch(/enabled by ada/);
     fireEvent.click(screen.getByTestId('schedule-off-button'));

@@ -11235,6 +11235,33 @@
           "Not verified here: the DB-gated suites (purge, identities paging, file owners, agreements, reports list, connections list) were written but could not run: the dev Postgres on 15432 refused the repopulse role's password and changing pg_hba was not allowed. The phone layout (ADM-64) was not checked on a device or in Playwright.",
           "Bugs noticed: the runs route read repo_scanner_config without a workspace filter (fixed through startableScannerKeys); POST /agreements accepted repo_ids from another workspace unchecked (fixed); identities counted commits for the whole workspace on every request (now per page); FilterBar crashed on a bare ?repos=4 because the router parses it as a number (fixed); no scanner writes the 'slopsquat' rule that CODE_HEALTH_SUITE.md calls shipped (README says so; not fixed)."
         ]
+      },
+      {
+        "id": "W19-14",
+        "title": "Run AI-pass diff mode and a scheduled pass for real against a local model, and record the result",
+        "phase": 19,
+        "module": "analysis",
+        "stories": [],
+        "write_scope": [
+          "apps/api/**",
+          "packages/shared/**",
+          "docs/**",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W19-11",
+          "W19-12"
+        ],
+        "acceptance": [
+          "The fake forge serves a pull request's files with real patches (tests); the worker reaches it through the existing loopback-only FORGE_BASE_URL override; a harness runs diff mode (pull request scope) through the shipping worker against a local model on a dev repo and records what the model said and whether triage was evidence-fed",
+          "A scheduled pass is enabled on the dev repo with a short tick, with the local model as the only connection, one real run is watched end to end through the worker's own tick, then the schedule is disabled and shown to start nothing; what ran live and what did not is stated plainly; nothing is sent to a hosted model"
+        ],
+        "points": 5,
+        "status": "done",
+        "notes": [
+          "Requested by the coordinator 2026-10-21 on Brad's yes. Evidence: docs/design/evidence/w19-14-ai-pass-live.json; write-up in docs/design/AI_LAYER.md.",
+          "Ran 2026-10-21 with qwen/qwen3.8-27b on LM Studio. Diff mode on PR #12: 6 of 6 calls in 24 min, the real SQL injection found, the parameterised query not flagged, triage real 5/5 and likely false positive 4/5 with citations matching our copy, off-diff rule finding not triaged, nothing dismissed. Scheduled pass on PR #13 started by the worker's own tick: 5 calls (cap left 6), triage real 5/5; disabled, and two ticks started nothing. Weak output recorded: one code-health finding makes an ungrounded claim (its quote is a real line, the claim is not in the diff). Not run live: the PUT route and login session, a real forge, a hosted link, a skipped scheduled run."
+        ]
       }
   ]
 }

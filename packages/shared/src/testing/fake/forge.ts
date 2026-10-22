@@ -58,6 +58,78 @@ export const FAKE_CHECKS: { name: string; conclusion: string }[][] = [
 ];
 
 /**
+ * The files of a pull request, WITH PATCHES (W19-14), for `GET /pulls/{n}/files`.
+ *
+ * Added so the AI pass's diff mode has a forge to read from. A real model reviews
+ * these, so the content is realistic rather than a placeholder: #12 adds a
+ * string-built SQL lookup (a genuine injection) beside a clean query, and #13
+ * weakens a session cookie. #13 is deliberately NOT in FAKE_PRS: the ingestion
+ * fixtures and their counts are untouched, and a test that wants #13 inserts the
+ * pull request row itself.
+ */
+export const FAKE_PR_FILES: Record<
+  number,
+  { path: string; additions: number; deletions: number; status: string; patch: string }[]
+> = {
+  12: [
+    {
+      path: 'src/payments/refund.ts',
+      additions: 16,
+      deletions: 0,
+      status: 'added',
+      patch: [
+        '@@ -0,0 +1,16 @@',
+        "+import { db } from '../db';",
+        "+import { audit } from '../audit';",
+        '+',
+        '+// Look up a refund for the support console.',
+        '+export async function findRefund(req, res) {',
+        '+  const id = req.query.id;',
+        '+  const rows = await db.query("SELECT * FROM refunds WHERE id = " + id);',
+        "+  audit('refund.lookup', { id });",
+        '+  res.json(rows);',
+        '+}',
+        '+',
+        '+export async function listRefunds(req, res) {',
+        '+  const limit = Number(req.query.limit ?? 20);',
+        "+  const rows = await db.query('SELECT id, amount FROM refunds ORDER BY id DESC LIMIT $1', [limit]);",
+        '+  res.json(rows);',
+        '+}',
+      ].join('\n'),
+    },
+    {
+      path: 'src/payments/format.ts',
+      additions: 4,
+      deletions: 0,
+      status: 'added',
+      patch: [
+        '@@ -0,0 +1,4 @@',
+        '+export function formatMinor(amountMinor: number, currency = "USD"): string {',
+        '+  const major = (amountMinor / 100).toFixed(2);',
+        '+  return `${currency} ${major}`;',
+        '+}',
+      ].join('\n'),
+    },
+  ],
+  13: [
+    {
+      path: 'src/auth/session.ts',
+      additions: 1,
+      deletions: 1,
+      status: 'modified',
+      patch: [
+        '@@ -20,4 +20,4 @@ export function issueSession(res, userId) {',
+        '   const token = signToken({ sub: userId });',
+        "-  res.cookie('sid', token, { httpOnly: true, secure: true, sameSite: 'lax' });",
+        "+  res.cookie('sid', token, { httpOnly: false, secure: false });",
+        '   return token;',
+        ' }',
+      ].join('\n'),
+    },
+  ],
+};
+
+/**
  * Per-commit file churn, WITH PATCHES (W16-33).
  *
  * The patches were missing until now, and everything that reads a DIFF rather
@@ -287,6 +359,24 @@ export function startFakeForge(port = 0): Promise<FakeForge> {
       return;
     }
 
+    // The files of one pull request, with patches (W19-14: AI-pass diff mode).
+    const prFiles = /^\/repos\/[^/]+\/[^/]+\/pulls\/(\d+)\/files$/.exec(url.pathname);
+    if (prFiles && req.method === 'GET') {
+      const files = FAKE_PR_FILES[Number(prFiles[1])] ?? [];
+      json(
+        200,
+        files.map((f) => ({
+          filename: f.path,
+          additions: f.additions,
+          deletions: f.deletions,
+          changes: f.additions + f.deletions,
+          patch: f.patch,
+          status: f.status,
+        })),
+      );
+      return;
+    }
+
     // Per-PR reviews (enrichment). Fetched per PR number, not paginated at
     // repo scope — which is exactly why reviews belong to enrichment rather
     // than the history entity walk.
@@ -349,9 +439,7 @@ export function startFakeForge(port = 0): Promise<FakeForge> {
     //
     // A real forge accepts any ref here, not just a hex sha, so the wider
     // pattern is also the more faithful one.
-    const commitDetail = /^\/repos\/[^/]+\/[^/]+\/commits\/([0-9a-zA-Z._-]+)$/.exec(
-      url.pathname,
-    );
+    const commitDetail = /^\/repos\/[^/]+\/[^/]+\/commits\/([0-9a-zA-Z._-]+)$/.exec(url.pathname);
     if (commitDetail && req.method === 'GET') {
       const sha = commitDetail[1]!;
       // Deterministic per-SHA so the churn totals are stable across runs and an
