@@ -169,6 +169,8 @@ describe('enablement defaults (FR-SEC-11)', () => {
       'performance',
       // W18-21: rides the secrets stream's diff, so it costs one regex pass.
       'sensitive_change',
+      // W21-05: offline, against the synced package-name index; shadow rules.
+      'slopsquat',
       'supply_chain_register',
       'architecture_register',
       'test_gap_register',

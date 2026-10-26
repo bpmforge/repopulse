@@ -7,6 +7,7 @@ import { buildSecretFindings, SECRETS_SCANNER_KEY } from './scanner.js';
 import { loadRulepack } from './rulepack.js';
 import type { SecretsVerificationConfig } from './verify.js';
 import { runSensitiveChangeScan } from '../sensitive-change/run.js';
+import { runSlopsquatDiffScan } from '../slopsquat/run.js';
 
 // Stream mode (W8-04, SECURITY_SUITE.md 3.1, FR-SEC-3).
 //
@@ -194,7 +195,11 @@ export async function runSecretsStreamScan(deps: StreamScanDeps): Promise<Stream
   const scanned: StreamScanTarget[] = [];
 
   for (const target of targets) {
-    const created = await scanOneTarget(deps, target, deps.trigger === 'push' ? 'push' : 'pr_synced');
+    const created = await scanOneTarget(
+      deps,
+      target,
+      deps.trigger === 'push' ? 'push' : 'pr_synced',
+    );
     if (created !== null) {
       findingsCreated += created;
       scanned.push(target);
@@ -232,7 +237,10 @@ export async function secretsFindingCount(db: Database, repoId: number): Promise
  * repo whose data stopped updating.
  */
 export async function scanOneTarget(
-  deps: Pick<StreamScanDeps, 'db' | 'provider' | 'repo' | 'repoId' | 'workspaceId' | 'verification'>,
+  deps: Pick<
+    StreamScanDeps,
+    'db' | 'provider' | 'repo' | 'repoId' | 'workspaceId' | 'verification'
+  >,
   target: StreamScanTarget,
   trigger: 'pr_synced' | 'push' | 'schedule' | 'manual',
 ): Promise<number | null> {
@@ -300,6 +308,25 @@ export async function scanOneTarget(
       } catch {
         // Enablement lookup or run-row insert failed before the radar could
         // record anything. Swallowed so the secrets run keeps its result.
+      }
+      // W21-05: dependencies ADDED in this diff that are missing from their
+      // registry or imitate a popular package. Same diff, no second
+      // pull-files fetch; a modified manifest is read whole at the head SHA
+      // through the same budgeted provider. Own run row, own failures.
+      try {
+        await runSlopsquatDiffScan({
+          db: deps.db,
+          provider: deps.provider,
+          repo: deps.repo,
+          workspaceId: deps.workspaceId,
+          repoId: deps.repoId,
+          commitSha: target.commitSha,
+          trigger,
+          pullRequestId: target.pullRequestId ?? null,
+          files,
+        });
+      } catch {
+        // As above: the secrets result is already stored.
       }
     }
     return persisted.created;

@@ -522,10 +522,11 @@ describeIfLiveInfra('CI pull: PR findings API + read-only CI token (W18-18)', ()
     };
     expect(body.pull).toMatchObject({ number: 7, head_sha: HEAD });
     // W20-15 (UX_TODO X-13): anti_slop and semgrep have finished at the head,
-    // but the scanners that run on every PR push (secrets, and the radar that
-    // rides it) have not, so the head is NOT scanned yet and says which.
+    // but the scanners that run on every PR push (secrets, and the radar and,
+    // since W21-05, slopsquat that ride it) have not, so the head is NOT
+    // scanned yet and says which.
     expect(body.head.scanned).toBe(false);
-    expect(body.head.pending).toEqual(['secrets', 'sensitive_change']);
+    expect(body.head.pending).toEqual(['secrets', 'sensitive_change', 'slopsquat']);
     expect(body.head.failed).toEqual([]);
     expect(body.head.scanners.map((s) => s.scanner_key)).toEqual(['anti_slop', 'semgrep']);
     // Severity desc, then id desc.
@@ -559,10 +560,14 @@ describeIfLiveInfra('CI pull: PR findings API + read-only CI token (W18-18)', ()
     const partial = (await get(findingsUrl(repoA), { token })).json() as {
       head: { scanned: boolean; pending: string[] };
     };
-    expect(partial.head).toMatchObject({ scanned: false, pending: ['sensitive_change'] });
+    expect(partial.head).toMatchObject({
+      scanned: false,
+      pending: ['sensitive_change', 'slopsquat'],
+    });
 
     // A failed run is finished: the verdict is not held for ever, but the
     // failure is named so the caller knows what is missing.
+    await finish('slopsquat', 'succeeded');
     await finish('sensitive_change', 'failed');
     const done = (await get(findingsUrl(repoA), { token })).json() as {
       head: { scanned: boolean; pending: string[]; failed: string[] };

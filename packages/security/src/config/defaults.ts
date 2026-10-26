@@ -108,6 +108,14 @@ export const SCANNER_DEFAULTS: readonly ScannerDefault[] = [
       'Flags changes that loosen auth, validation, crypto, CORS/TLS or rate limits for a human to look at — reuses the diff secrets already fetched.',
   },
   {
+    // W21-05. Offline: existence comes from the package-name index the scan
+    // data sync keeps beside the vulnerability database, never a live lookup.
+    key: 'slopsquat',
+    enabled: true,
+    rationale:
+      'Flags dependencies missing from their registry (hallucinated) or named like a popular package (typosquats) — offline, from the synced package-name index; new rules start in shadow.',
+  },
+  {
     key: 'supply_chain_register',
     enabled: true,
     rationale: 'Deprecations and EOL dates happen on a date rather than on a commit, so nightly.',

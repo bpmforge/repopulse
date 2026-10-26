@@ -162,9 +162,23 @@ SHA via `getFileContent` (budgeted). Pipeline per repo per default-branch commit
    severity mapped from CVSS (≥9.0→5, ≥7.0→4, ≥4.0→3, else 2).
 3. **KEV correlation**: CISA KEV list (nightly db-sync) — KEV hit ⇒ severity floor 4 + `kev:true`
    in finding payload; surfaced as its own facet.
-4. **Slopsquatting** (AI-hallucinated package names): heuristics — package-not-in-registry,
-   registry age < 90d with low download count, small typo-distance (Damerau-Levenshtein ≤2) to
-   a top-N popular package. Any hit ⇒ dimension `dependency`, rule `slopsquat`, severity 4.
+4. **Slopsquatting** (AI-hallucinated package names) — **built in W21-05** as its own scanner key
+   `slopsquat` (`scanners/slopsquat/`), dimension `dependency`, both rules shipped as candidates
+   (shadow):
+   - `slopsquat` — the declared package is not in the registry's name list. Severity 4,
+     confidence 4 (5 when it is also a near miss or arrived in the scanned diff). Registry data
+     is an OFFLINE index (`$SCAN_RULES_DIR/package-index`, built host-side by
+     `deploy/build-package-index.py` from `deploy/scan-db-sync.sh`); no registry call is ever made
+     at scan time. An absent index, ecosystem or private index is reported as "not checked" on the
+     run (`tool_versions.registry.<eco>`), never as clean, and the sweep keeps such findings open.
+   - `slopsquat.near-miss` — the package exists but imitates a popular one (homoglyph, separator,
+     affix, Go look-alike owner, one edit of a top-1,000 name keeping its first letter). Where the
+     index carries metadata (crates.io, Go first-seen) only young (< 90 d) or low-download
+     (< 1,000) packages are flagged, at severity 4; elsewhere severity 3, confidence 2.
+   The original spec here said Damerau-Levenshtein ≤ 2; two edits were measured on 4,000 real
+   packages and dropped (see `similarity.ts`). Snapshot mode runs inside this scanner's run over
+   the same snapshot; the cheap `pr_synced`/`push` mode rides the secrets stream and reads only
+   ADDED manifest lines (modified manifests fetched at head via `getFileContent`).
 5. **Posture rollup**: counts by severity + finding age percentiles → feeds Security tab tile
    and FR-INSIGHTS-2 security sub-score.
 

@@ -10,7 +10,12 @@ import {
   validateVulnerabilities,
   type ValidationFunnel,
 } from '../../validation/index.js';
-import { loadMaliciousIndex, matchMalicious, maliciousFinding, packagesFromSbom } from './malicious.js';
+import {
+  loadMaliciousIndex,
+  matchMalicious,
+  maliciousFinding,
+  packagesFromSbom,
+} from './malicious.js';
 import { adviseFix, readFixGraphs } from './fixpath/index.js';
 import { runDependencyTools, vulnDbDir } from './tools.js';
 import {
@@ -20,6 +25,7 @@ import {
   type PricedIncomingFinding,
 } from './findings.js';
 import type { MatchFunnel } from './matches.js';
+import { runSlopsquatSnapshotScan, type SlopsquatResult } from '../slopsquat/run.js';
 
 // The dependency scanner, end to end (W8-06, SECURITY_SUITE.md §3.2, FR-SEC-5).
 //
@@ -61,6 +67,8 @@ export interface DependencyRunDeps {
   goVulnDb?: string;
   trigger?: 'schedule' | 'manual' | 'push';
   wallClockMs?: number;
+  /** Host directory of the package-name index (W21-05). Defaults to packageIndexDir(). */
+  packageIndexDir?: string;
 }
 
 /**
@@ -110,6 +118,12 @@ export interface DependencyRunResult {
   /** Malicious-package hits (W18-37), and why the check did not run when it did not. */
   maliciousFound: number;
   maliciousNote: string | null;
+  /**
+   * The slopsquat pass over the same snapshot (W21-05): its own scan_run and
+   * findings under scanner key `slopsquat`, summarised here. Null when it did
+   * not run (disabled, or it failed before recording anything).
+   */
+  slopsquat: Pick<SlopsquatResult, 'status' | 'signals' | 'findingsCreated' | 'notChecked'> | null;
   findingsCreated: number;
   findingsTotal: number;
   /** Findings whose effective_risk this run wrote (V4). */
@@ -134,6 +148,7 @@ const emptyFunnel = {
   reachabilityNote: null,
   maliciousFound: 0,
   maliciousNote: null,
+  slopsquat: null,
   findingsCreated: 0,
   findingsTotal: 0,
   findingsPriced: 0,
@@ -166,6 +181,31 @@ export async function runDependencyScan(deps: DependencyRunDeps): Promise<Depend
           budget: { wallClockMs: deps.wallClockMs ?? DEFAULT_WALL_CLOCK_MS },
         });
 
+        // W21-05: slopsquat reads the manifests in this same snapshot, so it
+        // costs no fetch. BEFORE the tool check on purpose: it needs neither
+        // syft nor grype, and a missing vulnerability database must not also
+        // hide a hallucinated package. Its run row and failures are its own.
+        const slopsquat = await runSlopsquatSnapshotScan({
+          db: deps.db,
+          workspaceId: deps.workspaceId,
+          repoId: deps.repoId,
+          commitSha: snapshot.commitSha,
+          snapshotDir: snapshot.dir,
+          trigger: deps.trigger ?? 'schedule',
+          ...(deps.packageIndexDir ? { indexDir: deps.packageIndexDir } : {}),
+        })
+          .then((r) =>
+            r.status === 'disabled'
+              ? null
+              : {
+                  status: r.status,
+                  signals: r.signals,
+                  findingsCreated: r.findingsCreated,
+                  notChecked: r.notChecked,
+                },
+          )
+          .catch(() => null);
+
         if (tools.status !== 'succeeded' || tools.document === null) {
           // RETURN BEFORE persistFindings. A failed tool run reaching the store
           // with an empty findings list would auto-resolve every dependency
@@ -185,6 +225,7 @@ export async function runDependencyScan(deps: DependencyRunDeps): Promise<Depend
             status: 'failed' as const,
             scanRunId: runId,
             ...emptyFunnel,
+            slopsquat,
             ...(tools.error ? { error: tools.error } : {}),
           };
         }
@@ -303,6 +344,7 @@ export async function runDependencyScan(deps: DependencyRunDeps): Promise<Depend
           reachabilityNote: reachability.reason,
           maliciousFound: maliciousHits.length,
           maliciousNote: malicious.ok ? null : malicious.reason,
+          slopsquat,
           findingsCreated: persisted.created,
           findingsTotal: mapped.findings.length,
           findingsPriced,

@@ -185,15 +185,26 @@ describe('D12 pricing (FR-REG-7)', () => {
       confidence: 4,
       hotspotPercentile: 0.9,
     });
-    expect(Math.round(100 * priced.riskFactors.H * priced.riskFactors.L * priced.riskFactors.X * 100) / 100).toBe(
-      priced.effectiveRisk,
-    );
+    expect(
+      Math.round(100 * priced.riskFactors.H * priced.riskFactors.L * priced.riskFactors.X * 100) /
+        100,
+    ).toBe(priced.effectiveRisk);
     expect(priced.band).toBeTruthy();
   });
 
   it('prices a hot file above the same finding in a cold one', () => {
-    const hot = priceFinding({ dimension: 'test_gap', severity: 3, confidence: 4, hotspotPercentile: 0.95 });
-    const cold = priceFinding({ dimension: 'test_gap', severity: 3, confidence: 4, hotspotPercentile: 0.05 });
+    const hot = priceFinding({
+      dimension: 'test_gap',
+      severity: 3,
+      confidence: 4,
+      hotspotPercentile: 0.95,
+    });
+    const cold = priceFinding({
+      dimension: 'test_gap',
+      severity: 3,
+      confidence: 4,
+      hotspotPercentile: 0.05,
+    });
     expect(hot.effectiveRisk).toBeGreaterThan(cold.effectiveRisk);
     // The cold one still SCORES — a floor, not a disappearance.
     expect(cold.effectiveRisk).toBeGreaterThan(0);
@@ -224,6 +235,9 @@ describe('coverage ingestion is provably absent (acceptance item 3)', () => {
           'apps',
           // This file names the formats in order to search for them.
           ':(exclude)packages/insights/src/registers/test-gap/register.test.ts',
+          // W21-05: lists of popular package NAMES (PyPI ships `codecov`), the
+          // targets typosquats imitate. Data, not a parser.
+          ':(exclude)packages/security/rulepacks/slopsquat/popular',
         ],
         {
           cwd: repoRoot,

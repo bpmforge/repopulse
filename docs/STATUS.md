@@ -4105,3 +4105,22 @@ osv-scanner no issues; gitleaks clean.
 Merged to `main` 2026-10-15 (#72 then #73) and pushed to GitHub only: the
 Gitea remote is not reachable from this environment, so `origin`/Gitea `main`
 is behind until the next push from the LAN.
+
+### 2026-10-26 — W21-05 slopsquat detection
+
+**W21-05 done** — new `slopsquat` scanner (packages/security/src/scanners/slopsquat)
+flags dependencies in npm, PyPI, Go, crates, RubyGems and Maven manifests that
+are not in their registry (`slopsquat`) or are a near-miss of a popular package
+that is young, low-download or not shown to be established
+(`slopsquat.near-miss`). A line added in the PR/push diff raises confidence.
+Each finding names the manifest path and line, the nearest real package and
+why it was flagged. Both rules start as candidate (shadow) rules. Existence is
+checked against an offline package-name index that the optional
+`deploy/scan-db-sync.sh` step builds (`deploy/build-package-index.py`). When an
+ecosystem has no index it is recorded as not checked, and its findings are kept
+open. The scan itself makes no network calls. On the W21-05 corpus (cited real
+incidents plus 120 held-out real packages): P 0.938 / R 0.938 overall; rule
+`slopsquat` P 1.000 / R 1.000. Not run live here (no podman): the sync in the
+scan image, the image build, a real snapshot scan, the cargo dump and a full Go
+backfill. Also fixed: the CocoaPods note in `ecosystems/matrix.ts`, which did
+not match docs/ECOSYSTEMS.md on main. Gate: see the commit body.

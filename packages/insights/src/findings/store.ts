@@ -52,8 +52,10 @@ export interface IncomingFinding {
   /**
    * W18-24: the external tool's own stable identity for this result (SARIF
    * partialFingerprints, a code-scanning alert number). Keys the finding in
-   * place of evidence + line bucket — see dedupKey. Never set by our own
-   * scanners, whose keys therefore do not move.
+   * place of evidence + line bucket — see dedupKey. Our own scanners do not
+   * set it, so their keys do not move — except slopsquat (W21-05), which was
+   * born with `<ecosystem>:<package>` so a dependency keeps its row when the
+   * manifest lines above it change.
    */
   fingerprint?: string | null;
 }
@@ -320,6 +322,17 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
           ? {
               contextLines: finding.context?.lines ?? null,
               contextStartLine: finding.context?.startLine ?? null,
+            }
+          : {}),
+        // W21-05: a fingerprinted finding is keyed independently of its line,
+        // so the same row is seen after the code above it moved. Its location
+        // and quote follow the latest sighting; otherwise the row would point
+        // at whatever now sits on the line it was first seen at.
+        ...(finding.fingerprint
+          ? {
+              lineStart: finding.lineStart,
+              lineEnd: finding.lineEnd,
+              evidence: finding.evidenceQuote,
             }
           : {}),
       })

@@ -384,6 +384,91 @@ else
   log "malicious-package sync: skipped (SCAN_SYNC_MALICIOUS=0)"
 fi
 
+# ---- 4. Package-name index (W21-05) ------------------------------------------
+# "Does this dependency exist?" — the slopsquat check (hallucinated and
+# typosquatted packages) asks it offline, against name lists fetched here, so
+# the scan path never calls a registry. One download per ecosystem, built in
+# the scan image (deploy/build-package-index.py), swapped in by rename like the
+# malicious index. Default ecosystems: npm, PyPI, RubyGems (~110 MB on disk,
+# staged beside the live copy, so allow ~250 MB). Add `cargo` (crates.io's
+# database dump, several hundred MB to download, the one source with age and
+# download counts) and `go` (index.golang.org, incremental; existence is only
+# checked once its backfill completes) with SCAN_PACKAGE_INDEX_ECOSYSTEMS.
+# Maven has no compact public list: give one as SCAN_PACKAGE_INDEX_MAVEN_FILE.
+# SCAN_SYNC_PACKAGE_INDEX=0 turns the step off; the scanner then reports
+# existence as "not checked" and runs only its near-miss half.
+if [ "$(env_value SCAN_SYNC_PACKAGE_INDEX)" != "0" ] && [ "${SCAN_SYNC_PACKAGE_INDEX:-1}" != "0" ]; then
+  runtime=""
+  for candidate in podman docker; do
+    if command -v "$candidate" >/dev/null 2>&1; then runtime="$candidate"; break; fi
+  done
+  idx_dir="$DEST/package-index"
+  if [ -z "$runtime" ]; then
+    log "ERROR: no podman or docker on PATH — the package-name index is built in $SCAN_IMAGE"
+    FAILED=1
+  else
+    idx_stage="$DEST/package-index.stage"
+    rm -rf "$idx_stage"
+    mkdir -p "$idx_stage" "$idx_dir"
+    idx_ecos="$(env_value SCAN_PACKAGE_INDEX_ECOSYSTEMS)"
+    : "${idx_ecos:=npm pypi rubygems}"
+    idx_args=(/out --previous /previous)
+    idx_mounts=()
+    maven_file="$(env_value SCAN_PACKAGE_INDEX_MAVEN_FILE)"
+    if [ -n "$maven_file" ]; then
+      if [ -f "$maven_file" ]; then
+        idx_mounts=(-v "$maven_file:/import/maven.txt:ro")
+        idx_args+=(maven=/import/maven.txt)
+      else
+        log "ERROR: SCAN_PACKAGE_INDEX_MAVEN_FILE=$maven_file is not a file - Maven existence stays unchecked"
+        FAILED=1
+      fi
+    fi
+    # With an internal CA, Python gets ONE bundle (as for the malicious index).
+    idx_cmd=(python3 /build.py "${idx_args[@]}")
+    if [ -n "$CA_FILE" ]; then
+      idx_cmd=(sh -c 'cat "$(python3 -c "import ssl; print(ssl.get_default_verify_paths().openssl_cafile)")" "$REPOPULSE_CA_FILE" > /tmp/ca-bundle.pem && SSL_CERT_FILE=/tmp/ca-bundle.pem exec python3 /build.py "$@"' sh "${idx_args[@]}")
+    fi
+    if "$runtime" run --rm --user 0:0 \
+         ${proxy_env[@]+"${proxy_env[@]}"} \
+         -e "REPOPULSE_CA_FILE=$CA_FILE" \
+         -e "SCAN_PACKAGE_INDEX_ECOSYSTEMS=$idx_ecos" \
+         -e "SCAN_PACKAGE_INDEX_GO_MAX_PAGES=$(env_value SCAN_PACKAGE_INDEX_GO_MAX_PAGES)" \
+         ${ca_mounts[@]+"${ca_mounts[@]}"} \
+         ${idx_mounts[@]+"${idx_mounts[@]}"} \
+         -v "$idx_stage:/out:rw" \
+         -v "$idx_dir:/previous:ro" \
+         -v "$SCRIPT_DIR/build-package-index.py:/build.py:ro" \
+         "$SCAN_IMAGE" "${idx_cmd[@]}" 2>"$fetch_err"; then
+      rm -rf "$idx_dir.old"
+      mv "$idx_dir" "$idx_dir.old"
+      mv "$idx_stage" "$idx_dir"
+      rm -rf "$idx_dir.old"
+      log "package-name index synced: $(du -sh "$idx_dir" | awk '{print $1}') at $idx_dir ($idx_ecos)"
+    else
+      # The builder keeps the previous list of any ecosystem it could not
+      # fetch, so a partial stage is still the best copy there is: publish it,
+      # but report the failure.
+      if [ -s "$idx_stage/manifest.json" ]; then
+        rm -rf "$idx_dir.old"
+        mv "$idx_dir" "$idx_dir.old"
+        mv "$idx_stage" "$idx_dir"
+        rm -rf "$idx_dir.old"
+        log "ERROR: the package-name index synced only in part (previous lists kept where a source failed)."
+      else
+        rm -rf "$idx_stage"
+        log "ERROR: building the package-name index failed. Keeping any previous index."
+      fi
+      show_fetch_error
+      log "       It needs outbound HTTPS to registry.npmjs.org, pypi.org and rubygems.org"
+      log "       (plus static.crates.io / index.golang.org if enabled), through HTTPS_PROXY if set."
+      FAILED=1
+    fi
+  fi
+else
+  log "package-name index sync: skipped (SCAN_SYNC_PACKAGE_INDEX=0) — slopsquat existence checks report 'not checked'"
+fi
+
 # OSV and CISA KEV need no sync of their own, which is worth stating so nobody
 # adds one: grype's database already carries both. The copy synced above was
 # measured at 1,671 KEV entries and 362,257 EPSS scores, and the D12 risk model

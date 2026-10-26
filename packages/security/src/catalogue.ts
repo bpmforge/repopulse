@@ -17,6 +17,7 @@ import { ARCHITECTURE_SCANNER_KEY } from './adapters/architecture/tools.js';
 import { SUPPLY_CHAIN_REGISTER_KEY } from './registers/run.js';
 import { DRAFT_PASS_KEY } from './rules/draft-run.js';
 import { CODE_SCANNING_PULL_KEY, CODE_SCANNING_PULL_VERSION } from './external/code-scanning.js';
+import { SLOPSQUAT_SCANNER_KEY, SLOPSQUAT_VERSION } from './scanners/slopsquat/findings.js';
 
 // The built-in scanner catalogue (W16-28).
 //
@@ -47,15 +48,13 @@ function sweepOnly(key: string) {
   return async (_ctx: ScannerContext): Promise<ScannerFinding[]> => {
     throw new Error(
       `"${key}" is a sweep scanner: it runs over a repository's warehoused history ` +
-        'through the worker\'s runner map, not against one pinned commit. ' +
+        "through the worker's runner map, not against one pinned commit. " +
         'Enqueue it with mode "history" or "weekly".',
     );
   };
 }
 
-function sweeper(
-  s: Omit<Scanner, 'run'>,
-): Scanner {
+function sweeper(s: Omit<Scanner, 'run'>): Scanner {
   return { ...s, run: sweepOnly(s.key) };
 }
 
@@ -216,6 +215,16 @@ export const BUILTIN_SCANNERS: readonly Scanner[] = [
     version: SENSITIVE_CHANGE_VERSION,
     inputs: 'diff',
     triggers: ['pr_synced', 'push'],
+  }),
+  // W21-05. Two runners, no manual button of its own: diff mode rides the
+  // secrets stream on pr_synced/push (as the radar does), and snapshot mode
+  // runs inside the weekly dependency scan, on the snapshot that scan holds.
+  sweeper({
+    key: SLOPSQUAT_SCANNER_KEY,
+    displayName: 'Hallucinated and typosquatted packages',
+    version: SLOPSQUAT_VERSION,
+    inputs: 'manifests',
+    triggers: ['pr_synced', 'push', 'schedule'],
   }),
   sweeper({
     key: PERF_SCANNER_KEY,

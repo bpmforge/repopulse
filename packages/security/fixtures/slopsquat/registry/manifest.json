@@ -1,0 +1,54 @@
+{
+ "version": 1,
+ "generated": "2026-10-26T00:00:00Z",
+ "ecosystems": {
+  "npm": {
+   "file": "npm.tsv",
+   "count": 61,
+   "source": "fixture: registry state modelled per corpus.json",
+   "generated": "2026-10-26T00:00:00Z",
+   "metadata": false,
+   "complete": true
+  },
+  "pypi": {
+   "file": "pypi.tsv",
+   "count": 63,
+   "source": "fixture: registry state modelled per corpus.json",
+   "generated": "2026-10-26T00:00:00Z",
+   "metadata": false,
+   "complete": true
+  },
+  "go": {
+   "file": "go.tsv",
+   "count": 1,
+   "source": "fixture: registry state modelled per corpus.json",
+   "generated": "2026-10-26T00:00:00Z",
+   "metadata": false,
+   "complete": true
+  },
+  "cargo": {
+   "file": "cargo.tsv",
+   "count": 2,
+   "source": "fixture: registry state modelled per corpus.json",
+   "generated": "2026-10-26T00:00:00Z",
+   "metadata": true,
+   "complete": true
+  },
+  "rubygems": {
+   "file": "rubygems.tsv",
+   "count": 1,
+   "source": "fixture: registry state modelled per corpus.json",
+   "generated": "2026-10-26T00:00:00Z",
+   "metadata": false,
+   "complete": true
+  },
+  "maven": {
+   "file": "maven.tsv",
+   "count": 1,
+   "source": "fixture: registry state modelled per corpus.json",
+   "generated": "2026-10-26T00:00:00Z",
+   "metadata": false,
+   "complete": true
+  }
+ }
+}
