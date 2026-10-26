@@ -42,6 +42,14 @@ let repoId = 0;
 
 test.beforeAll(async ({ browser }) => {
   page = await browser.newPage();
+  // The persona question is deferred whenever it appears. Since W20-17 it no
+  // longer opens at first sign-in (an admin with no repositories is not asked);
+  // it opens on the first page load after the backfill, in the middle of the
+  // journey, and covers whatever that step is about to click. The journey is
+  // the operator's, not a persona's, so "Not now" is the newcomer's answer.
+  await page.addLocatorHandler(page.getByTestId('persona-picker'), async () => {
+    await page.getByTestId('persona-defer').click();
+  });
 });
 
 test.afterAll(async () => {
@@ -72,18 +80,9 @@ test('1. first sign-in forces the bootstrap admin to choose a password', async (
   await page.getByTestId('password-submit').click();
   await expect(page.getByTestId('password-change')).toBeHidden();
 
-  // The persona question is the second screen of a first login. Defer it —
-  // the journey is the operator's, not a persona's.
-  const picker = page.getByTestId('persona-picker');
-  if (
-    await picker.waitFor({ state: 'visible', timeout: 5_000 }).then(
-      () => true,
-      () => false,
-    )
-  ) {
-    await page.getByTestId('persona-defer').click();
-    await expect(picker).toBeHidden();
-  }
+  // No persona question here: an admin with no repositories is not asked
+  // (W20-17). The handler in beforeAll defers it when it does appear.
+  await expect(page.getByTestId('persona-picker')).toBeHidden();
   record({ step: 1, signedInAs: ADMIN_EMAIL, passwordChanged: true });
 });
 
@@ -181,9 +180,11 @@ test('5. the backfill lands and every repository goes live', async () => {
 
   await page.goto('/admin/sync');
   await expect(page.getByTestId('sync-repo-table')).toBeVisible();
-  await expect(page.getByTestId('sync-repo-table').getByText('live', { exact: true })).toHaveCount(
-    FAKE_REPOS.length,
-  );
+  // The Phase column says "Up to date" for the API's `live` (W20-14 renamed the
+  // label; the API value is unchanged and is asserted above).
+  await expect(
+    page.getByTestId('sync-repo-table').getByText('Up to date', { exact: true }),
+  ).toHaveCount(FAKE_REPOS.length);
   await shot(page, 'sync-all-live');
   record({
     step: 5,
@@ -223,6 +224,20 @@ test('6. the screens show what this run ingested', async () => {
 // ---------------------------------------------------------------------------
 // Tier-2 through the real client, against the fixture model
 // ---------------------------------------------------------------------------
+
+interface RunsPage {
+  items: { id: number }[];
+}
+
+/**
+ * The newest scan run's id. Compared instead of the row count: /scanners/runs
+ * returns at most 50 rows, and since the scheduled scanners (W19/W20) run
+ * after the backfill there are more than 50 by the drills, so the count no
+ * longer moves when a run is queued.
+ */
+function newestRunId(r: RunsPage): number {
+  return r.items.reduce((max, run) => Math.max(max, run.id), 0);
+}
 
 async function addProvider(
   model: string,
@@ -285,6 +300,10 @@ test('7. Admin → Models: the fixture model answers the real client', async () 
 });
 
 test('8. the OWASP checklist produces a finding the evidence validator accepts', async () => {
+  // The worker caches a workspace's gateway for 60 s, and it can hold one built
+  // BEFORE step 7 added the model. Seen 2026-10-25 on 71ec2e3: the scan settled
+  // in 38 ms with "No model is configured for this workspace". Wait it out.
+  await awaitWorkerProviderRefresh();
   // No screen toggles a per-repo scanner yet; the API does (PUT /scanners/:key).
   // Recorded as a gap rather than worked around silently.
   await apiOk(page, 'PUT', '/api/v1/scanners/owasp_web', { repo_id: repoId, enabled: true });
@@ -323,8 +342,7 @@ test('8. the OWASP checklist produces a finding the evidence validator accepts',
 
 test('9. DRILL reload during a queued job: the run survives the page', async () => {
   await page.goto(`/repos/${repoId}/security`);
-  const runsBefore = (await apiOk<{ items: unknown[] }>(page, 'GET', '/api/v1/scanners/runs')).items
-    .length;
+  const runsBefore = newestRunId(await apiOk<RunsPage>(page, 'GET', '/api/v1/scanners/runs'));
   await page.getByTestId('run-scan-button').click();
   // Against the fixture forge the deterministic scanners settle in seconds, so
   // "Started …" may already have become "Running now: …" or "The scan has
@@ -337,12 +355,10 @@ test('9. DRILL reload during a queued job: the run survives the page', async () 
     .first();
   await expect(status).toBeVisible();
   const startedText = await status.textContent();
-  await untilApi<{ items: unknown[] }>(
-    page,
-    '/api/v1/scanners/runs',
-    (r) => r.items.length > runsBefore,
-    { timeoutMs: 60_000, label: 'the press queued at least one run' },
-  );
+  await untilApi<RunsPage>(page, '/api/v1/scanners/runs', (r) => newestRunId(r) > runsBefore, {
+    timeoutMs: 60_000,
+    label: 'the press queued at least one run',
+  });
 
   // Reload at once. The button's own memory of the start is gone; what the
   // screen shows now comes only from the warehouse's view of the queue.
@@ -530,8 +546,7 @@ test('12. DRILL dead worker: named on the status screen, work waits, and drains 
   // A job started now has nobody to run it. The button must not sit on
   // "Queued…" for ever: after the pickup timeout it says so in a sentence.
   await page.goto(`/repos/${repoId}/security`);
-  const runsBefore = (await apiOk<{ items: unknown[] }>(page, 'GET', '/api/v1/scanners/runs')).items
-    .length;
+  const runsBefore = newestRunId(await apiOk<RunsPage>(page, 'GET', '/api/v1/scanners/runs'));
   await page.getByTestId('run-scan-button').click();
   await expect(page.getByTestId('run-scan-result')).toContainText(/^Started/);
   await shot(page, 'drill-dead-worker-scan-started');
@@ -553,12 +568,10 @@ test('12. DRILL dead worker: named on the status screen, work waits, and drains 
   );
   await shot(page, 'drill-dead-worker-back');
 
-  await untilApi<{ items: unknown[] }>(
-    page,
-    '/api/v1/scanners/runs',
-    (r) => r.items.length > runsBefore,
-    { timeoutMs: 3 * 60_000, label: 'the queued scan ran once the worker returned' },
-  );
+  await untilApi<RunsPage>(page, '/api/v1/scanners/runs', (r) => newestRunId(r) > runsBefore, {
+    timeoutMs: 3 * 60_000,
+    label: 'the queued scan ran once the worker returned',
+  });
   await untilApi<SecurityPayload>(
     page,
     `/api/v1/repos/${repoId}/security`,
