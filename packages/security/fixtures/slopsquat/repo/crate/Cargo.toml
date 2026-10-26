@@ -1,0 +1,15 @@
+[package]
+name = "crate"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+rustdecimal = "1.23"
+serde_yml = "0.0.12"
+serde_jsno = "1.0"
+local = { path = "../local" }
+
+[dev-dependencies.criterion]
+version = "0.5"

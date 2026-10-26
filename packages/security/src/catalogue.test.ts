@@ -127,6 +127,9 @@ describe('defaults line up with the catalogue (W16-28)', () => {
   // way to be enabled and unreachable.
   const STREAM_RIDERS: Record<string, string> = {
     sensitive_change: 'runSensitiveChangeScan(',
+    // W21-05: diff mode rides the stream; snapshot mode runs inside the
+    // weekly dependency scan (its `schedule` trigger).
+    slopsquat: 'runSlopsquatDiffScan(',
   };
 
   it('no scanner is enabled by default that no runner can reach', () => {

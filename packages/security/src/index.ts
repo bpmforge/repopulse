@@ -85,6 +85,17 @@ export * from './scanners/image/scan.js';
 export * from './scanners/image/findings.js';
 export * from './scanners/image/run.js';
 export * from './scanners/dependency/malicious.js';
+// W21-05: slopsquat — hallucinated and typosquatted dependencies.
+export * from './scanners/slopsquat/names.js';
+export * from './scanners/slopsquat/registry-index.js';
+export * from './scanners/slopsquat/popular.js';
+export * from './scanners/slopsquat/similarity.js';
+export * from './scanners/slopsquat/manifests.js';
+export * from './scanners/slopsquat/collect.js';
+export * from './scanners/slopsquat/detect.js';
+export * from './scanners/slopsquat/diff.js';
+export * from './scanners/slopsquat/findings.js';
+export * from './scanners/slopsquat/run.js';
 export * from './registers/spdx.js';
 export * from './registers/attribution.js';
 export * from './triage/index.js';

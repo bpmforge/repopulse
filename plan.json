@@ -11446,6 +11446,59 @@
           "Secrets: no fast-lane secrets rule has 5 independent TPs (the most is generic-secret-assignment, 1 on Juice Shop). Anti-slop, logging, code-health and performance rules have no independent benchmark, so they stay shadow. The About page lists suite accuracy, not live-rule counts, so it is unchanged.",
           "Gate 2026-10-26 against a freshly migrated database: eslint 0 problems, typecheck clean, vitest 5178 passed / 144 skipped / 1 failed (567 files). The one failure is pre-existing on main and outside this scope: src/ecosystems/matrix.test.ts, docs/ECOSYSTEMS.md not re-rendered after the W18-54 note in docs/ecosystems.json (71ec2e3). New tests: starter-set.test.ts (10), shadow.test.ts (+3), adapter shadow integration (+3), trust-surfaces (+1), web trust (+2)."
         ]
+      },
+        {
+        "id": "W21-05",
+        "title": "Slopsquat detection: hallucinated and squatted packages in manifests",
+        "phase": 21,
+        "module": "security",
+        "stories": [],
+        "write_scope": [
+          "packages/security/src/scanners/slopsquat/**",
+          "packages/security/src/scanners/dependency/run.ts",
+          "packages/security/src/scanners/secrets/stream.ts",
+          "packages/security/src/catalogue.ts",
+          "packages/security/src/catalogue.test.ts",
+          "packages/security/src/config/defaults.ts",
+          "packages/security/src/framework/framework.test.ts",
+          "packages/security/src/ecosystems/matrix.ts",
+          "packages/security/src/index.ts",
+          "packages/security/fixtures/slopsquat/**",
+          "packages/security/rulepacks/slopsquat/**",
+          "packages/insights/src/findings/store.ts",
+          "packages/insights/src/registers/test-gap/register.test.ts",
+          "apps/web/src/widgets/findings/contracts.ts",
+          "apps/api/src/routes/pulls/pulls.test.ts",
+          "deploy/build-package-index.py",
+          "deploy/scan-db-sync.sh",
+          ".dockerignore",
+          "scripts/validate-plan.mjs",
+          "docs/INSTALL.md",
+          "docs/design/CODE_HEALTH_SUITE.md",
+          "docs/design/SECURITY_SUITE.md",
+          "docs/STATUS.md",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W20-25"
+        ],
+        "acceptance": [
+          "A new 'slopsquat' scanner reads declarations with line numbers from package.json, requirements*.txt/.in, pyproject.toml, Pipfile, setup.cfg, go.mod, Cargo.toml, Gemfile, pom.xml and build.gradle(.kts) (npm, PyPI, Go, crates, RubyGems, Maven), skips non-registry specs and private indexes/scopes, and raises 'slopsquat' (not in the registry) and 'slopsquat.near-miss' (homoglyph, separator, affix, Go owner or one-edit near-miss of a popular package, young or low-download where metadata exists); confidence rises when the line was added in the PR/push diff",
+          "Existence is checked against an offline package-name index under $SCAN_RULES_DIR/package-index built by deploy/build-package-index.py from the optional, documented scan-db-sync step (SCAN_SYNC_PACKAGE_INDEX=0 opts out); no network at scan time; an absent or still-backfilling ecosystem is recorded as not checked, never as clean, and its rows are kept open by the sweep",
+          "Every finding carries manifest path and line, the declared text, the nearest real package and the reason; rules are seeded as candidate rule_registry rows so findings start in shadow; it runs after the dependency tools on a snapshot and rides the secrets stream on PR/push, fetching manifests only through the budgeted provider",
+          "fixtures/slopsquat has a cited corpus (real incidents from public research plus 120 held-out real packages as controls) and precision.test.ts asserts the measured floors; CODE_HEALTH_SUITE.md R-21 and SECURITY_SUITE.md 3.2 state what is shipped",
+          "Tenancy: every query is workspace-filtered (two-workspace integration test); no migration; workspace lint, typecheck and vitest green against a migrated database"
+        ],
+        "points": 8,
+        "status": "done",
+        "notes": [
+          "Measured on the corpus (16 positives, 148 negatives): overall P 0.938 / R 0.938 (miss: atlas-client, no RubyGems ranking for its target; false alarm: dom-serialize, low-confidence near-miss of dom-serializer); real incidents only P 0.900 / R 0.900; rule slopsquat P 1.000 / R 1.000; rule slopsquat.near-miss P 0.857 / R 0.857. Near-miss rate on 2,000 held-out npm and 2,000 PyPI packages: 0.40% and 0.70%. This repository: 109 declarations, 0 signals.",
+          "Popular lists ship in packages/security/rulepacks/slopsquat/popular (npm top 5000 from npm-high-impact, PyPI top 5000 from hugovk/top-pypi-packages, crates top 1000 from the crates.io API, curated RubyGems/Go/Maven lists) and are refreshed per release; a popular-<eco>.txt in the index dir overrides them.",
+          "Defaults: npm, PyPI and RubyGems names are synced by default; cargo (large db-dump) and Go (long index.golang.org backfill, marked incomplete until done) are opt-in via SCAN_PACKAGE_INDEX_ECOSYSTEMS; Maven has no public name list and takes an operator-supplied file (SCAN_PACKAGE_INDEX_MAVEN_FILE), otherwise it is not checked.",
+          "Not verified here (no podman): scan-db-sync end to end in the scan image, the image build, a real dependency scan through a snapshot on the Mac, the cargo dump download (blocked by this environment's proxy) and a full Go backfill. The builder itself ran live for npm (4,601,966 names), PyPI (923,152) and RubyGems (197,771) and a Go incremental page run.",
+          "Also fixed: packages/security/src/ecosystems/matrix.ts CocoaPods note did not match docs/ECOSYSTEMS.md on main (pre-existing test failure). The findings store now moves lineStart/lineEnd/evidence to the latest sighting for fingerprinted findings.",
+          "Bugs noticed: the diff mode does not read lockfiles or .npmrc (snapshot mode does); slopsquat rides the secrets stream, so with secrets disabled it never runs on a PR head yet the PR checks list still expects it (same as sensitive_change). One early crates.io fetch during development sent a User-Agent containing the operator's email; later calls and the shipped builder use a neutral User-Agent."
+        ]
       }
   ]
 }

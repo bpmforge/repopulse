@@ -704,6 +704,38 @@ HTTPS to `osv-vulnerabilities.storage.googleapis.com` and about 100 MB of disk;
 `SCAN_SYNC_MALICIOUS=0` turns it off. If the index is missing the dependency
 scan says so on its run instead of reporting none found.
 
+It also builds a **package-name index** (`package-index/`), which the slopsquat
+check uses to flag dependencies that do not exist in their registry: the
+signature of a package name an AI assistant invented, which anyone can register
+afterwards. Scans never call a registry. They read the names synced here.
+
+| Ecosystem | Source | Default |
+|---|---|---|
+| npm | `registry.npmjs.org` (the `all-the-package-names` daily snapshot, sha512-checked) | on |
+| PyPI | `https://pypi.org/simple/` (PEP 691 JSON) | on |
+| RubyGems | `https://rubygems.org/names` | on |
+| crates.io | `https://static.crates.io/db-dump.tar.gz` (several hundred MB; adds age and download counts) | opt-in |
+| Go | `https://index.golang.org/index`, incremental (existence is checked only once the backfill completes, which takes many nightly runs) | opt-in |
+| Maven | no public name list exists; supply your own | via `SCAN_PACKAGE_INDEX_MAVEN_FILE` |
+
+The default set takes about 110 MB, and a refresh stages a second copy, so
+allow about 250 MB. The worker holds the lists in memory while a scan runs:
+about 350 MB with the default set.
+
+Settings, in `deploy/.env` or the shell:
+
+- `SCAN_PACKAGE_INDEX_ECOSYSTEMS="npm pypi rubygems cargo go"` chooses the
+  ecosystems.
+- `SCAN_PACKAGE_INDEX_MAVEN_FILE=/path/names.txt` adds a Maven list, one
+  `groupId:artifactId` per line.
+- `SCAN_SYNC_PACKAGE_INDEX=0` turns the step off.
+
+Without the index, the slopsquat check still flags names that look like
+misspellings of popular packages. Its run shows that existence was **not
+checked**, and it does not close earlier "not in registry" findings. Its
+findings start in shadow mode, like every new rule. An admin promotes them in
+Settings → Rules.
+
 The database is downloaded from Anchore by *your* install rather than shipped
 inside our image, because it aggregates 26 upstream feeds (NVD, GitHub
 Advisories, CISA KEV, EPSS, and the distributions) that are each licensed on

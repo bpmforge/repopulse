@@ -1,0 +1,3 @@
+--index-url https://pypi.acme.internal/simple
+acme-billing==3.1.0
+requests==2.32.3

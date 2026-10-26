@@ -16,5 +16,8 @@ node_modules
 deploy/scan-rules/vuln-db
 deploy/scan-rules/vuln-db.stage
 deploy/scan-rules/vuln-db.old
+# W21-05: the package-name index (~110 MB for npm/PyPI/RubyGems).
+deploy/scan-rules/package-index
+deploy/scan-rules/package-index.stage
 docs/work/product-completion/baseline
 docs/work/product-completion/evidence

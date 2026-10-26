@@ -1,0 +1,11 @@
+# Service dependencies
+requests==2.32.3
+flask>=3.0
+huggingface-cli==0.1.0
+jeIlyfish==0.7.2
+python3-dateutil==2.8.2
+colourama==0.4.6
+huggingface-hub[cli]>=0.26
+-e ./localpkg
+git+https://github.com/example/tool.git#egg=tool
+mylib @ https://example.com/mylib-1.0.tar.gz

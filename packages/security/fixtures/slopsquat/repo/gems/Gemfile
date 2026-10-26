@@ -1,0 +1,7 @@
+source "https://rubygems.org"
+
+gem "rails", "~> 7.2"
+gem "puma"
+gem "atlas-client"
+gem "rails-auth-helpers-pro"
+gem "internal", path: "vendor/internal"

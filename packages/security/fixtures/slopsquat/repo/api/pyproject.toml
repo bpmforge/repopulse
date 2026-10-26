@@ -1,0 +1,11 @@
+[project]
+name = "api"
+version = "0.1.0"
+dependencies = [
+  "numpy>=1.26",
+  "pydantic>=2",
+  "fastapi-session-guard>=0.3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]

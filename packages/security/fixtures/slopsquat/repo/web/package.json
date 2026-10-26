@@ -1,0 +1,25 @@
+{
+  "name": "web-app",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "react": "^18.3.1",
+    "lodash": "^4.17.21",
+    "express": "^4.21.2",
+    "request": "^2.88.2",
+    "react-codeshift": "^1.0.0",
+    "unused-imports": "^1.0.0",
+    "json-safe-parse-ultra": "^2.1.0",
+    "crossenv": "^6.1.1",
+    "@acme/design-system": "^3.2.0",
+    "lodash-es-alias": "npm:lodash-es@^4.17.21",
+    "shared-utils": "file:../shared",
+    "web-internal": "workspace:*",
+    "forked-lib": "github:someone/forked-lib#v1"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8",
+    "eslint-plugin-unused-imports": "^4.1.4"
+  }
+}

@@ -301,6 +301,8 @@ const AUTO_CLOSING_SCANNERS: Record<string, string> = {
   anti_slop: 'the next weekly scan that reads the whole tree',
   supply_chain_register: 'the next nightly dependency register run',
   dependency_cve: 'the next dependency scan',
+  // W21-05: the snapshot half runs inside the dependency scan and sweeps.
+  slopsquat: 'the next dependency scan',
   container_image: 'the next image scan',
 };
 

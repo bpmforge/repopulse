@@ -1,0 +1,429 @@
+{
+  "about": "W21-05 slopsquat precision/recall corpus. Every declaration in repo/ is labelled here, either as a case or by being in a control manifest (all of whose declarations must stay clean). registry/ models the registry state each case describes (stated per case in registry_state): a hallucinated name is ABSENT as it was when the hallucination was reported, even where someone has registered it since. Positives marked synthetic are invented names shaped like the reported ones, used where no public incident covers an ecosystem; they are not evidence of real-world recall and the test reports them separately.",
+  "now": "2026-10-26T00:00:00Z",
+  "sources": {
+    "aikido-2026": {
+      "title": "Slopsquatting: The AI Package Hallucination Attack Already Happening",
+      "publisher": "Aikido Security",
+      "date": "2026-02-20",
+      "url": "https://www.aikido.dev/blog/slopsquatting-ai-package-hallucination-attacks",
+      "used_for": "react-codeshift (npm, found by Charlie Eriksen, January 2026: a mash-up of jscodeshift and react-codemod) and unused-imports (npm, a hallucination of eslint-plugin-unused-imports)"
+    },
+    "lasso-2024": {
+      "title": "Diving into AI Package Hallucinations",
+      "publisher": "Lasso Security (Bar Lanyado)",
+      "date": "2024-03-28",
+      "url": "https://lasso.security/blog/ai-package-hallucinations",
+      "used_for": "huggingface-cli (PyPI; the real install is huggingface_hub[cli])"
+    },
+    "spracklen-2025": {
+      "title": "We Have a Package for You! A Comprehensive Analysis of Package Hallucinations by Code Generating LLMs",
+      "publisher": "USENIX Security 2025 (Spracklen et al.)",
+      "url": "https://arxiv.org/abs/2406.10279",
+      "used_for": "base rates only (19.7% of generated samples, 43% of hallucinated names recur): the paper publishes no per-name list we could cite, so it shapes the synthetic positives, not the labels"
+    },
+    "npm-2017": {
+      "title": "crossenv malware on the npm registry",
+      "publisher": "npm blog",
+      "date": "2017-08-02",
+      "url": "https://blog.npmjs.org/post/163723642530/crossenv-malware-on-the-npm-registry.html",
+      "used_for": "crossenv (typosquat of cross-env); the name is held by npm today, so it EXISTS in the modelled registry"
+    },
+    "snyk-2019": {
+      "title": "Malicious packages found to be typo-squatting in PyPI",
+      "publisher": "Snyk",
+      "date": "2019-12",
+      "url": "https://snyk.io/blog/malicious-packages-found-to-be-typo-squatting-in-pypi/",
+      "used_for": "jeIlyfish (capital I for l, of jellyfish) and python3-dateutil (of python-dateutil), live on PyPI when reported"
+    },
+    "colourama-2018": {
+      "title": "colourama, a typosquat of colorama",
+      "publisher": "reported October 2018 (Bertus); OpenSSF malicious-packages carries the PyPI record",
+      "url": "https://osv.dev/list?q=colourama&ecosystem=PyPI",
+      "used_for": "colourama (one inserted letter, of colorama), live on PyPI when reported"
+    },
+    "rustsec-2022-0042": {
+      "title": "Security advisory: malicious crate rustdecimal",
+      "publisher": "Rust Security Response WG",
+      "date": "2022-05-10",
+      "url": "https://blog.rust-lang.org/2022/05/10/malicious-crate-rustdecimal/",
+      "used_for": "rustdecimal (of rust_decimal). Modelled as TODAY: removed from crates.io (crates.io answers 'does not exist', checked 2026-10-26) while an old Cargo.lock still records it"
+    },
+    "reversinglabs-2020": {
+      "title": "Mining for malicious Ruby gems",
+      "publisher": "ReversingLabs (reported by The Hacker News, 2020-04)",
+      "url": "https://thehackernews.com/2020/04/rubygem-typosquatting-malware.html",
+      "used_for": "atlas-client (of atlas_client), live on RubyGems when reported"
+    },
+    "socket-2025": {
+      "title": "Malicious Go package exploits module mirror caching for persistent remote access",
+      "publisher": "Socket (reported by The Hacker News, 2025-02)",
+      "url": "https://thehackernews.com/2025/02/malicious-go-package-exploits-module.html",
+      "used_for": "github.com/boltdb-go/bolt (of github.com/boltdb/bolt), served by the Go module proxy for about three years"
+    },
+    "sampleco": {
+      "title": "RepoPulse benchmark suite sampleco",
+      "url": "packages/security/fixtures/benchmark/sampleco/suite.json",
+      "used_for": "json-safe-parse-ultra, the slopsquat label that suite already carries"
+    },
+    "crates-api-2026": {
+      "title": "crates.io API /api/v1/crates/serde_yml",
+      "date": "2026-10-26",
+      "url": "https://crates.io/api/v1/crates/serde_yml",
+      "used_for": "serde_yml metadata as served on that date (created 2024-03-29, 25,224,626 downloads): a real, established near-name of serde_yaml"
+    }
+  },
+  "controlManifests": ["controls/package.json", "controls/requirements.txt"],
+  "controlsAbout": "Held-out real packages: npm ranks 5,001-5,060 (npm-high-impact top-download) and PyPI ranks 5,001-5,060 (hugovk/top-pypi-packages). Real, moderately popular, and just outside the shipped popular lists, which makes them the hardest honest controls: nothing exempts them but their own names.",
+  "cases": [
+    {
+      "manifest": "web/package.json",
+      "ecosystem": "npm",
+      "name": "react-codeshift",
+      "expect": "slopsquat",
+      "kind": "hallucinated",
+      "source": "aikido-2026",
+      "registry_state": "absent, as when first hallucinated"
+    },
+    {
+      "manifest": "web/package.json",
+      "ecosystem": "npm",
+      "name": "unused-imports",
+      "expect": "slopsquat",
+      "kind": "hallucinated",
+      "source": "aikido-2026",
+      "registry_state": "absent, as when first hallucinated"
+    },
+    {
+      "manifest": "web/package.json",
+      "ecosystem": "npm",
+      "name": "json-safe-parse-ultra",
+      "expect": "slopsquat",
+      "kind": "synthetic-hallucination",
+      "source": "sampleco",
+      "registry_state": "absent (not on npm, checked 2026-10-26)"
+    },
+    {
+      "manifest": "web/package.json",
+      "ecosystem": "npm",
+      "name": "crossenv",
+      "expect": "slopsquat.near-miss",
+      "kind": "typosquat",
+      "source": "npm-2017",
+      "registry_state": "present (held by npm)"
+    },
+    {
+      "manifest": "web/package.json",
+      "ecosystem": "npm",
+      "name": "react",
+      "expect": "clean",
+      "kind": "control"
+    },
+    {
+      "manifest": "web/package.json",
+      "ecosystem": "npm",
+      "name": "lodash",
+      "expect": "clean",
+      "kind": "control"
+    },
+    {
+      "manifest": "web/package.json",
+      "ecosystem": "npm",
+      "name": "express",
+      "expect": "clean",
+      "kind": "control"
+    },
+    {
+      "manifest": "web/package.json",
+      "ecosystem": "npm",
+      "name": "request",
+      "expect": "clean",
+      "kind": "control",
+      "note": "one edit from the popular 'requests' style of name, and popular itself"
+    },
+    {
+      "manifest": "web/package.json",
+      "ecosystem": "npm",
+      "name": "@acme/design-system",
+      "expect": "clean",
+      "kind": "control",
+      "note": "private scope mapped by web/.npmrc"
+    },
+    {
+      "manifest": "web/package.json",
+      "ecosystem": "npm",
+      "name": "lodash-es",
+      "expect": "clean",
+      "kind": "control",
+      "note": "declared as an npm: alias; the real name is checked"
+    },
+    {
+      "manifest": "web/package.json",
+      "ecosystem": "npm",
+      "name": "typescript",
+      "expect": "clean",
+      "kind": "control"
+    },
+    {
+      "manifest": "web/package.json",
+      "ecosystem": "npm",
+      "name": "vitest",
+      "expect": "clean",
+      "kind": "control"
+    },
+    {
+      "manifest": "web/package.json",
+      "ecosystem": "npm",
+      "name": "eslint-plugin-unused-imports",
+      "expect": "clean",
+      "kind": "control",
+      "note": "the real package unused-imports imitates"
+    },
+
+    {
+      "manifest": "api/requirements.txt",
+      "ecosystem": "pypi",
+      "name": "huggingface-cli",
+      "expect": "slopsquat",
+      "kind": "hallucinated",
+      "source": "lasso-2024",
+      "registry_state": "absent, as when first hallucinated (also absent from PyPI's simple index on 2026-10-26)"
+    },
+    {
+      "manifest": "api/requirements.txt",
+      "ecosystem": "pypi",
+      "name": "jeIlyfish",
+      "expect": "slopsquat.near-miss",
+      "kind": "typosquat",
+      "source": "snyk-2019",
+      "registry_state": "present, as when reported"
+    },
+    {
+      "manifest": "api/requirements.txt",
+      "ecosystem": "pypi",
+      "name": "python3-dateutil",
+      "expect": "slopsquat.near-miss",
+      "kind": "typosquat",
+      "source": "snyk-2019",
+      "registry_state": "present, as when reported"
+    },
+    {
+      "manifest": "api/requirements.txt",
+      "ecosystem": "pypi",
+      "name": "colourama",
+      "expect": "slopsquat.near-miss",
+      "kind": "typosquat",
+      "source": "colourama-2018",
+      "registry_state": "present, as when reported"
+    },
+    {
+      "manifest": "api/requirements.txt",
+      "ecosystem": "pypi",
+      "name": "requests",
+      "expect": "clean",
+      "kind": "control"
+    },
+    {
+      "manifest": "api/requirements.txt",
+      "ecosystem": "pypi",
+      "name": "flask",
+      "expect": "clean",
+      "kind": "control"
+    },
+    {
+      "manifest": "api/requirements.txt",
+      "ecosystem": "pypi",
+      "name": "huggingface-hub",
+      "expect": "clean",
+      "kind": "control",
+      "note": "the real package huggingface-cli was hallucinated in place of"
+    },
+    {
+      "manifest": "api/pyproject.toml",
+      "ecosystem": "pypi",
+      "name": "numpy",
+      "expect": "clean",
+      "kind": "control"
+    },
+    {
+      "manifest": "api/pyproject.toml",
+      "ecosystem": "pypi",
+      "name": "pydantic",
+      "expect": "clean",
+      "kind": "control"
+    },
+    {
+      "manifest": "api/pyproject.toml",
+      "ecosystem": "pypi",
+      "name": "pytest",
+      "expect": "clean",
+      "kind": "control"
+    },
+    {
+      "manifest": "api/pyproject.toml",
+      "ecosystem": "pypi",
+      "name": "fastapi-session-guard",
+      "expect": "slopsquat",
+      "kind": "synthetic-hallucination",
+      "registry_state": "absent (not in PyPI's simple index, 2026-10-26)"
+    },
+    {
+      "manifest": "private/requirements.txt",
+      "ecosystem": "pypi",
+      "name": "acme-billing",
+      "expect": "clean",
+      "kind": "control",
+      "note": "private --index-url: existence is not checked"
+    },
+    {
+      "manifest": "private/requirements.txt",
+      "ecosystem": "pypi",
+      "name": "requests",
+      "expect": "clean",
+      "kind": "control"
+    },
+
+    {
+      "manifest": "svc/go.mod",
+      "ecosystem": "go",
+      "name": "github.com/stretchr/testify",
+      "expect": "clean",
+      "kind": "control"
+    },
+    {
+      "manifest": "svc/go.mod",
+      "ecosystem": "go",
+      "name": "github.com/gin-gonic/gin",
+      "expect": "clean",
+      "kind": "control"
+    },
+    {
+      "manifest": "svc/go.mod",
+      "ecosystem": "go",
+      "name": "github.com/boltdb-go/bolt",
+      "expect": "slopsquat.near-miss",
+      "kind": "typosquat",
+      "source": "socket-2025",
+      "registry_state": "present (served by the proxy)"
+    },
+    {
+      "manifest": "svc/go.mod",
+      "ecosystem": "go",
+      "name": "github.com/example-hallucinated/httpkit",
+      "expect": "slopsquat",
+      "kind": "synthetic-hallucination",
+      "registry_state": "absent (proxy.golang.org 404, 2026-10-26)"
+    },
+
+    {
+      "manifest": "crate/Cargo.toml",
+      "ecosystem": "cargo",
+      "name": "serde",
+      "expect": "clean",
+      "kind": "control"
+    },
+    {
+      "manifest": "crate/Cargo.toml",
+      "ecosystem": "cargo",
+      "name": "tokio",
+      "expect": "clean",
+      "kind": "control"
+    },
+    {
+      "manifest": "crate/Cargo.toml",
+      "ecosystem": "cargo",
+      "name": "criterion",
+      "expect": "clean",
+      "kind": "control"
+    },
+    {
+      "manifest": "crate/Cargo.toml",
+      "ecosystem": "cargo",
+      "name": "rustdecimal",
+      "expect": "slopsquat",
+      "kind": "typosquat",
+      "source": "rustsec-2022-0042",
+      "registry_state": "absent today (removed); crate/Cargo.lock records it resolving"
+    },
+    {
+      "manifest": "crate/Cargo.toml",
+      "ecosystem": "cargo",
+      "name": "serde_yml",
+      "expect": "clean",
+      "kind": "control",
+      "source": "crates-api-2026",
+      "note": "one edit from serde_yaml, but established by its own metadata"
+    },
+    {
+      "manifest": "crate/Cargo.toml",
+      "ecosystem": "cargo",
+      "name": "serde_jsno",
+      "expect": "slopsquat.near-miss",
+      "kind": "synthetic-typosquat",
+      "registry_state": "present in the fixture only, 14 days old with 14 downloads (crates.io 404 for the real name, 2026-10-26)"
+    },
+
+    {
+      "manifest": "gems/Gemfile",
+      "ecosystem": "rubygems",
+      "name": "rails",
+      "expect": "clean",
+      "kind": "control"
+    },
+    {
+      "manifest": "gems/Gemfile",
+      "ecosystem": "rubygems",
+      "name": "puma",
+      "expect": "clean",
+      "kind": "control"
+    },
+    {
+      "manifest": "gems/Gemfile",
+      "ecosystem": "rubygems",
+      "name": "atlas-client",
+      "expect": "slopsquat.near-miss",
+      "kind": "typosquat",
+      "source": "reversinglabs-2020",
+      "registry_state": "present, as when reported",
+      "note": "EXPECTED MISS: atlas_client is not on the curated RubyGems popular list (RubyGems publishes no ranking), so nothing marks it as a target"
+    },
+    {
+      "manifest": "gems/Gemfile",
+      "ecosystem": "rubygems",
+      "name": "rails-auth-helpers-pro",
+      "expect": "slopsquat",
+      "kind": "synthetic-hallucination",
+      "registry_state": "absent (not in rubygems.org/names, 2026-10-26)"
+    },
+
+    {
+      "manifest": "jvm/pom.xml",
+      "ecosystem": "maven",
+      "name": "junit:junit",
+      "expect": "clean",
+      "kind": "control"
+    },
+    {
+      "manifest": "jvm/pom.xml",
+      "ecosystem": "maven",
+      "name": "com.google.guava:guava",
+      "expect": "clean",
+      "kind": "control"
+    },
+    {
+      "manifest": "jvm/pom.xml",
+      "ecosystem": "maven",
+      "name": "org.apache.commons:commons-json-utils",
+      "expect": "slopsquat",
+      "kind": "synthetic-hallucination",
+      "registry_state": "absent from the operator-supplied Maven list"
+    },
+    {
+      "manifest": "jvm/build.gradle",
+      "ecosystem": "maven",
+      "name": "com.squareup.okhttp3:okhttp",
+      "expect": "clean",
+      "kind": "control"
+    }
+  ]
+}
