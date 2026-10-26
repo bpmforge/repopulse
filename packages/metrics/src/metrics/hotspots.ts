@@ -38,14 +38,15 @@ export function computeHotspots(
   }
 
   const grossByPath = new Map<string, number>();
-  for (const [path, ts] of byPath) {
-    grossByPath.set(
-      path,
-      ts.reduce((sum, t) => sum + t.additions + t.deletions, 0),
-    );
-  }
   // max=0 (no eligible touches at all) => every normChurn is 0, per METRICS.md §1 M2.
-  const maxGross = Math.max(0, ...grossByPath.values());
+  // A running max, not Math.max(...values): spreading one argument per file
+  // throws RangeError (call stack) at about 125k files, which a monorepo has.
+  let maxGross = 0;
+  for (const [path, ts] of byPath) {
+    const gross = ts.reduce((sum, t) => sum + t.additions + t.deletions, 0);
+    grossByPath.set(path, gross);
+    if (gross > maxGross) maxGross = gross;
+  }
 
   return [...byPath.entries()].map(([path, ts]) => {
     const gross = grossByPath.get(path) as number;

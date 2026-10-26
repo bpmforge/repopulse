@@ -88,9 +88,12 @@ export async function computeRangeHeadline(
     const cov = computeReviewCoverage(coverage);
     covered += cov.covered;
     merged += cov.merged;
-    cyclePrs.push(...cycle);
+    // Loops, not push(...array): a spread passes one argument per element and
+    // throws RangeError (call stack) at about 125k, which a year of CI runs
+    // across many repos reaches.
+    for (const pr of cycle) cyclePrs.push(pr);
     // M9's value is the DEFAULT-BRANCH pass rate (compute.ts); PR runs are a dim.
-    ciRuns.push(...runs.filter((r) => r.pullRequestId === null));
+    for (const r of runs) if (r.pullRequestId === null) ciRuns.push(r);
     closed += computeIssueThroughput(issues, p.start, p.end).closed;
   }
 
