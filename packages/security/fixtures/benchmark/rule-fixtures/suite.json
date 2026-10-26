@@ -1442,6 +1442,56 @@
       "dimension": "performance",
       "expect": "finding",
       "note": "reduce returning {...acc, [id]: p} copies the object per element: O(k²)."
+    },
+    {
+      "id": "perf-py-find-by-key-loop",
+      "tree": "perf/triggering",
+      "file": "joins.py",
+      "lines": [8, 8],
+      "rule": "bpm-perf-find-by-key-in-loop-py",
+      "dimension": "performance",
+      "expect": "finding",
+      "note": "trades filtered by symbol per symbol in a for loop: O(symbols × trades)."
+    },
+    {
+      "id": "perf-py-find-by-key-next",
+      "tree": "perf/triggering",
+      "file": "joins.py",
+      "lines": [13, 13],
+      "rule": "bpm-perf-find-by-key-in-loop-py",
+      "dimension": "performance",
+      "expect": "finding",
+      "note": "next(o for o in orders if o.id == oid) per order id: O(n·m), a dict makes it O(n + m)."
+    },
+    {
+      "id": "perf-py-membership-list",
+      "tree": "perf/triggering",
+      "file": "joins.py",
+      "lines": [18, 18],
+      "rule": "bpm-perf-membership-in-list-in-loop-py",
+      "dimension": "performance",
+      "expect": "finding",
+      "note": "r not in seen where seen = list(...): O(n·m), a set makes it O(n + m)."
+    },
+    {
+      "id": "perf-py-pop-front",
+      "tree": "perf/triggering",
+      "file": "joins.py",
+      "lines": [25, 25],
+      "rule": "bpm-perf-pop-front-in-loop-py",
+      "dimension": "performance",
+      "expect": "finding",
+      "note": "lots.pop(0) in a while loop shifts the list each time: O(n²); deque.popleft is O(1)."
+    },
+    {
+      "id": "perf-py-list-concat",
+      "tree": "perf/triggering",
+      "file": "joins.py",
+      "lines": [32, 32],
+      "rule": "bpm-perf-list-concat-in-loop-py",
+      "dimension": "performance",
+      "expect": "finding",
+      "note": "acc = acc + [x] in a loop copies the list per element: O(k²)."
     }
   ]
 }
