@@ -30,10 +30,17 @@ export interface RulePrecision {
   ruleId: string;
   lifecycle: RuleLifecycle;
   lifecycleSource:
-    'registry' | 'shipped default' | 'observed shadow findings' | 'rulepack' | 'starter set';
+    | 'registry'
+    | 'shipped default'
+    | 'observed shadow findings'
+    | 'rulepack'
+    | 'starter set'
+    | 'hand-checked';
   /**
    * W21-04: live because the rule is in the starter set (precision measured on
-   * independent benchmarks). Absent from an API older than W21-04.
+   * independent benchmarks). W21-20: also set, same shape, for a hand-checked
+   * performance rule (suites are the repositories marked). Absent from an API
+   * older than W21-04.
    */
   starter?: { reason: string; evidence: StarterSetEvidence } | null;
   findings: number;

@@ -217,6 +217,37 @@ describe('RulePrecisionSummary (finding drawer)', () => {
     );
   });
 
+  it('names the hand-check and the repositories marked as the stage reason (W21-20)', async () => {
+    const rule: RulePrecisionReport['rules'][number] = {
+      ruleId: 'bpm-perf-includes-in-loop',
+      lifecycle: 'active',
+      lifecycleSource: 'hand-checked',
+      starter: {
+        reason: 'live via hand-checked evidence',
+        evidence: {
+          ruleId: 'bpm-perf-includes-in-loop',
+          tp: 5,
+          fp: 0,
+          precision: 1,
+          suites: [
+            { suite: 'outline/outline', tp: 3, fp: 0 },
+            { suite: 'zulip/zulip', tp: 2, fp: 0 },
+          ],
+        },
+      },
+      findings: 1,
+      triage: { triaged: 0, falsePositives: 0, precision: null },
+      benchmark: null,
+    };
+    bodies['/rules/precision'] = { ...REPORT, rules: [rule] };
+    wrap(<RulePrecisionSummary ruleId="bpm-perf-includes-in-loop" />);
+    const state = await screen.findByTestId('finding-rule-lifecycle');
+    expect(state.textContent).toMatch(/active.*live via hand-checked evidence/);
+    expect(screen.getByTestId('stage-reason-starter-bpm-perf-includes-in-loop').title).toBe(
+      '100.0% precision, 5 TP / 0 FP: outline/outline 3 TP / 0 FP; zulip/zulip 2 TP / 0 FP',
+    );
+  });
+
   it('says it could not load rather than silently dropping the section', async () => {
     wrap(<RulePrecisionSummary ruleId="bpm-x" />);
     expect(await screen.findByTestId('finding-rule-precision-unavailable')).toBeTruthy();

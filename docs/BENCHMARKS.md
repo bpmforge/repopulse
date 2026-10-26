@@ -391,6 +391,85 @@ entry's per-suite numbers differ from a recount of the report's outcomes, or whe
 the bar. After a new benchmark run, regenerate it in the same commit: a rule that drops below the bar
 leaves the starter set and goes back to shadow on the next scan.
 
+## Hand-checked performance rules live by default (W21-20)
+
+**Decision (owner, 2026-10-26, "Hand-checked bar").** Performance rules have no independent public
+benchmark, so the starter set above can never qualify one. A performance rule instead starts live on a new
+install when a PERSON has marked its hits on real open-source code and it clears the same bar: at least
+**5 true** hits and precision of at least **80%**, where precision = true ÷ (true + wrong) and "small list"
+hits (the shape is right but one input is small by design) count as neither. Every other rule keeps the
+unchanged promotion gate. The brief is `docs/work/HAND_CHECK_W21-20.md`.
+
+**The run (2026-10-26).** Every `bpm-perf-*` rule over 12 open-source repositories pinned to their
+default-branch commits (excalidraw, outline, immich, saleor, zulip, paperless-ngx, thingsboard,
+commons-collections, mihon, prometheus, gitea, traefik), with the perf scanner's exclusions plus vendored,
+generated and test-named files: **1,725 hits**. Marking set (owner choice B): every hit for a rule with 30
+or fewer, a seeded random sample of 30 otherwise (seed 20261026) — **542 rows across 31 rules**. Claude
+proposed a label for every row; **Brad marked them** ("accept the proposals", 2026-10-26 14:16 UTC). Sheet,
+sample, method and per-repo totals: `docs/benchmarks/perf-hand-check/`.
+
+**Live by hand-check: 6 rules**, all from the W21-20 algorithmic set (true / wrong / small, and the
+repositories with a true or wrong mark):
+
+| Rule | True | Wrong | Small | Precision | Evidence (true/wrong) |
+|---|--:|--:|--:|--:|---|
+| `bpm-perf-copy-on-append` | 6 | 0 | 9 | 100% | excalidraw/excalidraw 2/0; outline/outline 2/0; prometheus/prometheus 2/0 |
+| `bpm-perf-find-by-key-in-loop` | 5 | 0 | 25 | 100% | outline/outline 1/0; paperless-ngx/paperless-ngx 3/0; thingsboard/thingsboard 1/0 |
+| `bpm-perf-go-nested-range-join` | 6 | 0 | 15 | 100% | go-gitea/gitea 5/0; traefik/traefik 1/0 |
+| `bpm-perf-includes-in-loop` | 5 | 0 | 25 | 100% | excalidraw/excalidraw 2/0; outline/outline 2/0; prometheus/prometheus 1/0 |
+| `bpm-perf-java-contains-in-loop` | 7 | 0 | 23 | 100% | thingsboard/thingsboard 7/0 |
+| `bpm-perf-membership-in-list-in-loop-py` | 15 | 0 | 13 | 100% | saleor/saleor 7/0; zulip/zulip 8/0 |
+
+`bpm-perf-includes-in-loop` passed on its sample of 30 (5 true, 0 wrong); across all 200 of its hits the
+proposed labels give 48 true and 14 wrong (77%), mostly `.includes` on a string, which a pattern cannot
+tell from an array. Its sample decided under choice B; the full count is recorded so the next re-check can
+tighten the rule rather than rediscover it.
+
+**Marked and still shadow: 25 rules.** None of the original 27 perf rules passes: `await-in-loop`
+50%, `unbounded-promise-all` 56%, `java-db-call-in-loop` 35% and `orm-call-in-loop` 29% on their rows, the
+rest have fewer than 5 true hits. The recurring misfires (deliberate sequential pagination, regexes built
+from the loop variable, `.update()` that is not a query, startup-only sync I/O) are listed in the run's
+README and are rule-fix tickets, not reasons to promote.
+
+| Rule | True | Wrong | Small | Precision | Evidence (true/wrong) |
+|---|--:|--:|--:|--:|---|
+| `bpm-perf-await-in-loop` | 11 | 11 | 8 | 50% | immich-app/immich 6/6; outline/outline 4/5; thingsboard/thingsboard 1/0 |
+| `bpm-perf-await-in-loop-py` | 0 | 2 | 2 | 0% | zulip/zulip 0/2 |
+| `bpm-perf-find-by-key-in-loop-py` | 0 | 0 | 2 | — | — |
+| `bpm-perf-go-contains-in-loop` | 0 | 0 | 23 | — | — |
+| `bpm-perf-go-db-call-in-loop` | 2 | 0 | 6 | 100% | go-gitea/gitea 2/0 |
+| `bpm-perf-go-defer-in-loop` | 1 | 11 | 3 | 8% | go-gitea/gitea 1/7; prometheus/prometheus 0/4 |
+| `bpm-perf-go-prepend-in-loop` | 0 | 1 | 0 | 0% | prometheus/prometheus 0/1 |
+| `bpm-perf-go-regex-compile-in-loop` | 0 | 7 | 0 | 0% | go-gitea/gitea 0/2; prometheus/prometheus 0/1; traefik/traefik 0/4 |
+| `bpm-perf-go-string-concat-in-loop` | 0 | 9 | 21 | 0% | go-gitea/gitea 0/7; prometheus/prometheus 0/1; traefik/traefik 0/1 |
+| `bpm-perf-java-db-call-in-loop` | 7 | 13 | 10 | 35% | thingsboard/thingsboard 7/13 |
+| `bpm-perf-java-find-by-key-in-loop` | 1 | 1 | 9 | 50% | thingsboard/thingsboard 1/1 |
+| `bpm-perf-java-regex-compile-in-loop` | 0 | 0 | 1 | — | — |
+| `bpm-perf-java-remove-front-in-loop` | 0 | 1 | 1 | 0% | thingsboard/thingsboard 0/1 |
+| `bpm-perf-java-string-concat-in-loop` | 2 | 10 | 13 | 17% | thingsboard/thingsboard 2/10 |
+| `bpm-perf-json-deep-clone` | 1 | 3 | 2 | 25% | excalidraw/excalidraw 1/0; outline/outline 0/3 |
+| `bpm-perf-kt-find-by-key-in-loop` | 1 | 0 | 7 | 100% | mihonapp/mihon 1/0 |
+| `bpm-perf-orm-call-in-loop` | 8 | 20 | 2 | 29% | go-gitea/gitea 0/1; immich-app/immich 4/9; outline/outline 4/2; thingsboard/thingsboard 0/5; zulip/zulip 0/3 |
+| `bpm-perf-orm-call-in-loop-py` | 2 | 13 | 15 | 13% | paperless-ngx/paperless-ngx 0/3; saleor/saleor 1/8; zulip/zulip 1/2 |
+| `bpm-perf-pop-front-in-loop-py` | 0 | 1 | 2 | 0% | zulip/zulip 0/1 |
+| `bpm-perf-regex-compile-in-loop` | 2 | 17 | 0 | 11% | outline/outline 2/10; thingsboard/thingsboard 0/4; zulip/zulip 0/3 |
+| `bpm-perf-string-concat-in-loop` | 2 | 5 | 23 | 29% | excalidraw/excalidraw 0/1; thingsboard/thingsboard 2/2; zulip/zulip 0/2 |
+| `bpm-perf-string-concat-in-loop-py` | 1 | 8 | 21 | 11% | saleor/saleor 0/1; zulip/zulip 1/7 |
+| `bpm-perf-sync-io-in-async` | 0 | 12 | 0 | 0% | go-gitea/gitea 0/2; immich-app/immich 0/4; outline/outline 0/3; thingsboard/thingsboard 0/3 |
+| `bpm-perf-unbounded-gather-py` | 0 | 0 | 1 | — | — |
+| `bpm-perf-unbounded-promise-all` | 5 | 4 | 21 | 56% | excalidraw/excalidraw 0/1; immich-app/immich 4/1; outline/outline 1/2 |
+
+**How live-ness is decided:** as for the starter set: an admin's registry row wins; then the starter
+set; then the hand-check; then the shipped default. Settings → Rules → Rule precision and the finding panel
+show a hand-checked rule as "✓ active" with the stage reason **"live via hand-checked evidence"** and its
+true/wrong per repository on hover, and an admin can move it to shadow like any shipped rule.
+
+**The manifest and its test.** `packages/security/src/rules/hand-checked.data.ts` is generated from the
+`brad` column of `docs/benchmarks/perf-hand-check/sheet.csv` (`pnpm --filter @repopulse/security
+hand-checked`; `--check` exits 1 when stale). `hand-checked.test.ts` fails when the manifest differs from
+the sheet, when an entry's numbers differ from an independent recount of that column, when a row is
+unmarked, or when an entry falls below the bar; it also proves Claude's proposed column is never read.
+
 ## Regression gate (W19-06)
 
 ```sh

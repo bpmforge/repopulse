@@ -1,8 +1,11 @@
 import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { read, security, type Database } from '@repopulse/shared';
 import {
+  HAND_CHECKED_REASON,
   STARTER_SET_REASON,
   fpRate,
+  handCheckedEntry,
+  handCheckedRuleIds,
   starterRuleIds,
   starterSetEntry,
   toolRowIsAdminChoice,
@@ -171,11 +174,18 @@ export interface RulePrecision {
   lifecycle: RuleLifecycle;
   /** Why the lifecycle reads as it does: a registry row, or the shipped default. */
   lifecycleSource:
-    'registry' | 'shipped default' | 'observed shadow findings' | 'rulepack' | 'starter set';
+    | 'registry'
+    | 'shipped default'
+    | 'observed shadow findings'
+    | 'rulepack'
+    | 'starter set'
+    | 'hand-checked';
   /**
    * W21-04: set when the rule is live because it is in the starter set (its
    * precision measured on independent benchmarks), with that evidence and the
-   * stage reason to show. null when anything else decides, an admin's row first.
+   * stage reason to show. W21-20: also set, in the same shape, for a
+   * hand-checked performance rule (suites are the repositories marked). null
+   * when anything else decides, an admin's row first.
    */
   starter: { reason: string; evidence: StarterSetEntry } | null;
   findings: number;
@@ -232,6 +242,15 @@ function lifecycleFor(
       lifecycle: 'active',
       lifecycleSource: 'starter set',
       starter: { reason: STARTER_SET_REASON, evidence: starter },
+    };
+  }
+  // W21-20: a performance rule whose hits a person marked on real code.
+  const handChecked = handCheckedEntry(ruleId);
+  if (handChecked) {
+    return {
+      lifecycle: 'active',
+      lifecycleSource: 'hand-checked',
+      starter: { reason: HAND_CHECKED_REASON, evidence: handChecked },
     };
   }
   if (SHIPPED_SHADOW_RULES.includes(ruleId)) {
@@ -318,6 +337,7 @@ export async function rulePrecision(
             ...registry.keys(),
             ...SHIPPED_SHADOW_RULES,
             ...starterRuleIds(),
+            ...handCheckedRuleIds(),
             ...Object.keys(summary.rules),
           ]),
         ].sort();

@@ -6,9 +6,9 @@ Follows [docs/work/HAND_CHECK_W21-20.md](../../work/HAND_CHECK_W21-20.md) (main 
 
 **Marking set chosen by Brad (option B, 2026-10-26):** every hit for a rule with 30 hits or fewer; a seeded random sample of 30 for a larger rule ([sample.json](sample.json): seed 20261026, the method is recorded there). 542 rows across 31 rules, all with a proposed label, in [SHEET.md](SHEET.md) / [sheet.csv](sheet.csv). The bar is judged on those rows from Brad's column only. [proposals-all.csv](proposals-all.csv) keeps Claude's label for every W21-20 hit, sampled or not.
 
-Proposed (Claude's reading, not the verdict): **6 rules clear the bar**: `copy-on-append`, `find-by-key-in-loop` (JS/TS), `includes-in-loop`, `go-nested-range-join`, `java-contains-in-loop`, `membership-in-list-in-loop-py`. None of the original 27 rules does: `await-in-loop` 50%, `orm-call-in-loop` 29%, `java-db-call-in-loop` 35%, `unbounded-promise-all` 56%, and the rest have fewer than 5 true hits in their rows.
+**Marked by Brad, 2026-10-26 14:16 UTC: "accept the proposals"** (no exceptions), recorded as the `brad` column of every row. Recounted from his column: **6 rules clear the bar**: `copy-on-append`, `find-by-key-in-loop` (JS/TS), `includes-in-loop`, `go-nested-range-join`, `java-contains-in-loop`, `membership-in-list-in-loop-py`. None of the original 27 rules does: `await-in-loop` 50%, `orm-call-in-loop` 29%, `java-db-call-in-loop` 35%, `unbounded-promise-all` 56%, and the rest have fewer than 5 true hits in their rows.
 
-**Sample versus full count, `includes-in-loop`.** Its sample of 30 has 5 true and 0 wrong (100%, passes). Across all 200 of its hits the proposed labels are 48 true and 14 wrong (77%, would not pass): the sample happened to miss every misfire. Under option B the sample decides; the full count is shown so the decision is made knowingly. `find-by-key-in-loop`'s sample (5 true, 0 wrong) agrees with its full count (8 true, 0 wrong).
+**Sample versus full count, `includes-in-loop`.** Its sample of 30 has 5 true and 0 wrong (100%, passes). Across all 200 of its hits the proposed labels are 48 true and 14 wrong (77%, would not pass): the sample happened to miss every misfire. Under option B the sample decided; the full count is shown so the decision was made knowingly. `find-by-key-in-loop`'s sample (5 true, 0 wrong) agrees with its full count (8 true, 0 wrong).
 
 ## Repositories (default branch at run time)
 
@@ -50,3 +50,7 @@ The perf scanner excludes `**/*.test.*` but not Go's `*_test.go` or Python's `te
 - `go-defer-in-loop`: the defer runs once because the iteration returns or breaks.
 - `sync-io-in-async`: startup, init, build and dev-tool code, never a request path.
 - String concatenation (JS/Py/Java/Go): a string created fresh each iteration with two or three appends, or a number `+=`.
+
+## Wired
+
+The 6 rules are live on new installs via `packages/security/src/rules/hand-checked.data.ts`, generated from this sheet's `brad` column; `hand-checked.test.ts` fails if the two disagree. Decision and results: `docs/BENCHMARKS.md`, "Hand-checked performance rules live by default (W21-20)".

@@ -11587,6 +11587,15 @@
       "module": "security",
       "stories": [],
       "write_scope": [
+        "docs/benchmarks/perf-hand-check/**",
+        "docs/BENCHMARKS.md",
+        "packages/security/src/rules/hand-checked*.ts",
+        "packages/security/src/rules/shadow.ts",
+        "packages/security/src/index.ts",
+        "packages/security/package.json",
+        "apps/api/src/lib/rule-precision.ts",
+        "apps/api/src/lib/trust-surfaces.test.ts",
+        "apps/web/src/widgets/trust/**",
         "packages/security/rulepacks/code-health/perf/**",
         "packages/security/fixtures/perf/**",
         "packages/security/fixtures/java/perf-complexity/**",
@@ -11621,7 +11630,8 @@
         "Slice 2 (Python) built 2026-10-26: perf.complexity.python.v1.yaml, 4 rules, candidate: pop(0)/insert(0) in a loop, membership in a scope-proven list, find-by-key comprehension/next per outer element, acc = acc + [x]. Measured on 487 files of first-party Python on the build host, every hit read: 9 hits, 5 growing, 4 small, 0 wrong (a constant on either side of `in` excluded after it showed up as noise). 5 more benchmark labels, fn 0 / fp 0. Java/Kotlin waits on a real-application corpus (download asked of the owner 2026-10-26).",
         "Slice 3 (2026-10-26): performance.v3 checklist (algorithmic items; every finding names what grows and O(before) -> O(after); no ms or speedups; skip small-by-construction) with golden snapshot tests and 4 more eval cases (performance now 8: 4 planted, 4 clean). The specialist stays on v2: no model host was reachable (localhost:1234 and 192.168.13.179:1234 both silent), so the v2-vs-v3 live eval is NOT run. Request-path ranking measured and not built: entry-point import reachability covers 97.9% of this repo (ranks nothing), 12.1% from API routes only (undercounts package-name imports); hotspot percentile already prices file-bound findings.",
         "orm-call-in-loop graded (2026-10-26): the 94 remaining hits read one by one; 3 Map/Set.delete(key) now excluded unless chained (a query builder's tx.delete(table).where() is), 6 deliberate batch loops, 15 test seeder, the rest genuine per-row DB calls. 327 -> 91. Clean fixture locks Map.get/.delete in a loop.",
-        "Slice 4 (2026-10-26): perf.complexity.java.v1.yaml (3 Java + 2 Kotlin rules) and perf.complexity.go.v1.yaml (3 rules), candidate. Corpus downloaded with the owner's approval (spring-petclinic, commons-lang, nowinandroid, node_exporter; deleted after). Every hit read: Java 1 (small list), Kotlin 0, Go 4 (2 growing, 2 small), 0 wrong. Golden fixtures in the Java and Go pack suites; RED without the packs."
+        "Slice 4 (2026-10-26): perf.complexity.java.v1.yaml (3 Java + 2 Kotlin rules) and perf.complexity.go.v1.yaml (3 rules), candidate. Corpus downloaded with the owner's approval (spring-petclinic, commons-lang, nowinandroid, node_exporter; deleted after). Every hit read: Java 1 (small list), Kotlin 0, Go 4 (2 growing, 2 small), 0 wrong. Golden fixtures in the Java and Go pack suites; RED without the packs.",
+        "Hand-check (docs/work/HAND_CHECK_W21-20.md, 2026-10-26): every perf rule over 12 open-source repos pinned by SHA, 1,725 hits; marking set per owner choice B (all hits for rules with <=30, seeded sample of 30 otherwise; 542 rows, 31 rules). Claude proposed every label; Brad marked them ('accept the proposals', 14:16 UTC). 6 rules clear the bar and are live by default: copy-on-append, find-by-key-in-loop, go-nested-range-join, includes-in-loop (sample 5/0; full proposed count 48/14 = 77%, recorded), java-contains-in-loop, membership-in-list-in-loop-py. None of the original 27 perf rules passes. Wired via rules/hand-checked.ts + hand-checked.data.ts (generated from the sheet's brad column), shadow.ts, rule-precision.ts (lifecycleSource hand-checked, reason 'live via hand-checked evidence'); hand-checked.test.ts fails if manifest and sheet disagree. docs/BENCHMARKS.md records it."
       ]
     },
       {

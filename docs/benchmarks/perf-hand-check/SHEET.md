@@ -2,28 +2,30 @@
 
 Generated from the run described in [README.md](README.md). Each row is one hit. **Proposed** is Claude's reading, not the verdict. Fill the **Brad** column with `true`, `small` or `wrong` (or edit `sheet.csv`, which has the same rows). The recount uses your column only.
 
+**Marked by Brad, 2026-10-26 14:16 UTC:** "accept the proposals". His column below is the verdict; the counts at the top are recounted from it.
+
 Labels: **true** = the shape is real and both inputs grow with data; **small** = real shape, but one input is small by design (counts as neither true nor wrong); **wrong** = not this shape.
 
 **Which rows to mark (owner choice B, 2026-10-26):** every hit for a rule with 30 hits or fewer; for a larger rule, a seeded random sample of 30 (seed 20261026; per rule: all hits if <=30, else Fisher-Yates with mulberry32(seed ^ javaHash(rule)) over ids sorted ascending, first 30). The bar is judged on these rows: at least 5 true and precision of at least 80% among them. `proposals-all.csv` has Claude's proposed label for every W21-20 hit, sampled or not, for reference.
 
-## Proposed counts per rule (marking set)
+## Brad's counts per rule (marking set)
 
 | Rule | All hits | Marking set | true | small | wrong | pending | Proposed precision | ≥5 true and ≥80%? |
 |---|--:|--:|--:|--:|--:|--:|--:|---|
 | `bpm-perf-await-in-loop` | 412 | 30 | 11 | 8 | 11 | 0 | 50% | no: precision |
 | `bpm-perf-await-in-loop-py` | 4 | 4 | 0 | 2 | 2 | 0 | 0% | no: fewer than 5 true |
-| `bpm-perf-copy-on-append` | 15 | 15 | 6 | 9 | 0 | 0 | 100% | yes (proposed) |
-| `bpm-perf-find-by-key-in-loop` | 52 | 30 | 5 | 25 | 0 | 0 | 100% | yes (proposed) |
+| `bpm-perf-copy-on-append` | 15 | 15 | 6 | 9 | 0 | 0 | 100% | yes |
+| `bpm-perf-find-by-key-in-loop` | 52 | 30 | 5 | 25 | 0 | 0 | 100% | yes |
 | `bpm-perf-find-by-key-in-loop-py` | 2 | 2 | 0 | 2 | 0 | 0 | — | no: fewer than 5 true |
 | `bpm-perf-go-contains-in-loop` | 23 | 23 | 0 | 23 | 0 | 0 | — | no: fewer than 5 true |
 | `bpm-perf-go-db-call-in-loop` | 8 | 8 | 2 | 6 | 0 | 0 | 100% | no: fewer than 5 true |
 | `bpm-perf-go-defer-in-loop` | 15 | 15 | 1 | 3 | 11 | 0 | 8% | no: fewer than 5 true |
-| `bpm-perf-go-nested-range-join` | 21 | 21 | 6 | 15 | 0 | 0 | 100% | yes (proposed) |
+| `bpm-perf-go-nested-range-join` | 21 | 21 | 6 | 15 | 0 | 0 | 100% | yes |
 | `bpm-perf-go-prepend-in-loop` | 1 | 1 | 0 | 0 | 1 | 0 | 0% | no: fewer than 5 true |
 | `bpm-perf-go-regex-compile-in-loop` | 7 | 7 | 0 | 0 | 7 | 0 | 0% | no: fewer than 5 true |
 | `bpm-perf-go-string-concat-in-loop` | 38 | 30 | 0 | 21 | 9 | 0 | 0% | no: fewer than 5 true |
-| `bpm-perf-includes-in-loop` | 200 | 30 | 5 | 25 | 0 | 0 | 100% | yes (proposed) |
-| `bpm-perf-java-contains-in-loop` | 30 | 30 | 7 | 23 | 0 | 0 | 100% | yes (proposed) |
+| `bpm-perf-includes-in-loop` | 200 | 30 | 5 | 25 | 0 | 0 | 100% | yes |
+| `bpm-perf-java-contains-in-loop` | 30 | 30 | 7 | 23 | 0 | 0 | 100% | yes |
 | `bpm-perf-java-db-call-in-loop` | 44 | 30 | 7 | 10 | 13 | 0 | 35% | no: precision |
 | `bpm-perf-java-find-by-key-in-loop` | 11 | 11 | 1 | 9 | 1 | 0 | 50% | no: fewer than 5 true |
 | `bpm-perf-java-regex-compile-in-loop` | 1 | 1 | 0 | 1 | 0 | 0 | — | no: fewer than 5 true |
@@ -31,7 +33,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 | `bpm-perf-java-string-concat-in-loop` | 25 | 25 | 2 | 13 | 10 | 0 | 17% | no: fewer than 5 true |
 | `bpm-perf-json-deep-clone` | 6 | 6 | 1 | 2 | 3 | 0 | 25% | no: fewer than 5 true |
 | `bpm-perf-kt-find-by-key-in-loop` | 8 | 8 | 1 | 7 | 0 | 0 | 100% | no: fewer than 5 true |
-| `bpm-perf-membership-in-list-in-loop-py` | 28 | 28 | 15 | 13 | 0 | 0 | 100% | yes (proposed) |
+| `bpm-perf-membership-in-list-in-loop-py` | 28 | 28 | 15 | 13 | 0 | 0 | 100% | yes |
 | `bpm-perf-orm-call-in-loop` | 61 | 30 | 8 | 2 | 20 | 0 | 29% | no: precision |
 | `bpm-perf-orm-call-in-loop-py` | 304 | 30 | 2 | 15 | 13 | 0 | 13% | no: fewer than 5 true |
 | `bpm-perf-pop-front-in-loop-py` | 3 | 3 | 0 | 2 | 1 | 0 | 0% | no: fewer than 5 true |
@@ -57,7 +59,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | destroy in deliberate 10-id batches with inter-batch sleep to keep lock window short; sequential by design |  |
+| wrong | destroy in deliberate 10-id batches with inter-batch sleep to keep lock window short; sequential by design | wrong |
 
 ### #155 · outline/outline@670410b236 · `server/commands/groupsSyncer.ts:121`
 
@@ -71,7 +73,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | external-group sync writes inside one transaction; ordered find/create/update per group must be sequential |  |
+| wrong | external-group sync writes inside one transaction; ordered find/create/update per group must be sequential | wrong |
 
 ### #237 · outline/outline@670410b236 · `server/queues/processors/ImportsProcessor.ts:529`
 
@@ -86,7 +88,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | import loop creates docs in a shared transaction with parent ordering; toMarkdown per doc is part of ordered writes |  |
+| wrong | import loop creates docs in a shared transaction with parent ordering; toMarkdown per doc is part of ordered writes | wrong |
 
 ### #268 · outline/outline@670410b236 · `server/queues/tasks/CommentUpdatedNotificationsTask.ts:60`
 
@@ -100,7 +102,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | loop over user mentions in one comment: User.findByPk + access check per mention; mentions per comment are few |  |
+| small | loop over user mentions in one comment: User.findByPk + access check per mention; mentions per comment are few | small |
 
 ### #282 · outline/outline@670410b236 · `server/queues/tasks/DocumentPublishedNotificationsTask.ts:44`
 
@@ -114,7 +116,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | loop over user mentions in a published doc: findByPk + canUserAccessDocument per mention; batchable, grows with doc |  |
+| true | loop over user mentions in a published doc: findByPk + canUserAccessDocument per mention; batchable, grows with doc | true |
 
 ### #328 · outline/outline@670410b236 · `server/queues/tasks/RevisionCreatedNotificationsTask.ts:183`
 
@@ -128,7 +130,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | loop over all document notification recipients awaiting shouldNotify per recipient; independent, grows with subscribers |  |
+| true | loop over all document notification recipients awaiting shouldNotify per recipient; independent, grows with subscribers | true |
 
 ### #329 · outline/outline@670410b236 · `server/queues/tasks/RevisionCreatedNotificationsTask.ts:186`
 
@@ -143,7 +145,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | Notification.create per recipient of a document update; independent inserts, could bulkCreate/parallelise |  |
+| true | Notification.create per recipient of a document update; independent inserts, could bulkCreate/parallelise | true |
 
 ### #343 · outline/outline@670410b236 · `server/queues/tasks/UpdateTeamsAttachmentsSizeTask.ts:43`
 
@@ -157,7 +159,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | per-team await schedule() inside 100-row batches; independent job enqueues, could Promise.all or bulk add |  |
+| true | per-team await schedule() inside 100-row batches; independent job enqueues, could Promise.all or bulk add | true |
 
 ### #378 · outline/outline@670410b236 · `server/services/worker.ts:66`
 
@@ -171,7 +173,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | loop over the fixed set of registered processors adding queue jobs per event; bounded by code |  |
+| small | loop over the fixed set of registered processors adding queue jobs per event; bounded by code | small |
 
 ### #383 · outline/outline@670410b236 · `server/utils/CacheHelper.ts:224`
 
@@ -185,7 +187,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | Redis SCAN cursor pagination; each unlink follows the scan page whose cursor drives the next iteration |  |
+| wrong | Redis SCAN cursor pagination; each unlink follows the scan page whose cursor drives the next iteration | wrong |
 
 ### #384 · outline/outline@670410b236 · `server/utils/ShutdownHelper.ts:97`
 
@@ -200,7 +202,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | shutdown groups run in deliberate order; each group already uses Promise.allSettled internally |  |
+| wrong | shutdown groups run in deliberate order; each group already uses Promise.allSettled internally | wrong |
 
 ### #424 · immich-app/immich@f7b8ae5da3 · `server/src/bin/sync-sql.ts:121`
 
@@ -214,7 +216,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | dev SQL-generator over a fixed handful of nested repository keys |  |
+| small | dev SQL-generator over a fixed handful of nested repository keys | small |
 
 ### #471 · immich-app/immich@f7b8ae5da3 · `server/src/services/database.service.ts:110`
 
@@ -228,7 +230,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | drops the few installed Postgres extensions during startup; tiny fixed list, ordered DDL |  |
+| small | drops the few installed Postgres extensions during startup; tiny fixed list, ordered DDL | small |
 
 ### #483 · immich-app/immich@f7b8ae5da3 · `server/src/services/integrity.service.ts:385`
 
@@ -243,7 +245,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | for-await over a DB stream, queuing one job per already-batched page; streaming with backpressure |  |
+| wrong | for-await over a DB stream, queuing one job per already-batched page; streaming with backpressure | wrong |
 
 ### #504 · immich-app/immich@f7b8ae5da3 · `server/src/services/media.service.ts:87`
 
@@ -257,7 +259,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | for-await over asset stream queuing one queueAll per batch; already batched, streaming |  |
+| wrong | for-await over asset stream queuing one queueAll per batch; already batched, streaming | wrong |
 
 ### #506 · immich-app/immich@f7b8ae5da3 · `server/src/services/media.service.ts:100`
 
@@ -271,7 +273,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | per person missing a face: getRandomFace + update awaited one by one across all persons; N+1 on growing table |  |
+| true | per person missing a face: getRandomFace + update awaited one by one across all persons; N+1 on growing table | true |
 
 ### #523 · immich-app/immich@f7b8ae5da3 · `server/src/services/person.service.ts:103`
 
@@ -286,7 +288,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | getFacesByIds per item of request dto.data (bulk reassign); one query per item, batchable |  |
+| true | getFacesByIds per item of request dto.data (bulk reassign); one query per item, batchable | true |
 
 ### #524 · immich-app/immich@f7b8ae5da3 · `server/src/services/person.service.ts:109`
 
@@ -300,7 +302,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | checkAccess per face inside per-item loop over request data; could check all face ids in one call |  |
+| true | checkAccess per face inside per-item loop over request data; could check all face ids in one call | true |
 
 ### #544 · immich-app/immich@f7b8ae5da3 · `server/src/services/storage-template.service.ts:194`
 
@@ -314,7 +316,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | storage migration awaits moveAsset per streamed asset across whole library; bounded concurrency possible |  |
+| true | storage migration awaits moveAsset per streamed asset across whole library; bounded concurrency possible | true |
 
 ### #549 · immich-app/immich@f7b8ae5da3 · `server/src/services/storage.service.ts:71`
 
@@ -328,7 +330,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | verifies read/write on the fixed StorageFolder enum (few folders) at startup |  |
+| small | verifies read/write on the fixed StorageFolder enum (few folders) at startup | small |
 
 ### #607 · immich-app/immich@f7b8ae5da3 · `server/src/services/sync.service.ts:899`
 
@@ -342,7 +344,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | writes sync acks to a response stream in order; sequential writes are required |  |
+| wrong | writes sync acks to a response stream in order; sequential writes are required | wrong |
 
 ### #612 · immich-app/immich@f7b8ae5da3 · `server/src/services/sync.service.ts:946`
 
@@ -356,7 +358,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | for-await over DB stream writing ordered sync events to response stream; must be sequential |  |
+| wrong | for-await over DB stream writing ordered sync events to response stream; must be sequential | wrong |
 
 ### #625 · immich-app/immich@f7b8ae5da3 · `server/src/services/tag.service.ts:150`
 
@@ -370,7 +372,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | updateTags + emit per asset id from request BulkIdsDto; independent per asset, grows with request |  |
+| true | updateTags + emit per asset id from request BulkIdsDto; independent per asset, grows with request | true |
 
 ### #638 · immich-app/immich@f7b8ae5da3 · `server/src/services/workflow-execution.service.ts:452`
 
@@ -385,7 +387,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | workflow steps run in order, each step consumes the previous step's payload/changes |  |
+| wrong | workflow steps run in order, each step consumes the previous step's payload/changes | wrong |
 
 ### #662 · immich-app/immich@f7b8ae5da3 · `web/src/lib/managers/timeline-manager/timeline-manager.svelte.ts:192`
 
@@ -399,7 +401,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | async generator lazily loading one month at a time as the consumer iterates; sequential by design |  |
+| wrong | async generator lazily loading one month at a time as the consumer iterates; sequential by design | wrong |
 
 ### #671 · immich-app/immich@f7b8ae5da3 · `web/src/lib/utils/asset-utils.ts:86`
 
@@ -413,7 +415,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | getFormatter awaited only in the single-archive branch, so it runs once |  |
+| small | getFormatter awaited only in the single-archive branch, so it runs once | small |
 
 ### #673 · immich-app/immich@f7b8ae5da3 · `web/src/lib/utils/asset-utils.ts:272`
 
@@ -427,7 +429,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | select-all loads every unloaded timeline month sequentially; months grow with library, could load bounded-parallel |  |
+| true | select-all loads every unloaded timeline month sequentially; months grow with library, could load bounded-parallel | true |
 
 ### #889 · zulip/zulip@36d2312680 · `web/e2e-tests/lib/common.ts:181`
 
@@ -442,7 +444,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | e2e test helper checking a handful of form fields with page.$eval |  |
+| small | e2e test helper checking a handful of form fields with page.$eval | small |
 
 ### #1371 · thingsboard/thingsboard@7a53801216 · `ui-ngx/esbuild/tb-esbuild-plugins.ts:52`
 
@@ -456,7 +458,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | build plugin gzips every output file over 10KB sequentially; hundreds of chunks, could Promise.all |  |
+| true | build plugin gzips every output file over 10KB sequentially; hundreds of chunks, could Promise.all | true |
 
 ### #1414 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/iot-hub/device-install-dialog/device-install-dialog.component.ts:158`
 
@@ -470,7 +472,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | extracts entries of a small IoT-hub template zip; few files, JSZip in-memory |  |
+| small | extracts entries of a small IoT-hub template zip; few files, JSZip in-memory | small |
 
 
 ## `bpm-perf-await-in-loop-py`
@@ -487,7 +489,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | preloads the configured ML models at startup; a handful of entries |  |
+| small | preloads the configured ML models at startup; a handful of entries | small |
 
 ### #686 · saleor/saleor@1771e1cf6c · `saleor/asgi/asgi_handler.py:108`
 
@@ -501,7 +503,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | awaits cancellation of at most 2 tasks (disconnect watcher + request) |  |
+| small | awaits cancellation of at most 2 tasks (disconnect watcher + request) | small |
 
 ### #873 · zulip/zulip@36d2312680 · `tools/run-dev:271`
 
@@ -516,7 +518,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | dev proxy retry loop until upstream responds; each attempt depends on previous failure |  |
+| wrong | dev proxy retry loop until upstream responds; each attempt depends on previous failure | wrong |
 
 ### #1049 · zulip/zulip@36d2312680 · `zerver/lib/push_notifications.py:182`
 
@@ -530,7 +532,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | APNs send retry loop; next attempt only after previous ProtocolError |  |
+| wrong | APNs send retry loop; next attempt only after previous ProtocolError | wrong |
 
 
 ## `bpm-perf-copy-on-append`
@@ -548,7 +550,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | reduce spreads acc per selected element: O(k^2) copying; selections can be thousands of elements |  |
+| true | reduce spreads acc per selected element: O(k^2) copying; selections can be thousands of elements | true |
 
 ### #35 · excalidraw/excalidraw@b7de45e881 · `packages/excalidraw/components/UnlockPopup.tsx:71`
 
@@ -563,7 +565,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | reduce spreads acc per locked element being unlocked; O(k^2) in element count |  |
+| true | reduce spreads acc per locked element being unlocked; O(k^2) in element count | true |
 
 ### #56 · outline/outline@670410b236 · `app/actions/definitions/documents.tsx:137`
 
@@ -578,7 +580,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | reduce spreads growing node array per collection; total size = all top-level docs across collections |  |
+| true | reduce spreads growing node array per collection; total size = all top-level docs across collections | true |
 
 ### #57 · outline/outline@670410b236 · `app/actions/definitions/documents.tsx:1361`
 
@@ -593,7 +595,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | same reduce-spread over collections' children; accumulator grows with doc count |  |
+| true | same reduce-spread over collections' children; accumulator grows with doc count | true |
 
 ### #84 · outline/outline@670410b236 · `app/models/decorators/Field.ts:37`
 
@@ -607,7 +609,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | per-model field registration at class decoration time; fields per model are tens, runs once |  |
+| small | per-model field registration at class decoration time; fields per model are tens, runs once | small |
 
 ### #395 · outline/outline@670410b236 · `shared/editor/lib/ExtensionManager.ts:181`
 
@@ -622,7 +624,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | reduce-spread over editor extensions; fixed set of a few dozen extensions |  |
+| small | reduce-spread over editor extensions; fixed set of a few dozen extensions | small |
 
 ### #396 · outline/outline@670410b236 · `shared/editor/lib/ExtensionManager.ts:187`
 
@@ -637,7 +639,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | reduce-spread over editor extensions' rulePlugins; fixed small extension set |  |
+| small | reduce-spread over editor extensions' rulePlugins; fixed small extension set | small |
 
 ### #397 · outline/outline@670410b236 · `shared/editor/lib/ExtensionManager.ts:236`
 
@@ -652,7 +654,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | reduce-spread over input rules from fixed extension set |  |
+| small | reduce-spread over input rules from fixed extension set | small |
 
 ### #403 · outline/outline@670410b236 · `shared/editor/nodes/Heading.ts:171`
 
@@ -667,7 +669,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | reduce-spread over heading levels (1-6) |  |
+| small | reduce-spread over heading levels (1-6) | small |
 
 ### #1493 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/pages/notification/settings/notification-settings.component.ts:93`
 
@@ -681,7 +683,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | reduce-spread over notification delivery methods enum (a few) |  |
+| small | reduce-spread over notification delivery methods enum (a few) | small |
 
 ### #1494 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/pages/notification/settings/notification-settings.component.ts:116`
 
@@ -695,7 +697,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | reduce-spread over notification delivery methods enum (a few) |  |
+| small | reduce-spread over notification delivery methods enum (a few) | small |
 
 ### #1495 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/pages/notification/settings/notification-settings.component.ts:159`
 
@@ -709,7 +711,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | reduce-spread over delivery method keys (a few) |  |
+| small | reduce-spread over delivery method keys (a few) | small |
 
 ### #1578 · prometheus/prometheus@a83f7158e7 · `web/ui/react-app/src/pages/alerts/AlertContents.tsx:176`
 
@@ -724,7 +726,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | reduce-spread acc has only the few alert-state keys; copy size constant |  |
+| small | reduce-spread acc has only the few alert-state keys; copy size constant | small |
 
 ### #1579 · prometheus/prometheus@a83f7158e7 · `web/ui/react-app/src/pages/targets/Filter.tsx:24`
 
@@ -739,7 +741,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | reduce-spread over scrape pool keys; O(k^2) with pools (can be hundreds) |  |
+| true | reduce-spread over scrape pool keys; O(k^2) with pools (can be hundreds) | true |
 
 ### #1580 · prometheus/prometheus@a83f7158e7 · `web/ui/react-app/src/pages/targets/ScrapePoolList.tsx:147`
 
@@ -754,7 +756,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | reduce-spread over scrape pools; O(k^2) with pool count |  |
+| true | reduce-spread over scrape pools; O(k^2) with pool count | true |
 
 
 ## `bpm-perf-find-by-key-in-loop`
@@ -772,7 +774,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | groupMemberships x groupUsers.some(): both store-wide collections, grows with groups/users |  |
+| true | groupMemberships x groupUsers.some(): both store-wide collections, grows with groups/users | true |
 
 ### #439 · immich-app/immich@f7b8ae5da3 · `server/src/repositories/integrity.repository.ts:50`
 
@@ -786,7 +788,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | IntegrityReport enum values x grouped counts (one row per enum type) |  |
+| small | IntegrityReport enum values x grouped counts (one row per enum type) | small |
 
 ### #477 · immich-app/immich@f7b8ae5da3 · `server/src/services/duplicate.service.ts:251`
 
@@ -800,7 +802,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | outer is fixed 3-element visibilityOrder; assets is one duplicate group, O(3n) not n*m |  |
+| small | outer is fixed 3-element visibilityOrder; assets is one duplicate group, O(3n) not n*m | small |
 
 ### #512 · immich-app/immich@f7b8ae5da3 · `server/src/services/media.service.ts:785`
 
@@ -814,7 +816,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | newFiles x oldFiles of one asset: a few file types (thumbnail/preview/fullsize) per asset |  |
+| small | newFiles x oldFiles of one asset: a few file types (thumbnail/preview/fullsize) per asset | small |
 
 ### #1164 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/components/common/custom-field-display/custom-field-display.component.ts:121`
 
@@ -828,7 +830,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | doc-link ids x results.find; links per field data-derived (usually modest) |  |
+| true | doc-link ids x results.find; links per field data-derived (usually modest) | true |
 
 ### #1166 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/components/common/input/document-link/document-link.component.ts:110`
 
@@ -842,7 +844,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | selected doc ids x results.find; doc-link selections data-derived (usually modest) |  |
+| true | selected doc ids x results.find; doc-link selections data-derived (usually modest) | true |
 
 ### #1167 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/components/common/input/document-link/document-link.component.ts:139`
 
@@ -856,7 +858,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | title search results (truncated page) x manually selected docs |  |
+| small | title search results (truncated page) x manually selected docs | small |
 
 ### #1171 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/components/common/input/tags/tags.component.ts:227`
 
@@ -870,7 +872,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | doc tags x all tags list; tag catalogs can be thousands; getter may run per render |  |
+| true | doc tags x all tags list; tag catalogs can be thousands; getter may run per render | true |
 
 ### #1181 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/services/document-list-view.service.ts:204`
 
@@ -884,7 +886,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | display fields x allDisplayFields: fixed small field list |  |
+| small | display fields x allDisplayFields: fixed small field list | small |
 
 ### #1189 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/services/rest/saved-view.service.ts:128`
 
@@ -898,7 +900,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | sort-order ids x dashboardViews (find + includes); saved views per user are tens |  |
+| small | sort-order ids x dashboardViews (find + includes); saved views per user are tens | small |
 
 ### #1397 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/core/services/resources.service.ts:52`
 
@@ -912,7 +914,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | dedupe of Angular modules list; tens of modules |  |
+| small | dedupe of Angular modules list; tens of modules | small |
 
 ### #1425 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/role/operation-type-list.component.ts:205`
 
@@ -926,7 +928,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | operation types x allOperationTypeList enum-sized list |  |
+| small | operation types x allOperationTypeList enum-sized list | small |
 
 ### #1428 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/rule-node/common/sv-map-config.component.ts:176`
 
@@ -940,7 +942,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | keyVals x selectOptions: fixed field options list |  |
+| small | keyVals x selectOptions: fixed field options list | small |
 
 ### #1429 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/rule-node/common/sv-map-config.component.ts:184`
 
@@ -954,7 +956,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | selectOptions x deleteFieldsArray: fixed field options list |  |
+| small | selectOptions x deleteFieldsArray: fixed field options list | small |
 
 ### #1441 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/chart/latest-chart.ts:133`
 
@@ -968,7 +970,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | ctx.data x dataItems: widget data keys (config); could grow with multi-entity aliases |  |
+| small | ctx.data x dataItems: widget data keys (config); could grow with multi-entity aliases | small |
 
 ### #1442 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/chart/latest-chart.ts:230`
 
@@ -982,7 +984,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | dataItems x legendItems: widget data keys (config) |  |
+| small | dataItems x legendItems: widget data keys (config) | small |
 
 ### #1446 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/chart/time-series-chart.models.ts:1332`
 
@@ -996,7 +998,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | dataItems x options.series: chart series (config-sized) |  |
+| small | dataItems x options.series: chart series (config-sized) | small |
 
 ### #1449 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/chart/time-series-chart.ts:239`
 
@@ -1010,7 +1012,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | dataItems x ctx.data per update: chart keys config-sized; grows with multi-entity datasources |  |
+| small | dataItems x ctx.data per update: chart keys config-sized; grows with multi-entity datasources | small |
 
 ### #1451 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/chart/time-series-chart.ts:287`
 
@@ -1024,7 +1026,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | thresholds x latestData: a few thresholds |  |
+| small | thresholds x latestData: a few thresholds | small |
 
 ### #1453 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/chart/time-series-chart.ts:310`
 
@@ -1038,7 +1040,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | loop over y-axes (a few) with find in latestData |  |
+| small | loop over y-axes (a few) with find in latestData | small |
 
 ### #1466 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/maps/map.ts:1302`
 
@@ -1052,7 +1054,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | saved value keys x datasource dataKeys: a few keys |  |
+| small | saved value keys x datasource dataKeys: a few keys | small |
 
 ### #1470 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/scada/scada-symbol.models.ts:1038`
 
@@ -1066,7 +1068,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | walks a short id path through nested form properties; not a join |  |
+| small | walks a short id path through nested form properties; not a join | small |
 
 ### #1479 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/settings/common/dynamic-form/dynamic-form-property-panel.component.ts:269`
 
@@ -1080,7 +1082,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | default values x select items: form config |  |
+| small | default values x select items: form config | small |
 
 ### #1481 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/settings/common/dynamic-form/dynamic-form.component.ts:238`
 
@@ -1094,7 +1096,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | validatorTriggers x properties: form config |  |
+| small | validatorTriggers x properties: form config | small |
 
 ### #1482 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/settings/common/scada/scada-symbol-object-settings.models.ts:21`
 
@@ -1108,7 +1110,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | behaviors x groups of one SCADA symbol: config-sized |  |
+| small | behaviors x groups of one SCADA symbol: config-sized | small |
 
 ### #1484 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/models/dashboard-component.models.ts:216`
 
@@ -1122,7 +1124,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | widgetLayouts x dashboardWidgets.findIndex: widgets per dashboard tens |  |
+| small | widgetLayouts x dashboardWidgets.findIndex: widgets per dashboard tens | small |
 
 ### #1491 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/pages/ai-solution-creator/overview/solution-creator-overview-entities.component.ts:415`
 
@@ -1136,7 +1138,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | customers x users x relations.some: AI-generated solution description, tens of entities |  |
+| small | customers x users x relations.some: AI-generated solution description, tens of entities | small |
 
 ### #1497 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/pages/scada-symbol/metadata-components/scada-symbol-metadata-tags.component.ts:190`
 
@@ -1150,7 +1152,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | existing tags x symbol tags of one SCADA symbol: a few |  |
+| small | existing tags x symbol tags of one SCADA symbol: a few | small |
 
 ### #1540 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/models/telemetry/telemetry.models.ts:591`
 
@@ -1164,7 +1166,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | data keys x origData.find: entity attributes list can be hundreds |  |
+| true | data keys x origData.find: entity attributes list can be hundreds | true |
 
 ### #1543 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/models/widget/maps/map.models.ts:1508`
 
@@ -1178,7 +1180,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | source x target dataKeys of map datasources: config-sized |  |
+| small | source x target dataKeys of map datasources: config-sized | small |
 
 
 ## `bpm-perf-find-by-key-in-loop-py`
@@ -1196,7 +1198,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | next() over one select field's options per custom field; options are a short config list |  |
+| small | next() over one select field's options per custom field; options are a short config list | small |
 
 ### #1232 · paperless-ngx/paperless-ngx@5f17b1a310 · `src/documents/templating/filepath.py:322`
 
@@ -1211,7 +1213,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | same generator as 1231 (select options of one field); short config list |  |
+| small | same generator as 1231 (select options of one field); short config list | small |
 
 
 ## `bpm-perf-go-contains-in-loop`
@@ -1228,7 +1230,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | selectors x allowedSelectors[role]: a few roles |  |
+| small | selectors x allowedSelectors[role]: a few roles | small |
 
 ### #1556 · prometheus/prometheus@a83f7158e7 · `model/labels/labels_slicelabels.go:425`
 
@@ -1242,7 +1244,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | base labels x b.del: labels per series ~10 (hot path but tiny lists) |  |
+| small | base labels x b.del: labels per series ~10 (hot path but tiny lists) | small |
 
 ### #1563 · prometheus/prometheus@a83f7158e7 · `storage/remote/queue_manager.go:1040`
 
@@ -1256,7 +1258,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | prevBounds x customValues: histogram bucket bounds, tens |  |
+| small | prevBounds x customValues: histogram bucket bounds, tens | small |
 
 ### #1595 · go-gitea/gitea@85211296dd · `models/actions/run_attempt.go:128`
 
@@ -1270,7 +1272,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | run attempts x passThroughAttemptIDs: a few attempts per job |  |
+| small | run attempts x passThroughAttemptIDs: a few attempts per job | small |
 
 ### #1605 · go-gitea/gitea@85211296dd · `models/issues/review_list.go:182`
 
@@ -1284,7 +1286,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | membership in fixed 4-element countedReviewTypes |  |
+| small | membership in fixed 4-element countedReviewTypes | small |
 
 ### #1606 · go-gitea/gitea@85211296dd · `models/project/workflows.go:174`
 
@@ -1298,7 +1300,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | workflow filter types x capabilities: a few |  |
+| small | workflow filter types x capabilities: a few | small |
 
 ### #1607 · go-gitea/gitea@85211296dd · `models/project/workflows.go:179`
 
@@ -1312,7 +1314,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | workflow action types x capabilities: a few |  |
+| small | workflow action types x capabilities: a few | small |
 
 ### #1612 · go-gitea/gitea@85211296dd · `models/unittest/mock_http.go:112`
 
@@ -1326,7 +1328,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | test helper: response headers x ignoredHeaders list |  |
+| small | test helper: response headers x ignoredHeaders list | small |
 
 ### #1616 · go-gitea/gitea@85211296dd · `modules/markup/common/common.go:75`
 
@@ -1340,7 +1342,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | configured URL schemes x xurls.SchemesNoAuthority: small fixed lists |  |
+| small | configured URL schemes x xurls.SchemesNoAuthority: small fixed lists | small |
 
 ### #1645 · go-gitea/gitea@85211296dd · `routers/web/explore/code.go:97`
 
@@ -1354,7 +1356,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | search results page x loadRepoIDs: bounded by page size |  |
+| small | search results page x loadRepoIDs: bounded by page size | small |
 
 ### #1652 · go-gitea/gitea@85211296dd · `routers/web/user/code.go:90`
 
@@ -1368,7 +1370,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | search results page x loadRepoIDs: bounded by page size |  |
+| small | search results page x loadRepoIDs: bounded by page size | small |
 
 ### #1656 · go-gitea/gitea@85211296dd · `services/auth/source/oauth2/providers.go:125`
 
@@ -1382,7 +1384,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | fixed goth providers x existing Azure sources |  |
+| small | fixed goth providers x existing Azure sources | small |
 
 ### #1704 · traefik/traefik@f1f227eda7 · `cmd/internal/gen/centrifuge.go:84`
 
@@ -1396,7 +1398,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | codegen tool: imports x IncludedImports config list |  |
+| small | codegen tool: imports x IncludedImports config list | small |
 
 ### #1705 · traefik/traefik@f1f227eda7 · `cmd/internal/gen/centrifuge.go:101`
 
@@ -1410,7 +1412,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | codegen tool: scope names x ExcludedTypes config list |  |
+| small | codegen tool: scope names x ExcludedTypes config list | small |
 
 ### #1708 · traefik/traefik@f1f227eda7 · `pkg/config/runtime/runtime_http.go:30`
 
@@ -1424,7 +1426,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | router entrypoints x configured entryPoints: a few entry points |  |
+| small | router entrypoints x configured entryPoints: a few entry points | small |
 
 ### #1709 · traefik/traefik@f1f227eda7 · `pkg/config/runtime/runtime_tcp.go:25`
 
@@ -1438,7 +1440,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | router entrypoints x configured entryPoints: a few |  |
+| small | router entrypoints x configured entryPoints: a few | small |
 
 ### #1710 · traefik/traefik@f1f227eda7 · `pkg/config/runtime/runtime_udp.go:29`
 
@@ -1452,7 +1454,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | router entrypoints x configured entryPoints: a few |  |
+| small | router entrypoints x configured entryPoints: a few | small |
 
 ### #1711 · traefik/traefik@f1f227eda7 · `pkg/config/static/static_config.go:486`
 
@@ -1466,7 +1468,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | provider precedence x providerNames: a few |  |
+| small | provider precedence x providerNames: a few | small |
 
 ### #1712 · traefik/traefik@f1f227eda7 · `pkg/middlewares/compress/compress.go:80`
 
@@ -1480,7 +1482,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | configured encodings x 3 supported encodings |  |
+| small | configured encodings x 3 supported encodings | small |
 
 ### #1715 · traefik/traefik@f1f227eda7 · `pkg/muxer/tcp/matcher_v2.go:62`
 
@@ -1494,7 +1496,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | client ALPN protos x configured protos: a few |  |
+| small | client ALPN protos x configured protos: a few | small |
 
 ### #1718 · traefik/traefik@f1f227eda7 · `pkg/provider/kubernetes/gateway/client.go:862`
 
@@ -1508,7 +1510,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | conditions x fixed gatewayConditionTypes |  |
+| small | conditions x fixed gatewayConditionTypes | small |
 
 ### #1719 · traefik/traefik@f1f227eda7 · `pkg/provider/kubernetes/gateway/client.go:876`
 
@@ -1522,7 +1524,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | listener conditions x fixed listenerConditionTypes |  |
+| small | listener conditions x fixed listenerConditionTypes | small |
 
 ### #1720 · traefik/traefik@f1f227eda7 · `pkg/provider/kubernetes/ingress/kubernetes.go:286`
 
@@ -1536,7 +1538,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | CrossProviderNamespaces config list per ingress; a few namespaces |  |
+| small | CrossProviderNamespaces config list per ingress; a few namespaces | small |
 
 
 ## `bpm-perf-go-db-call-in-loop`
@@ -1553,7 +1555,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | migration drops 3 fixed MSSQL indexes; constant DDL list |  |
+| small | migration drops 3 fixed MSSQL indexes; constant DDL list | small |
 
 ### #1590 · go-gitea/gitea@85211296dd · `modelmigration/v1_22/v286.go:56`
 
@@ -1567,7 +1569,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | migration ALTERs a fixed list of table/column pairs; DDL cannot be batched meaningfully |  |
+| small | migration ALTERs a fixed list of table/column pairs; DDL cannot be batched meaningfully | small |
 
 ### #1591 · go-gitea/gitea@85211296dd · `modelmigration/v1_22/v286.go:58`
 
@@ -1581,7 +1583,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | migration ALTERs a fixed list of table/column pairs (MSSQL branch) |  |
+| small | migration ALTERs a fixed list of table/column pairs (MSSQL branch) | small |
 
 ### #1592 · go-gitea/gitea@85211296dd · `modelmigration/v1_22/v286.go:60`
 
@@ -1595,7 +1597,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | migration ALTERs a fixed list of table/column pairs (Postgres branch) |  |
+| small | migration ALTERs a fixed list of table/column pairs (Postgres branch) | small |
 
 ### #1593 · go-gitea/gitea@85211296dd · `modelmigration/v1_22/v286.go:74`
 
@@ -1609,7 +1611,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | migration recreates 3 fixed MSSQL indexes |  |
+| small | migration recreates 3 fixed MSSQL indexes | small |
 
 ### #1609 · go-gitea/gitea@85211296dd · `models/repostats/repo.go:299`
 
@@ -1623,7 +1625,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | one UPDATE per user recomputing num_stars over all users in batches; one set-based UPDATE would do |  |
+| true | one UPDATE per user recomputing num_stars over all users in batches; one set-based UPDATE would do | true |
 
 ### #1611 · go-gitea/gitea@85211296dd · `models/unittest/fixtures_loader.go:138`
 
@@ -1637,7 +1639,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | test fixture loader inserting fixture rows; test-only, small data |  |
+| small | test fixture loader inserting fixture rows; test-only, small data | small |
 
 ### #1659 · go-gitea/gitea@85211296dd · `services/projects/issue.go:199`
 
@@ -1652,7 +1654,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | per issue in a column reorder: ProjectColumnMap query + UPDATE; grows with column size, batchable via CASE |  |
+| true | per issue in a column reorder: ProjectColumnMap query + UPDATE; grows with column size, batchable via CASE | true |
 
 
 ## `bpm-perf-go-defer-in-loop`
@@ -1669,7 +1671,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | intentional: closes the old failure loggers at function exit after swapping in new ones |  |
+| wrong | intentional: closes the old failure loggers at function exit after swapping in new ones | wrong |
 
 ### #1564 · prometheus/prometheus@a83f7158e7 · `tsdb/compact.go:626`
 
@@ -1683,7 +1685,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | opened blocks must stay open until compaction finishes using them after the loop |  |
+| wrong | opened blocks must stay open until compaction finishes using them after the loop | wrong |
 
 ### #1565 · prometheus/prometheus@a83f7158e7 · `tsdb/head_append.go:1822`
 
@@ -1697,7 +1699,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | batches deliberately closed at end of commit after all are processed |  |
+| wrong | batches deliberately closed at end of commit after all are processed | wrong |
 
 ### #1566 · prometheus/prometheus@a83f7158e7 · `tsdb/wlog/wlog.go:388`
 
@@ -1711,7 +1713,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | defer then break Loop immediately; executes once |  |
+| wrong | defer then break Loop immediately; executes once | wrong |
 
 ### #1594 · go-gitea/gitea@85211296dd · `modelmigration/v1_9/v82.go:92`
 
@@ -1725,7 +1727,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | git repos are cached in gitRepoCache and reused across iterations, so must stay open until return |  |
+| wrong | git repos are cached in gitRepoCache and reused across iterations, so must stay open until return | wrong |
 
 ### #1615 · go-gitea/gitea@85211296dd · `modules/lfs/filesystem_client.go:53`
 
@@ -1739,7 +1741,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | LFS Download keeps every opened object file open until all objects are processed; objects list grows |  |
+| true | LFS Download keeps every opened object file open until all objects are processed; objects list grows | true |
 
 ### #1623 · go-gitea/gitea@85211296dd · `modules/packages/composer/metadata.go:142`
 
@@ -1753,7 +1755,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | defer followed by return in the same iteration; runs at most once |  |
+| wrong | defer followed by return in the same iteration; runs at most once | wrong |
 
 ### #1624 · go-gitea/gitea@85211296dd · `modules/packages/conda/metadata.go:113`
 
@@ -1767,7 +1769,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | defer followed by return in the same iteration; runs at most once |  |
+| wrong | defer followed by return in the same iteration; runs at most once | wrong |
 
 ### #1625 · go-gitea/gitea@85211296dd · `modules/packages/conda/metadata.go:119`
 
@@ -1781,7 +1783,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | defer followed by return in the same iteration; runs at most once |  |
+| wrong | defer followed by return in the same iteration; runs at most once | wrong |
 
 ### #1626 · go-gitea/gitea@85211296dd · `modules/packages/cran/metadata.go:138`
 
@@ -1795,7 +1797,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | defer followed by return in the same iteration; runs at most once |  |
+| wrong | defer followed by return in the same iteration; runs at most once | wrong |
 
 ### #1627 · go-gitea/gitea@85211296dd · `modules/packages/debian/metadata.go:116`
 
@@ -1809,7 +1811,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | defer gzip reader for the control.tar member of a .deb; only one such member, so at most once |  |
+| small | defer gzip reader for the control.tar member of a .deb; only one such member, so at most once | small |
 
 ### #1628 · go-gitea/gitea@85211296dd · `modules/packages/debian/metadata.go:131`
 
@@ -1823,7 +1825,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | defer zstd reader for the control.tar member of a .deb; only one such member, so at most once |  |
+| small | defer zstd reader for the control.tar member of a .deb; only one such member, so at most once | small |
 
 ### #1629 · go-gitea/gitea@85211296dd · `modules/packages/goproxy/metadata.go:83`
 
@@ -1837,7 +1839,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | defer followed by return after reading go.mod; runs at most once |  |
+| wrong | defer followed by return after reading go.mod; runs at most once | wrong |
 
 ### #1630 · go-gitea/gitea@85211296dd · `modules/packages/nuget/metadata.go:158`
 
@@ -1851,7 +1853,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | defer followed by return after nuspec parse; runs at most once |  |
+| wrong | defer followed by return after nuspec parse; runs at most once | wrong |
 
 ### #1722 · traefik/traefik@f1f227eda7 · `pkg/tls/ocsp.go:175`
 
@@ -1865,7 +1867,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | OCSP responders per cert (usually 1-2); failed bodies stay open until return |  |
+| small | OCSP responders per cert (usually 1-2); failed bodies stay open until return | small |
 
 
 ## `bpm-perf-go-nested-range-join`
@@ -1883,7 +1885,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | del names x builder.add labels: a few labels |  |
+| small | del names x builder.add labels: a few labels | small |
 
 ### #1588 · go-gitea/gitea@85211296dd · `modelmigration/v1_11/v111.go:271`
 
@@ -1898,7 +1900,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | migration: unit types (fixed ~10) x teams x team units |  |
+| small | migration: unit types (fixed ~10) x teams x team units | small |
 
 ### #1596 · go-gitea/gitea@85211296dd · `models/activities/notification_list.go:255`
 
@@ -1913,7 +1915,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | notifications x deduped reposList scan; grows with notifications/repos per page |  |
+| true | notifications x deduped reposList scan; grows with notifications/repos per page | true |
 
 ### #1597 · go-gitea/gitea@85211296dd · `models/asymkey/gpg_key_add.go:112`
 
@@ -1928,7 +1930,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | GPG subkeys x original subkeys: a few |  |
+| small | GPG subkeys x original subkeys: a few | small |
 
 ### #1598 · go-gitea/gitea@85211296dd · `models/auth/oauth2.go:118`
 
@@ -1943,7 +1945,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | default app config names x builtin apps (a few) |  |
+| small | default app config names x builtin apps (a few) | small |
 
 ### #1599 · go-gitea/gitea@85211296dd · `models/issues/issue_list.go:400`
 
@@ -1958,7 +1960,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | issues x issuePins; pins are capped (max pinned issues per repo) |  |
+| small | issues x issuePins; pins are capped (max pinned issues per repo) | small |
 
 ### #1600 · go-gitea/gitea@85211296dd · `models/issues/issue_list.go:501`
 
@@ -1973,7 +1975,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | issueUsers x issues: both scale with issue list length |  |
+| true | issueUsers x issues: both scale with issue list length | true |
 
 ### #1601 · go-gitea/gitea@85211296dd · `models/issues/issue_pin.go:195`
 
@@ -1988,7 +1990,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | pinned issues x pins; capped max pinned count |  |
+| small | pinned issues x pins; capped max pinned count | small |
 
 ### #1602 · go-gitea/gitea@85211296dd · `models/issues/issue_xref.go:354`
 
@@ -2003,7 +2005,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | closing/reopening refs to one PR; dedupe over a few |  |
+| small | closing/reopening refs to one PR; dedupe over a few | small |
 
 ### #1608 · go-gitea/gitea@85211296dd · `models/repo/license.go:73`
 
@@ -2018,7 +2020,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | detected licenses x old licenses of one repo: a few |  |
+| small | detected licenses x old licenses of one repo: a few | small |
 
 ### #1610 · go-gitea/gitea@85211296dd · `models/unit/unit.go:147`
 
@@ -2033,7 +2035,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | disabled units x fixed repo unit list |  |
+| small | disabled units x fixed repo unit list | small |
 
 ### #1640 · go-gitea/gitea@85211296dd · `routers/api/packages/conda/conda.go:128`
 
@@ -2048,7 +2050,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | files of one package version (cached pd): a few files |  |
+| small | files of one package version (cached pd): a few files | small |
 
 ### #1641 · go-gitea/gitea@85211296dd · `routers/api/packages/rpm/rpm.go:392`
 
@@ -2063,7 +2065,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | incoming updates x vm.Updates scan by ID; RPM updateinfo advisories grow with repo |  |
+| true | incoming updates x vm.Updates scan by ID; RPM updateinfo advisories grow with repo | true |
 
 ### #1642 · go-gitea/gitea@85211296dd · `routers/api/packages/rpm/rpm.go:400`
 
@@ -2078,7 +2080,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | pkg collections of one update: a few |  |
+| small | pkg collections of one update: a few | small |
 
 ### #1649 · go-gitea/gitea@85211296dd · `routers/web/repo/issue_page_meta.go:496`
 
@@ -2093,7 +2095,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | candidate reviewers x preadded review requests (a few) |  |
+| small | candidate reviewers x preadded review requests (a few) | small |
 
 ### #1650 · go-gitea/gitea@85211296dd · `routers/web/repo/issue_page_meta.go:524`
 
@@ -2108,7 +2110,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | candidate teams x preadded team review requests (a few) |  |
+| small | candidate teams x preadded team review requests (a few) | small |
 
 ### #1651 · go-gitea/gitea@85211296dd · `routers/web/repo/setting/public_access.go:107`
 
@@ -2123,7 +2125,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | fixed accesses list x repo units (~10) |  |
+| small | fixed accesses list x repo units (~10) | small |
 
 ### #1655 · go-gitea/gitea@85211296dd · `services/actions/job_emitter.go:292`
 
@@ -2138,7 +2140,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | cancelledJobs x jobs of a run; matrix runs can have hundreds of jobs |  |
+| true | cancelledJobs x jobs of a run; matrix runs can have hundreds of jobs | true |
 
 ### #1658 · go-gitea/gitea@85211296dd · `services/packages/rpm/repository.go:572`
 
@@ -2153,7 +2155,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | pkg collections of one update: a few |  |
+| small | pkg collections of one update: a few | small |
 
 ### #1660 · go-gitea/gitea@85211296dd · `services/repository/commitstatus/commitstatus.go:166`
 
@@ -2168,7 +2170,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | summaryResults x repos list: both scale with repos listed |  |
+| true | summaryResults x repos list: both scale with repos listed | true |
 
 ### #1721 · traefik/traefik@f1f227eda7 · `pkg/provider/merge.go:225`
 
@@ -2183,7 +2185,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | newCertificates x certificates scan; TLS certs across providers can be hundreds+ |  |
+| true | newCertificates x certificates scan; TLS certs across providers can be hundreds+ | true |
 
 
 ## `bpm-perf-go-prepend-in-loop`
@@ -2200,7 +2202,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | prepend only in len(ss)==1 case; ss is capped at 2 elements |  |
+| wrong | prepend only in len(ss)==1 case; ss is capped at 2 elements | wrong |
 
 
 ## `bpm-perf-go-regex-compile-in-loop`
@@ -2217,7 +2219,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | compiles a distinct user-supplied pattern then breaks; nothing to hoist |  |
+| wrong | compiles a distinct user-supplied pattern then breaks; nothing to hoist | wrong |
 
 ### #1581 · go-gitea/gitea@85211296dd · `modelmigration/base/db.go:365`
 
@@ -2231,7 +2233,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | regexp differs per column name (QuoteMeta of name); cannot hoist; migration-only |  |
+| wrong | regexp differs per column name (QuoteMeta of name); cannot hoist; migration-only | wrong |
 
 ### #1622 · go-gitea/gitea@85211296dd · `modules/markup/sanitizer_custom.go:25`
 
@@ -2245,7 +2247,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | compiles each distinct config sanitizer rule once at setup; nothing to hoist |  |
+| wrong | compiles each distinct config sanitizer rule once at setup; nothing to hoist | wrong |
 
 ### #1713 · traefik/traefik@f1f227eda7 · `pkg/middlewares/headers/header.go:34`
 
@@ -2259,7 +2261,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | compiles each distinct configured origin regex once at middleware construction |  |
+| wrong | compiles each distinct configured origin regex once at middleware construction | wrong |
 
 ### #1714 · traefik/traefik@f1f227eda7 · `pkg/middlewares/stripprefixregex/strip_prefix_regex.go:35`
 
@@ -2273,7 +2275,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | compiles each distinct configured regex once at middleware construction |  |
+| wrong | compiles each distinct configured regex once at middleware construction | wrong |
 
 ### #1716 · traefik/traefik@f1f227eda7 · `pkg/muxer/tcp/matcher_v2.go:141`
 
@@ -2287,7 +2289,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | compiles each distinct HostSNIRegexp template once at router build |  |
+| wrong | compiles each distinct HostSNIRegexp template once at router build | wrong |
 
 ### #1717 · traefik/traefik@f1f227eda7 · `pkg/muxer/tcp/matcher_v2.go:151`
 
@@ -2301,7 +2303,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | MatchString on precompiled regexps, no compile in loop |  |
+| wrong | MatchString on precompiled regexps, no compile in loop | wrong |
 
 
 ## `bpm-perf-go-string-concat-in-loop`
@@ -2318,7 +2320,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | yacc error message over capped expected-token list (few tokens) |  |
+| small | yacc error message over capped expected-token list (few tokens) | small |
 
 ### #1559 · prometheus/prometheus@a83f7158e7 · `promql/parser/generated_parser.y.go:992`
 
@@ -2332,7 +2334,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | yacc error message over capped expected-token list (few tokens) |  |
+| small | yacc error message over capped expected-token list (few tokens) | small |
 
 ### #1562 · prometheus/prometheus@a83f7158e7 · `scrape/scrape.go:803`
 
@@ -2346,7 +2348,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | val is fresh each iteration with one append; no accumulation across iterations |  |
+| wrong | val is fresh each iteration with one append; no accumulation across iterations | wrong |
 
 ### #1577 · prometheus/prometheus@a83f7158e7 · `web/ui/mantine-ui/src/promql/tools/gen_functions_docs/main.go:132`
 
@@ -2360,7 +2362,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | build-time docs generator accumulating lines of one function section; small input |  |
+| small | build-time docs generator accumulating lines of one function section; small input | small |
 
 ### #1582 · go-gitea/gitea@85211296dd · `modelmigration/base/db.go:406`
 
@@ -2374,7 +2376,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | migration joins a few dropped column names |  |
+| small | migration joins a few dropped column names | small |
 
 ### #1584 · go-gitea/gitea@85211296dd · `modelmigration/base/db.go:434`
 
@@ -2388,7 +2390,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | migration joins a few dropped column names |  |
+| small | migration joins a few dropped column names | small |
 
 ### #1586 · go-gitea/gitea@85211296dd · `modelmigration/base/db.go:445`
 
@@ -2402,7 +2404,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | migration joins a few column names (MSSQL) |  |
+| small | migration joins a few column names (MSSQL) | small |
 
 ### #1587 · go-gitea/gitea@85211296dd · `modelmigration/base/db.go:447`
 
@@ -2416,7 +2418,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | migration joins a few column names (MSSQL) |  |
+| small | migration joins a few column names (MSSQL) | small |
 
 ### #1603 · go-gitea/gitea@85211296dd · `models/issues/pull.go:961`
 
@@ -2430,7 +2432,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | per-char token building in one CODEOWNERS line; tokens are short |  |
+| small | per-char token building in one CODEOWNERS line; tokens are short | small |
 
 ### #1604 · go-gitea/gitea@85211296dd · `models/issues/pull.go:973`
 
@@ -2444,7 +2446,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | per-char token building in one CODEOWNERS line; tokens are short |  |
+| small | per-char token building in one CODEOWNERS line; tokens are short | small |
 
 ### #1613 · go-gitea/gitea@85211296dd · `modules/auth/password/password.go:67`
 
@@ -2458,7 +2460,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | concatenates a few fixed password-complexity char classes once at setup |  |
+| small | concatenates a few fixed password-complexity char classes once at setup | small |
 
 ### #1614 · go-gitea/gitea@85211296dd · `modules/auth/password/password.go:74`
 
@@ -2472,7 +2474,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | concatenates the fixed default char classes once at setup |  |
+| small | concatenates the fixed default char classes once at setup | small |
 
 ### #1618 · go-gitea/gitea@85211296dd · `modules/markup/html_commit.go:184`
 
@@ -2486,7 +2488,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | text is fresh per node with a single append; no accumulation across iterations |  |
+| wrong | text is fresh per node with a single append; no accumulation across iterations | wrong |
 
 ### #1619 · go-gitea/gitea@85211296dd · `modules/markup/html_issue.go:56`
 
@@ -2500,7 +2502,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | single append to a freshly built link text; not accumulating in a loop |  |
+| wrong | single append to a freshly built link text; not accumulating in a loop | wrong |
 
 ### #1620 · go-gitea/gitea@85211296dd · `modules/markup/html_issue.go:58`
 
@@ -2514,7 +2516,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | single append to a freshly built link text; not accumulating in a loop |  |
+| wrong | single append to a freshly built link text; not accumulating in a loop | wrong |
 
 ### #1621 · go-gitea/gitea@85211296dd · `modules/markup/html_link.go:93`
 
@@ -2528,7 +2530,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | single append to fresh name per link; not accumulating |  |
+| wrong | single append to fresh name per link; not accumulating | wrong |
 
 ### #1631 · go-gitea/gitea@85211296dd · `modules/setting/config_env.go:72`
 
@@ -2542,7 +2544,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | decodes a few escaped sequences in one env var name |  |
+| small | decodes a few escaped sequences in one env var name | small |
 
 ### #1632 · go-gitea/gitea@85211296dd · `modules/setting/config_env.go:74`
 
@@ -2556,7 +2558,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | decodes a few escaped sequences in one env var name |  |
+| small | decodes a few escaped sequences in one env var name | small |
 
 ### #1633 · go-gitea/gitea@85211296dd · `modules/timeutil/since.go:105`
 
@@ -2570,7 +2572,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | time-since string over at most a handful of time units |  |
+| small | time-since string over at most a handful of time units | small |
 
 ### #1634 · go-gitea/gitea@85211296dd · `modules/translation/mock.go:33`
 
@@ -2584,7 +2586,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | mock locale (tests) concatenating 1-2 args, as the code comment notes |  |
+| small | mock locale (tests) concatenating 1-2 args, as the code comment notes | small |
 
 ### #1636 · go-gitea/gitea@85211296dd · `modules/translation/mock.go:47`
 
@@ -2598,7 +2600,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | mock locale (tests) concatenating 1-2 args |  |
+| small | mock locale (tests) concatenating 1-2 args | small |
 
 ### #1637 · go-gitea/gitea@85211296dd · `modules/translation/mock.go:49`
 
@@ -2612,7 +2614,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | mock locale (tests) concatenating 1-2 args |  |
+| small | mock locale (tests) concatenating 1-2 args | small |
 
 ### #1643 · go-gitea/gitea@85211296dd · `routers/private/manager_process.go:118`
 
@@ -2626,7 +2628,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | indent is re-declared each iteration (shadowed copy); writes go to a strings.Builder |  |
+| wrong | indent is re-declared each iteration (shadowed copy); writes go to a strings.Builder | wrong |
 
 ### #1644 · go-gitea/gitea@85211296dd · `routers/private/manager_process.go:130`
 
@@ -2640,7 +2642,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | indent is a per-iteration shadowed copy, grows by 2 chars once; output uses a Builder |  |
+| wrong | indent is a per-iteration shadowed copy, grows by 2 chars once; output uses a Builder | wrong |
 
 ### #1646 · go-gitea/gitea@85211296dd · `routers/web/feed/convert.go:210`
 
@@ -2654,7 +2656,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | feed description over commits of one push action; feed commit count is capped |  |
+| small | feed description over commits of one push action; feed commit count is capped | small |
 
 ### #1647 · go-gitea/gitea@85211296dd · `routers/web/feed/convert.go:212`
 
@@ -2669,7 +2671,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | feed description over commits of one push action; feed commit count is capped |  |
+| small | feed description over commits of one push action; feed commit count is capped | small |
 
 ### #1648 · go-gitea/gitea@85211296dd · `routers/web/feed/convert.go:232`
 
@@ -2683,7 +2685,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | single append inside a switch case, not accumulating in the loop |  |
+| wrong | single append inside a switch case, not accumulating in the loop | wrong |
 
 ### #1653 · go-gitea/gitea@85211296dd · `routers/web/user/setting/keys.go:142`
 
@@ -2697,7 +2699,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | joins key IDs of one uploaded GPG key block; a handful of keys |  |
+| small | joins key IDs of one uploaded GPG key block; a handful of keys | small |
 
 ### #1657 · go-gitea/gitea@85211296dd · `services/gitdiff/gitdiff.go:1261`
 
@@ -2711,7 +2713,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | rebuilds a filename with spaces from a diff header; few words |  |
+| small | rebuilds a filename with spaces from a diff header; few words | small |
 
 ### #1706 · traefik/traefik@f1f227eda7 · `internal/gendoc.go:72`
 
@@ -2725,7 +2727,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | line is fresh per flag with one append; written out each iteration |  |
+| wrong | line is fresh per flag with one append; written out each iteration | wrong |
 
 
 ## `bpm-perf-includes-in-loop`
@@ -2742,7 +2744,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | all scene elements x ids of selected frames; both grow with the drawing, size unknown, data-derived |  |
+| true | all scene elements x ids of selected frames; both grow with the drawing, size unknown, data-derived | true |
 
 ### #25 · excalidraw/excalidraw@b7de45e881 · `packages/excalidraw/components/App.tsx:10852`
 
@@ -2756,7 +2758,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | dropped library itemIds x whole library items; both user data, size unknown |  |
+| true | dropped library itemIds x whole library items; both user data, size unknown | true |
 
 ### #66 · outline/outline@670410b236 · `app/components/Sharing/Collection/AccessControlList.tsx:144`
 
@@ -2770,7 +2772,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | invitedInSession = ids invited in this dialog session (few) in sort comparator over group memberships |  |
+| small | invitedInSession = ids invited in this dialog session (few) in sort comparator over group memberships | small |
 
 ### #69 · outline/outline@670410b236 · `app/components/Sharing/Document/DocumentMemberList.tsx:142`
 
@@ -2784,7 +2786,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | invitedInSession = ids invited in this dialog session (few) in sort comparator over group memberships |  |
+| small | invitedInSession = ids invited in this dialog session (few) in sort comparator over group memberships | small |
 
 ### #94 · outline/outline@670410b236 · `app/stores/UsersStore.ts:185`
 
@@ -2798,7 +2800,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | userIds of group members x all active/invited users; both grow with team size |  |
+| true | userIds of group members x all active/invited users; both grow with team size | true |
 
 ### #263 · outline/outline@670410b236 · `server/queues/tasks/CommentCreatedNotificationsTask.ts:119`
 
@@ -2812,7 +2814,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | userIdsMentioned = users mentioned in one comment (few) vs notification recipients |  |
+| small | userIdsMentioned = users mentioned in one comment (few) vs notification recipients | small |
 
 ### #323 · outline/outline@670410b236 · `server/queues/tasks/RevisionCreatedNotificationsTask.ts:131`
 
@@ -2826,7 +2828,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | mentionedUser dedupe grows to group size over all GroupUser rows of a group; O(g^2), though DB awaits dominate |  |
+| true | mentionedUser dedupe grows to group size over all GroupUser rows of a group; O(g^2), though DB awaits dominate | true |
 
 ### #915 · zulip/zulip@36d2312680 · `web/src/filter.ts:218`
 
@@ -2840,7 +2842,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | operand_ids x users in one DM conversation; DM groups are small |  |
+| small | operand_ids x users in one DM conversation; DM groups are small | small |
 
 ### #930 · zulip/zulip@36d2312680 · `web/src/popover_menus.ts:313`
 
@@ -2855,7 +2857,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | elementsFromPoint returns the DOM stack at a point (a few elements) |  |
+| small | elementsFromPoint returns the DOM stack at a point (a few elements) | small |
 
 ### #1177 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/components/common/suggestions-dropdown/suggestions-dropdown.component.ts:154`
 
@@ -2869,7 +2871,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | ML-suggested ids x applied ids on one document; suggestion lists are a handful (unsure) |  |
+| small | ML-suggested ids x applied ids on one document; suggestion lists are a handful (unsure) | small |
 
 ### #1186 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/services/rest/document.service.ts:166`
 
@@ -2883,7 +2885,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | excludes is a handful of fixed field names pushed by settings checks |  |
+| small | excludes is a handful of fixed field names pushed by settings checks | small |
 
 ### #1376 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/core/api/entity-data-subscription.ts:1030`
 
@@ -2897,7 +2899,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | widget aggTsValues keys x keys in one subscription update; per-widget configured keys (unsure) |  |
+| small | widget aggTsValues keys x keys in one subscription update; per-widget configured keys (unsure) | small |
 
 ### #1394 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/core/http/entity.service.ts:983`
 
@@ -2911,7 +2913,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | relation filter entityTypes x requested entityTypes; both drawn from EntityType enum |  |
+| small | relation filter entityTypes x requested entityTypes; both drawn from EntityType enum | small |
 
 ### #1410 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/entity/entity-filter.component.ts:87`
 
@@ -2925,7 +2927,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | entityGroupTypes constant x allowedEntityTypes (EntityType enum) |  |
+| small | entityGroupTypes constant x allowedEntityTypes (EntityType enum) | small |
 
 ### #1413 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/integration/mqtt-topic-filters/mqtt-topic-filters.component.ts:74`
 
@@ -2939,7 +2941,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | MqttQos enum (3 values) x excludeQos |  |
+| small | MqttQos enum (3 values) x excludeQos | small |
 
 ### #1424 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/profile/device/snmp/snmp-device-profile-communication-config.component.ts:141`
 
@@ -2953,7 +2955,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | SnmpSpecType enum values x used spec types |  |
+| small | SnmpSpecType enum values x used spec types | small |
 
 ### #1435 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/config/datasources.component.ts:288`
 
@@ -2967,7 +2969,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | empty datasources x widget datasources (indexOf on same widget's few datasources) |  |
+| small | empty datasources x widget datasources (indexOf on same widget's few datasources) | small |
 
 ### #1444 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/chart/time-series-chart.models.ts:1284`
 
@@ -2981,7 +2983,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | chart series items x bar groups / bar items; few series per chart |  |
+| small | chart series items x bar groups / bar items; few series per chart | small |
 
 ### #1445 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/chart/time-series-chart.models.ts:1288`
 
@@ -2995,7 +2997,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | chart series items x stack items; few series per chart |  |
+| small | chart series items x stack items; few series per chart | small |
 
 ### #1447 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/chart/time-series-chart.models.ts:1563`
 
@@ -3009,7 +3011,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | existing y-axis keys x found y-axis keys; a few axes |  |
+| small | existing y-axis keys x found y-axis keys; a few axes | small |
 
 ### #1472 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/settings/common/action/location-keys-table.component.ts:140`
 
@@ -3023,7 +3025,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | LocationKey available keys (enum) x used arguments |  |
+| small | LocationKey available keys (enum) x used arguments | small |
 
 ### #1476 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/settings/common/action/mobile-action-editor.component.ts:404`
 
@@ -3037,7 +3039,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | action key mappings x availableKeys (LocationKey enum) |  |
+| small | action key mappings x availableKeys (LocationKey enum) | small |
 
 ### #1478 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/settings/common/chart/time-series-chart-thresholds-panel.component.ts:209`
 
@@ -3051,7 +3053,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | threshold keys to remove x widget latestKeys; few keys |  |
+| small | threshold keys to remove x widget latestKeys; few keys | small |
 
 ### #1486 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/pages/admin/mail-templates.component.ts:85`
 
@@ -3065,7 +3067,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | MailTemplate enum keys x settings keys |  |
+| small | MailTemplate enum keys x settings keys | small |
 
 ### #1504 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/pages/task-manager/task-manager-table-config.resolver.ts:421`
 
@@ -3079,7 +3081,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | selected jobs x workingTask constant status list |  |
+| small | selected jobs x workingTask constant status list | small |
 
 ### #1505 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/pages/widget/widget-type-autocomplete.component.ts:181`
 
@@ -3093,7 +3095,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | widget types page (pageSize 10) x excludeWidgetTypeIds; page-capped |  |
+| small | widget types page (pageSize 10) x excludeWidgetTypeIds; page-capped | small |
 
 ### #1573 · prometheus/prometheus@a83f7158e7 · `web/ui/mantine-ui/src/pages/targets/ScrapePoolsList.tsx:120`
 
@@ -3107,7 +3109,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | targets x healthFilter (few health values) |  |
+| small | targets x healthFilter (few health values) | small |
 
 ### #1575 · prometheus/prometheus@a83f7158e7 · `web/ui/mantine-ui/src/pages/targets/ScrapePoolsList.tsx:220`
 
@@ -3121,7 +3123,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | all scrape pool names x accordion open values; both scale with pool count |  |
+| true | all scrape pool names x accordion open values; both scale with pool count | true |
 
 ### #1679 · go-gitea/gitea@85211296dd · `web_src/js/features/repo-issue-sidebar-combolist.ts:104`
 
@@ -3135,7 +3137,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | issue sidebar initial vs changed selections on one issue; each iteration awaits a POST (unsure) |  |
+| small | issue sidebar initial vs changed selections on one issue; each iteration awaits a POST (unsure) | small |
 
 ### #1681 · go-gitea/gitea@85211296dd · `web_src/js/features/repo-issue-sidebar-combolist.ts:110`
 
@@ -3149,7 +3151,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | issue sidebar changed vs initial selections on one issue; each iteration awaits a POST (unsure) |  |
+| small | issue sidebar changed vs initial selections on one issue; each iteration awaits a POST (unsure) | small |
 
 
 ## `bpm-perf-java-contains-in-loop`
@@ -3166,7 +3168,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | arg names x geofencingArgNames list; calculated-field args are a few |  |
+| small | arg names x geofencingArgNames list; calculated-field args are a few | small |
 
 ### #1250 · thingsboard/thingsboard@7a53801216 · `application/src/main/java/org/thingsboard/server/actors/calculatedField/CalculatedFieldEntityMessageProcessor.java:720`
 
@@ -3180,7 +3182,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | arg names x geofencingArgNames list; calculated-field args are a few |  |
+| small | arg names x geofencingArgNames list; calculated-field args are a few | small |
 
 ### #1251 · thingsboard/thingsboard@7a53801216 · `application/src/main/java/org/thingsboard/server/actors/calculatedField/CalculatedFieldEntityMessageProcessor.java:745`
 
@@ -3194,7 +3196,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | CF arguments x removedTelemetryKeys list; a few args/keys |  |
+| small | CF arguments x removedTelemetryKeys list; a few args/keys | small |
 
 ### #1254 · thingsboard/thingsboard@7a53801216 · `application/src/main/java/org/thingsboard/server/service/cf/ctx/state/aggregation/RelatedEntitiesAggregationCalculatedFieldState.java:151`
 
@@ -3208,7 +3210,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | entity inputs x relatedEntities List.contains; aggregation over related entities can be many |  |
+| true | entity inputs x relatedEntities List.contains; aggregation over related entities can be many | true |
 
 ### #1263 · thingsboard/thingsboard@7a53801216 · `application/src/main/java/org/thingsboard/server/service/install/lts/V4_2_2_3Migration.java:207`
 
@@ -3222,7 +3224,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | fixed LEGACY_SOLUTION_TEMPLATES map x alreadyInstalled list; one-off migration |  |
+| small | fixed LEGACY_SOLUTION_TEMPLATES map x alreadyInstalled list; one-off migration | small |
 
 ### #1264 · thingsboard/thingsboard@7a53801216 · `application/src/main/java/org/thingsboard/server/service/install/lts/V4_3_1_3Migration.java:271`
 
@@ -3236,7 +3238,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | fixed LEGACY_SOLUTION_TEMPLATES map x alreadyInstalled list; one-off migration |  |
+| small | fixed LEGACY_SOLUTION_TEMPLATES map x alreadyInstalled list; one-off migration | small |
 
 ### #1270 · thingsboard/thingsboard@7a53801216 · `application/src/main/java/org/thingsboard/server/service/security/auth/oauth2/AbstractOAuth2ClientMapper.java:253`
 
@@ -3250,7 +3252,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | user's current entity groups x addedEntityGroups list; a handful of groups |  |
+| small | user's current entity groups x addedEntityGroups list; a handful of groups | small |
 
 ### #1271 · thingsboard/thingsboard@7a53801216 · `application/src/main/java/org/thingsboard/server/service/subscription/TbAbstractDataSubCtx.java:242`
 
@@ -3264,7 +3266,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | latest values x subKeys list; subscription keys are widget-configured, a few-dozen |  |
+| small | latest values x subKeys list; subscription keys are widget-configured, a few-dozen | small |
 
 ### #1276 · thingsboard/thingsboard@7a53801216 · `application/src/main/java/org/thingsboard/server/service/sync/vc/DefaultEntitiesVersionControlService.java:542`
 
@@ -3278,7 +3280,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | fixed GROUP_ENTITIES x entityTypes list (enum-sized) |  |
+| small | fixed GROUP_ENTITIES x entityTypes list (enum-sized) | small |
 
 ### #1278 · thingsboard/thingsboard@7a53801216 · `common/data/src/main/java/org/thingsboard/server/common/data/scheduler/WeeklyRepeat.java:37`
 
@@ -3292,7 +3294,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | repeatOn days-of-week list, at most 7 |  |
+| small | repeatOn days-of-week list, at most 7 | small |
 
 ### #1279 · thingsboard/thingsboard@7a53801216 · `common/data/src/main/java/org/thingsboard/server/common/data/util/CollectionsUtil.java:35`
 
@@ -3306,7 +3308,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | generic diffLists; used by TbSqlBlockingQueue on batch lists (batch size can be 1000s) |  |
+| true | generic diffLists; used by TbSqlBlockingQueue on batch lists (batch size can be 1000s) | true |
 
 ### #1286 · thingsboard/thingsboard@7a53801216 · `common/queue/src/main/java/org/thingsboard/server/queue/discovery/HashPartitionService.java:454`
 
@@ -3320,7 +3322,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | services list per partition: a few cluster nodes |  |
+| small | services list per partition: a few cluster nodes | small |
 
 ### #1289 · thingsboard/thingsboard@7a53801216 · `common/report/src/main/java/org/thingsboard/server/report/renderer/chart/TbTimeSeriesChart.java:320`
 
@@ -3334,7 +3336,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | indexOf over chart y-axis settings; a few axes |  |
+| small | indexOf over chart y-axis settings; a few axes | small |
 
 ### #1290 · thingsboard/thingsboard@7a53801216 · `common/report/src/main/java/org/thingsboard/server/report/renderer/chart/TbTimeSeriesChart.java:340`
 
@@ -3348,7 +3350,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | indexOf over chart y-axis settings; a few axes |  |
+| small | indexOf over chart y-axis settings; a few axes | small |
 
 ### #1291 · thingsboard/thingsboard@7a53801216 · `common/report/src/main/java/org/thingsboard/server/report/renderer/chart/TbTimeSeriesChart.java:520`
 
@@ -3362,7 +3364,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | seriesList x allBarsList.indexOf; series per report chart are config-sized |  |
+| small | seriesList x allBarsList.indexOf; series per report chart are config-sized | small |
 
 ### #1292 · thingsboard/thingsboard@7a53801216 · `common/report/src/main/java/org/thingsboard/server/report/renderer/chart/layout/TbTableBlockContainer.java:99`
 
@@ -3376,7 +3378,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | indexOf over table columns; config-sized |  |
+| small | indexOf over table columns; config-sized | small |
 
 ### #1295 · thingsboard/thingsboard@7a53801216 · `common/report/src/main/java/org/thingsboard/server/report/util/itext/PdfReportFontResolver.java:234`
 
@@ -3390,7 +3392,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | fallback fonts list; a few font descriptions |  |
+| small | fallback fonts list; a few font descriptions | small |
 
 ### #1299 · thingsboard/thingsboard@7a53801216 · `common/transport/lwm2m/src/main/java/org/thingsboard/server/transport/lwm2m/server/downlink/DefaultLwM2mDownlinkMsgHandler.java:777`
 
@@ -3404,7 +3406,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | content formats x 2 desired formats |  |
+| small | content formats x 2 desired formats | small |
 
 ### #1300 · thingsboard/thingsboard@7a53801216 · `common/transport/lwm2m/src/main/java/org/thingsboard/server/transport/lwm2m/server/downlink/DefaultLwM2mDownlinkMsgHandler.java:795`
 
@@ -3418,7 +3420,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | client observations x objectIds; small per-device lists |  |
+| small | client observations x objectIds; small per-device lists | small |
 
 ### #1306 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/edge/EdgeServiceImpl.java:656`
 
@@ -3432,7 +3434,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | connected chains x edgeRuleChainIds list; rule chains per edge are typically few |  |
+| small | connected chains x edgeRuleChainIds list; rule chains per edge are typically few | small |
 
 ### #1307 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/edge/EdgeServiceImpl.java:827`
 
@@ -3446,7 +3448,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | integration config attribute keys x fetched keys; config-sized |  |
+| small | integration config attribute keys x fetched keys; config-sized | small |
 
 ### #1309 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/menu/CustomMenuServiceImpl.java:92`
 
@@ -3460,7 +3462,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | existing assignees x newAssignToList List.contains; assignee lists can be many entities |  |
+| true | existing assignees x newAssignToList List.contains; assignee lists can be many entities | true |
 
 ### #1310 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/menu/CustomMenuServiceImpl.java:95`
 
@@ -3474,7 +3476,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | new assignees x existingEntityIds List.contains; data-derived |  |
+| true | new assignees x existingEntityIds List.contains; data-derived | true |
 
 ### #1315 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/rule/BaseRuleChainService.java:255`
 
@@ -3488,7 +3490,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | nodes.indexOf per node: O(n^2) in rule-chain node count (can be hundreds) |  |
+| true | nodes.indexOf per node: O(n^2) in rule-chain node count (can be hundreds) | true |
 
 ### #1317 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/rule/BaseRuleChainService.java:313`
 
@@ -3502,7 +3504,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | nodes.indexOf per saved node: O(n^2) in rule-chain node count |  |
+| true | nodes.indexOf per saved node: O(n^2) in rule-chain node count | true |
 
 ### #1319 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/rule/BaseRuleChainService.java:409`
 
@@ -3516,7 +3518,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | ruleNodes.indexOf per node when loading metadata: O(n^2) in node count |  |
+| true | ruleNodes.indexOf per node when loading metadata: O(n^2) in node count | true |
 
 ### #1335 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/sql/query/DefaultEntityQueryRepository.java:677`
 
@@ -3530,7 +3532,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | filter mappings x selectionMapping list: query keys, config-sized |  |
+| small | filter mappings x selectionMapping list: query keys, config-sized | small |
 
 ### #1336 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/sql/query/DefaultEntityQueryRepository.java:865`
 
@@ -3544,7 +3546,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | filter mappings x selectionMapping list: query keys, config-sized |  |
+| small | filter mappings x selectionMapping list: query keys, config-sized | small |
 
 ### #1340 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/timeseries/BaseTimeseriesService.java:99`
 
@@ -3558,7 +3560,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | queries x entity view timeseries keys list; config-sized |  |
+| small | queries x entity view timeseries keys list; config-sized | small |
 
 ### #1369 · thingsboard/thingsboard@7a53801216 · `rule-engine/rule-engine-components/src/main/java/org/thingsboard/rule/engine/metadata/TbAbstractGetAttributesNode.java:187`
 
@@ -3572,7 +3574,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | configured keys x existing key list; config-sized |  |
+| small | configured keys x existing key list; config-sized | small |
 
 
 ## `bpm-perf-java-db-call-in-loop`
@@ -3589,7 +3591,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | keyset pagination: next batch depends on lastId of previous batch |  |
+| wrong | keyset pagination: next batch depends on lastId of previous batch | wrong |
 
 ### #1257 · thingsboard/thingsboard@7a53801216 · `application/src/main/java/org/thingsboard/server/service/edqs/EdqsSyncService.java:184`
 
@@ -3604,7 +3606,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | keyset pagination over relations; cursor from previous batch |  |
+| wrong | keyset pagination over relations; cursor from previous batch | wrong |
 
 ### #1258 · thingsboard/thingsboard@7a53801216 · `application/src/main/java/org/thingsboard/server/service/edqs/EdqsSyncService.java:238`
 
@@ -3618,7 +3620,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | keyset pagination over attributes; cursor from previous batch |  |
+| wrong | keyset pagination over attributes; cursor from previous batch | wrong |
 
 ### #1260 · thingsboard/thingsboard@7a53801216 · `application/src/main/java/org/thingsboard/server/service/housekeeper/processor/EntitiesCleanupTaskProcessor.java:72`
 
@@ -3632,7 +3634,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | keyset pagination of expired ids, 128 per page; cursor driven |  |
+| wrong | keyset pagination of expired ids, 128 per page; cursor driven | wrong |
 
 ### #1261 · thingsboard/thingsboard@7a53801216 · `application/src/main/java/org/thingsboard/server/service/housekeeper/processor/TenantEntitiesDeletionTaskProcessor.java:34`
 
@@ -3646,7 +3648,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | keyset pagination of tenant entity ids, 128 per page; cursor driven |  |
+| wrong | keyset pagination of tenant entity ids, 128 per page; cursor driven | wrong |
 
 ### #1265 · thingsboard/thingsboard@7a53801216 · `application/src/main/java/org/thingsboard/server/service/install/lts/V4_3_1_4Migration.java:137`
 
@@ -3660,7 +3662,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | keyset-paginated backfill in self-committing batches; cursor driven |  |
+| wrong | keyset-paginated backfill in self-committing batches; cursor driven | wrong |
 
 ### #1268 · thingsboard/thingsboard@7a53801216 · `application/src/main/java/org/thingsboard/server/service/install/update/ResourcesUpdater.java:240`
 
@@ -3674,7 +3676,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | upgrade: dao.findById per entity id over all tenants' entities; ids could be fetched in batches |  |
+| true | upgrade: dao.findById per entity id over all tenants' entities; ids could be fetched in batches | true |
 
 ### #1269 · thingsboard/thingsboard@7a53801216 · `application/src/main/java/org/thingsboard/server/service/install/update/ResourcesUpdater.java:248`
 
@@ -3688,7 +3690,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | upgrade: dao.save per updated entity across all tenants; one write per row, batchable |  |
+| true | upgrade: dao.save per updated entity across all tenants; one write per row, batchable | true |
 
 ### #1302 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/alarm/BaseAlarmService.java:409`
 
@@ -3702,7 +3704,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | one count query per alarm filter from the request; filters are a few widget filters |  |
+| small | one count query per alarm filter from the request; filters are a few widget filters | small |
 
 ### #1303 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/attributes/BaseAttributesService.java:119`
 
@@ -3716,7 +3718,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | attributesDao.save enqueues into TbSqlBlockingQueue that batches inserts; not a query per item |  |
+| wrong | attributesDao.save enqueues into TbSqlBlockingQueue that batches inserts; not a query per item | wrong |
 
 ### #1308 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/entity/BaseEntityService.java:444`
 
@@ -3730,7 +3732,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | one batched query per entity type among requested ids; few entity types |  |
+| small | one batched query per entity type among requested ids; few entity types | small |
 
 ### #1312 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/resource/BaseImageService.java:330`
 
@@ -3744,7 +3746,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | one reference lookup per image container DAO type; fixed small map |  |
+| small | one reference lookup per image container DAO type; fixed small map | small |
 
 ### #1313 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/resource/BaseResourceService.java:389`
 
@@ -3758,7 +3760,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | one reference lookup per resource container DAO type; fixed small map |  |
+| small | one reference lookup per resource container DAO type; fixed small map | small |
 
 ### #1316 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/rule/BaseRuleChainService.java:302`
 
@@ -3772,7 +3774,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | ruleNodeDao.save per rule node of a saved chain; grows with chain size, could saveAll |  |
+| true | ruleNodeDao.save per rule node of a saved chain; grows with chain size, could saveAll | true |
 
 ### #1318 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/rule/BaseRuleChainService.java:353`
 
@@ -3786,7 +3788,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | save per rule-chain connection node; usually a few cross-chain links |  |
+| small | save per rule-chain connection node; usually a few cross-chain links | small |
 
 ### #1320 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/rule/BaseRuleChainService.java:504`
 
@@ -3800,7 +3802,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | ruleNodeDao.findById per referencing relation; findAllRuleNodeByIds exists for a batch |  |
+| true | ruleNodeDao.findById per referencing relation; findAllRuleNodeByIds exists for a batch | true |
 
 ### #1321 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/rule/BaseRuleChainService.java:530`
 
@@ -3814,7 +3816,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | already batched: findAllByFromIds per partition of RULE_NODES_BATCH_SIZE |  |
+| wrong | already batched: findAllByFromIds per partition of RULE_NODES_BATCH_SIZE | wrong |
 
 ### #1323 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/rule/BaseRuleChainService.java:583`
 
@@ -3828,7 +3830,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | already batched: findAllRuleNodeByIds per partition |  |
+| wrong | already batched: findAllRuleNodeByIds per partition | wrong |
 
 ### #1324 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/secret/SecretServiceImpl.java:184`
 
@@ -3842,7 +3844,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | one placeholder lookup per secret-holding DAO type; fixed small map |  |
+| small | one placeholder lookup per secret-holding DAO type; fixed small map | small |
 
 ### #1326 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/sql/attributes/JpaAttributeDao.java:341`
 
@@ -3856,7 +3858,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | per attribute key from request, a DELETE query submitted per key; one batched delete by key list would do |  |
+| true | per attribute key from request, a DELETE query submitted per key; one batched delete by key list would do | true |
 
 ### #1327 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/sql/attributes/JpaAttributeDao.java:359`
 
@@ -3871,7 +3873,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | per attribute key, a delete-returning-version query per key; batchable with one DELETE ... RETURNING over the key list |  |
+| true | per attribute key, a delete-returning-version query per key; batchable with one DELETE ... RETURNING over the key list | true |
 
 ### #1328 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/sql/blob/JpaBlobEntityDao.java:84`
 
@@ -3885,7 +3887,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | while loop over time partitions calling migrate procedure per window; deliberate chunked one-off migration |  |
+| wrong | while loop over time partitions calling migrate procedure per window; deliberate chunked one-off migration | wrong |
 
 ### #1329 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/sql/citus/DefaultCitusSchemaService.java:408`
 
@@ -3899,7 +3901,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | loops fixed internal list of Citus reference tables, one DDL call each at schema conversion |  |
+| small | loops fixed internal list of Citus reference tables, one DDL call each at schema conversion | small |
 
 ### #1332 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/sql/citus/DefaultCitusSchemaService.java:542`
 
@@ -3913,7 +3915,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | loops static catalog of managed foreign keys, re-adding missing ones via DDL; fixed small set |  |
+| small | loops static catalog of managed foreign keys, re-adding missing ones via DDL; fixed small set | small |
 
 ### #1334 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/sql/citus/DefaultCitusSchemaService.java:633`
 
@@ -3927,7 +3929,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | loops unique constraints of one table, one ALTER TABLE DROP each; a handful of DDL statements |  |
+| small | loops unique constraints of one table, one ALTER TABLE DROP each; a handful of DDL statements | small |
 
 ### #1337 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/sql/query/DefaultEntityQueryRepository.java:2506`
 
@@ -3941,7 +3943,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | iterates rows of a single queryForList result; the query runs once, not per iteration |  |
+| wrong | iterates rows of a single queryForList result; the query runs once, not per iteration | wrong |
 
 ### #1341 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/timeseries/BaseTimeseriesService.java:129`
 
@@ -3955,7 +3957,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | per telemetry key, findLatest issues a cache/DB lookup per key; a multi-key latest query would batch it |  |
+| true | per telemetry key, findLatest issues a cache/DB lookup per key; a multi-key latest query would batch it | true |
 
 ### #1342 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/timeseries/BaseTimeseriesService.java:210`
 
@@ -3969,7 +3971,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | per ts entry, timeseriesDao.save only enqueues into tsQueue which batches inserts; no per-row query |  |
+| wrong | per ts entry, timeseriesDao.save only enqueues into tsQueue which batches inserts; no per-row query | wrong |
 
 ### #1343 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/user/UserServiceImpl.java:662`
 
@@ -3983,7 +3985,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | loops user settings matching one mobile token (normally 0-1 rows), saving each |  |
+| small | loops user settings matching one mobile token (normally 0-1 rows), saving each | small |
 
 ### #1353 · thingsboard/thingsboard@7a53801216 · `migrator/src/main/java/org/thingsboard/migrator/service/tenant/exporting/PostgresTenantDataExporter.java:179`
 
@@ -3997,7 +3999,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | LIMIT/OFFSET pagination loop, one query per page by design; sequential paging is inherent |  |
+| wrong | LIMIT/OFFSET pagination loop, one query per page by design; sequential paging is inherent | wrong |
 
 
 ## `bpm-perf-java-find-by-key-in-loop`
@@ -4014,7 +4016,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | existing CFs x imported CFs of one entity; a few calculated fields per entity |  |
+| small | existing CFs x imported CFs of one entity; a few calculated fields per entity | small |
 
 ### #1273 · thingsboard/thingsboard@7a53801216 · `application/src/main/java/org/thingsboard/server/service/sync/ie/importing/impl/BaseEntityImportService.java:382`
 
@@ -4028,7 +4030,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | imported CFs x existing CFs of one entity; a few |  |
+| small | imported CFs x existing CFs of one entity; a few | small |
 
 ### #1274 · thingsboard/thingsboard@7a53801216 · `application/src/main/java/org/thingsboard/server/service/sync/ie/importing/impl/EntityGroupImportService.java:189`
 
@@ -4043,7 +4045,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | existing x imported permissions of one user group; typically a handful |  |
+| small | existing x imported permissions of one user group; typically a handful | small |
 
 ### #1275 · thingsboard/thingsboard@7a53801216 · `application/src/main/java/org/thingsboard/server/service/sync/ie/importing/impl/EntityGroupImportService.java:240`
 
@@ -4057,7 +4059,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | OTA packages of one group, keyed by package type (firmware/software) |  |
+| small | OTA packages of one group, keyed by package type (firmware/software) | small |
 
 ### #1288 · thingsboard/thingsboard@7a53801216 · `common/report/src/main/java/org/thingsboard/server/report/renderer/chart/TbTimeSeriesChart.java:298`
 
@@ -4072,7 +4074,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | y-axes x datasetKeys of one chart: config-sized |  |
+| small | y-axes x datasetKeys of one chart: config-sized | small |
 
 ### #1293 · thingsboard/thingsboard@7a53801216 · `common/report/src/main/java/org/thingsboard/server/report/service/AbstractReportService.java:393`
 
@@ -4087,7 +4089,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | per-ts entries x dataKeys: entries per timestamp equal key count (a few) |  |
+| small | per-ts entries x dataKeys: entries per timestamp equal key count (a few) | small |
 
 ### #1298 · thingsboard/thingsboard@7a53801216 · `common/transport/lwm2m/src/main/java/org/thingsboard/server/transport/lwm2m/bootstrap/store/LwM2MBootstrapConfigStoreTaskProvider.java:262`
 
@@ -4102,7 +4104,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | bootstrap config servers: a few LwM2M servers |  |
+| small | bootstrap config servers: a few LwM2M servers | small |
 
 ### #1305 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/dashboard/DashboardServiceImpl.java:545`
 
@@ -4116,7 +4118,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | imported dashboards x tenant persistentDashboards by title; tenant data-derived |  |
+| true | imported dashboards x tenant persistentDashboards by title; tenant data-derived | true |
 
 ### #1366 · thingsboard/thingsboard@7a53801216 · `rule-engine/rule-engine-components/src/main/java/org/thingsboard/rule/engine/action/TbCopyAttributesToEntityViewNode.java:87`
 
@@ -4130,7 +4132,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | message attributes x entity view key list; config-sized |  |
+| small | message attributes x entity view key list; config-sized | small |
 
 ### #1367 · thingsboard/thingsboard@7a53801216 · `rule-engine/rule-engine-components/src/main/java/org/thingsboard/rule/engine/action/TbCopyAttributesToEntityViewNode.java:98`
 
@@ -4145,7 +4147,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | message attributes x entity view key list; config-sized |  |
+| small | message attributes x entity view key list; config-sized | small |
 
 ### #1368 · thingsboard/thingsboard@7a53801216 · `rule-engine/rule-engine-components/src/main/java/org/thingsboard/rule/engine/analytics/latest/telemetry/TbAggLatestTelemetryNodeV2.java:250`
 
@@ -4159,7 +4161,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | per-mapping filter by TBEL predicate over children, not a key join; Map can't replace it |  |
+| wrong | per-mapping filter by TBEL predicate over children, not a key join; Map can't replace it | wrong |
 
 
 ## `bpm-perf-java-regex-compile-in-loop`
@@ -4176,7 +4178,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | replaceAll regex on msg data per destination phone number; numbersTo is a short config list |  |
+| small | replaceAll regex on msg data per destination phone number; numbersTo is a short config list | small |
 
 
 ## `bpm-perf-java-remove-front-in-loop`
@@ -4193,7 +4195,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | hierarchy.add(0) per superclass; class hierarchy depth is a few |  |
+| small | hierarchy.add(0) per superclass; class hierarchy depth is a few | small |
 
 ### #1294 · thingsboard/thingsboard@7a53801216 · `common/report/src/main/java/org/thingsboard/server/report/service/PdfReportService.java:493`
 
@@ -4207,7 +4209,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | single add(0) per entity's list, not repeated into one growing list |  |
+| wrong | single add(0) per entity's list, not repeated into one growing list | wrong |
 
 
 ## `bpm-perf-java-string-concat-in-loop`
@@ -4224,7 +4226,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | title += is a fresh per-recipient string, not accumulated across iterations; no quadratic build |  |
+| wrong | title += is a fresh per-recipient string, not accumulated across iterations; no quadratic build | wrong |
 
 ### #1280 · thingsboard/thingsboard@7a53801216 · `common/integration/http-integrations/src/main/java/org/thingsboard/integration/http/thingpark/ThingParkIntegration.java:137`
 
@@ -4238,7 +4240,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | params is a fresh per-downlink string with a few fixed appends; nothing accumulates across iterations |  |
+| wrong | params is a fresh per-downlink string with a few fixed appends; nothing accumulates across iterations | wrong |
 
 ### #1281 · thingsboard/thingsboard@7a53801216 · `common/integration/http-integrations/src/main/java/org/thingsboard/integration/http/thingpark/ThingParkIntegration.java:140`
 
@@ -4252,7 +4254,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | params is a fresh per-downlink string with a few fixed appends; nothing accumulates across iterations |  |
+| wrong | params is a fresh per-downlink string with a few fixed appends; nothing accumulates across iterations | wrong |
 
 ### #1282 · thingsboard/thingsboard@7a53801216 · `common/integration/http-integrations/src/main/java/org/thingsboard/integration/http/thingpark/ThingParkIntegration.java:143`
 
@@ -4266,7 +4268,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | params is a fresh per-downlink string with a few fixed appends; nothing accumulates across iterations |  |
+| wrong | params is a fresh per-downlink string with a few fixed appends; nothing accumulates across iterations | wrong |
 
 ### #1283 · thingsboard/thingsboard@7a53801216 · `common/integration/http-integrations/src/main/java/org/thingsboard/integration/http/thingpark/ThingParkIntegration.java:146`
 
@@ -4280,7 +4282,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | params is a fresh per-downlink string with a few fixed appends; nothing accumulates across iterations |  |
+| wrong | params is a fresh per-downlink string with a few fixed appends; nothing accumulates across iterations | wrong |
 
 ### #1284 · thingsboard/thingsboard@7a53801216 · `common/integration/http-integrations/src/main/java/org/thingsboard/integration/http/thingpark/ThingParkIntegration.java:147`
 
@@ -4294,7 +4296,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | params is a fresh per-downlink string with a few fixed appends; nothing accumulates across iterations |  |
+| wrong | params is a fresh per-downlink string with a few fixed appends; nothing accumulates across iterations | wrong |
 
 ### #1285 · thingsboard/thingsboard@7a53801216 · `common/integration/http-integrations/src/main/java/org/thingsboard/integration/http/thingpark/ThingParkIntegration.java:149`
 
@@ -4308,7 +4310,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | params is a fresh per-downlink string with a few fixed appends; nothing accumulates across iterations |  |
+| wrong | params is a fresh per-downlink string with a few fixed appends; nothing accumulates across iterations | wrong |
 
 ### #1287 · thingsboard/thingsboard@7a53801216 · `common/report/src/main/java/org/thingsboard/server/report/context/chart/TsChartDataSource.java:93`
 
@@ -4322,7 +4324,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | label is a fresh per-data-key string with one suffix append; no accumulation across iterations |  |
+| wrong | label is a fresh per-data-key string with one suffix append; no accumulation across iterations | wrong |
 
 ### #1301 · thingsboard/thingsboard@7a53801216 · `common/transport/lwm2m/src/main/java/org/thingsboard/server/transport/lwm2m/server/uplink/DefaultLwM2mUplinkMsgHandler.java:707`
 
@@ -4336,7 +4338,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | accumulates LwM2M path segments (3-4 parts) into targetIdSearch; tiny bounded loop |  |
+| small | accumulates LwM2M path segments (3-4 parts) into targetIdSearch; tiny bounded loop | small |
 
 ### #1338 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/sql/query/DefaultQueryLogComponent.java:70`
 
@@ -4350,7 +4352,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | builds IN-list value string with += over an Iterable SQL param (can be thousands of ids) for query log |  |
+| true | builds IN-list value string with += over an Iterable SQL param (can be thousands of ids) for query log | true |
 
 ### #1339 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/sql/query/DefaultQueryLogComponent.java:74`
 
@@ -4364,7 +4366,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | appends each value of an Iterable SQL param via +=; quadratic for large id lists; use StringJoiner |  |
+| true | appends each value of an Iterable SQL param via +=; quadratic for large id lists; use StringJoiner | true |
 
 ### #1344 · thingsboard/thingsboard@7a53801216 · `migrator/src/main/java/org/thingsboard/migrator/service/latest_kv/importing/PostgresLatestKvImporter.java:66`
 
@@ -4378,7 +4380,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | += over columns of one row (fixed schema, ~10 columns) to build INSERT |  |
+| small | += over columns of one row (fixed schema, ~10 columns) to build INSERT | small |
 
 ### #1345 · thingsboard/thingsboard@7a53801216 · `migrator/src/main/java/org/thingsboard/migrator/service/latest_kv/importing/PostgresLatestKvImporter.java:68`
 
@@ -4392,7 +4394,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | += over columns of one row (fixed schema, ~10 columns) to build INSERT |  |
+| small | += over columns of one row (fixed schema, ~10 columns) to build INSERT | small |
 
 ### #1346 · thingsboard/thingsboard@7a53801216 · `migrator/src/main/java/org/thingsboard/migrator/service/latest_kv/importing/PostgresLatestKvImporter.java:71`
 
@@ -4406,7 +4408,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | += over columns of one row (fixed schema, ~10 columns) to build INSERT |  |
+| small | += over columns of one row (fixed schema, ~10 columns) to build INSERT | small |
 
 ### #1347 · thingsboard/thingsboard@7a53801216 · `migrator/src/main/java/org/thingsboard/migrator/service/latest_kv/importing/PostgresLatestKvImporter.java:73`
 
@@ -4420,7 +4422,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | += over columns of one row (fixed schema, ~10 columns) to build INSERT |  |
+| small | += over columns of one row (fixed schema, ~10 columns) to build INSERT | small |
 
 ### #1348 · thingsboard/thingsboard@7a53801216 · `migrator/src/main/java/org/thingsboard/migrator/service/latest_kv/importing/PostgresLatestKvImporter.java:78`
 
@@ -4434,7 +4436,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | += over columns of one row (fixed schema, ~10 columns) to build INSERT |  |
+| small | += over columns of one row (fixed schema, ~10 columns) to build INSERT | small |
 
 ### #1349 · thingsboard/thingsboard@7a53801216 · `migrator/src/main/java/org/thingsboard/migrator/service/tenant/exporting/PostgresTenantDataExporter.java:95`
 
@@ -4449,7 +4451,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | += over referenced tables of a fixed schema enum to build export WHERE; a few iterations |  |
+| small | += over referenced tables of a fixed schema enum to build export WHERE; a few iterations | small |
 
 ### #1350 · thingsboard/thingsboard@7a53801216 · `migrator/src/main/java/org/thingsboard/migrator/service/tenant/exporting/PostgresTenantDataExporter.java:103`
 
@@ -4464,7 +4466,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | += over nested referenced tables of a fixed schema enum; a few iterations |  |
+| small | += over nested referenced tables of a fixed schema enum; a few iterations | small |
 
 ### #1351 · thingsboard/thingsboard@7a53801216 · `migrator/src/main/java/org/thingsboard/migrator/service/tenant/exporting/PostgresTenantDataExporter.java:143`
 
@@ -4478,7 +4480,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | relatedQuery is a fresh string per related table with fixed appends; no accumulation |  |
+| wrong | relatedQuery is a fresh string per related table with fixed appends; no accumulation | wrong |
 
 ### #1352 · thingsboard/thingsboard@7a53801216 · `migrator/src/main/java/org/thingsboard/migrator/service/tenant/exporting/PostgresTenantDataExporter.java:144`
 
@@ -4492,7 +4494,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | relatedQuery is a fresh string per related table with fixed appends; no accumulation |  |
+| wrong | relatedQuery is a fresh string per related table with fixed appends; no accumulation | wrong |
 
 ### #1354 · thingsboard/thingsboard@7a53801216 · `migrator/src/main/java/org/thingsboard/migrator/service/tenant/importing/PostgresTenantDataImporter.java:98`
 
@@ -4506,7 +4508,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | += over columns of one row (fixed table schema) to build INSERT |  |
+| small | += over columns of one row (fixed table schema) to build INSERT | small |
 
 ### #1355 · thingsboard/thingsboard@7a53801216 · `migrator/src/main/java/org/thingsboard/migrator/service/tenant/importing/PostgresTenantDataImporter.java:100`
 
@@ -4520,7 +4522,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | += over columns of one row (fixed table schema) to build INSERT |  |
+| small | += over columns of one row (fixed table schema) to build INSERT | small |
 
 ### #1356 · thingsboard/thingsboard@7a53801216 · `migrator/src/main/java/org/thingsboard/migrator/service/tenant/importing/PostgresTenantDataImporter.java:103`
 
@@ -4534,7 +4536,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | += over columns of one row (fixed table schema) to build INSERT |  |
+| small | += over columns of one row (fixed table schema) to build INSERT | small |
 
 ### #1357 · thingsboard/thingsboard@7a53801216 · `migrator/src/main/java/org/thingsboard/migrator/service/tenant/importing/PostgresTenantDataImporter.java:105`
 
@@ -4548,7 +4550,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | += over columns of one row (fixed table schema) to build INSERT |  |
+| small | += over columns of one row (fixed table schema) to build INSERT | small |
 
 ### #1358 · thingsboard/thingsboard@7a53801216 · `migrator/src/main/java/org/thingsboard/migrator/service/tenant/importing/PostgresTenantDataImporter.java:117`
 
@@ -4562,7 +4564,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | += over columns of one row (fixed table schema) to build INSERT |  |
+| small | += over columns of one row (fixed table schema) to build INSERT | small |
 
 
 ## `bpm-perf-json-deep-clone`
@@ -4579,7 +4581,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | cloneJSON utility used on whole scene elements/appState (collab sync, export); large objects, structuredClone fits |  |
+| true | cloneJSON utility used on whole scene elements/appState (collab sync, export); large objects, structuredClone fits | true |
 
 ### #81 · outline/outline@670410b236 · `app/models/base/Model.ts:65`
 
@@ -4593,7 +4595,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | JSON round-trip intentionally strips to plain serialisable data from MobX model; structuredClone fails on proxies |  |
+| wrong | JSON round-trip intentionally strips to plain serialisable data from MobX model; structuredClone fails on proxies | wrong |
 
 ### #83 · outline/outline@670410b236 · `app/models/base/Model.ts:305`
 
@@ -4607,7 +4609,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | toPersisted JSON round-trip deliberately serialises MobX observables to plain data; JSON semantics required |  |
+| wrong | toPersisted JSON round-trip deliberately serialises MobX observables to plain data; JSON semantics required | wrong |
 
 ### #133 · outline/outline@670410b236 · `server/commands/documentCollaborativeUpdater.ts:56`
 
@@ -4622,7 +4624,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | JSON round-trip deliberately canonicalises ProseMirror JSON (drops undefined attrs); not a clone |  |
+| wrong | JSON round-trip deliberately canonicalises ProseMirror JSON (drops undefined attrs); not a clone | wrong |
 
 ### #1422 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/profile/device/lwm2m/lwm2m-device-profile-transport-configuration.component.ts:416`
 
@@ -4636,7 +4638,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | clones small LwM2M keyName config object once per form update; tiny UI config |  |
+| small | clones small LwM2M keyName config object once per form update; tiny UI config | small |
 
 ### #1423 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/profile/device/lwm2m/lwm2m-device-profile-transport-configuration.component.ts:435`
 
@@ -4650,7 +4652,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | clones small LwM2M object list once per form update; tiny UI config |  |
+| small | clones small LwM2M object list once per form update; tiny UI config | small |
 
 
 ## `bpm-perf-kt-find-by-key-in-loop`
@@ -4667,7 +4669,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | serverUrls x auth cookies x cookie store: few server URLs, a couple of auth cookies |  |
+| small | serverUrls x auth cookies x cookie store: few server URLs, a couple of auth cookies | small |
 
 ### #1547 · mihonapp/mihon@007ec9a868 · `app/src/main/java/eu/kanade/presentation/more/settings/screen/Commons.kt:24`
 
@@ -4681,7 +4683,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | included ids x allCategories: user library categories, typically tens |  |
+| small | included ids x allCategories: user library categories, typically tens | small |
 
 ### #1548 · mihonapp/mihon@007ec9a868 · `app/src/main/java/eu/kanade/presentation/more/settings/screen/Commons.kt:27`
 
@@ -4695,7 +4697,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | excluded ids x allCategories: user library categories, typically tens |  |
+| small | excluded ids x allCategories: user library categories, typically tens | small |
 
 ### #1549 · mihonapp/mihon@007ec9a868 · `app/src/main/java/eu/kanade/presentation/more/settings/screen/SettingsDownloadScreen.kt:138`
 
@@ -4709,7 +4711,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | included ids x allCategories: user categories, typically tens |  |
+| small | included ids x allCategories: user categories, typically tens | small |
 
 ### #1550 · mihonapp/mihon@007ec9a868 · `app/src/main/java/eu/kanade/presentation/more/settings/screen/SettingsDownloadScreen.kt:139`
 
@@ -4723,7 +4725,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | excluded ids x allCategories: user categories, typically tens |  |
+| small | excluded ids x allCategories: user categories, typically tens | small |
 
 ### #1551 · mihonapp/mihon@007ec9a868 · `app/src/main/java/eu/kanade/presentation/more/settings/screen/SettingsLibraryScreen.kt:131`
 
@@ -4737,7 +4739,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | included ids x allCategories: user categories, typically tens |  |
+| small | included ids x allCategories: user categories, typically tens | small |
 
 ### #1552 · mihonapp/mihon@007ec9a868 · `app/src/main/java/eu/kanade/presentation/more/settings/screen/SettingsLibraryScreen.kt:132`
 
@@ -4751,7 +4753,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | excluded ids x allCategories: user categories, typically tens |  |
+| small | excluded ids x allCategories: user categories, typically tens | small |
 
 ### #1553 · mihonapp/mihon@007ec9a868 · `app/src/main/java/mihon/domain/migration/usecases/MigrateMangaUseCase.kt:68`
 
@@ -4766,7 +4768,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | target chapters x prevMangaChapters.find: manga can have 1000+ chapters |  |
+| true | target chapters x prevMangaChapters.find: manga can have 1000+ chapters | true |
 
 
 ## `bpm-perf-membership-in-list-in-loop-py`
@@ -4783,7 +4785,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | saleor permission list x required perms list: bounded set of ~tens of permission codenames |  |
+| small | saleor permission list x required perms list: bounded set of ~tens of permission codenames | small |
 
 ### #693 · saleor/saleor@1771e1cf6c · `saleor/checkout/utils.py:286`
 
@@ -4797,7 +4799,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | checkout lines x updated_lines_ids list; line counts are data-derived (size unknown, could be large) |  |
+| true | checkout lines x updated_lines_ids list; line counts are data-derived (size unknown, could be large) | true |
 
 ### #756 · saleor/saleor@1771e1cf6c · `saleor/discount/utils/order.py:94`
 
@@ -4811,7 +4813,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | lines_info x affected_line_ids list; order lines are data-derived |  |
+| true | lines_info x affected_line_ids list; order lines are data-derived | true |
 
 ### #757 · saleor/saleor@1771e1cf6c · `saleor/discount/utils/promotion.py:288`
 
@@ -4825,7 +4827,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | rules x gift_rules list; promotion rules are merchant data, size unknown |  |
+| true | rules x gift_rules list; promotion rules are merchant data, size unknown | true |
 
 ### #758 · saleor/saleor@1771e1cf6c · `saleor/discount/utils/voucher.py:317`
 
@@ -4839,7 +4841,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | lines_info x discounted_lines list (LineInfo equality scan); checkout lines data-derived |  |
+| true | lines_info x discounted_lines list (LineInfo equality scan); checkout lines data-derived | true |
 
 ### #761 · saleor/saleor@1771e1cf6c · `saleor/graphql/account/types.py:883`
 
@@ -4853,7 +4855,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | orders x accessible_channels; channel count per shop is a handful |  |
+| small | orders x accessible_channels; channel count per shop is a handful | small |
 
 ### #775 · saleor/saleor@1771e1cf6c · `saleor/graphql/checkout/mutations/checkout_lines_update.py:286`
 
@@ -4867,7 +4869,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | lines_input x existing gift line ids; gift lines per checkout are a handful |  |
+| small | lines_input x existing gift line ids; gift lines per checkout are a handful | small |
 
 ### #814 · saleor/saleor@1771e1cf6c · `saleor/graphql/tax/mutations/tax_class_update.py:126`
 
@@ -4881,7 +4883,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | country_rates x updated_countries; bounded by ~250 countries |  |
+| small | country_rates x updated_countries; bounded by ~250 countries | small |
 
 ### #815 · saleor/saleor@1771e1cf6c · `saleor/graphql/tax/mutations/tax_configuration_update.py:356`
 
@@ -4895,7 +4897,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | countries_configuration x updated_countries; bounded by ~250 countries |  |
+| small | countries_configuration x updated_countries; bounded by ~250 countries | small |
 
 ### #816 · saleor/saleor@1771e1cf6c · `saleor/graphql/utils/__init__.py:154`
 
@@ -4909,7 +4911,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | pks (request ids) x nodes_pk_list, plus pks.index in sort; grows with requested id count |  |
+| true | pks (request ids) x nodes_pk_list, plus pks.index in sort; grows with requested id count | true |
 
 ### #848 · saleor/saleor@1771e1cf6c · `saleor/warehouse/reservations.py:103`
 
@@ -4923,7 +4925,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | variants x variants_ids list from checkout lines; data-derived |  |
+| true | variants x variants_ids list from checkout lines; data-derived | true |
 
 ### #849 · saleor/saleor@1771e1cf6c · `saleor/warehouse/reservations.py:258`
 
@@ -4937,7 +4939,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | variants x variants_ids list from checkout lines; data-derived |  |
+| true | variants x variants_ids list from checkout lines; data-derived | true |
 
 ### #872 · zulip/zulip@36d2312680 · `tools/oneclickapps/prepare_digital_ocean_one_click_app_release.py:106`
 
@@ -4951,7 +4953,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | membership in 2-element record-name list |  |
+| small | membership in 2-element record-name list | small |
 
 ### #874 · zulip/zulip@36d2312680 · `tools/run-mypy:60`
 
@@ -4965,7 +4967,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | every .py file checked against pyi_files list; file counts grow with repo (dev tool) |  |
+| true | every .py file checked against pyi_files list; file counts grow with repo (dev tool) | true |
 
 ### #1002 · zulip/zulip@36d2312680 · `zerver/actions/streams.py:680`
 
@@ -4979,7 +4981,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | stream_ids x web_public_stream_ids list; realm stream counts can be large |  |
+| true | stream_ids x web_public_stream_ids list; realm stream counts can be large | true |
 
 ### #1005 · zulip/zulip@36d2312680 · `zerver/actions/user_groups.py:173`
 
@@ -4993,7 +4995,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | realm members x full_member_group_user_ids list; user counts grow with realm |  |
+| true | realm members x full_member_group_user_ids list; user counts grow with realm | true |
 
 ### #1008 · zulip/zulip@36d2312680 · `zerver/data_import/slack.py:387`
 
@@ -5007,7 +5009,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | membership in fixed 2-element list ['phone','skype'] |  |
+| small | membership in fixed 2-element list ['phone','skype'] | small |
 
 ### #1009 · zulip/zulip@36d2312680 · `zerver/data_import/slack.py:597`
 
@@ -5021,7 +5023,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | membership in fixed 2-element list ['general','random'] |  |
+| small | membership in fixed 2-element list ['general','random'] | small |
 
 ### #1047 · zulip/zulip@36d2312680 · `zerver/lib/narrow_predicate.py:23`
 
@@ -5035,7 +5037,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | membership in fixed 1-element unsupported_is_operands list |  |
+| small | membership in fixed 1-element unsupported_is_operands list | small |
 
 ### #1062 · zulip/zulip@36d2312680 · `zerver/lib/user_groups.py:383`
 
@@ -5049,7 +5051,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | request-supplied subgroup ids x group_ids_found list; size is request-derived |  |
+| true | request-supplied subgroup ids x group_ids_found list; size is request-derived | true |
 
 ### #1063 · zulip/zulip@36d2312680 · `zerver/lib/user_groups.py:481`
 
@@ -5063,7 +5065,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | request-supplied direct_subgroups x group_ids_found list; request-derived |  |
+| true | request-supplied direct_subgroups x group_ids_found list; request-derived | true |
 
 ### #1073 · zulip/zulip@36d2312680 · `zerver/management/commands/thumbnail.py:70`
 
@@ -5077,7 +5079,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | thumbnail formats of one image x its found thumbnails: a few formats |  |
+| small | thumbnail formats of one image x its found thumbnails: a few formats | small |
 
 ### #1086 · zulip/zulip@36d2312680 · `zerver/views/auth.py:424`
 
@@ -5091,7 +5093,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | kwargs keys x fixed ~15-name allowlist |  |
+| small | kwargs keys x fixed ~15-name allowlist | small |
 
 ### #1156 · zulip/zulip@36d2312680 · `zilencer/views.py:795`
 
@@ -5105,7 +5107,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | registrations x tokens_to_deduplicate for one user/kind: a few devices |  |
+| small | registrations x tokens_to_deduplicate for one user/kind: a few devices | small |
 
 ### #1157 · zulip/zulip@36d2312680 · `zilencer/views.py:1261`
 
@@ -5119,7 +5121,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | remote realms of server x reported_uuids list; realm count per server data-derived |  |
+| true | remote realms of server x reported_uuids list; realm count per server data-derived | true |
 
 ### #1158 · zulip/zulip@36d2312680 · `zilencer/views.py:1269`
 
@@ -5133,7 +5135,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | remote realms of server x reported_uuids list (not in); same as above |  |
+| true | remote realms of server x reported_uuids list (not in); same as above | true |
 
 ### #1159 · zulip/zulip@36d2312680 · `zilencer/views.py:1353`
 
@@ -5147,7 +5149,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | inside loop over remote realms, uuid in reported_uuids list |  |
+| true | inside loop over remote realms, uuid in reported_uuids list | true |
 
 ### #1208 · paperless-ngx/paperless-ngx@5f17b1a310 · `src/documents/serialisers.py:1190`
 
@@ -5161,7 +5163,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | a document's doc-link custom fields x incoming field ids: a handful |  |
+| small | a document's doc-link custom fields x incoming field ids: a handful | small |
 
 
 ## `bpm-perf-orm-call-in-loop`
@@ -5179,7 +5181,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | Reflect.get on a prototype symbol walking the prototype chain; not a DB call |  |
+| wrong | Reflect.get on a prototype symbol walking the prototype chain; not a DB call | wrong |
 
 ### #150 · outline/outline@670410b236 · `server/commands/groupsSyncer.ts:80`
 
@@ -5193,7 +5195,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | per external IdP group, findOrCreate + update queries in a loop; groups per user grow, could bulk upsert |  |
+| true | per external IdP group, findOrCreate + update queries in a loop; groups per user grow, could bulk upsert | true |
 
 ### #153 · outline/outline@670410b236 · `server/commands/groupsSyncer.ts:106`
 
@@ -5207,7 +5209,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | per external group, Group.findByPk + update inside loop; N+1 on group sync |  |
+| true | per external group, Group.findByPk + update inside loop; N+1 on group sync | true |
 
 ### #156 · outline/outline@670410b236 · `server/commands/groupsSyncer.ts:121`
 
@@ -5221,7 +5223,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | per external group, create Group then update ExternalGroup; per-row writes in group sync loop |  |
+| true | per external group, create Group then update ExternalGroup; per-row writes in group sync loop | true |
 
 ### #240 · outline/outline@670410b236 · `server/queues/processors/ImportsProcessor.ts:585`
 
@@ -5236,7 +5238,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | per imported document, Attachment.update by documentId; grows with import size, batchable |  |
+| true | per imported document, Attachment.update by documentId; grows with import size, batchable | true |
 
 ### #342 · outline/outline@670410b236 · `server/queues/tasks/UpdateDocumentsPopularityScoreTask.ts:509`
 
@@ -5250,7 +5252,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | drops stale working tables found by prefix; a few tables per cleanup run |  |
+| small | drops stale working tables found by prefix; a few tables per cleanup run | small |
 
 ### #404 · outline/outline@670410b236 · `shared/editor/nodes/ToggleBlock.ts:608`
 
@@ -5265,7 +5267,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | ProseMirror tr.insert into a transaction; not a DB call |  |
+| wrong | ProseMirror tr.insert into a transaction; not a DB call | wrong |
 
 ### #416 · immich-app/immich@f7b8ae5da3 · `packages/cli/src/commands/asset.ts:499`
 
@@ -5279,7 +5281,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | progress bar update() in CLI delete loop; not a DB call |  |
+| wrong | progress bar update() in CLI delete loop; not a DB call | wrong |
 
 ### #437 · immich-app/immich@f7b8ae5da3 · `server/src/repositories/event.repository.ts:188`
 
@@ -5293,7 +5295,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | Nest reflector.get metadata lookup at startup; not a DB call |  |
+| wrong | Nest reflector.get metadata lookup at startup; not a DB call | wrong |
 
 ### #453 · immich-app/immich@f7b8ae5da3 · `server/src/repositories/telemetry.repository.ts:136`
 
@@ -5307,7 +5309,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | Reflect metadata lookup over repository classes at setup; not a DB call |  |
+| wrong | Reflect metadata lookup over repository classes at setup; not a DB call | wrong |
 
 ### #460 · immich-app/immich@f7b8ae5da3 · `server/src/services/album.service.ts:240`
 
@@ -5322,7 +5324,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | per album id in request: getAssetIds, findOrFail and update queries each; N+1 over albums |  |
+| true | per album id in request: getAssetIds, findOrFail and update queries each; N+1 over albums | true |
 
 ### #507 · immich-app/immich@f7b8ae5da3 · `server/src/services/media.service.ts:100`
 
@@ -5336,7 +5338,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | per person across all people: getRandomFace + update query; grows with library, batchable |  |
+| true | per person across all people: getRandomFace + update query; grows with library, batchable | true |
 
 ### #528 · immich-app/immich@f7b8ae5da3 · `server/src/services/person.service.ts:176`
 
@@ -5350,7 +5352,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | per person in changeFeaturePhoto list: getRandomFace + update per person |  |
+| true | per person in changeFeaturePhoto list: getRandomFace + update per person | true |
 
 ### #530 · immich-app/immich@f7b8ae5da3 · `server/src/services/person.service.ts:303`
 
@@ -5365,7 +5367,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | per person in bulk update request, full update() with access checks and queries per row |  |
+| true | per person in bulk update request, full update() with access checks and queries per row | true |
 
 ### #536 · immich-app/immich@f7b8ae5da3 · `server/src/services/person.service.ts:724`
 
@@ -5379,7 +5381,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | merge loop over a few user-chosen source persons x owners; update per merge |  |
+| small | merge loop over a few user-chosen source persons x owners; update per merge | small |
 
 ### #645 · immich-app/immich@f7b8ae5da3 · `server/src/utils/config.ts:88`
 
@@ -5393,7 +5395,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | lodash set/get on config objects; not a DB call |  |
+| wrong | lodash set/get on config objects; not a DB call | wrong |
 
 ### #648 · immich-app/immich@f7b8ae5da3 · `server/src/utils/preferences.ts:66`
 
@@ -5407,7 +5409,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | lodash set/get on preferences object; not a DB call |  |
+| wrong | lodash set/get on preferences object; not a DB call | wrong |
 
 ### #649 · immich-app/immich@f7b8ae5da3 · `server/src/utils/preferences.ts:76`
 
@@ -5421,7 +5423,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | lodash get on preferences object; not a DB call |  |
+| wrong | lodash get on preferences object; not a DB call | wrong |
 
 ### #655 · immich-app/immich@f7b8ae5da3 · `web/src/lib/actions/use-actions.ts:55`
 
@@ -5435,7 +5437,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | Svelte action returnEntry.update(); not a DB call |  |
+| wrong | Svelte action returnEntry.update(); not a DB call | wrong |
 
 ### #676 · immich-app/immich@f7b8ae5da3 · `web/src/lib/workers/hash-file.ts:16`
 
@@ -5449,7 +5451,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | hasher.update on file chunks; not a DB call |  |
+| wrong | hasher.update on file chunks; not a DB call | wrong |
 
 ### #678 · immich-app/immich@f7b8ae5da3 · `web/src/lib/workers/hash-file.ts:30`
 
@@ -5463,7 +5465,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | hasher.update on file chunks; not a DB call |  |
+| wrong | hasher.update on file chunks; not a DB call | wrong |
 
 ### #911 · zulip/zulip@36d2312680 · `web/src/drafts.ts:317`
 
@@ -5477,7 +5479,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | iterates in-memory draft_model.get() (local storage); not a DB call |  |
+| wrong | iterates in-memory draft_model.get() (local storage); not a DB call | wrong |
 
 ### #923 · zulip/zulip@36d2312680 · `web/src/message_fetch.ts:839`
 
@@ -5491,7 +5493,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | iterates in-memory message_list_data_cache.all(); not a DB call |  |
+| wrong | iterates in-memory message_list_data_cache.all(); not a DB call | wrong |
 
 ### #929 · zulip/zulip@36d2312680 · `web/src/pm_conversations.ts:191`
 
@@ -5505,7 +5507,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | in-memory insert into recent DM map during client init; not a DB call |  |
+| wrong | in-memory insert into recent DM map during client init; not a DB call | wrong |
 
 ### #1378 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/core/api/entity-data-subscription.ts:1150`
 
@@ -5519,7 +5521,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | postFunc.execute is a user JS function on widget data; not a DB call |  |
+| wrong | postFunc.execute is a user JS function on widget data; not a DB call | wrong |
 
 ### #1379 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/core/api/entity-data-subscription.ts:1235`
 
@@ -5533,7 +5535,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | func.execute generates simulated data points; not a DB call |  |
+| wrong | func.execute generates simulated data points; not a DB call | wrong |
 
 ### #1439 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/cards/aggregated-value-card-widget.component.ts:246`
 
@@ -5547,7 +5549,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | color.update on widget value in UI; not a DB call |  |
+| wrong | color.update on widget value in UI; not a DB call | wrong |
 
 ### #1460 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/entity/entities-table-widget.component.ts:1031`
 
@@ -5561,7 +5563,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | compiled post-processing function execute in UI; not a DB call |  |
+| wrong | compiled post-processing function execute in UI; not a DB call | wrong |
 
 ### #1509 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/components/led-light.component.ts:64`
 
@@ -5575,7 +5577,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | component update() on Angular input changes; not a DB call |  |
+| wrong | component update() on Angular input changes; not a DB call | wrong |
 
 ### #1703 · go-gitea/gitea@85211296dd · `web_src/js/webcomponents/relative-time.ts:229`
 
@@ -5589,7 +5591,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | custom element timeEl.update() re-render; not a DB call |  |
+| wrong | custom element timeEl.update() re-render; not a DB call | wrong |
 
 
 ## `bpm-perf-orm-call-in-loop-py`
@@ -5606,7 +5608,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | removes apps one by one deliberately to avoid DB timeouts; filter is lazy; intentional serial batching |  |
+| wrong | removes apps one by one deliberately to avoid DB timeouts; filter is lazy; intentional serial batching | wrong |
 
 ### #713 · saleor/saleor@1771e1cf6c · `saleor/core/development/random_data.py:731`
 
@@ -5620,7 +5622,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | dev sample-data populate, update_or_create per fixture row; fixed bundled fixture, dev-only |  |
+| small | dev sample-data populate, update_or_create per fixture row; fixed bundled fixture, dev-only | small |
 
 ### #714 · saleor/saleor@1771e1cf6c · `saleor/core/development/random_data.py:743`
 
@@ -5634,7 +5636,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | dev sample-data populate, update_or_create per fixture attribute assignment; fixed fixture |  |
+| small | dev sample-data populate, update_or_create per fixture attribute assignment; fixed fixture | small |
 
 ### #731 · saleor/saleor@1771e1cf6c · `saleor/core/development/random_data.py:2026`
 
@@ -5649,7 +5651,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | dev sample-data: one warehouse update_or_create per shipping zone; a handful |  |
+| small | dev sample-data: one warehouse update_or_create per shipping zone; a handful | small |
 
 ### #742 · saleor/saleor@1771e1cf6c · `saleor/core/development/random_data.py:2223`
 
@@ -5663,7 +5665,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | dev sample-data: update_or_create per fixture page; fixed small fixture |  |
+| small | dev sample-data: update_or_create per fixture page; fixed small fixture | small |
 
 ### #743 · saleor/saleor@1771e1cf6c · `saleor/core/development/random_data.py:2237`
 
@@ -5677,7 +5679,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | dev sample-data: site settings fixture (one row); update_or_create per item |  |
+| small | dev sample-data: site settings fixture (one row); update_or_create per item | small |
 
 ### #749 · saleor/saleor@1771e1cf6c · `saleor/core/development/random_data.py:2345`
 
@@ -5691,7 +5693,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | model constructor inside list comprehension passed to bulk_create; already batched, no query per item |  |
+| wrong | model constructor inside list comprehension passed to bulk_create; already batched, no query per item | wrong |
 
 ### #754 · saleor/saleor@1771e1cf6c · `saleor/core/schedules.py:227`
 
@@ -5705,7 +5707,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | per channel with auto-completion enabled, one exists() query; channels are few config rows |  |
+| small | per channel with auto-completion enabled, one exists() query; channels are few config rows | small |
 
 ### #763 · saleor/saleor@1771e1cf6c · `saleor/graphql/attribute/dataloaders/assigned_attributes.py:610`
 
@@ -5720,7 +5722,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | one query per distinct limit value inside a dataloader batch; already batched by design |  |
+| small | one query per distinct limit value inside a dataloader batch; already batched by design | small |
 
 ### #768 · saleor/saleor@1771e1cf6c · `saleor/graphql/attribute/mutations/utils.py:19`
 
@@ -5734,7 +5736,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | list comprehension of ids inside a single filter(value_id__in=...); no per-item query |  |
+| wrong | list comprehension of ids inside a single filter(value_id__in=...); no per-item query | wrong |
 
 ### #783 · saleor/saleor@1771e1cf6c · `saleor/graphql/order/bulk_mutations/draft_orders.py:199`
 
@@ -5748,7 +5750,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | list comprehension of order ids inside one filter(id__in=...); no per-item query |  |
+| wrong | list comprehension of order ids inside one filter(id__in=...); no per-item query | wrong |
 
 ### #787 · saleor/saleor@1771e1cf6c · `saleor/graphql/order/filters.py:339`
 
@@ -5762,7 +5764,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | builds lazy Fulfillment querysets combined into one Exists lookup; no query per iteration |  |
+| wrong | builds lazy Fulfillment querysets combined into one Exists lookup; no query per iteration | wrong |
 
 ### #795 · saleor/saleor@1771e1cf6c · `saleor/graphql/order/utils.py:320`
 
@@ -5776,7 +5778,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | per order line, ProductChannelListing filter().first() query; N+1, batch by product_id__in |  |
+| true | per order line, ProductChannelListing filter().first() query; N+1, batch by product_id__in | true |
 
 ### #813 · saleor/saleor@1771e1cf6c · `saleor/graphql/shipping/mutations/shipping_method_channel_listing_update.py:103`
 
@@ -5791,7 +5793,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | update_or_create per channel in mutation input; channels are a few |  |
+| small | update_or_create per channel in mutation input; channels are a few | small |
 
 ### #828 · saleor/saleor@1771e1cf6c · `saleor/order/tasks.py:134`
 
@@ -5806,7 +5808,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | OrderEvent constructor in list comprehension for bulk_create; no per-item query |  |
+| wrong | OrderEvent constructor in list comprehension for bulk_create; no per-item query | wrong |
 
 ### #831 · saleor/saleor@1771e1cf6c · `saleor/payment/tasks.py:156`
 
@@ -5820,7 +5822,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | list concatenation passed to one bulk_create; no per-item query |  |
+| wrong | list concatenation passed to one bulk_create; no per-item query | wrong |
 
 ### #842 · saleor/saleor@1771e1cf6c · `saleor/product/tasks.py:103`
 
@@ -5834,7 +5836,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | bulk_update per batch of variants; deliberately batched |  |
+| wrong | bulk_update per batch of variants; deliberately batched | wrong |
 
 ### #987 · zulip/zulip@36d2312680 · `zerver/actions/message_flags.py:62`
 
@@ -5848,7 +5850,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | batched UPDATE loop with LIMIT subquery per batch; intentional chunked writes under locks |  |
+| wrong | batched UPDATE loop with LIMIT subquery per batch; intentional chunked writes under locks | wrong |
 
 ### #996 · zulip/zulip@36d2312680 · `zerver/actions/navigation_views.py:96`
 
@@ -5863,7 +5865,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | creates one audit log per changed property (at most 2); tiny loop |  |
+| small | creates one audit log per changed property (at most 2); tiny loop | small |
 
 ### #1027 · zulip/zulip@36d2312680 · `zerver/lib/import_realm.py:1917`
 
@@ -5878,7 +5880,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | realm import: Recipient.get + save per direct message group; grows with imported data, batchable |  |
+| true | realm import: Recipient.get + save per direct message group; grows with imported data, batchable | true |
 
 ### #1043 · zulip/zulip@36d2312680 · `zerver/lib/migrate.py:108`
 
@@ -5892,7 +5894,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | migration renaming/dropping indexes of one table; a handful of DDL statements |  |
+| small | migration renaming/dropping indexes of one table; a handful of DDL statements | small |
 
 ### #1061 · zulip/zulip@36d2312680 · `zerver/lib/upload/__init__.py:676`
 
@@ -5906,7 +5908,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | per emoji reupload: HTTP fetch + upload then save; per-item network work dominates, save inherent |  |
+| wrong | per emoji reupload: HTTP fetch + upload then save; per-item network work dominates, save inherent | wrong |
 
 ### #1140 · zulip/zulip@36d2312680 · `zilencer/management/commands/populate_db.py:161`
 
@@ -5920,7 +5922,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | delete() over a fixed list of ~12 models in dev populate_db |  |
+| small | delete() over a fixed list of ~12 models in dev populate_db | small |
 
 ### #1152 · zulip/zulip@36d2312680 · `zilencer/management/commands/populate_db.py:1209`
 
@@ -5935,7 +5937,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | creates 4 fixed DefaultStream rows in dev populate_db |  |
+| small | creates 4 fixed DefaultStream rows in dev populate_db | small |
 
 ### #1160 · zulip/zulip@36d2312680 · `zilencer/views.py:1418`
 
@@ -5950,7 +5952,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | exists() audit-log check per locally deleted remote realm on paid plan; a few realms per server |  |
+| small | exists() audit-log check per locally deleted remote realm on paid plan; a few realms per server | small |
 
 ### #1197 · paperless-ngx/paperless-ngx@5f17b1a310 · `src/documents/bulk_edit.py:704`
 
@@ -5964,7 +5966,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | list comprehension passed to one bulk_update; already batched |  |
+| wrong | list comprehension passed to one bulk_update; already batched | wrong |
 
 ### #1218 · paperless-ngx/paperless-ngx@5f17b1a310 · `src/documents/serialisers.py:3567`
 
@@ -5978,7 +5980,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | save per workflow action in serializer update; actions per workflow are a few |  |
+| small | save per workflow action in serializer update; actions per workflow are a few | small |
 
 ### #1224 · paperless-ngx/paperless-ngx@5f17b1a310 · `src/documents/tasks.py:575`
 
@@ -5992,7 +5994,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | Document.objects.none() is a lazy empty queryset; no query; loop over few scheduled triggers |  |
+| wrong | Document.objects.none() is a lazy empty queryset; no query; loop over few scheduled triggers | wrong |
 
 ### #1226 · paperless-ngx/paperless-ngx@5f17b1a310 · `src/documents/tasks.py:590`
 
@@ -6007,7 +6009,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | lazy Document filter per scheduled trigger; one query per trigger is inherent, triggers are few |  |
+| wrong | lazy Document filter per scheduled trigger; one query per trigger is inherent, triggers are few | wrong |
 
 ### #1235 · paperless-ngx/paperless-ngx@5f17b1a310 · `src/documents/workflows/ai.py:103`
 
@@ -6022,7 +6024,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | get_or_create per AI-suggested unmatched tag name; a handful of names per document |  |
+| small | get_or_create per AI-suggested unmatched tag name; a handful of names per document | small |
 
 
 ## `bpm-perf-pop-front-in-loop-py`
@@ -6039,7 +6041,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | result.pop(0) on pipeline result of 3 per key; keys are a few buffer names |  |
+| small | result.pop(0) on pipeline result of 3 per key; keys are a few buffer names | small |
 
 ### #862 · zulip/zulip@36d2312680 · `corporate/views/remote_activity.py:206`
 
@@ -6053,7 +6055,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | row.insert(0, links) once per row on a fresh short row list; no accumulation |  |
+| wrong | row.insert(0, links) once per row on a fresh short row list; no accumulation | wrong |
 
 ### #1163 · zulip/zulip@36d2312680 · `zproject/backends.py:3055`
 
@@ -6067,7 +6069,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | insert(0) only for the single primary email; emails per GitHub account a handful |  |
+| small | insert(0) only for the single primary email; emails per GitHub account a handful | small |
 
 
 ## `bpm-perf-regex-compile-in-loop`
@@ -6084,7 +6086,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | RegExp built from each image src; pattern depends on loop var so hoisting impossible |  |
+| wrong | RegExp built from each image src; pattern depends on loop var so hoisting impossible | wrong |
 
 ### #297 · outline/outline@670410b236 · `server/queues/tasks/ExportDocumentTreeTask.ts:186`
 
@@ -6098,7 +6100,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | RegExp built from each attachment URL; pattern varies per iteration, not hoistable |  |
+| wrong | RegExp built from each attachment URL; pattern varies per iteration, not hoistable | wrong |
 
 ### #309 · outline/outline@670410b236 · `server/queues/tasks/MarkdownAPIImportTask.ts:82`
 
@@ -6112,7 +6114,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | RegExp with constant Buckets.uploads pattern rebuilt per attachment; loop-invariant, hoistable, grows with imports |  |
+| true | RegExp with constant Buckets.uploads pattern rebuilt per attachment; loop-invariant, hoistable, grows with imports | true |
 
 ### #310 · outline/outline@670410b236 · `server/queues/tasks/MarkdownAPIImportTask.ts:83`
 
@@ -6126,7 +6128,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | RegExp with constant Buckets.public pattern rebuilt per attachment; loop-invariant, hoistable |  |
+| true | RegExp with constant Buckets.public pattern rebuilt per attachment; loop-invariant, hoistable | true |
 
 ### #311 · outline/outline@670410b236 · `server/queues/tasks/MarkdownAPIImportTask.ts:89`
 
@@ -6140,7 +6142,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | RegExp from each attachment's encoded path; pattern varies per iteration, not hoistable |  |
+| wrong | RegExp from each attachment's encoded path; pattern varies per iteration, not hoistable | wrong |
 
 ### #312 · outline/outline@670410b236 · `server/queues/tasks/MarkdownAPIImportTask.ts:91`
 
@@ -6154,7 +6156,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | RegExp from each attachment's normalized path; pattern varies per iteration |  |
+| wrong | RegExp from each attachment's normalized path; pattern varies per iteration | wrong |
 
 ### #313 · outline/outline@670410b236 · `server/queues/tasks/MarkdownAPIImportTask.ts:102`
 
@@ -6168,7 +6170,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | RegExp from each attachment's relative path; pattern varies per iteration |  |
+| wrong | RegExp from each attachment's relative path; pattern varies per iteration | wrong |
 
 ### #314 · outline/outline@670410b236 · `server/queues/tasks/MarkdownAPIImportTask.ts:108`
 
@@ -6182,7 +6184,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | RegExp from each attachment's generic path; pattern varies per iteration |  |
+| wrong | RegExp from each attachment's generic path; pattern varies per iteration | wrong |
 
 ### #358 · outline/outline@670410b236 · `server/routes/api/documents/documents.ts:1112`
 
@@ -6196,7 +6198,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | RegExp from each attachment redirectUrl; pattern varies per iteration, not hoistable |  |
+| wrong | RegExp from each attachment redirectUrl; pattern varies per iteration, not hoistable | wrong |
 
 ### #359 · outline/outline@670410b236 · `server/routes/api/documents/documents.ts:1155`
 
@@ -6210,7 +6212,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | RegExp from each attachment redirectUrl; pattern varies per iteration, not hoistable |  |
+| wrong | RegExp from each attachment redirectUrl; pattern varies per iteration, not hoistable | wrong |
 
 ### #370 · outline/outline@670410b236 · `server/routes/api/revisions/revisions.ts:223`
 
@@ -6224,7 +6226,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | regex built from each attachment's redirectUrl inside loop over doc attachments; pattern varies per iteration, cannot hoist |  |
+| wrong | regex built from each attachment's redirectUrl inside loop over doc attachments; pattern varies per iteration, cannot hoist | wrong |
 
 ### #372 · outline/outline@670410b236 · `server/routes/api/revisions/revisions.ts:266`
 
@@ -6238,7 +6240,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | regex built from each attachment's redirectUrl in zip export loop; pattern is per-attachment, cannot hoist |  |
+| wrong | regex built from each attachment's redirectUrl in zip export loop; pattern is per-attachment, cannot hoist | wrong |
 
 ### #901 · zulip/zulip@36d2312680 · `web/src/alert_words.ts:50`
 
@@ -6252,7 +6254,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | regex built per alert word from the word itself; pattern differs each iteration, nothing to hoist |  |
+| wrong | regex built per alert word from the word itself; pattern differs each iteration, nothing to hoist | wrong |
 
 ### #913 · zulip/zulip@36d2312680 · `web/src/emoji.ts:122`
 
@@ -6266,7 +6268,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | emoticon regexes built once at init and cached in translations list; this is the precompile, not per-message |  |
+| wrong | emoticon regexes built once at init and cached in translations list; this is the precompile, not per-message | wrong |
 
 ### #947 · zulip/zulip@36d2312680 · `web/third/marked/lib/marked.cjs:321`
 
@@ -6280,7 +6282,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | marked list parsing: regex depends on per-item indent width `space`; cannot be hoisted as-is |  |
+| wrong | marked list parsing: regex depends on per-item indent width `space`; cannot be hoisted as-is | wrong |
 
 ### #1468 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/scada/scada-symbol.models.ts:588`
 
@@ -6294,7 +6296,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | regex built from each SVG element id to rename it; pattern is per-id, cannot hoist |  |
+| wrong | regex built from each SVG element id to rename it; pattern is per-id, cannot hoist | wrong |
 
 ### #1469 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/scada/scada-symbol.models.ts:589`
 
@@ -6308,7 +6310,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | regex '#'+id built per SVG id for renaming refs; pattern varies per iteration, cannot hoist |  |
+| wrong | regex '#'+id built per SVG id for renaming refs; pattern varies per iteration, cannot hoist | wrong |
 
 ### #1544 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/models/widget/maps/marker-shape.models.ts:215`
 
@@ -6322,7 +6324,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | marker SVG id rename: regex built from each id; per-iteration pattern, cannot hoist |  |
+| wrong | marker SVG id rename: regex built from each id; per-iteration pattern, cannot hoist | wrong |
 
 ### #1545 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/models/widget/maps/marker-shape.models.ts:216`
 
@@ -6336,7 +6338,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | marker SVG url(#id) regex built from each id; per-iteration pattern, cannot hoist |  |
+| wrong | marker SVG url(#id) regex built from each id; per-iteration pattern, cannot hoist | wrong |
 
 
 ## `bpm-perf-string-concat-in-loop`
@@ -6353,7 +6355,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | numeric += (textLengthAccumulator counts text lengths), not string concatenation |  |
+| wrong | numeric += (textLengthAccumulator counts text lengths), not string concatenation | wrong |
 
 ### #41 · excalidraw/excalidraw@b7de45e881 · `packages/excalidraw/subset/woff2/woff2-bindings.ts:461`
 
@@ -6367,7 +6369,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | emscripten UTF8ArrayToString char loop only for strings <=16 bytes (longer use TextDecoder) |  |
+| small | emscripten UTF8ArrayToString char loop only for strings <=16 bytes (longer use TextDecoder) | small |
 
 ### #42 · excalidraw/excalidraw@b7de45e881 · `packages/excalidraw/subset/woff2/woff2-bindings.ts:466`
 
@@ -6381,7 +6383,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | same UTF8 decode fallback, only taken for <=16-byte strings; TextDecoder handles longer |  |
+| small | same UTF8 decode fallback, only taken for <=16-byte strings; TextDecoder handles longer | small |
 
 ### #49 · excalidraw/excalidraw@b7de45e881 · `packages/excalidraw/subset/woff2/woff2-bindings.ts:2766`
 
@@ -6395,7 +6397,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | embind std::string decode joins a few NUL-separated segments of one string |  |
+| small | embind std::string decode joins a few NUL-separated segments of one string | small |
 
 ### #55 · outline/outline@670410b236 · `app/actions/definitions/developer.tsx:104`
 
@@ -6409,7 +6411,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | dev action builds random text of 1-10 chars |  |
+| small | dev action builds random text of 1-10 chars | small |
 
 ### #60 · outline/outline@670410b236 · `app/components/CommandBar/SearchIndex.ts:159`
 
@@ -6423,7 +6425,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | search snippet highlighting over match ranges within a bounded text window |  |
+| small | search snippet highlighting over match ranges within a bounded text window | small |
 
 ### #402 · outline/outline@670410b236 · `shared/editor/marks/Code.ts:200`
 
@@ -6437,7 +6439,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | appends backticks equal to longest backtick run in one code mark; a few chars |  |
+| small | appends backticks equal to longest backtick run in one code mark; a few chars | small |
 
 ### #921 · zulip/zulip@36d2312680 · `web/src/list_widget.ts:503`
 
@@ -6451,7 +6453,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | list_widget renders a slice of LOAD_COUNT items per batch into html string |  |
+| small | list_widget renders a slice of LOAD_COUNT items per batch into html string | small |
 
 ### #931 · zulip/zulip@36d2312680 · `web/src/popover_menus_data.ts:626`
 
@@ -6465,7 +6467,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | numeric += (message_count increment), not string concatenation |  |
+| wrong | numeric += (message_count increment), not string concatenation | wrong |
 
 ### #943 · zulip/zulip@36d2312680 · `web/src/unread.ts:368`
 
@@ -6479,7 +6481,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | numeric += summing unread counts per stream, not string concatenation |  |
+| wrong | numeric += summing unread counts per stream, not string concatenation | wrong |
 
 ### #964 · zulip/zulip@36d2312680 · `web/third/marked/lib/marked.cjs:801`
 
@@ -6493,7 +6495,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | marked inline lexer output for one message; message size capped, JS ropes make += cheap |  |
+| small | marked inline lexer output for one message; message size capped, JS ropes make += cheap | small |
 
 ### #968 · zulip/zulip@36d2312680 · `web/third/marked/lib/marked.cjs:829`
 
@@ -6507,7 +6509,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | marked inline lexer output for one message's tokens; bounded message size |  |
+| small | marked inline lexer output for one message's tokens; bounded message size | small |
 
 ### #971 · zulip/zulip@36d2312680 · `web/third/marked/lib/marked.cjs:854`
 
@@ -6521,7 +6523,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | marked inline text output for one message; bounded message size |  |
+| small | marked inline text output for one message; bounded message size | small |
 
 ### #973 · zulip/zulip@36d2312680 · `web/third/marked/lib/marked.cjs:1260`
 
@@ -6535,7 +6537,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | marked Parser.parse joins tokens of one message; bounded message size |  |
+| small | marked Parser.parse joins tokens of one message; bounded message size | small |
 
 ### #974 · zulip/zulip@36d2312680 · `web/third/marked/lib/marked.cjs:1307`
 
@@ -6549,7 +6551,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | marked parseText joins consecutive text tokens of one message |  |
+| small | marked parseText joins consecutive text tokens of one message | small |
 
 ### #1248 · thingsboard/thingsboard@7a53801216 · `application/src/main/data/resources/js_modules/ai-summary-module.js:270`
 
@@ -6563,7 +6565,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | markdown-to-html of one AI summary's lines; small bounded text |  |
+| small | markdown-to-html of one AI summary's lines; small bounded text | small |
 
 ### #1296 · thingsboard/thingsboard@7a53801216 · `common/script/script-api/src/main/resources/js/converter-helpers.js:22`
 
@@ -6577,7 +6579,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | btoa polyfill appends one char per output char over whole converter payload; join/array would avoid it |  |
+| true | btoa polyfill appends one char per output char over whole converter payload; join/array would avoid it | true |
 
 ### #1297 · thingsboard/thingsboard@7a53801216 · `common/script/script-api/src/main/resources/js/converter-helpers.js:48`
 
@@ -6591,7 +6593,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | atob polyfill appends one char per decoded byte over whole payload string |  |
+| true | atob polyfill appends one char per decoded byte over whole payload string | true |
 
 ### #1382 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/core/css/css.ts:55`
 
@@ -6605,7 +6607,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | strip CSS comments: appends segments between comments of one widget CSS string |  |
+| small | strip CSS comments: appends segments between comments of one widget CSS string | small |
 
 ### #1383 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/core/css/css.ts:192`
 
@@ -6619,7 +6621,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | accumulates text blocks of one CSS rule body before parsing |  |
+| small | accumulates text blocks of one CSS rule body before parsing | small |
 
 ### #1384 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/core/css/css.ts:282`
 
@@ -6633,7 +6635,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | appends base64 continuation lines to a single CSS declaration value |  |
+| small | appends base64 continuation lines to a single CSS declaration value | small |
 
 ### #1388 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/core/css/css.ts:497`
 
@@ -6647,7 +6649,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | generates editor CSS text over parsed rules of one widget stylesheet |  |
+| small | generates editor CSS text over parsed rules of one widget stylesheet | small |
 
 ### #1399 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/core/utils.ts:998`
 
@@ -6661,7 +6663,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | randomAlphanumeric(length) for short ids; length is small by design |  |
+| small | randomAlphanumeric(length) for short ids; length is small by design | small |
 
 ### #1401 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/alarm-rules/cf-alarm-rule-condition.component.ts:275`
 
@@ -6675,7 +6677,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | joins day-of-week names (max 7) for schedule text |  |
+| small | joins day-of-week names (max 7) for schedule text | small |
 
 ### #1420 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/profile/alarm/alarm-schedule-info.component.ts:94`
 
@@ -6690,7 +6692,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | joins enabled schedule items, at most 7 weekdays |  |
+| small | joins enabled schedule items, at most 7 weekdays | small |
 
 ### #1433 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/action/manage-widget-actions.component.models.ts:70`
 
@@ -6704,7 +6706,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | numeric += (skipped count), not string concatenation |  |
+| wrong | numeric += (skipped count), not string concatenation | wrong |
 
 ### #1521 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/models/ace/completion.models.ts:174`
 
@@ -6718,7 +6720,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | builds one HTML row per completion arg; few appends to a short per-arg string |  |
+| small | builds one HTML row per completion arg; few appends to a short per-arg string | small |
 
 ### #1525 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/models/ace/completion.models.ts:182`
 
@@ -6732,7 +6734,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | builds one HTML row per completion arg; few appends to a short per-arg string |  |
+| small | builds one HTML row per completion arg; few appends to a short per-arg string | small |
 
 ### #1528 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/models/ace/tbel/worker-tbel.js:1193`
 
@@ -6746,7 +6748,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | stringRepeat uses doubling (O(log n) concats); already the efficient algorithm |  |
+| wrong | stringRepeat uses doubling (O(log n) concats); already the efficient algorithm | wrong |
 
 ### #1688 · go-gitea/gitea@85211296dd · `web_src/js/modules/shortcut.ts:110`
 
@@ -6760,7 +6762,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | joins kbd tags for the few keys of one shortcut |  |
+| small | joins kbd tags for the few keys of one shortcut | small |
 
 
 ## `bpm-perf-string-concat-in-loop-py`
@@ -6777,7 +6779,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | single bytes append to Vary header value then break; not accumulating in a loop |  |
+| wrong | single bytes append to Vary header value then break; not accumulating in a loop | wrong |
 
 ### #858 · zulip/zulip@36d2312680 · `corporate/views/audit_logs.py:32`
 
@@ -6791,7 +6793,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | joins human role counts from a dict of a handful of roles |  |
+| small | joins human role counts from a dict of a handful of roles | small |
 
 ### #859 · zulip/zulip@36d2312680 · `corporate/views/installation_activity.py:322`
 
@@ -6805,7 +6807,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | one append to a per-row field per realm; no string accumulated across iterations |  |
+| wrong | one append to a per-row field per realm; no string accumulated across iterations | wrong |
 
 ### #861 · zulip/zulip@36d2312680 · `corporate/views/realm_activity.py:155`
 
@@ -6819,7 +6821,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | fresh per-row row_class with at most 2 appends; nothing accumulated across loop |  |
+| wrong | fresh per-row row_class with at most 2 appends; nothing accumulated across loop | wrong |
 
 ### #867 · zulip/zulip@36d2312680 · `tools/lib/html_branches.py:69`
 
@@ -6833,7 +6835,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | char loop over a single template tag attribute string |  |
+| small | char loop over a single template tag attribute string | small |
 
 ### #883 · zulip/zulip@36d2312680 · `tools/upload-release:112`
 
@@ -6847,7 +6849,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | one-off release script writing SHA256SUMS over release file list |  |
+| small | one-off release script writing SHA256SUMS over release file list | small |
 
 ### #1007 · zulip/zulip@36d2312680 · `zerver/data_import/mattermost.py:601`
 
@@ -6861,7 +6863,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | per-message content gets at most 2 appends; string not accumulated across messages |  |
+| wrong | per-message content gets at most 2 appends; string not accumulated across messages | wrong |
 
 ### #1032 · zulip/zulip@36d2312680 · `zerver/lib/markdown/api_arguments_table_generator.py:135`
 
@@ -6876,7 +6878,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | concatenates rendered oneOf variants of one schema; a few elements |  |
+| small | concatenates rendered oneOf variants of one schema; a few elements | small |
 
 ### #1036 · zulip/zulip@36d2312680 · `zerver/lib/markdown/api_arguments_table_generator.py:246`
 
@@ -6890,7 +6892,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | additions is list[str]; += extends list (not string concat), at most once per field |  |
+| wrong | additions is list[str]; += extends list (not string concat), at most once per field | wrong |
 
 ### #1083 · zulip/zulip@36d2312680 · `zerver/openapi/merge_api_changelogs.py:28`
 
@@ -6904,7 +6906,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | concatenates a few unmerged changelog fragment files in a dev tool |  |
+| small | concatenates a few unmerged changelog fragment files in a dev tool | small |
 
 ### #1084 · zulip/zulip@36d2312680 · `zerver/openapi/merge_api_changelogs.py:84`
 
@@ -6918,7 +6920,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | accumulates every line of api_docs/changelog.md (grows each release) via +=; use join/list |  |
+| true | accumulates every line of api_docs/changelog.md (grows each release) via +=; use join/list | true |
 
 ### #1087 · zulip/zulip@36d2312680 · `zerver/views/message_fetch.py:62`
 
@@ -6932,7 +6934,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | highlight_string over search match locations within one message |  |
+| small | highlight_string over search match locations within one message | small |
 
 ### #1088 · zulip/zulip@36d2312680 · `zerver/views/message_fetch.py:63`
 
@@ -6946,7 +6948,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | highlight_string over search match locations within one message |  |
+| small | highlight_string over search match locations within one message | small |
 
 ### #1090 · zulip/zulip@36d2312680 · `zerver/views/message_fetch.py:66`
 
@@ -6960,7 +6962,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | highlight_string over search match locations within one message |  |
+| small | highlight_string over search match locations within one message | small |
 
 ### #1093 · zulip/zulip@36d2312680 · `zerver/views/streams.py:633`
 
@@ -6974,7 +6976,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | lists channels a user was subscribed to in one notification message |  |
+| small | lists channels a user was subscribed to in one notification message | small |
 
 ### #1095 · zulip/zulip@36d2312680 · `zerver/webhooks/ansibletower/view.py:100`
 
@@ -6989,7 +6991,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | webhook message rows for hosts of one Ansible job |  |
+| small | webhook message rows for hosts of one Ansible job | small |
 
 ### #1096 · zulip/zulip@36d2312680 · `zerver/webhooks/bitbucket/view.py:477`
 
@@ -7003,7 +7005,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | loop over fixed list of 6 repo change fields |  |
+| small | loop over fixed list of 6 repo change fields | small |
 
 ### #1099 · zulip/zulip@36d2312680 · `zerver/webhooks/freshstatus/view.py:119`
 
@@ -7018,7 +7020,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | services rows capped at FRESHSTATUS_SERVICES_LIMIT |  |
+| small | services rows capped at FRESHSTATUS_SERVICES_LIMIT | small |
 
 ### #1110 · zulip/zulip@36d2312680 · `zerver/webhooks/grafana/view.py:138`
 
@@ -7032,7 +7034,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | per-alert body built from a fixed handful of template fields; reset per alert |  |
+| small | per-alert body built from a fixed handful of template fields; reset per alert | small |
 
 ### #1116 · zulip/zulip@36d2312680 · `zerver/webhooks/grafana/view.py:166`
 
@@ -7047,7 +7049,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | per-alert body built from a fixed handful of template fields; reset per alert |  |
+| small | per-alert body built from a fixed handful of template fields; reset per alert | small |
 
 ### #1117 · zulip/zulip@36d2312680 · `zerver/webhooks/grafana/view.py:170`
 
@@ -7061,7 +7063,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | per-alert body newline append; body reset each alert |  |
+| small | per-alert body newline append; body reset each alert | small |
 
 ### #1118 · zulip/zulip@36d2312680 · `zerver/webhooks/grafana/view.py:190`
 
@@ -7076,7 +7078,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | evalMatches rows in one Grafana legacy alert payload |  |
+| small | evalMatches rows in one Grafana legacy alert payload | small |
 
 ### #1122 · zulip/zulip@36d2312680 · `zerver/webhooks/librato/view.py:109`
 
@@ -7090,7 +7092,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | snapshot lines for attachments of one Librato webhook |  |
+| small | snapshot lines for attachments of one Librato webhook | small |
 
 ### #1124 · zulip/zulip@36d2312680 · `zerver/webhooks/lidarr/view.py:44`
 
@@ -7104,7 +7106,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | track rows capped at LIDARR_TRACKS_LIMIT=20 |  |
+| small | track rows capped at LIDARR_TRACKS_LIMIT=20 | small |
 
 ### #1126 · zulip/zulip@36d2312680 · `zerver/webhooks/newrelic/view.py:147`
 
@@ -7118,7 +7120,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | custom field lines of one New Relic webhook payload |  |
+| small | custom field lines of one New Relic webhook payload | small |
 
 ### #1128 · zulip/zulip@36d2312680 · `zerver/webhooks/reviewboard/view.py:65`
 
@@ -7132,7 +7134,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | joins review target titles in one ReviewBoard payload |  |
+| small | joins review target titles in one ReviewBoard payload | small |
 
 ### #1130 · zulip/zulip@36d2312680 · `zerver/webhooks/sentry/view.py:107`
 
@@ -7146,7 +7148,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | traceback lines of one Sentry event |  |
+| small | traceback lines of one Sentry event | small |
 
 ### #1144 · zulip/zulip@36d2312680 · `zilencer/management/commands/populate_db.py:570`
 
@@ -7160,7 +7162,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | fresh full_name per user with <=3 appends; nothing accumulated across loop |  |
+| wrong | fresh full_name per user with <=3 appends; nothing accumulated across loop | wrong |
 
 ### #1146 · zulip/zulip@36d2312680 · `zilencer/management/commands/populate_db.py:574`
 
@@ -7174,7 +7176,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | fresh full_name per user with <=3 appends; nothing accumulated across loop |  |
+| wrong | fresh full_name per user with <=3 appends; nothing accumulated across loop | wrong |
 
 ### #1155 · zulip/zulip@36d2312680 · `zilencer/management/commands/populate_db.py:1411`
 
@@ -7188,7 +7190,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | single attachment link appended to each message's content; not accumulating |  |
+| wrong | single attachment link appended to each message's content; not accumulating | wrong |
 
 
 ## `bpm-perf-sync-io-in-async`
@@ -7205,7 +7207,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | existsSync in dev build watcher change handler; tooling, not request path |  |
+| wrong | existsSync in dev build watcher change handler; tooling, not request path | wrong |
 
 ### #105 · outline/outline@670410b236 · `build.js:258`
 
@@ -7219,7 +7221,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | readdirSync in dev build watcher for moved dir; tooling, not request path |  |
+| wrong | readdirSync in dev build watcher for moved dir; tooling, not request path | wrong |
 
 ### #201 · outline/outline@670410b236 · `server/models/helpers/HTMLHelper.ts:82`
 
@@ -7233,7 +7235,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | readFileSync of wasm once behind initialized flag; one-time init |  |
+| wrong | readFileSync of wasm once behind initialized flag; one-time init | wrong |
 
 ### #422 · immich-app/immich@f7b8ae5da3 · `server/src/app.common.ts:70`
 
@@ -7247,7 +7249,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | existsSync at app bootstrap configuring static serving; one-time startup |  |
+| wrong | existsSync at app bootstrap configuring static serving; one-time startup | wrong |
 
 ### #446 · immich-app/immich@f7b8ae5da3 · `server/src/repositories/map.repository.ts:229`
 
@@ -7261,7 +7263,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | one existsSync before streaming country file, result cached; negligible one-time check |  |
+| wrong | one existsSync before streaming country file, result cached; negligible one-time check | wrong |
 
 ### #447 · immich-app/immich@f7b8ae5da3 · `server/src/repositories/map.repository.ts:325`
 
@@ -7275,7 +7277,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | one existsSync before streaming cities500 in geodata import job; negligible |  |
+| wrong | one existsSync before streaming cities500 in geodata import job; negligible | wrong |
 
 ### #449 · immich-app/immich@f7b8ae5da3 · `server/src/repositories/map.repository.ts:400`
 
@@ -7289,7 +7291,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | one existsSync before streaming admin file in geodata import; negligible |  |
+| wrong | one existsSync before streaming admin file in geodata import; negligible | wrong |
 
 ### #1359 · thingsboard/thingsboard@7a53801216 · `msa/js-executor/queue/kafkaTemplate.ts:147`
 
@@ -7303,7 +7305,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | readFileSync of Kafka SSL cert during one-time client init |  |
+| wrong | readFileSync of Kafka SSL cert during one-time client init | wrong |
 
 ### #1360 · thingsboard/thingsboard@7a53801216 · `msa/js-executor/queue/kafkaTemplate.ts:151`
 
@@ -7317,7 +7319,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | readFileSync of Kafka SSL key during one-time client init |  |
+| wrong | readFileSync of Kafka SSL key during one-time client init | wrong |
 
 ### #1361 · thingsboard/thingsboard@7a53801216 · `msa/js-executor/queue/kafkaTemplate.ts:159`
 
@@ -7331,7 +7333,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | readFileSync of Kafka CA during one-time client init |  |
+| wrong | readFileSync of Kafka CA during one-time client init | wrong |
 
 ### #1666 · go-gitea/gitea@85211296dd · `tools/generate-svg.ts:71`
 
@@ -7345,7 +7347,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | writeFileSync in offline SVG generation build script |  |
+| wrong | writeFileSync in offline SVG generation build script | wrong |
 
 ### #1667 · go-gitea/gitea@85211296dd · `tools/generate-svg.ts:112`
 
@@ -7359,7 +7361,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | writeFileSync in offline SVG generation build script |  |
+| wrong | writeFileSync in offline SVG generation build script | wrong |
 
 
 ## `bpm-perf-unbounded-gather-py`
@@ -7377,7 +7379,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | gather over APNs requests for one bounce request's devices; aioapns pools connections |  |
+| small | gather over APNs requests for one bounce request's devices; aioapns pools connections | small |
 
 
 ## `bpm-perf-unbounded-promise-all`
@@ -7395,7 +7397,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | Promise.all over items of one clipboard/drag event; a few items |  |
+| small | Promise.all over items of one clipboard/drag event; a few items | small |
 
 ### #36 · excalidraw/excalidraw@b7de45e881 · `packages/excalidraw/components/hyperlink/helpers.ts:124`
 
@@ -7409,7 +7411,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | Promise.all over a literal array of at most 2 image decodes |  |
+| wrong | Promise.all over a literal array of at most 2 image decodes | wrong |
 
 ### #64 · outline/outline@670410b236 · `app/components/IconPicker/components/EmojiPanel.tsx:122`
 
@@ -7424,7 +7426,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | fetches frequent custom emoji ids; frequent-icons list is short |  |
+| small | fetches frequent custom emoji ids; frequent-icons list is short | small |
 
 ### #70 · outline/outline@670410b236 · `app/components/Sharing/Document/SharePopover.tsx:149`
 
@@ -7439,7 +7441,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | invites the handful of users/emails the user selected in share popover |  |
+| small | invites the handful of users/emails the user selected in share popover | small |
 
 ### #116 · outline/outline@670410b236 · `plugins/gitlab/server/api/gitlab.ts:363`
 
@@ -7454,7 +7456,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | schedules one GitLab webhook task per matched team; a few teams |  |
+| small | schedules one GitLab webhook task per matched team; a few teams | small |
 
 ### #128 · outline/outline@670410b236 · `plugins/webhooks/server/processors/WebhookProcessor.ts:51`
 
@@ -7469,7 +7471,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | schedules one delivery task per matching webhook subscription of a team |  |
+| small | schedules one delivery task per matching webhook subscription of a team | small |
 
 ### #160 · outline/outline@670410b236 · `server/commands/teamPermanentDeleter.ts:85`
 
@@ -7484,7 +7486,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | destroys attachments within batches of batchLimit 100 |  |
+| small | destroys attachments within batches of batchLimit 100 | small |
 
 ### #176 · outline/outline@670410b236 · `server/mcp/tools/documents.ts:294`
 
@@ -7499,7 +7501,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | presents search results page; limit max 100 |  |
+| small | presents search results page; limit max 100 | small |
 
 ### #178 · outline/outline@670410b236 · `server/mcp/util.ts:328`
 
@@ -7514,7 +7516,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | resolves structure of distinct collections in a result page |  |
+| small | resolves structure of distinct collections in a result page | small |
 
 ### #182 · outline/outline@670410b236 · `server/models/Collection.ts:1056`
 
@@ -7529,7 +7531,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | recursive in-memory tree walk; async but no I/O, nothing to bound |  |
+| wrong | recursive in-memory tree walk; async but no I/O, nothing to bound | wrong |
 
 ### #195 · outline/outline@670410b236 · `server/models/UserMembership.ts:231`
 
@@ -7544,7 +7546,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | findByPk per membership of a document (all users); N lookups unbounded, batch with one findAll |  |
+| true | findByPk per membership of a document (all users); N lookups unbounded, batch with one findAll | true |
 
 ### #209 · outline/outline@670410b236 · `server/models/helpers/TextHelper.ts:86`
 
@@ -7559,7 +7561,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | already chunked into groups of 10 images per Promise.all |  |
+| wrong | already chunked into groups of 10 images per Promise.all | wrong |
 
 ### #248 · outline/outline@670410b236 · `server/queues/tasks/APIImportTask.ts:180`
 
@@ -7574,7 +7576,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | uploads attachments per item of one import page; page size bounded by API |  |
+| small | uploads attachments per item of one import page; page size bounded by API | small |
 
 ### #252 · outline/outline@670410b236 · `server/queues/tasks/CleanupDemotedUserTask.ts:56`
 
@@ -7589,7 +7591,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | destroys the API keys of one user |  |
+| small | destroys the API keys of one user | small |
 
 ### #293 · outline/outline@670410b236 · `server/queues/tasks/ErrorTimedOutFileOperationsTask.ts:29`
 
@@ -7604,7 +7606,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | cron limit (default 500) of file ops stuck >12h; realistically very few |  |
+| small | cron limit (default 500) of file ops stuck >12h; realistically very few | small |
 
 ### #344 · outline/outline@670410b236 · `server/queues/tasks/ValidateSSOAccessTask.ts:34`
 
@@ -7619,7 +7621,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | validates the few SSO authentications of one user |  |
+| small | validates the few SSO authentications of one user | small |
 
 ### #346 · outline/outline@670410b236 · `server/routes/api/auth/auth.ts:165`
 
@@ -7633,7 +7635,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | presents the groups of the signed-in user |  |
+| small | presents the groups of the signed-in user | small |
 
 ### #353 · outline/outline@670410b236 · `server/routes/api/developer/developer.ts:55`
 
@@ -7648,7 +7650,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | dev-only endpoint creating test users |  |
+| small | dev-only endpoint creating test users | small |
 
 ### #356 · outline/outline@670410b236 · `server/routes/api/documents/documents.ts:137`
 
@@ -7663,7 +7665,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | expands documentId leaves present in one search filter |  |
+| small | expands documentId leaves present in one search filter | small |
 
 ### #373 · outline/outline@670410b236 · `server/routes/api/revisions/revisions.ts:314`
 
@@ -7678,7 +7680,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | presents one paginated page of revisions |  |
+| small | presents one paginated page of revisions | small |
 
 ### #374 · outline/outline@670410b236 · `server/routes/api/suggestions/suggestions.ts:132`
 
@@ -7692,7 +7694,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | presents one paginated page of groups |  |
+| small | presents one paginated page of groups | small |
 
 ### #468 · immich-app/immich@f7b8ae5da3 · `server/src/services/database-backup.service.ts:306`
 
@@ -7707,7 +7709,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | stats backup files in backups folder; retention keeps a handful |  |
+| small | stats backup files in backups folder; retention keeps a handful | small |
 
 ### #476 · immich-app/immich@f7b8ae5da3 · `server/src/services/duplicate.service.ts:195`
 
@@ -7722,7 +7724,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | replaces tags for assets in one duplicate group |  |
+| small | replaces tags for assets in one duplicate group | small |
 
 ### #481 · immich-app/immich@f7b8ae5da3 · `server/src/services/integrity.service.ts:325`
 
@@ -7737,7 +7739,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | stat per path for a job batch of up to 10,000 reports at once; bound concurrency |  |
+| true | stat per path for a job batch of up to 10,000 reports at once; bound concurrency | true |
 
 ### #488 · immich-app/immich@f7b8ae5da3 · `server/src/services/integrity.service.ts:609`
 
@@ -7752,7 +7754,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | opens and hashes full files for up to 10,000 paths concurrently; fd/IO exhaustion, bound it |  |
+| true | opens and hashes full files for up to 10,000 paths concurrently; fd/IO exhaustion, bound it | true |
 
 ### #497 · immich-app/immich@f7b8ae5da3 · `server/src/services/library.service.ts:490`
 
@@ -7767,7 +7769,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | stat per asset for a library sync batch of up to 10,000 assets at once |  |
+| true | stat per asset for a library sync batch of up to 10,000 assets at once | true |
 
 ### #513 · immich-app/immich@f7b8ae5da3 · `server/src/services/memory.service.ts:46`
 
@@ -7782,7 +7784,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| true | memory-creation queries for every user on the server concurrently; grows with users |  |
+| true | memory-creation queries for every user on the server concurrently; grows with users | true |
 
 ### #629 · immich-app/immich@f7b8ae5da3 · `server/src/services/transcoding.service.ts:380`
 
@@ -7797,7 +7799,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | sweeps inactive HLS sessions; a few at a time |  |
+| small | sweeps inactive HLS sessions; a few at a time | small |
 
 ### #646 · immich-app/immich@f7b8ae5da3 · `server/src/utils/maintenance.ts:35`
 
@@ -7812,7 +7814,7 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| wrong | Promise.all over the fixed StorageFolder enum values |  |
+| wrong | Promise.all over the fixed StorageFolder enum values | wrong |
 
 ### #653 · immich-app/immich@f7b8ae5da3 · `server/src/utils/tasks.ts:11`
 
@@ -7826,5 +7828,5 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 | Proposed | Reason | Brad |
 |---|---|---|
-| small | Tasks helper; only use (metadata.service) pushes a few tasks |  |
+| small | Tasks helper; only use (metadata.service) pushes a few tasks | small |
 

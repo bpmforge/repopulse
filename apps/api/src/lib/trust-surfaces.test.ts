@@ -298,6 +298,41 @@ describeIfDb('trust surfaces over the database (W18-22)', () => {
       expect(by('bpm-bench-only').lifecycle).toBe('pack');
     });
 
+    it('reads a hand-checked performance rule as live with its marked evidence (W21-20)', async () => {
+      // A perf rule ships as a candidate in its YAML; the hand-check makes it live.
+      await addFinding({ ruleId: 'bpm-perf-includes-in-loop', experimental: true });
+      // Marked, but missed the bar: stays in shadow.
+      await addFinding({ ruleId: 'bpm-perf-await-in-loop', experimental: true });
+      const report = await rulePrecision(db, workspaceId, { summary: SUMMARY });
+      const by = (id: string) => report.rules.find((r) => r.ruleId === id)!;
+      expect(by('bpm-perf-includes-in-loop')).toMatchObject({
+        lifecycle: 'active',
+        lifecycleSource: 'hand-checked',
+        starter: {
+          reason: 'live via hand-checked evidence',
+          evidence: { ruleId: 'bpm-perf-includes-in-loop', dimension: 'performance' },
+        },
+      });
+      expect(by('bpm-perf-await-in-loop')).toMatchObject({
+        lifecycle: 'candidate',
+        lifecycleSource: 'observed shadow findings',
+        starter: null,
+      });
+      // An admin's row wins over the hand-check, as over the starter set.
+      await db.insert(security.ruleRegistry).values({
+        workspaceId,
+        ruleId: 'bpm-perf-includes-in-loop',
+        status: 'candidate',
+        provenance: { source: 'pack_override', reason: 'noisy in this codebase' },
+      });
+      const after = await rulePrecision(db, workspaceId, { summary: SUMMARY });
+      expect(after.rules.find((r) => r.ruleId === 'bpm-perf-includes-in-loop')).toMatchObject({
+        lifecycle: 'candidate',
+        lifecycleSource: 'registry',
+        starter: null,
+      });
+    });
+
     it('reads a starter-set rule as live with its evidence, until an admin decides (W21-04)', async () => {
       // Stored in shadow before the starter set existed: still read as live.
       await addFinding({ ruleId: 'bpm-inj-sql-java', experimental: true });
