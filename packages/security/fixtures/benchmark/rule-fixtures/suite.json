@@ -1392,6 +1392,56 @@
       "dimension": "sast",
       "expect": "finding",
       "note": "Request data reaches a SQL template."
+    },
+    {
+      "id": "perf-find-by-key-loop",
+      "tree": "perf/triggering",
+      "file": "joins.ts",
+      "lines": [12, 12],
+      "rule": "bpm-perf-find-by-key-in-loop",
+      "dimension": "performance",
+      "expect": "finding",
+      "note": "comments.filter by pullRequestId per review in a for-of: O(reviews × comments)."
+    },
+    {
+      "id": "perf-find-by-key-map",
+      "tree": "perf/triggering",
+      "file": "joins.ts",
+      "lines": [19, 19],
+      "rule": "bpm-perf-find-by-key-in-loop",
+      "dimension": "performance",
+      "expect": "finding",
+      "note": "rows.find by repoId per element of repoIds.map: O(n·m)."
+    },
+    {
+      "id": "perf-includes-filter",
+      "tree": "perf/triggering",
+      "file": "joins.ts",
+      "lines": [24, 24],
+      "rule": "bpm-perf-includes-in-loop",
+      "dimension": "performance",
+      "expect": "finding",
+      "note": "repoIds.includes per PR inside prs.filter: O(n·m), a Set makes it O(n + m)."
+    },
+    {
+      "id": "perf-copy-on-append-map",
+      "tree": "perf/triggering",
+      "file": "joins.ts",
+      "lines": [30, 30],
+      "rule": "bpm-perf-copy-on-append",
+      "dimension": "performance",
+      "expect": "finding",
+      "note": "map.set(k, [...(map.get(k) ?? []), p]) copies the group on every insert: O(k²)."
+    },
+    {
+      "id": "perf-copy-on-append-reduce",
+      "tree": "perf/triggering",
+      "file": "joins.ts",
+      "lines": [35, 35],
+      "rule": "bpm-perf-copy-on-append",
+      "dimension": "performance",
+      "expect": "finding",
+      "note": "reduce returning {...acc, [id]: p} copies the object per element: O(k²)."
     }
   ]
 }

@@ -11579,6 +11579,37 @@
           "Not verified here: a real second model answering (LM Studio or hosted); the verifier is tested with scripted gateways against the real tables, and the anti-slop/logging/dependency paths with fakes (no podman, opengrep, syft or grype here).",
           "Bugs noticed, not fixed: the weekly anti-slop judgement calls themselves (the finder side) are not on the monthly call cap, only AI passes and verify calls are; the weekly logging judgement half never runs (it is given no files), so its verify hook only applies where a diff is passed."
         ]
-      }
+      },
+        {
+      "id": "W21-20",
+      "title": "Algorithmic complexity rules: joins by scan, membership by array, copy-on-append (JS/TS first)",
+      "phase": 21,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "packages/security/rulepacks/code-health/perf/**",
+        "packages/security/fixtures/perf/**",
+        "packages/security/fixtures/benchmark/rule-fixtures/suite.json",
+        "packages/security/src/scanners/code-health/perf-pack.test.ts",
+        "packages/analysis/checklists/**",
+        "docs/design/CODE_HEALTH_SUITE.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W21-04"
+      ],
+      "acceptance": [
+        "A perf pack that finds O(n·m) joins (find-by-key, includes against an array, per element of another collection) and O(k²) copy-on-append, each message stating the complexity before and after and the fix, quoting no speedup",
+        "Measured on a real corpus by reading every hit, with the result in CODE_HEALTH_SUITE §9.1a; RED/GREEN golden fixtures including the look-alikes it must not report",
+        "Java/Kotlin, Python and Go variants, measured the same way",
+        "performance.v3 checklist for cross-function complexity (binary search over sorted data, memoisation) that names the growing input and the complexity before and after, with eval cases"
+      ],
+      "points": 8,
+      "status": "in_progress",
+      "notes": [
+        "Owner request 2026-10-26 (Brad): RepoPulse should find the algorithmic performance problems in customers code that a review of RepoPulse itself found.",
+        "Slice 1 (JS/TS) built 2026-10-26: perf.complexity.v1.yaml, 3 rules, candidate. Measured on this repository, every hit read: find-by-key 19 (10 growing, 9 small, 0 wrong), includes 33 (15/16/2 string receivers), copy-on-append 14/14; caught every join the manual review found. Also fixed bpm-perf-orm-call-in-loop reporting Map.get as a DB call (233 of 327 hits): a one-argument .get now counts only when awaited, which keeps the labelled `await db.get(id)` N+1; 94 remain ungraded. Rule-fixtures benchmark: 5 new labels, fn 0 / fp 0."
+      ]
+    }
   ]
 }
