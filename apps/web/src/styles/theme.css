@@ -310,6 +310,17 @@ input[type='password'] {
   }
 }
 
+/* W21-01: focus the shell MOVES (the page heading after a navigation, <main>
+   from the skip link) is for screen readers and the next Tab, not a control
+   the person chose, so it draws no ring: the browser's own ring put a hard
+   black box round every page title. Any other tabindex=-1 target rings only
+   when the browser judges the focus keyboard-driven (:focus-visible). */
+h1[tabindex='-1']:focus,
+main[tabindex='-1']:focus,
+[tabindex='-1']:focus:not(:focus-visible) {
+  outline: none;
+}
+
 /* Respect reduced-motion globally (UX §2.1); charts also set animation:false. */
 @media (prefers-reduced-motion: reduce) {
   *,

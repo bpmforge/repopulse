@@ -48,7 +48,7 @@ export interface PrDetail {
     first_approval_at: string | null;
   };
   reviews: { reviewer: string; state: string; submitted_at: string }[];
-  checks: { name: string; conclusion: string | null; status: string }[];
+  checks: PrCheck[];
   files: {
     path: string;
     additions: number;
@@ -140,4 +140,45 @@ export function formatHours(hours: number | null): string {
   if (hours < 1) return `${Math.round(hours * 60)}m`;
   if (hours < 48) return `${hours.toFixed(1)}h`;
   return `${(hours / 24).toFixed(1)}d`;
+}
+
+/** One check on the PR's head (W21-01: kind, attempt and time, not just a name). */
+export interface PrCheck {
+  name: string | null;
+  conclusion: string | null;
+  status: string;
+  /** Absent from an older API. */
+  kind?: 'check_run' | 'workflow_run' | string;
+  forge_run_id?: string;
+  run_attempt?: number;
+  started_at?: string | null;
+  completed_at?: string | null;
+}
+
+/**
+ * What tells two checks apart (W21-01). Two rows that both read "ci" — a
+ * workflow run and its check, or a re-run — were indistinguishable. Says the
+ * kind, the attempt when it is a re-run, and when it finished (or started).
+ */
+export function checkDetail(c: PrCheck, now: Date = new Date()): string {
+  const parts: string[] = [];
+  if (c.kind === 'workflow_run') parts.push('workflow run');
+  else if (c.kind === 'check_run') parts.push('check');
+  if (c.run_attempt !== undefined && c.run_attempt > 1) parts.push(`attempt ${c.run_attempt}`);
+  const when = c.completed_at ?? c.started_at ?? null;
+  if (when) {
+    const d = new Date(when);
+    const sameYear = d.getFullYear() === now.getFullYear();
+    const stamp = d.toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      ...(sameYear ? {} : { year: 'numeric' }),
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    parts.push(`${c.completed_at ? 'finished' : 'started'} ${stamp}`);
+  } else if (c.status !== 'completed') {
+    parts.push(c.status.replace(/_/g, ' '));
+  }
+  return parts.join(' · ');
 }

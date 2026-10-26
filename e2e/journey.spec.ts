@@ -1,7 +1,7 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { loginAsFixture } from './helpers/auth.js';
 import { expectNoA11yViolations } from './helpers/axe.js';
-import { withNullPersona } from './helpers/warehouse.js';
+import { withNullPersona, withReviewRequested } from './helpers/warehouse.js';
 
 // The first-run journey (W4-10, UX_SPEC §6 + R-A1/R-A2).
 //
@@ -73,7 +73,8 @@ test('the onboarding checklist shows the admin variant and stays dismissed (R-A1
     await expect(page.getByTestId('onboarding-checklist')).toBeVisible();
     // The fixture user is this workspace's admin, so the ADMIN variant renders:
     // setup steps, not the member orientation tour.
-    await expect(page.getByRole('link', { name: /assign workspace roles/i })).toBeVisible();
+    // (Renamed "Add people and assign roles" in W20-17.)
+    await expect(page.getByRole('link', { name: /assign roles/i })).toBeVisible();
 
     await page.getByTestId('onboarding-dismiss').click();
     await expect(page.getByTestId('onboarding-checklist')).toHaveCount(0);
@@ -86,17 +87,42 @@ test('the onboarding checklist shows the admin variant and stays dismissed (R-A1
   }
 });
 
-test('the Pull Requests rail badge counts the review queue, and Findings shows none (R-A4)', async ({
+test('the Pull Requests rail badge counts the review queue, and Findings counts what it says (R-A4)', async ({
   page,
 }) => {
   await loginAsFixture(page);
-  await page.goto('/');
-
-  const prBadge = page.getByTestId('rail-pull-requests').locator('span').last();
-  await expect(prBadge).toHaveText(/^\d+$/);
-
-  // Findings deliberately carries NO badge until findings exist (W6): a count
-  // frozen at 0 is indistinguishable from a working one, so nothing is rendered
-  // rather than a zero. Tracked in W4-21.
-  await expect(page.getByTestId('rail-findings')).not.toHaveText(/\d/);
+  // The seeder records no review requests; the forge asking us is the input.
+  const restore = await withReviewRequested(FIXTURE);
+  try {
+    await page.goto('/');
+    await badgesMatchTheirCounts(page);
+  } finally {
+    await restore();
+  }
 });
+
+async function badgesMatchTheirCounts(page: Page): Promise<void> {
+  // The badges are the counts their own endpoints give, never a guess. Since
+  // W20-16 (DSH-64/85) the Pull Requests count is the PRs the forge says ask
+  // YOU (requested: true) and is its own link to the queue on My Focus; since
+  // W20-10 (X-03) Findings counts new serious findings since you last opened
+  // the inbox. A zero renders as nothing, not "0" (W4-21).
+  const queue = (await (await page.request.get('/api/v1/me/review-queue')).json()) as {
+    items: { requested?: boolean | null }[];
+  };
+  const asked = queue.items.filter((i) => i.requested === true).length;
+  expect(asked).toBeGreaterThan(0);
+  const prBadge = page.getByTestId('rail-badge-pull-requests');
+  await expect(prBadge).toHaveText(String(asked));
+  await expect(prBadge).toHaveAttribute('href', /\/me.*#review-queue/);
+
+  const inbox = (await (await page.request.get('/api/v1/me/inbox')).json()) as {
+    findings_count: number;
+  };
+  const findingsBadge = page.getByTestId('rail-badge-findings');
+  if (inbox.findings_count > 0) {
+    await expect(findingsBadge).toHaveText(String(inbox.findings_count));
+  } else {
+    await expect(page.getByTestId('rail-findings')).not.toHaveText(/\d/);
+  }
+}

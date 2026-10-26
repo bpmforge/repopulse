@@ -390,11 +390,13 @@ function PrintReport() {
         data-testid="print-basis"
       >
         <h2 className="text-sm font-medium">Basis</h2>
-        <p className="mt-1 text-xs text-fg-muted">
+        {/* text-sm (W21-01): the boxed text was a size smaller than the
+            report's own paragraphs around it, so the box read as small print. */}
+        <p className="mt-1 text-sm text-fg-muted">
           All figures read metric snapshots computed at or before {snapshotAt}. Regenerating this
           report with the same scope reproduces these numbers exactly.
         </p>
-        <p className="mt-1 text-xs text-fg-muted" data-testid="print-weights">
+        <p className="mt-1 text-sm text-fg-muted" data-testid="print-weights">
           {weightsLine(report.params.healthWeights)}
         </p>
         {report.dataQuality.length > 0 && (
@@ -445,7 +447,7 @@ function PrintReport() {
             // facts and a reader has to be able to tell them apart.
             <div className="panel p-3 break-inside-avoid">
               <h2 className="text-sm font-medium">{sectionTitle(section.id)}</h2>
-              <p className="mt-1 text-xs text-fg-muted">{section.reason}</p>
+              <p className="mt-1 text-sm text-fg-muted">{section.reason}</p>
             </div>
           )}
 

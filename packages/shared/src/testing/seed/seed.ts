@@ -157,6 +157,24 @@ async function wipeWorkspace(
   workspaceId: number,
   { keepFixtureRepos = false }: { keepFixtureRepos?: boolean } = {},
 ): Promise<void> {
+  // W21-01: every other table that references repos (or a finding) goes
+  // first. These five were missing, and once a run had INGESTED a repository —
+  // the e2e ingest spec does, and the snapshot job then scores its files — the
+  // next seed failed on file_hotspot_scores' foreign key: a second `pnpm e2e`
+  // or a DEMO_MODE boot on the same database could not start.
+  await db.delete(read.aiTriageVerdicts).where(eq(read.aiTriageVerdicts.workspaceId, workspaceId));
+  await db
+    .delete(read.aiFindingProvenance)
+    .where(eq(read.aiFindingProvenance.workspaceId, workspaceId));
+  await db.delete(read.verifiedPatches).where(eq(read.verifiedPatches.workspaceId, workspaceId));
+  await db.delete(read.aiPassRuns).where(eq(read.aiPassRuns.workspaceId, workspaceId));
+  await db.delete(read.aiPassSchedules).where(eq(read.aiPassSchedules.workspaceId, workspaceId));
+  await db
+    .delete(read.fileHotspotScores)
+    .where(eq(read.fileHotspotScores.workspaceId, workspaceId));
+  await db
+    .delete(facts.prReviewRequests)
+    .where(eq(facts.prReviewRequests.workspaceId, workspaceId));
   // Analysis/audit rows reference repos.
   await db.delete(read.findingEvents).where(eq(read.findingEvents.workspaceId, workspaceId));
   await db.delete(read.findings).where(eq(read.findings.workspaceId, workspaceId));
@@ -214,21 +232,19 @@ async function wipeWorkspace(
   // Anything NOT in the fixture goes, and so does a fixture repo hanging off a
   // connection we are about to remove — leaving one would fail the connection
   // delete below for a row nothing wanted to keep.
-  await db
-    .delete(core.repos)
-    .where(
-      and(
-        eq(core.repos.workspaceId, workspaceId),
-        keepConnection === null
-          ? undefined
-          : // Keep exactly (a fixture forge id) AND (the kept connection);
-            // delete the complement of that pair.
-            or(
-              notInArray(core.repos.forgeRepoId, SEED_FORGE_REPO_IDS),
-              ne(core.repos.connectionId, keepConnection),
-            ),
-      ),
-    );
+  await db.delete(core.repos).where(
+    and(
+      eq(core.repos.workspaceId, workspaceId),
+      keepConnection === null
+        ? undefined
+        : // Keep exactly (a fixture forge id) AND (the kept connection);
+          // delete the complement of that pair.
+          or(
+            notInArray(core.repos.forgeRepoId, SEED_FORGE_REPO_IDS),
+            ne(core.repos.connectionId, keepConnection),
+          ),
+    ),
+  );
   // Both reference forge_connections and must go before it. forge_etag is the
   // one that actually broke: it is written only when a forge returns an ETag,
   // so it stayed empty until the first real-GitHub run.
@@ -250,7 +266,9 @@ async function wipeWorkspace(
   await db.delete(security.sboms).where(eq(security.sboms.workspaceId, workspaceId));
   // Scanner config and runs (W8-01).
   await db.delete(security.scanRuns).where(eq(security.scanRuns.workspaceId, workspaceId));
-  await db.delete(security.repoScannerConfig).where(eq(security.repoScannerConfig.workspaceId, workspaceId));
+  await db
+    .delete(security.repoScannerConfig)
+    .where(eq(security.repoScannerConfig.workspaceId, workspaceId));
   // File intents (W6-07).
   await db.delete(plans.fileIntents).where(eq(plans.fileIntents.workspaceId, workspaceId));
   // Agreements (W5-08).
@@ -259,7 +277,9 @@ async function wipeWorkspace(
   // improvement_plans, since each FKs the one before it.
   await db.delete(plans.planItemEvents).where(eq(plans.planItemEvents.workspaceId, workspaceId));
   await db.delete(plans.planItems).where(eq(plans.planItems.workspaceId, workspaceId));
-  await db.delete(plans.improvementPlans).where(eq(plans.improvementPlans.workspaceId, workspaceId));
+  await db
+    .delete(plans.improvementPlans)
+    .where(eq(plans.improvementPlans.workspaceId, workspaceId));
   // Reports (W5-04), for the same reason as saved views directly below: the
   // row FKs to users, so a leftover report makes unseedWarehouse's user delete
   // fail with a constraint error naming a table the caller never mentioned.
@@ -307,7 +327,13 @@ export async function seedWarehouse(
   // first-login state rather than a mock of it.
   const [fixtureUser] = await db
     .insert(core.users)
-    .values({ authProvider: 'github', authSubject: FIXTURE_LOGIN, forgeUserId: FIXTURE_LOGIN, login: FIXTURE_LOGIN, persona: 'lead' })
+    .values({
+      authProvider: 'github',
+      authSubject: FIXTURE_LOGIN,
+      forgeUserId: FIXTURE_LOGIN,
+      login: FIXTURE_LOGIN,
+      persona: 'lead',
+    })
     .onConflictDoUpdate({
       target: core.users.forgeUserId,
       set: { login: FIXTURE_LOGIN, persona: 'lead' },
@@ -334,19 +360,19 @@ export async function seedWarehouse(
   const [insertedConn] = existingConn
     ? [undefined]
     : await db
-    .insert(core.forgeConnections)
-    .values({
-      workspaceId,
-      provider: 'github',
-      authKind: 'pat',
-      credentialCiphertext: Buffer.from('seed'),
-      credentialIv: Buffer.from('iv-seed-1234567'),
-      keyVersion: 1,
-      credentialFingerprint: SEED_CREDENTIAL_FINGERPRINT,
-      status: 'active',
-      createdBy: fixtureUser!.id,
-    })
-    .returning();
+        .insert(core.forgeConnections)
+        .values({
+          workspaceId,
+          provider: 'github',
+          authKind: 'pat',
+          credentialCiphertext: Buffer.from('seed'),
+          credentialIv: Buffer.from('iv-seed-1234567'),
+          keyVersion: 1,
+          credentialFingerprint: SEED_CREDENTIAL_FINGERPRINT,
+          status: 'active',
+          createdBy: fixtureUser!.id,
+        })
+        .returning();
   const conn = existingConn ?? insertedConn;
 
   // --- identities (incl. the fixture login + a bot) ---
@@ -400,6 +426,12 @@ export async function seedWarehouse(
           name,
           defaultBranch: 'main',
           syncStatus: 'live',
+          // W21-01: the kept row is reset to the fixture's settings too. The
+          // e2e suite turns Tier-3 on for a repository, so a second run on the
+          // same database began with it already on and the opt-in test could
+          // not opt in.
+          tier2Auto: false,
+          tier3OptIn: false,
           pushedAt: new Date(BASE + 40 * DAY - rng.int(0, 5) * DAY),
         },
       })
@@ -426,10 +458,7 @@ export async function seedWarehouse(
           // W18-20: two agent-co-authored commits per repo, so the AI-code
           // governance tile has both cohorts to show. Fixed by index, NOT drawn
           // from rng: an extra draw would shift every value seeded after it.
-          trailers:
-            c === 1 || c === 4
-              ? ['Co-authored-by: Claude <noreply@anthropic.com>']
-              : [],
+          trailers: c === 1 || c === 4 ? ['Co-authored-by: Claude <noreply@anthropic.com>'] : [],
           isRevertHeuristic: false,
           isMerge,
         })
@@ -489,7 +518,8 @@ export async function seedWarehouse(
           baseRef: 'main',
           headSha,
           // W18-20: agent branch prefixes on two of the five (fixed, not rng).
-          headRef: p === 2 ? `claude/feature-${p}` : p === 4 ? `copilot/feature-${p}` : `feature/${p}`,
+          headRef:
+            p === 2 ? `claude/feature-${p}` : p === 4 ? `copilot/feature-${p}` : `feature/${p}`,
           additions: rng.int(5, 300),
           deletions: rng.int(0, 100),
           changedFiles: rng.int(1, 8),

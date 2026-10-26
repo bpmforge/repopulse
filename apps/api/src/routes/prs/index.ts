@@ -214,6 +214,7 @@ export default async function prsRoutes(
         .from(facts.pullRequests)
         .where(
           and(
+            eq(facts.pullRequests.workspaceId, workspaceId),
             eq(facts.pullRequests.repoId, request.params.id),
             eq(facts.pullRequests.number, request.params.number),
           ),
@@ -230,19 +231,29 @@ export default async function prsRoutes(
         .from(facts.prReviews)
         .innerJoin(core.identities, eq(facts.prReviews.reviewerIdentityId, core.identities.id))
         .where(eq(facts.prReviews.pullRequestId, pr.id));
+      // W21-01: enough to tell two runs of one check apart — two rows both
+      // reading "ci" said nothing. Kind (a check or a whole workflow run), the
+      // attempt and when it finished; newest first.
       const checks = await db
         .select({
           name: facts.checkRuns.workflowName,
           conclusion: facts.checkRuns.conclusion,
           status: facts.checkRuns.status,
+          kind: facts.checkRuns.kind,
+          forgeRunId: facts.checkRuns.forgeRunId,
+          runAttempt: facts.checkRuns.runAttempt,
+          startedAt: facts.checkRuns.startedAt,
+          completedAt: facts.checkRuns.completedAt,
         })
         .from(facts.checkRuns)
         .where(
           and(
+            eq(facts.checkRuns.workspaceId, workspaceId),
             eq(facts.checkRuns.repoId, request.params.id),
             eq(facts.checkRuns.headSha, pr.headSha),
           ),
-        );
+        )
+        .orderBy(sql`${facts.checkRuns.completedAt} desc nulls first`, desc(facts.checkRuns.id));
       const files = await db
         .select({
           path: facts.prFiles.path,
@@ -312,7 +323,16 @@ export default async function prsRoutes(
           state: r.state,
           submitted_at: r.submittedAt.toISOString(),
         })),
-        checks: checks.map((c) => ({ name: c.name, conclusion: c.conclusion, status: c.status })),
+        checks: checks.map((c) => ({
+          name: c.name,
+          conclusion: c.conclusion,
+          status: c.status,
+          kind: c.kind,
+          forge_run_id: c.forgeRunId,
+          run_attempt: c.runAttempt,
+          started_at: c.startedAt?.toISOString() ?? null,
+          completed_at: c.completedAt?.toISOString() ?? null,
+        })),
         files: files.map((f) => ({
           path: f.path,
           additions: f.additions,

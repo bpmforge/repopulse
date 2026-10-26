@@ -60,12 +60,12 @@ export function filterScopeFor(pathname: string): FilterScope {
     };
   }
   if (pathname === '/repos') return { window: true, repos: true, person: false };
-  // The ORG overview is deliberately not repo-filtered. Its nine widgets read
-  // five org-rollup endpoints that have no repo_id, and the screen already has
-  // a better answer to "just this repository": every health tile links to it.
-  // Offering the picker here would mean either five API changes or a control
-  // that narrows three widgets and silently ignores six.
-  if (pathname === '/') return { window: true, repos: false, person: false };
+  // The ORG overview IS repo-filtered now: since W20-05/W20-16 (DSH-02) every
+  // one of its widgets reads `repos` (a saved view of three repositories shows
+  // those three). With no picker here the narrowing was invisible and could
+  // not be cleared — a set saved anywhere landed you on a silently filtered
+  // Overview (W21-01).
+  if (pathname === '/') return { window: true, repos: true, person: false };
   // The org PR list is a cohort browser, not a windowed metric: it has its own
   // state/size/stale filters and pages by cursor. Repo and person narrow it.
   if (pathname.startsWith('/pull-requests')) return { window: false, repos: true, person: true };

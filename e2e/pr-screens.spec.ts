@@ -17,8 +17,10 @@ async function seededRepoId(page: import('@playwright/test').Page): Promise<stri
     .getByTestId('health-tile-grid')
     .locator('a')
     .filter({ hasText: SEED_REPO_NAMES[0] });
-  await expect(tile.first(), `seeded repo "${SEED_REPO_NAMES[0]}" should be on the org overview`)
-    .toBeVisible();
+  await expect(
+    tile.first(),
+    `seeded repo "${SEED_REPO_NAMES[0]}" should be on the org overview`,
+  ).toBeVisible();
   const href = await tile.first().getAttribute('href');
   const id = href?.match(/\/repos\/(\d+)/)?.[1];
   if (!id) throw new Error('no repo link on the org overview');
@@ -138,7 +140,12 @@ test('org PR filters narrow the list server-side (W4-16)', async ({ page }) => {
   // fails on timing rather than on behaviour.
   await expect
     .poll(async () => {
-      const states = await rows.locator('td:nth-last-child(2)').allInnerTexts();
+      // The State column by position from the left (Repository, PR, Author,
+      // Size, State): W20-20 added Age between State and Reviewed, so the old
+      // "second from last" read the age column, which is "—" on every merged
+      // PR, and this poll could never see "merged" however well the server
+      // filtered.
+      const states = await rows.locator('> :nth-child(5)').allInnerTexts();
       // Every visible row matches — a filter applied client-side to an already
       // paginated page would leave non-matching rows behind.
       return states.length > 0 && states.every((s) => s.trim() === 'merged');

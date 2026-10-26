@@ -8,6 +8,7 @@ import {
 } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 import {
+  checkDetail,
   formatHours,
   toStages,
   totalChurn,
@@ -200,9 +201,24 @@ export function PrDetailScreen({ repoId, number, search }: Props) {
           emptyMessage="No CI checks reported for this PR."
         >
           <ul className="flex flex-col gap-1 text-sm" data-testid="pr-checks">
-            {data.checks.map((c) => (
-              <li key={c.name} className="flex items-center justify-between gap-3">
-                <span className="truncate">{c.name}</span>
+            {data.checks.map((c, i) => (
+              <li
+                key={`${c.kind ?? ''}-${c.forge_run_id ?? c.name ?? ''}-${c.run_attempt ?? 0}-${i}`}
+                className="flex items-center justify-between gap-3"
+              >
+                <span className="flex min-w-0 flex-col">
+                  <span
+                    className="break-words"
+                    title={c.forge_run_id ? `Run ${c.forge_run_id}` : undefined}
+                  >
+                    {c.name ?? 'Unnamed check'}
+                  </span>
+                  {checkDetail(c) && (
+                    <span className="text-xs text-fg-muted" data-testid="pr-check-detail">
+                      {checkDetail(c)}
+                    </span>
+                  )}
+                </span>
                 <SeverityBadge
                   severity={CHECK_SEVERITY[c.conclusion ?? ''] ?? 'info'}
                   label={(c.conclusion ?? 'pending').replace(/_/g, ' ')}

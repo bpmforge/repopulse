@@ -142,6 +142,14 @@ export function badgeLabel(to: string, badge: number): string {
   if (to === '/admin') {
     return `${badge} install ${badge === 1 ? 'component is' : 'components are'} not working`;
   }
+  // W21-01: the Findings count is the inbox's (routes/me): serious open
+  // findings (severity 4+, secrets, known-exploited) first seen since you last
+  // opened the inbox. "2 new" beside a list of 70 open findings, a repository
+  // header and a Top risks card each counting something else, read as three
+  // numbers disagreeing; it now says which count it is.
+  if (to === '/findings') {
+    return `${badge} new serious ${badge === 1 ? 'finding' : 'findings'} since you last opened the inbox`;
+  }
   return `${badge} new`;
 }
 
@@ -289,7 +297,7 @@ export function Rail({ badges = {}, isAdmin = true, search }: RailProps) {
                           title={
                             item.to === '/admin'
                               ? 'System health: open Settings → Connections to see which'
-                              : undefined
+                              : badgeLabel(item.to, badge)
                           }
                           data-testid={`rail-badge-${navTestId(item.to)}`}
                         >

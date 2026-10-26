@@ -23,10 +23,10 @@ describe('which global filters a screen applies (W16-50)', () => {
     }
   });
 
-  it('does not offer it on the org overview, which cannot honour it', () => {
-    // Nine widgets over five org-rollup endpoints with no repo_id. The choice
-    // is five API changes or a control that narrows three and ignores six.
-    expect(filterScopeFor('/').repos).toBe(false);
+  it('offers it on the org overview, whose widgets all honour it (W21-01)', () => {
+    // Every Overview widget reads ?repos= since DSH-02; without the picker the
+    // filter was applied and invisible.
+    expect(filterScopeFor('/').repos).toBe(true);
     expect(filterScopeFor('/').window).toBe(true);
   });
 

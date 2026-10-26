@@ -154,16 +154,22 @@ async function tabToPrefix(page: Page, prefix: string, max = 80): Promise<string
 test.describe('axe: screens the standing a11y spec never reached', () => {
   test.setTimeout(180_000);
 
+  // The first-visit theme follows the system preference since W20-17 (ADM-38),
+  // and Desktop Chrome reports light: pin dark, so "dark" means dark.
   test('every listed screen, dark theme, 1440px', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
     await loginAsFixture(page);
     for (const s of SCREENS) {
       await page.goto(s.path);
       await settle(page, s.ready);
+      await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
       await expectNoSeriousA11yViolations(page, `${s.name} @1440 dark`);
     }
   });
 
   test('every listed screen, light theme, 1440px', async ({ page }) => {
+    // From dark, through the toggle — the stored choice must then hold on every screen.
+    await page.emulateMedia({ colorScheme: 'dark' });
     await loginAsFixture(page);
     await page.goto('/');
     await settle(page, 'health-tile-grid');
@@ -178,12 +184,16 @@ test.describe('axe: screens the standing a11y spec never reached', () => {
   });
 
   test('every repository tab, both themes', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
     await loginAsFixture(page);
     const repo = await firstRepoPath(page);
     for (const theme of ['dark', 'light'] as const) {
       for (const tab of REPO_TABS) {
         await page.goto(`${repo}${tab}`);
         await settle(page, 'repo-detail');
+        if (theme === 'dark') {
+          await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+        }
         if (
           theme === 'light' &&
           (await page.locator('html').getAttribute('data-theme')) !== 'light'
@@ -370,6 +380,12 @@ test.describe('keyboard only: the primary workflows', () => {
     // widget there); "open the plan" is the hop from that tile back to /plans.
     await page.goto('/');
     await settle(page, 'health-tile-grid');
+    // Through the skip link, as a keyboard user would. Until W21-01 the route
+    // focus fired on the very first load (StrictMode ran the effect twice), so
+    // Tab started INSIDE main and this count never included the rail and the
+    // top bar; it does now, and the tile sits past 80 stops without the skip.
+    await tabTo(page, 'skip-link', 3);
+    await page.keyboard.press('Enter');
     const toTile = await tabTo(page, 'plan-tile-link');
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/\/plans/);
@@ -394,6 +410,11 @@ test.describe('keyboard only: the primary workflows', () => {
     // through selectOption on the focused control rather than an arrow key.
     await expect(page.getByTestId('report-type')).toBeFocused();
     await page.getByTestId('report-type').selectOption('repo_health');
+    // A Repository Health report needs its repository: the button stays
+    // disabled (so out of the Tab order) until one is chosen — by keyboard too.
+    await tabTo(page, 'report-repo');
+    await expect(page.getByTestId('report-repo')).toBeFocused();
+    await page.getByTestId('report-repo').selectOption({ index: 1 });
     const toGenerate = await tabTo(page, 'generate-report');
     await page.keyboard.press('Enter');
     await expect

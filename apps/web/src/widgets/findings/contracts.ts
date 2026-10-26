@@ -222,15 +222,28 @@ export function foundByText(f: {
   tier: number;
   rule_id?: string | null;
 }): string {
-  const by = f.found_by;
-  if (!by || by.kind === 'unknown') return `Tier ${f.tier}`;
+  const label = foundByLabel(f.found_by, f.rule_id);
+  return label === null ? `Tier ${f.tier}` : `Found by: ${label}`;
+}
+
+/**
+ * Who raised a finding, in words, without the "Found by:" lead (W21-01). The
+ * ONE way any screen names it: the panel said "your AI model fixture-model"
+ * while the PR's "New on this PR" table showed the raw key `owasp_web` for the
+ * same finding. Null when the API could not say.
+ */
+export function foundByLabel(
+  by: FoundBy | undefined | null,
+  ruleId?: string | null,
+): string | null {
+  if (!by || by.kind === 'unknown') return null;
   if (by.kind === 'imported') {
     const via = by.source === 'sarif' ? 'a SARIF upload' : 'code scanning';
-    return `Found by: imported from ${by.tool}${by.tool_version ? ` v${by.tool_version}` : ''} (${via})`;
+    return `imported from ${by.tool}${by.tool_version ? ` v${by.tool_version}` : ''} (${via})`;
   }
-  if (by.kind === 'model') return `Found by: your AI model ${by.model}`;
-  const rule = f.rule_id ? `, rule ${f.rule_id}` : '';
-  return `Found by: the ${by.scanner.replace(/_/g, ' ')} scanner${by.version ? ` ${by.version}` : ''}${rule}`;
+  if (by.kind === 'model') return `your AI model ${by.model}`;
+  const rule = ruleId ? `, rule ${ruleId}` : '';
+  return `the ${by.scanner.replace(/_/g, ' ')} scanner${by.version ? ` ${by.version}` : ''}${rule}`;
 }
 
 /** GET /findings → verified_by (W20-25, UX_TODO X-10). */

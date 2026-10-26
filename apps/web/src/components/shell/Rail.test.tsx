@@ -38,6 +38,16 @@ describe('rail badges', () => {
     expect((await railItem('pull-requests')).textContent).not.toContain('4');
   });
 
+  it('the Findings count says which findings it counts (W21-01)', async () => {
+    renderRail({ '/findings': 2 });
+    const badge = await screen.findByTestId('rail-badge-findings');
+    expect(badge.textContent).toBe('2');
+    expect(badge).toHaveAccessibleName('2 new serious findings since you last opened the inbox');
+    expect(badge.getAttribute('title')).toBe(
+      '2 new serious findings since you last opened the inbox',
+    );
+  });
+
   it('renders NOTHING for a zero count, not a zero', async () => {
     // The whole point. A "0" badge on Findings would look like a working badge
     // reporting no new findings, when in fact nothing feeds it yet.

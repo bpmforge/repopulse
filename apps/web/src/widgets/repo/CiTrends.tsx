@@ -147,53 +147,58 @@ export function CiTrends({ repoId, window }: Props) {
           &ldquo;Commits rerun&rdquo; counts commits where it was rerun; &ldquo;Failed then
           passed&rdquo; counts the ones where the rerun changed the result.
         </p>
-        <table className="table-plain w-full text-sm" data-testid="ci-flakiest">
-          <caption className="sr-only">
-            Workflows ranked by fail-to-pass reruns on the same commit
-          </caption>
-          <thead>
-            <tr className="text-left text-xs text-fg-muted">
-              <th scope="col">Workflow</th>
-              <th scope="col" className="text-right">
-                Failed then passed
-              </th>
-              <th scope="col" className="text-right">
-                Commits rerun
-              </th>
-              <th scope="col" className="text-right">
-                Flaky rate
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {(ci?.flakiest ?? []).map((f) => (
-              <tr key={f.workflow} className="border-t border-border">
-                <th scope="row" className="py-1 text-left font-normal">
-                  {f.runs_url ? (
-                    <a
-                      href={f.runs_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-accent underline"
-                      data-testid={`ci-flaky-runs-${f.workflow}`}
-                    >
-                      {f.workflow}
-                      <span className="sr-only"> — open its runs on the forge (new tab)</span>
-                    </a>
-                  ) : (
-                    f.workflow
-                  )}
+        {/* W21-01: at 768px and 200% zoom the four columns ran 2px past the
+            page; the table scrolls in its own region and a long workflow name
+            wraps. */}
+        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Flakiest workflows">
+          <table className="table-plain w-full text-sm" data-testid="ci-flakiest">
+            <caption className="sr-only">
+              Workflows ranked by fail-to-pass reruns on the same commit
+            </caption>
+            <thead>
+              <tr className="text-left text-xs text-fg-muted">
+                <th scope="col">Workflow</th>
+                <th scope="col" className="text-right">
+                  Failed then passed
                 </th>
-                <td className="py-1 text-right tabular-nums">{f.flipped_groups}</td>
-                <td className="py-1 text-right tabular-nums">{f.rerun_groups}</td>
-                {/* null rate = never rerun, which is not a rate of 0. */}
-                <td className="py-1 text-right tabular-nums">
-                  {f.flakiness === null ? '—' : `${Math.round(f.flakiness * 100)}%`}
-                </td>
+                <th scope="col" className="text-right">
+                  Commits rerun
+                </th>
+                <th scope="col" className="text-right">
+                  Flaky rate
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {(ci?.flakiest ?? []).map((f) => (
+                <tr key={f.workflow} className="border-t border-border">
+                  <th scope="row" className="py-1 text-left font-normal [overflow-wrap:anywhere]">
+                    {f.runs_url ? (
+                      <a
+                        href={f.runs_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-accent underline"
+                        data-testid={`ci-flaky-runs-${f.workflow}`}
+                      >
+                        {f.workflow}
+                        <span className="sr-only"> — open its runs on the forge (new tab)</span>
+                      </a>
+                    ) : (
+                      f.workflow
+                    )}
+                  </th>
+                  <td className="py-1 text-right tabular-nums">{f.flipped_groups}</td>
+                  <td className="py-1 text-right tabular-nums">{f.rerun_groups}</td>
+                  {/* null rate = never rerun, which is not a rate of 0. */}
+                  <td className="py-1 text-right tabular-nums">
+                    {f.flakiness === null ? '—' : `${Math.round(f.flakiness * 100)}%`}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </WidgetFrame>
     </div>
   );

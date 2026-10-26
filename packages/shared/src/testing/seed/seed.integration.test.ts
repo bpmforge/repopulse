@@ -308,10 +308,7 @@ describeIfLiveInfra('deterministic warehouse seeder (W4-00)', () => {
       .select({ file: read.findings.file, prId: read.findings.pullRequestId })
       .from(read.findings)
       .where(
-        and(
-          eq(read.findings.workspaceId, r.workspaceId),
-          isNotNull(read.findings.pullRequestId),
-        ),
+        and(eq(read.findings.workspaceId, r.workspaceId), isNotNull(read.findings.pullRequestId)),
       );
     expect(scoped.length).toBeGreaterThan(0);
     for (const f of scoped) {
@@ -319,7 +316,10 @@ describeIfLiveInfra('deterministic warehouse seeder (W4-00)', () => {
         .select({ path: facts.prFiles.path })
         .from(facts.prFiles)
         .where(eq(facts.prFiles.pullRequestId, f.prId!));
-      expect(touched.map((t) => t.path), `finding on PR ${f.prId}`).toContain(f.file);
+      expect(
+        touched.map((t) => t.path),
+        `finding on PR ${f.prId}`,
+      ).toContain(f.file);
     }
   });
 
@@ -350,7 +350,7 @@ describeIfLiveInfra('deterministic warehouse seeder (W4-00)', () => {
     }
   });
 
-  it('keeps each repository\'s id across a re-seed, so a demo URL survives (W16-48)', async () => {
+  it("keeps each repository's id across a re-seed, so a demo URL survives (W16-48)", async () => {
     // seedWarehouse wiped and re-inserted, so every repository got a new id on
     // every boot: a bookmarked /repos/34565/hotspots was a 404 after the next
     // `pnpm dev`. The suite next door already claimed re-seeding was
@@ -412,5 +412,23 @@ describeIfLiveInfra('deterministic warehouse seeder (W4-00)', () => {
       .from(core.repos)
       .where(eq(core.repos.workspaceId, r.secondWorkspaceId));
     expect(secondRepos).toHaveLength(0); // second tenant is intentionally empty (tenancy control)
+  });
+  it('a re-seed restores a kept repository to the fixture settings (W21-01)', async () => {
+    // The e2e suite opts a repository into Tier 3. The re-seed kept the row
+    // (W16-48) and its opt-in with it, so a second run began opted in.
+    const first = await seedWarehouse(db, { seed: 7 });
+    await db
+      .update(core.repos)
+      .set({ tier3OptIn: true, tier2Auto: true })
+      .where(eq(core.repos.id, first.repoIds[0]!));
+    const again = await seedWarehouse(db, { seed: 7 });
+    expect(again.repoIds[0]).toBe(first.repoIds[0]);
+    const [row] = await db
+      .select({ tier3: core.repos.tier3OptIn, tier2: core.repos.tier2Auto })
+      .from(core.repos)
+      .where(
+        and(eq(core.repos.id, again.repoIds[0]!), eq(core.repos.workspaceId, again.workspaceId)),
+      );
+    expect(row).toEqual({ tier3: false, tier2: false });
   });
 });

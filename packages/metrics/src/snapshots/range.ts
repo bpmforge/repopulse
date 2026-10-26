@@ -52,10 +52,24 @@ export interface RangeHeadlineParams {
 /** Longest custom range served (a bit over a year, like the 365d preset). */
 export const MAX_RANGE_DAYS = 366;
 
+export interface RangeHeadline {
+  metrics: Record<RangeHeadlineKey, RangeMetric>;
+  /**
+   * How many inputs the range held: commit touches, pull requests, CI runs and
+   * issues closed (W21-01). Zero means the range has nothing in it at all —
+   * typically a period from before the history that was synced — and then no
+   * metric of it is a fair comparison, not even a count: "1,840 lines, up from
+   * 0" said the team went from idle to busy when the truth was that nothing
+   * from back then had been loaded, while the rates beside it said "no prior
+   * period". The caller treats such a period as missing for every tile.
+   */
+  activity: number;
+}
+
 export async function computeRangeHeadline(
   db: Database,
   p: RangeHeadlineParams,
-): Promise<Record<RangeHeadlineKey, RangeMetric>> {
+): Promise<RangeHeadline> {
   const repos = await db
     .select({ id: core.repos.id })
     .from(core.repos)
@@ -74,6 +88,7 @@ export async function computeRangeHeadline(
   let closed = 0;
   const cyclePrs: CyclePr[] = [];
   const ciRuns: CiRunInput[] = [];
+  let activity = 0;
 
   for (const { id } of repos) {
     const [touches, coverage, cycle, runs, issues] = await Promise.all([
@@ -94,7 +109,9 @@ export async function computeRangeHeadline(
     for (const pr of cycle) cyclePrs.push(pr);
     // M9's value is the DEFAULT-BRANCH pass rate (compute.ts); PR runs are a dim.
     for (const r of runs) if (r.pullRequestId === null) ciRuns.push(r);
-    closed += computeIssueThroughput(issues, p.start, p.end).closed;
+    const closedHere = computeIssueThroughput(issues, p.start, p.end).closed;
+    closed += closedHere;
+    activity += touches.length + coverage.length + runs.length + closedHere;
   }
 
   const completed = ciRuns.filter(
@@ -102,7 +119,7 @@ export async function computeRangeHeadline(
   );
   const passed = completed.filter((r) => r.conclusion === 'success').length;
 
-  return {
+  const metrics: Record<RangeHeadlineKey, RangeMetric> = {
     M5: {
       value: merged > 0 ? covered / merged : null,
       numerator: covered,
@@ -121,6 +138,7 @@ export async function computeRangeHeadline(
     M1: { value: churnMeasured ? churn : null, numerator: null, denominator: null },
     M10: { value: repos.length > 0 ? closed : null, numerator: null, denominator: null },
   };
+  return { metrics, activity };
 }
 
 /**

@@ -133,3 +133,50 @@ export async function withNullPersona(login: string): Promise<() => Promise<void
     await restoreDb.$client.end();
   };
 }
+
+/**
+ * Have the forge ask `login` to review one open pull request someone else
+ * opened (W21-01), the way a sync records GitHub's requested_reviewers. The
+ * seeder records no review requests, so the rail's review-queue count — which
+ * counts only PRs the forge says ask you (W20-16, DSH-85) — had nothing to
+ * count. Workspace-scoped through the PR's own row. Returns a restore function.
+ */
+export async function withReviewRequested(login: string): Promise<() => Promise<void>> {
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error('withReviewRequested: DATABASE_URL is not set');
+  const db = createDb(url);
+  const [me] = await db
+    .select({ identityId: core.identities.id, workspaceId: core.identities.workspaceId })
+    .from(core.identities)
+    .innerJoin(core.users, eq(core.users.id, core.identities.userId))
+    .where(eq(core.users.forgeUserId, login))
+    .limit(1);
+  if (!me) throw new Error(`withReviewRequested: no identity linked to ${login}`);
+  const [pr] = await db
+    .select({ id: facts.pullRequests.id, before: facts.pullRequests.requestedReviewerIdentityIds })
+    .from(facts.pullRequests)
+    .where(
+      and(
+        eq(facts.pullRequests.workspaceId, me.workspaceId),
+        eq(facts.pullRequests.state, 'open'),
+        sql`${facts.pullRequests.authorIdentityId} is distinct from ${me.identityId}`,
+      ),
+    )
+    .orderBy(facts.pullRequests.id)
+    .limit(1);
+  if (!pr) throw new Error('withReviewRequested: no open pull request by someone else');
+  await db
+    .update(facts.pullRequests)
+    .set({ requestedReviewerIdentityIds: [me.identityId] })
+    .where(eq(facts.pullRequests.id, pr.id));
+  await db.$client.end();
+
+  return async () => {
+    const restoreDb = createDb(url);
+    await restoreDb
+      .update(facts.pullRequests)
+      .set({ requestedReviewerIdentityIds: pr.before })
+      .where(eq(facts.pullRequests.id, pr.id));
+    await restoreDb.$client.end();
+  };
+}

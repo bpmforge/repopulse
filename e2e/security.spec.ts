@@ -68,8 +68,11 @@ test('a never-run scanner shows a dash, not a zero', async ({ page }) => {
   // show a dash in the count column — a zero there is a claim.
   const unlooked = rows.filter({ hasText: /not enabled|has never run/ });
   const count = await unlooked.count();
+  // The Open column, by position (State, Last run, Runs, Open): since W20 an
+  // admin also gets an "On for this repository" toggle column after it, so the
+  // LAST cell is no longer the count.
   for (let i = 0; i < count; i++) {
-    await expect(unlooked.nth(i).locator('td').last()).toHaveText('—');
+    await expect(unlooked.nth(i).locator('td').nth(3)).toHaveText('—');
   }
 });
 

@@ -10,9 +10,16 @@ import { expectNoA11yViolations } from './helpers/axe.js';
 // violation only exists when a SeverityBadge or HealthBadge is on screen with
 // real data behind it — so that is what this scans.
 
+// W20-17 (ADM-38) made the first-visit theme follow the system preference, and
+// Playwright's Desktop Chrome reports `light` — so a scan that never touched
+// the toggle was scanning LIGHT while its title said dark, and the toggle took
+// the "light" scans to dark. Each test now pins the system preference it means
+// and asserts the theme actually applied before it scans.
 test('populated org overview passes axe in the dark theme', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' });
   await loginAsFixture(page);
   await page.goto('/');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   // Badges only render once data lands; scanning before that is the same blind
   // spot as scanning the logged-out shell.
   await expect(page.getByTestId('health-tile-grid').locator('li').first()).toBeVisible();
@@ -20,6 +27,8 @@ test('populated org overview passes axe in the dark theme', async ({ page }) => 
 });
 
 test('populated org overview passes axe in the light theme', async ({ page }) => {
+  // Start dark and reach light THROUGH THE TOGGLE, as this always has.
+  await page.emulateMedia({ colorScheme: 'dark' });
   await loginAsFixture(page);
   await page.goto('/');
   await expect(page.getByTestId('health-tile-grid').locator('li').first()).toBeVisible();
@@ -54,8 +63,11 @@ const ROUTES: { path: string; ready: string }[] = [
 for (const theme of ['dark', 'light'] as const) {
   for (const route of ROUTES) {
     test(`${route.path} passes axe in the ${theme} theme`, async ({ page }) => {
+      // Dark system preference; light is reached through the toggle (see above).
+      await page.emulateMedia({ colorScheme: 'dark' });
       await loginAsFixture(page);
       await page.goto(route.path);
+      await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
       // Wait for the screen's own root, not a timer: scanning a skeleton is
       // how a contrast defect survives an a11y suite.
       await expect(page.getByTestId(route.ready)).toBeVisible();

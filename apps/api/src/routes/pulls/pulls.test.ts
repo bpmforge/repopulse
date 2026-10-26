@@ -602,6 +602,7 @@ describeIfLiveInfra('CI pull: PR findings API + read-only CI token (W18-18)', ()
         'experimental',
         'file',
         'first_seen_at',
+        'found_by',
         'id',
         'introduced_by_pr',
         'last_seen_at',
@@ -624,6 +625,12 @@ describeIfLiveInfra('CI pull: PR findings API + read-only CI token (W18-18)', ()
       suggested_fix: 'fix it',
       experimental: false,
     });
+    // W21-01: attributed like GET /findings, so both screens can say it the
+    // same way — never just the bare scanner key.
+    expect(first.found_by).toMatchObject({ kind: expect.stringMatching(/scanner|model|imported/) });
+    if ((first.found_by as { kind: string }).kind === 'scanner') {
+      expect(first.found_by).toMatchObject({ scanner: first.scanner_key });
+    }
   });
 
   it('include_experimental=true adds the shadow-mode finding, and only it', async () => {

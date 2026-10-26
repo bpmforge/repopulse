@@ -69,7 +69,10 @@ export function FilterBar({
   };
 
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-2" data-testid="filter-bar">
+    // min-h-8 (W21-01): the bar is as tall as its controls on every page, so a
+    // page with none (Reports, Settings, a pull request) puts its title at the
+    // same height as one with three; titles used to jump ~5px between pages.
+    <div className="flex min-h-8 min-w-0 flex-wrap items-center gap-2" data-testid="filter-bar">
       {/* Nothing at all is a legitimate result: Reports and Views carry their
           own scope, and an empty bar says so more honestly than three dead
           controls did. */}
@@ -176,6 +179,27 @@ export function FilterBar({
           savedSets={savedRepoSets}
           onSaveSet={onSaveRepoSet}
         />
+      )}
+      {/* W21-01: a page narrowed by repository says so beside the picker and
+          offers the way back in one click, not two levels into a panel. */}
+      {scope.repos && value.repos && String(value.repos) !== 'all' && (
+        <span
+          className="flex items-center gap-1 text-xs text-fg-muted"
+          data-testid="filter-repos-active"
+        >
+          Filtered to{' '}
+          {String(value.repos).split(',').filter(Boolean).length === 1
+            ? '1 repository'
+            : `${String(value.repos).split(',').filter(Boolean).length} repositories`}
+          <button
+            type="button"
+            className="inline-flex h-8 items-center rounded-md border border-border px-2 text-xs text-fg hover:border-accent"
+            data-testid="filter-repos-clear"
+            onClick={() => onChange({ repos: null })}
+          >
+            Show all
+          </button>
+        </span>
       )}
 
       {scope.person && (

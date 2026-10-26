@@ -95,6 +95,15 @@ describe('trail wording and the document title', () => {
     ]);
   });
 
+  it('names the Settings tabs by their tab labels, never "Settings › Settings" (W21-01)', () => {
+    expect(deriveCrumbs('/admin/settings').map((c) => c.label)).toEqual([
+      'Overview',
+      'Settings',
+      'Scoring',
+    ]);
+    expect(deriveCrumbs('/admin/ci-tokens').at(-1)?.label).toBe('CI tokens');
+  });
+
   it('titles the tab most-specific first', () => {
     expect(documentTitle(deriveCrumbs('/repos/34083/security', payments))).toBe(
       'Security · payments · RepoPulse',
