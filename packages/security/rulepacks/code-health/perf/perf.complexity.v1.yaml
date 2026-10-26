@@ -1,0 +1,132 @@
+# bpm-rulepacks — algorithmic complexity, JavaScript/TypeScript (W21-20,
+# CODE_HEALTH_SUITE.md §9.1a).
+#
+# PROVENANCE: written for RepoPulse. Nothing here is copied or adapted from the
+# Semgrep registry (DESIGN_REVIEW.md G-18).
+#
+# These find work that grows with the PRODUCT of two collections, or with the
+# square of one, where an index built once makes it linear. Like the rest of the
+# perf pack they are structural: a rule cannot see how large a collection is at
+# runtime, so each message names the condition under which it matters (both
+# collections grow) and the fix, and quotes no speedup.
+#
+# MEASURED before shipping, on this repository's own source (2026-10-26, every
+# hit read, not sampled):
+#   find-by-key-in-loop   19 hits: 10 join two growing collections, 9 join a
+#                         small one (correct shape, little to gain), 0 wrong.
+#   includes-in-loop      33 hits: 15 growing, 16 small, 2 wrong (the receiver
+#                         was a string, which a pattern cannot tell apart).
+#   copy-on-append        14 hits: 14 correct.
+# They caught every quadratic join the manual review of the same code found.
+#
+# Shapes deliberately NOT reported, each measured as noise first: a lookup in
+# a fixed ALL_CAPS constant or a literal (bounded), a loop whose OUTER list is
+# such a constant (a few linear passes, not a join), a collection tested against
+# its own element (one pass), and string receivers produced by .toLowerCase()
+# and friends or by indexing a match array.
+#
+# Lifecycle `candidate`: findings run in shadow until the promotion gate
+# (CODE_HEALTH_SUITE §8.2) has evidence from customer code.
+rules:
+  - id: bpm-perf-find-by-key-in-loop
+    languages: [javascript, typescript]
+    severity: INFO
+    message: >-
+      A lookup by key that scans a whole list, once per element of another
+      collection: O(n·m) overall. When both collections grow, build a Map keyed
+      on that field once before the loop (or group the inner list by it), so each
+      lookup is O(1) and the whole thing is O(n + m). If the inner list is small
+      by design, say so in a comment and dismiss this.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1a
+      category: performance
+      complexity: O(n·m) -> O(n + m)
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              for (const $X of $OUTER) { ... }
+          - pattern-inside: |
+              for (let $X of $OUTER) { ... }
+          - pattern-inside: $OUTER.$ITER(($X, ...) => ...)
+      - pattern-either:
+          - pattern: $INNER.$M(($Y) => $Y.$K === $V)
+          - pattern: $INNER.$M(($Y) => $V === $Y.$K)
+          - pattern: $INNER.$M(($Y) => $Y.$K === $V && ...)
+          - pattern: $INNER.$M(($Y) => $V === $Y.$K && ...)
+      - metavariable-regex:
+          metavariable: $M
+          regex: ^(find|findIndex|findLast|findLastIndex|filter|some)$
+      # The key compared against must come from the outer element: that is what
+      # makes it a join rather than a filter by a constant.
+      - metavariable-pattern:
+          metavariable: $V
+          pattern: <... $X ...>
+      # The outer call matching itself (`xs.filter((x) => x.k === …)`) is one pass.
+      - pattern-not: $OUTER.$M2(($X, ...) => ...)
+      - metavariable-comparison:
+          comparison: str($INNER) != str($OUTER) and str($Y) != str($X)
+      # Bounded inner lists: an ALL_CAPS constant, an array literal, a string.
+      - metavariable-regex:
+          metavariable: $INNER
+          regex: ^(?![A-Z][A-Z0-9_]*$)(?!\[)(?!['"`]).*
+      # A constant OUTER list is a few linear passes, not a join.
+      - metavariable-regex:
+          metavariable: $OUTER
+          regex: ^(?!\(?[A-Z][A-Z0-9_]*\b).*
+
+  - id: bpm-perf-includes-in-loop
+    languages: [javascript, typescript]
+    severity: INFO
+    message: >-
+      Membership tested with .includes or .indexOf against an array, once per
+      element of another collection: O(n·m) overall. When both grow, build a Set
+      from that array once before the loop and use .has, which is O(1), making
+      the whole thing O(n + m). If the array is small by design, dismiss this.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1a
+      category: performance
+      complexity: O(n·m) -> O(n + m)
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              for (const $X of $OUTER) { ... }
+          - pattern-inside: |
+              for (let $X of $OUTER) { ... }
+          - pattern-inside: $OUTER.$ITER(($X, ...) => ...)
+      - pattern-either:
+          - pattern: $INNER.includes(<... $X ...>)
+          - pattern: $INNER.indexOf(<... $X ...>)
+      - pattern-not: $OUTER.$M2(($X, ...) => ...)
+      - metavariable-comparison:
+          comparison: str($INNER) != str($OUTER) and str($INNER) != str($X)
+      # Bounded receivers (constant, literal, string literal), and receivers that
+      # are strings by construction (.toLowerCase() and friends, a match index).
+      - metavariable-regex:
+          metavariable: $INNER
+          regex: ^(?!\(?[A-Z][A-Z0-9_]*\b)(?!\[)(?!['"`])(?!.*\.(toLowerCase|toUpperCase|toLocaleLowerCase|trim|slice|substring|join)\(\)?\)?$)(?!.*\[\d+\]$).*
+      - metavariable-regex:
+          metavariable: $OUTER
+          regex: ^(?!\(?[A-Z][A-Z0-9_]*\b).*
+
+  - id: bpm-perf-copy-on-append
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Each append copies the whole accumulated array or object, so building it
+      from k items costs O(k²). Push into the existing array, or assign the key
+      on one object created before the loop: O(k) in total, and no less readable.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1a
+      category: performance
+      complexity: O(k²) -> O(k)
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-either:
+      - pattern: '$MAP.set($K, [...($MAP.get($K) ?? []), ...])'
+      - pattern: '$MAP.set($K, [...($MAP.get($K) || []), ...])'
+      - pattern: '$C.reduce(($ACC, ...) => [...$ACC, ...], ...)'
+      - pattern: '$C.reduce(($ACC, ...) => ({...$ACC, ...}), ...)'

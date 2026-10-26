@@ -329,6 +329,45 @@ Findings take dimension `performance` — same Explorer, triage, verify pass, an
 integration as everything else. This complements (not replaces) the `performance.v2`
 T2 checklist: patterns deterministic, algorithms/judgment LLM.
 
+### 9.1a Algorithmic complexity pack (W21-20)
+
+§9.1 covers per-iteration COSTS (a query, a regex compile, an await inside a loop).
+This covers work that grows with the PRODUCT of two collections, or the square of one,
+where an index built once makes it linear. It is what a reviewer means by "this should
+be a Map": the most common way ordinary code turns quadratic.
+
+| Rule (JS/TS first) | Shape | Complexity → with the fix |
+|---|---|---|
+| `bpm-perf-find-by-key-in-loop` | `inner.find/filter/some(y => y.k === x…)` inside a loop over another collection | O(n·m) → O(n + m) with a Map built once |
+| `bpm-perf-includes-in-loop` | `arr.includes/indexOf(x…)` inside a loop over another collection | O(n·m) → O(n + m) with a Set |
+| `bpm-perf-copy-on-append` | `m.set(k, [...(m.get(k) ?? []), x])`, `reduce` returning `[...acc, x]` / `{...acc, …}` | O(k²) → O(k) by pushing / assigning |
+
+**What a pattern cannot know is collection size.** Each message therefore says the
+finding matters when both collections grow and how to dismiss it when one is small by
+design. The two join rules are INFO for that reason; copy-on-append is WARNING because
+its fix is always free.
+
+**Measured on this repository before shipping (2026-10-26, every hit read):**
+find-by-key 19 hits (10 growing, 9 small, 0 wrong); includes 33 (15 growing, 16 small,
+2 string receivers); copy-on-append 14 (14 correct). Together they caught every quadratic
+join a manual review of the same code found. Excluded by FORM, never by guessing from a
+name: ALL_CAPS constants and literals as the inner list, a constant OUTER list (a few
+linear passes, not a join), a collection tested against its own element, and receivers
+that are strings by construction.
+
+**Found while measuring:** `bpm-perf-orm-call-in-loop` reported every one-argument
+`.get(key)` as a database call. 233 of its 327 hits here were `Map.get`, including the
+indexed fix this pack recommends. A one-argument `.get` now counts only when it is
+awaited: a query returns a promise (`await db.get(id)`, the labelled N+1) and `Map.get`
+never does. 94 hits remain and still need grading.
+
+Lifecycle `candidate` (shadow) like the rest of the pack: promotion follows §8.2 on
+customer evidence. Next in this pack: Java/Kotlin (typed metavariables make
+`(List $L).contains` exact), Python (`x in list` in a loop, `list.pop(0)`), Go; and a
+`performance.v3` checklist for the cross-function cases a pattern cannot see (a binary
+search over sorted data, memoising a repeated computation), which must name the input
+that grows and state the complexity before and after.
+
 ## 10. Tool adapter registry (FR-CH-10) — what else we support
 
 One level below the Scanner registry, `code_health_tools` gets a **ToolAdapter**

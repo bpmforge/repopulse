@@ -40,11 +40,27 @@ rules:
       # pattern, and a rule that fails to parse takes the whole rule down
       # silently. An async iteration over a cursor is also the one loop where a
       # per-item DB call is often correct.
-      - pattern: $DB.$M(...)
+      #
+      # An awaited call with any listed method, or a NOT-awaited one other than
+      # a one-argument .get. A query returns a promise and is awaited (`await
+      # db.get(id)`, the labelled N+1); Map.get(key) never is. Without this, 233
+      # of 327 hits on this repository were Map.get, including the indexed fix
+      # the algorithmic rules (perf.complexity.v1) recommend (W21-20).
+      - pattern-either:
+          - pattern: await $DB.$M(...)
+          - patterns:
+              - pattern: $DB.$M(...)
+              - pattern-not-inside: await $DB.$M(...)
+              - pattern-not: $DB.get($KEY)
       # A call inside a BOUNDED batch is the fix, not the defect — same
       # reasoning as await-in-loop above, and again the clean fixture is what
       # caught it.
       - pattern-not-inside: Promise.all(...)
+      # `await Promise.all(...)` is the batch itself, not a query (`all` is on
+      # the method list for knex/sqlite).
+      - metavariable-regex:
+          metavariable: $DB
+          regex: ^(?!Promise$).*
       - metavariable-regex:
           metavariable: $M
           # The ORM surfaces this codebase and its customers actually use.
