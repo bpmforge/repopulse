@@ -23,8 +23,13 @@
 // container:
 //
 //   fixture-model   answers immediately with a valid findings payload
-//   fixture-hang    accepts the request and never answers — the model-timeout
-//                   drill; the socket stays open until the CLIENT gives up
+//   fixture-hang    accepts an analysis request (or a "Test connection") and
+//                   never answers — the model-timeout drill; the socket stays
+//                   open until the CLIENT gives up. It DOES answer the save-time
+//                   capability probe's short prompts (W19-01), the way a model
+//                   that worked when it was added and stalls later would;
+//                   otherwise the probe's 120 s per check holds the save open
+//                   for minutes and the drill never reaches a run.
 //   anything else   400 "model not found", the way LM Studio answers an
 //                   unloaded model id (a guessed name must fail loudly)
 //
@@ -137,7 +142,11 @@ const server = createServer((req, res) => {
         return;
       }
 
-      if (model === 'fixture-hang') {
+      // "Test connection" sends this prompt WITHOUT `stream`; the probe's
+      // streaming check sends the same text WITH it.
+      const isTestConnection = prompt === 'Reply with the single word: ok' && body.stream !== true;
+      const isProbe = prompt.length < 200 && !isTestConnection;
+      if (model === 'fixture-hang' && !isProbe) {
         // Never answered on purpose. The client's own deadline is what ends
         // this; when it aborts, the socket closes and the line below is logged.
         log(
@@ -152,19 +161,34 @@ const server = createServer((req, res) => {
       log(
         `POST /v1/chat/completions model=fixture-model prompt=${prompt.length} chars stream=${body.stream === true} ${auth} -> 200 (${findings.length} finding${findings.length === 1 ? '' : 's'})`,
       );
-      // A plain JSON body even when `stream: true` was asked for. The Tier-2
-      // client accepts both shapes by content type (t2/client.ts), and an
-      // endpoint that ignores `stream` is a real one this product meets.
+      const usage = {
+        prompt_tokens: Math.ceil(prompt.length / 4),
+        completion_tokens: Math.ceil(content.length / 4),
+        total_tokens: Math.ceil((prompt.length + content.length) / 4),
+      };
+      // Server-sent events when `stream: true` is asked for, as LM Studio does.
+      // Since W19-01 the admin save probes the server and refuses one that
+      // ignores `stream` (probe.ts: without streaming, any call over the 300 s
+      // headers timeout fails), so this fixture has to stream to be added.
+      // "Test connection" asks without `stream` and gets the JSON body below.
+      if (body.stream === true) {
+        res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
+        const frame = (delta, extra = {}) =>
+          `data: ${JSON.stringify({ id: `fixture-${Date.now()}`, object: 'chat.completion.chunk', model: 'fixture-model', choices: [{ index: 0, delta, ...extra }] })}\n\n`;
+        res.write(frame({ role: 'assistant', content }));
+        res.write(frame({}, { finish_reason: 'stop' }));
+        res.write(
+          `data: ${JSON.stringify({ object: 'chat.completion.chunk', model: 'fixture-model', choices: [], usage })}\n\n`,
+        );
+        res.end('data: [DONE]\n\n');
+        return;
+      }
       json(res, 200, {
         id: `fixture-${Date.now()}`,
         object: 'chat.completion',
         model: 'fixture-model',
         choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason: 'stop' }],
-        usage: {
-          prompt_tokens: Math.ceil(prompt.length / 4),
-          completion_tokens: Math.ceil(content.length / 4),
-          total_tokens: Math.ceil((prompt.length + content.length) / 4),
-        },
+        usage,
       });
     });
     return;

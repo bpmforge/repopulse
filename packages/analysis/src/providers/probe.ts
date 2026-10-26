@@ -10,8 +10,13 @@ import { chatCompletionsUrl, normalizeHost, type T2Host } from '../t2/client.js'
 //   context window  how much of a diff chunk fits — read from the server's own
 //                   model metadata where it publishes one, otherwise UNKNOWN.
 //                   Never guessed: a made-up number would silently size chunks.
-//   streaming       the T2 client streams every call (W16-39); a server that
-//                   cannot stream cannot run a pass at all.
+//   streaming       the T2 client streams every call (W16-39). It still reads
+//                   a server that ignores `stream` (one JSON body), but such a
+//                   server sends no headers until it has finished, and the
+//                   300 s headers timeout then kills any call that runs longer:
+//                   measured, a local checklist chunk takes over twelve
+//                   minutes. So the save is refused here rather than every
+//                   long pass failing later.
 //   json mode       `response_format: json_object`. Findings are REQUIRED to be
 //                   JSON; servers without it still work from the prompt alone,
 //                   so this one is recorded, not fatal.
@@ -340,7 +345,7 @@ export function capabilityProblems(c: Capabilities): string[] {
   const problems: string[] = [];
   if (c.streaming === 'no') {
     problems.push(
-      'This server does not stream responses, and every analysis call is streamed — choose a server or model that supports `stream: true`.',
+      'This server does not stream responses. Without streaming, any analysis call that runs longer than 5 minutes is cut off before the answer arrives, and a pass on a local model routinely takes longer — choose a server or model that supports `stream: true`.',
     );
   }
   if (c.contextWindow !== null && c.contextWindow < MIN_CONTEXT_WINDOW) {
