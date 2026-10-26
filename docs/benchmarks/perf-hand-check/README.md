@@ -54,3 +54,28 @@ The perf scanner excludes `**/*.test.*` but not Go's `*_test.go` or Python's `te
 ## Wired
 
 The 6 rules are live on new installs via `packages/security/src/rules/hand-checked.data.ts`, generated from this sheet's `brad` column; `hand-checked.test.ts` fails if the two disagree. Decision and results: `docs/BENCHMARKS.md`, "Hand-checked performance rules live by default (W21-20)".
+
+## Misfires fixed (after the marking)
+
+Each rule below was changed by the FORM of the code Brad marked wrong, never by a name in it, and re-scored against the same marks on the same corpus at the same SHAs. "Gone" means the marked hit no longer fires; a true hit that stopped firing would be "lost", and a hit that did not fire before would be "new".
+
+| Rule | Form excluded | wrong gone / marked | true lost | new |
+|---|---|---|---|---|
+| `orm-call-in-loop` (JS) | not awaited (sync methods sharing a query's name) | 20 / 20 | 0 | 0 |
+| `regex-compile-in-loop` (JS) | pattern built from the loop's own values | 17 / 17 | 0 | 0 |
+| `orm-call-in-loop-py` | a call that wraps a comprehension; `bulk_create`/`bulk_update`; an unevaluated queryset assignment | 11 / 13 | 0 | 0 |
+| `java-db-call-in-loop` | `while (true)` / `while (flag)` cursor pagination; loops over `*.partition(...)`; the for-each header | 10 / 13 | 0 | 0 |
+| `java-string-concat-in-loop` | a String declared inside the loop | 10 / 10 | 0 | 0 |
+| `string-concat-in-loop-py` | a name assigned inside the loop | 8 / 8 | 0 | 0 |
+| `sync-io-in-async` | `existsSync`; `build.*`, `*.config.*`, `tools/`, `scripts/` | 8 / 12 | 0 | 0 |
+| `go-defer-in-loop` | the defer's own block returns or breaks right after it | 7 / 11 | 0 | 0 |
+| `go-regex-compile-in-loop` | pattern not a literal | 7 / 7 | 0 | 0 |
+| `go-string-concat-in-loop` | a name declared inside the loop | 6 / 9 | 0 | 0 |
+| `string-concat-in-loop` (JS) | a visibly numeric right-hand side; `s += s` doubling | 5 / 5 | 0 | 0 |
+| `await-in-loop` | `await Promise.allSettled(...)` | 1 / 11 | 0 | 0 |
+
+110 of the 149 marked-wrong hits are gone, no marked-true hit was lost, and no hit appeared that was not there before. The rest need intent the code does not show: a defer kept open on purpose, a queue that batches behind a `save`, one-time init, ordered stream writes.
+
+**These projections do not change what is live.** The manifest is Brad's marks of the rules as they were; a rule earns live status from marks of the rule as it ships. `java-db-call-in-loop` would now read 7 true / 3 wrong (70%) and `orm-call-in-loop-py` 2 / 2: still under the bar.
+
+Each excluded form has a near-miss in a clean fixture that the old rule fires on and the new one does not: `packages/security/fixtures/perf/clean/{misfires.js,misfires.py,build.js}`, `fixtures/java/perf/clean/Misfires.java`, `fixtures/go/perf/clean/misfires.go`.

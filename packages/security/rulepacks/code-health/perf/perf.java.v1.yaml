@@ -25,13 +25,34 @@ rules:
       lifecycle: candidate
       provenance: written for RepoPulse; not derived from any registry pack
     patterns:
+      # Loops over ITEMS. Tightened in W21-20, where 13 of 22 marked hits were
+      # wrong and every one of them was a loop over something other than items:
       - pattern-either:
+          # The body of a for-each, not its header: `for (Row r :
+          # jdbc.queryForList(sql))` runs the query once.
+          - patterns:
+              - pattern-inside: |
+                  for ($T $X : $XS) { $...BODY }
+              - focus-metavariable: $...BODY
           - pattern-inside: |
-              for (...) { ... }
+              for ($T $I = $A; $COND; $STEP) { ... }
           - pattern-inside: |
-              while (...) { ... }
+              for ($I = $A; $COND; $STEP) { ... }
+          # A `while (true)` or `while (hasNext)` loop is cursor pagination:
+          # each pass fetches the NEXT batch from where the last one ended, so
+          # the round trips are per page and cannot be merged (8 of the 13).
+          # `while (i < rows.size())` walks items and still counts.
+          - patterns:
+              - pattern-inside: |
+                  while ($COND) { ... }
+              - metavariable-regex:
+                  metavariable: $COND
+                  regex: ^(?!true$)(?![A-Za-z_]\w*$)
           - pattern-inside: |
               $C.forEach(...)
+      # One query per partition is the batched form, not the per-item one.
+      - pattern-not-inside: |
+          for ($T $X : $P.partition(...)) { ... }
       - pattern: $DB.$M(...)
       - metavariable-regex:
           metavariable: $DB
@@ -153,17 +174,33 @@ rules:
     patterns:
       # The declared type is what tells `+=` on a String from `+=` on an int;
       # without it every counter in a loop would match.
-      - pattern-either:
-          - pattern-inside: |
-              String $S = ...;
-              ...
-          - pattern-inside: |
-              String $S;
-              ...
+      #
+      # And the declaration comes BEFORE the loop: a String declared inside
+      # the body and appended to once (`String title = r.getTitle(); title +=
+      # " (" + email + ")"`) copies nothing across iterations. That was all 10
+      # hits marked wrong in W21-20. That span runs from the declaration to
+      # the loop's end, so the += must also be inside a loop.
       - pattern-either:
           - pattern-inside: |
               for (...) { ... }
           - pattern-inside: |
+              while (...) { ... }
+      - pattern-either:
+          - pattern-inside: |
+              String $S = ...;
+              ...
+              for (...) { ... }
+          - pattern-inside: |
+              String $S;
+              ...
+              for (...) { ... }
+          - pattern-inside: |
+              String $S = ...;
+              ...
+              while (...) { ... }
+          - pattern-inside: |
+              String $S;
+              ...
               while (...) { ... }
       - pattern-either:
           - pattern: $S += $X;
