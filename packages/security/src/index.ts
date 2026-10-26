@@ -102,3 +102,12 @@ export * from './triage/index.js';
 export * from './eval/index.js';
 export * from './rules/triage-clusters.js';
 export * from './updates/index.js';
+export * from './scanners/pr/run.js';
+// W21-03: V5, the CVE second opinion, for the worker to call.
+export {
+  runVerifyPass,
+  type VerifyRunDeps,
+  type VerifyRunResult,
+} from './validation/verify/run.js';
+export { candidatesFrom, VERIFY_TOP_N, VERIFY_MAX_CALLS } from './validation/verify/select.js';
+export type { VerifyCandidate, VerifyProposal } from './validation/verify/types.js';

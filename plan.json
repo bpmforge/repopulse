@@ -11499,6 +11499,86 @@
           "Also fixed: packages/security/src/ecosystems/matrix.ts CocoaPods note did not match docs/ECOSYSTEMS.md on main (pre-existing test failure). The findings store now moves lineStart/lineEnd/evidence to the latest sighting for fingerprinted findings.",
           "Bugs noticed: the diff mode does not read lockfiles or .npmrc (snapshot mode does); slopsquat rides the secrets stream, so with secrets disabled it never runs on a PR head yet the PR checks list still expects it (same as sensitive_change). One early crates.io fetch during development sent a User-Agent containing the operator's email; later calls and the shipped builder use a neutral User-Agent."
         ]
+      },
+      {
+        "id": "W21-02",
+        "title": "Pattern scanners on every pull-request push",
+        "phase": 21,
+        "module": "security",
+        "stories": [],
+        "write_scope": [
+          "packages/security/src/scanners/**",
+          "packages/security/src/catalogue.ts",
+          "packages/security/src/config/defaults.ts",
+          "packages/security/src/index.ts",
+          "apps/api/src/workers/**",
+          "apps/api/src/routes/pulls/**",
+          "apps/api/src/lib/scan-schedule.ts",
+          "apps/api/src/routes/setup/env-registry.ts",
+          "docs/CI_INTEGRATION.md",
+          "docs/CONFIG.md",
+          "scripts/validate-plan.mjs",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W20-25"
+        ],
+        "acceptance": [
+          "Gap analysis 2026-10-26 (PR scans): a pull_requests delta queues one scan-lane job per open PR head not yet scanned (at most 3 per delta, newest first, jobId sec-pr-<repo>-<sha>); the job skips a head that is no longer the PR's head or already has a pr_synced pattern run, and otherwise fetches ONE tarball through snapshotForScan and runs every enabled pattern scanner on it: semgrep, anti_slop (deterministic layers), logging_hygiene and performance on the PR's changed files only; dependency_cve on the whole tree only when a manifest or lockfile changed; container_image only when enabled (off by default) and a changed file names an image",
+          "Budget: per new head, the PR file list (1 call per 100 files) plus 1 tarball, shared by every scanner; an already-scanned or superseded head costs nothing; a budget park writes budget_exceeded rows and the head is retried on the next delta; no model is called on a push; a PR run never sweeps, auto-resolves or stores an SBOM",
+          "X-13: GET /pulls/:n/new-findings (head.scanned, repopulse check --wait) waits for secrets, sensitive_change and the enabled always-run pattern scanners, and for dependency_cve / container_image only once they have started at that head; PR_SCANS=off removes the pattern scanners from the push and from the wait; per-repo enablement is respected",
+          "docs/CI_INTEGRATION.md states exactly what runs per PR push, what does not, and the forge cost; the Coverage table says 'on every pull request push' (or the conditional wording); PR_SCANS is in the env registry and docs/CONFIG.md",
+          "Workspace lint, typecheck and vitest green against a migrated database (no migration)"
+        ],
+        "points": 8,
+        "status": "done",
+        "notes": [
+          "Defaults chosen (cheap to change): PR scans on (PR_SCANS=on); only OPEN pull requests; at most 3 heads per delta, newest first (older heads wait for the next delta); conditional scanners run first so the CI wait sees them start before the rest finish; a scanner with nothing to read at the head still records a run (semgrep and performance a succeeded 'Nothing to scan' row) so the wait ends; a budget park is retried, any other tarball failure records failed rows; dependency file detection covers every ECOSYSTEMS lockfile plus package.json, pyproject.toml, requirements*.txt/.in, Pipfile, setup.py/cfg, go.mod, Cargo.toml, Gemfile, composer.json, pom.xml, build.gradle(.kts), *.csproj/fsproj/vbproj and the like.",
+          "Not verified here: a live opengrep, syft, grype or skopeo scan (no podman in this environment; the orchestrator is tested with recorded runners, the anti-slop path with a fake pack runner) and a real forge tarball fetch.",
+          "Bugs noticed and fixed: the Coverage table said logging_hygiene and performance ride the weekly code_health_tools job; they ride the weekly anti_slop job (workers/index.ts), so their next-run time was the wrong job's."
+        ]
+      },
+      {
+        "id": "W21-03",
+        "title": "Second-model verify in production",
+        "phase": 21,
+        "module": "analysis",
+        "stories": [],
+        "write_scope": [
+          "packages/analysis/src/passes/**",
+          "packages/analysis/src/index.ts",
+          "packages/insights/src/findings/**",
+          "packages/security/src/scanners/anti-slop/**",
+          "packages/security/src/scanners/logging/**",
+          "packages/security/src/scanners/dependency/run.ts",
+          "packages/security/src/validation/verify/index.ts",
+          "packages/security/src/index.ts",
+          "packages/shared/drizzle/**",
+          "packages/shared/src/db/schema/read/findings.ts",
+          "apps/api/src/workers/**",
+          "apps/api/src/routes/findings/**",
+          "apps/web/src/widgets/findings/**",
+          "apps/web/src/widgets/admin/forge-token.test.ts",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W21-02"
+        ],
+        "acceptance": [
+          "Gap analysis 2026-10-26 (AI verification): the weekly anti-slop and logging judgement halves get a verify hook, AI-pass specialist findings (severity 3+) get a verify step after triage, and the weekly dependency scan calls runVerifyPass (V5) on its top CVEs; each verdict is written on the finding (verify_status, verified_by_model/provider/connection, verified_at, verify_reason)",
+          "Decisions AI-14 and AI-77: the verifier is a configured connection other than the finder's, on a different host (refused when the finder is unknown); local first; an off-network connection only on a Tier-3 opted-in repository with local-only off; AI off asks nothing; every verify call counts against the monthly call cap (analysis_runs pass_kind 'verify' rows, now summed by monthlyCallsUsed; AI-pass verify calls on the pass row) and stops at it; calls go through a gateway pinned to the one connection (45000 maxTokens, triage role, egress audit)",
+          "Never auto-suppress: a contradicting verdict marks the finding contradicted and leaves it open (previously anti-slop and logging DROPPED refuted findings); a run that could not ask records why without erasing an earlier verdict",
+          "GET /findings verified_by is the newer of the triage answer and the verify verdict, plus verify_reason; the panel says 'verified by <model> (<connection>): contradicted, left open for a person to decide' and the reason; the Verification column reads the real state",
+          "Migration 0059 only; tenancy: every new query workspace-filtered; workspace lint, typecheck and vitest green against a migrated database"
+        ],
+        "points": 8,
+        "status": "done",
+        "notes": [
+          "Defaults chosen (cheap to change): verify floor stays severity 3 (VERIFY_SEVERITY_FLOOR); one verify call per finding, no retry; an unreadable answer leaves the finding unverified and the call still counts; CVE verify asks at most VERIFY_TOP_N (10) per weekly run, fewer when the month has fewer calls left; an AI pass verifies only with the calls it has left after specialists and triage; the verifier connection runs its own configured model; a contradiction is a mark (the nightly reprice applies the existing verify multiplier: contradicted 0.15, unverified 0.7, confirmed 1.0); no separate on/off switch beyond AI off and having a second connection.",
+          "Migration 0059_finding_verifier (journal idx 56, when 1794100000000): findings.verified_by_model, verified_by_provider_id (FK llm_providers, SET NULL), verified_by_connection, verified_at, verify_reason.",
+          "Not verified here: a real second model answering (LM Studio or hosted); the verifier is tested with scripted gateways against the real tables, and the anti-slop/logging/dependency paths with fakes (no podman, opengrep, syft or grype here).",
+          "Bugs noticed, not fixed: the weekly anti-slop judgement calls themselves (the finder side) are not on the monthly call cap, only AI passes and verify calls are; the weekly logging judgement half never runs (it is given no files), so its verify hook only applies where a diff is passed."
+        ]
       }
   ]
 }

@@ -1,6 +1,11 @@
 import { and, desc, eq, gte, inArray, isNull, lt, max, ne, or, sql, type SQL } from 'drizzle-orm';
 import { facts, read, security, type Database } from '@repopulse/shared';
-import { BUILTIN_SCANNERS, isEnabled } from '@repopulse/security';
+import {
+  BUILTIN_SCANNERS,
+  PR_CONDITIONAL_SCANNERS,
+  PR_PATTERN_SCANNERS,
+  isEnabled,
+} from '@repopulse/security';
 
 // "What is new on this PR?" (W18-18) — the question a customer's CI asks.
 //
@@ -13,7 +18,8 @@ import { BUILTIN_SCANNERS, isEnabled } from '@repopulse/security';
 // it:
 //
 //   1. pull_request_id = this PR — the PR-aware scanners (anti-slop, logging,
-//      perf, owasp, secrets stream, verify) stamp it on insert;
+//      perf, dependency and image on a PR push, owasp, secrets stream, verify)
+//      stamp it on insert;
 //   2. pull_request_id IS NULL and scan_run_id is a pr_synced run AT THIS PR'S
 //      HEAD — the semgrep incremental pass does not stamp the PR, but its run
 //      records the commit it scanned, and the head SHA belongs to this PR.
@@ -96,6 +102,32 @@ const FINISHED_RUN_STATUSES = ['succeeded', 'failed', 'budget_exceeded'] as cons
 export const PR_SCANNER_KEYS: readonly string[] = BUILTIN_SCANNERS.filter((s) =>
   s.triggers.includes('pr_synced'),
 ).map((s) => s.key);
+
+/**
+ * The PR scanners this server runs (W21-02). `PR_SCANS=off` on the worker
+ * keeps a PR push to the secrets stream, and the API, given the same setting,
+ * must not wait for scanners that will never run.
+ */
+export function prScannerKeys(env: NodeJS.ProcessEnv = process.env): readonly string[] {
+  if (env.PR_SCANS !== 'off') return PR_SCANNER_KEYS;
+  const patterns: readonly string[] = PR_PATTERN_SCANNERS;
+  return PR_SCANNER_KEYS.filter((k) => !patterns.includes(k));
+}
+
+/**
+ * The PR scanners a head waits for (W21-02): every enabled one, except a
+ * CONDITIONAL scanner (dependency CVEs, container images) that has not started
+ * there. Those run only when the change gives them a manifest or an image to
+ * read, and they run FIRST in the PR scan (security scanners/pr/run.ts), so by
+ * the time the always-run scanners have finished, one that applies has a row.
+ */
+export function expectedAtHead(
+  enabled: readonly string[],
+  started: ReadonlySet<string>,
+  conditional: readonly string[] = PR_CONDITIONAL_SCANNERS,
+): string[] {
+  return enabled.filter((k) => !conditional.includes(k) || started.has(k));
+}
 
 /**
  * Which PR scanners are still to finish at the head, and which failed there
@@ -198,7 +230,15 @@ export async function prFindings(
       ),
     );
   const config = new Map(configRows.map((r) => [r.scannerKey, { enabled: r.enabled }]));
-  const expected = PR_SCANNER_KEYS.filter((k) => isEnabled(k, config.get(k)));
+  // W21-02: a conditional scanner counts only once it has started at the head.
+  const startedRows = await db
+    .selectDistinct({ scannerKey: security.scanRuns.scannerKey })
+    .from(security.scanRuns)
+    .where(and(atHead, inArray(security.scanRuns.scannerKey, [...PR_CONDITIONAL_SCANNERS])));
+  const expected = expectedAtHead(
+    prScannerKeys().filter((k) => isEnabled(k, config.get(k))),
+    new Set(startedRows.map((r) => r.scannerKey)),
+  );
   const finishedRuns = await db
     .select({ scannerKey: security.scanRuns.scannerKey, status: security.scanRuns.status })
     .from(security.scanRuns)

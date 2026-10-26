@@ -138,7 +138,12 @@ describeIfReady('logging_hygiene scan (W9-04)', () => {
 
     const [user] = await db
       .insert(core.users)
-      .values({ authProvider: 'github', authSubject: 'w9-04-user', forgeUserId: 'w9-04-user', login: 'w9-04-user' })
+      .values({
+        authProvider: 'github',
+        authSubject: 'w9-04-user',
+        forgeUserId: 'w9-04-user',
+        login: 'w9-04-user',
+      })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w9-04-user' } })
       .returning();
     userId = user!.id;
@@ -244,7 +249,7 @@ describeIfReady('logging_hygiene scan (W9-04)', () => {
     expect(result.judgment).toBe(1);
   }, 600_000);
 
-  it('a refuted A09 judgement never reaches the store', async () => {
+  it('a refuted A09 judgement is stored open, marked contradicted (W21-03)', async () => {
     const result = await runLoggingScan({
       db,
       gateway: fakeGateway([]),
@@ -253,10 +258,22 @@ describeIfReady('logging_hygiene scan (W9-04)', () => {
       commitSha: 'w9-04-refuted',
       files: [{ path: 'src/login.js', patch: DIFF }],
       trigger: 'pr_synced',
-      verify: async () => ({ refuted: true, reason: 'the failure is logged by middleware' }),
+      verify: async () => ({
+        refuted: true,
+        reason: 'the failure is logged by middleware',
+        verifier: { model: 'second', providerId: null, connection: 'Second' },
+      }),
     });
     expect(result.refuted).toBe(1);
-    expect(result.judgment).toBe(0);
+    // A model may not dismiss what another raised: stored, open, marked.
+    expect(result.judgment).toBe(1);
+    const [row] = await db
+      .select()
+      .from(read.findings)
+      .where(and(eq(read.findings.repoId, repoId), eq(read.findings.ruleId, 'logging.judgment')));
+    expect(row?.status).toBe('open');
+    expect(row?.verifyStatus).toBe('contradicted');
+    expect(row?.verifyReason).toBe('the failure is logged by middleware');
   }, 300_000);
 
   it('caps judgement severity at 3 and keeps A09-4 chainable', async () => {

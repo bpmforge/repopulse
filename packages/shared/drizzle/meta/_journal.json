@@ -378,6 +378,13 @@
       "when": 1793900000000,
       "tag": "0057_owners_targets_history",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1794100000000,
+      "tag": "0059_finding_verifier",
+      "breakpoints": true
     }
   ]
 }

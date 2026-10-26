@@ -10,6 +10,7 @@ import {
   type AnalysisGateway,
   type CompleteOpts,
   type T2Host,
+  type VerifyRequest,
 } from '@repopulse/analysis';
 import { dedupKey, readImportGraph } from '@repopulse/insights';
 import { runAntiSlopScan, worstByLdr } from './run.js';
@@ -214,10 +215,12 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
       );
   });
 
-  it('a verifier-REFUTED judgement finding never appears', async () => {
+  it('a verifier-REFUTED judgement finding is stored open, marked contradicted (W21-03)', async () => {
     // The gate that matters. A structural claim is an accusation about
-    // someone's code, and the product has to be able to be talked out of one.
+    // someone's code, and the product has to be able to be talked out of one —
+    // by a person: a model's refutation marks the finding, it never dismisses it.
     const calls: CompleteOpts[] = [];
+    const seen: VerifyRequest[] = [];
     const result = await runAntiSlopScan({
       db,
       gateway: fakeGateway(calls),
@@ -227,17 +230,59 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
       files,
       sources: SOURCES,
       trigger: 'pr_synced',
-      verify: async () => ({ refuted: true, reason: 'the wrapper adds a retry' }),
+      verify: async (req) => {
+        seen.push(req);
+        return {
+          refuted: true,
+          reason: 'the wrapper adds a retry',
+          verifier: { model: 'second-model', providerId: null, connection: 'Second box' },
+        };
+      },
     });
 
     expect(result.status).toBe('succeeded');
     expect(result.refuted).toBe(1);
-    expect(result.judgment).toBe(0);
+    expect(result.judgment).toBe(1);
     const rows = await db
       .select()
       .from(read.findings)
       .where(and(eq(read.findings.repoId, repoId), eq(read.findings.ruleId, 'slop.judgment')));
-    expect(rows).toEqual([]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      status: 'open',
+      verifyStatus: 'contradicted',
+      verifiedByModel: 'second-model',
+      verifiedByConnection: 'Second box',
+      verifyReason: 'the wrapper adds a retry',
+    });
+    expect(rows[0]?.verifiedAt).toBeInstanceOf(Date);
+    // The verifier was told who raised it and shown the candidate's code.
+    expect(seen[0]?.finder.model).toBeTruthy();
+    expect(seen[0]?.excerpt.length).toBeGreaterThan(0);
+  });
+
+  it('a verifier that could not be asked leaves the finding unverified, with why', async () => {
+    const result = await runAntiSlopScan({
+      db,
+      gateway: fakeGateway([]),
+      workspaceId,
+      repoId,
+      commitSha: 'w9-03-unasked',
+      files,
+      sources: SOURCES,
+      trigger: 'pr_synced',
+      verify: async () => ({ unverified: true, reason: 'No second AI connection.' }),
+    });
+    expect(result.unverified).toBe(1);
+    const [row] = await db
+      .select()
+      .from(read.findings)
+      .where(and(eq(read.findings.repoId, repoId), eq(read.findings.ruleId, 'slop.judgment')));
+    expect(row).toMatchObject({
+      verifyStatus: 'unverified',
+      verifiedByModel: null,
+      verifyReason: 'No second AI connection.',
+    });
   });
 
   it('a CONFIRMED judgement finding is stored, capped at severity 3', async () => {
@@ -697,8 +742,14 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
       },
     ];
     await runAntiSlopScan({
-      db, workspaceId, repoId, commitSha: 'w18-14-rust', files: [], sources,
-      sourcesComplete: true, trigger: 'schedule',
+      db,
+      workspaceId,
+      repoId,
+      commitSha: 'w18-14-rust',
+      files: [],
+      sources,
+      sourcesComplete: true,
+      trigger: 'schedule',
     });
     const rows = async (ruleId: string) =>
       (
@@ -719,7 +770,12 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
       },
     ]);
     expect(await rows('slop.unused_export')).toMatchObject([
-      { file: 'pay/src/money.rs', lineStart: 2, title: 'Unused export: never_called', experimental: true },
+      {
+        file: 'pay/src/money.rs',
+        lineStart: 2,
+        title: 'Unused export: never_called',
+        experimental: true,
+      },
     ]);
   });
   it('W18-04: suppression density is stored in shadow, per repository and per pull request', async () => {
@@ -732,12 +788,20 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
         .select()
         .from(read.findings)
         .where(
-          and(eq(read.findings.repoId, repoId), eq(read.findings.ruleId, 'slop.suppression_density')),
+          and(
+            eq(read.findings.repoId, repoId),
+            eq(read.findings.ruleId, 'slop.suppression_density'),
+          ),
         );
 
     await runAntiSlopScan({
-      db, workspaceId, repoId, commitSha: 'w18-04-snapshot', files: [],
-      sources: [{ path: 'src/dense.ts', source: dense }], trigger: 'schedule',
+      db,
+      workspaceId,
+      repoId,
+      commitSha: 'w18-04-snapshot',
+      files: [],
+      sources: [{ path: 'src/dense.ts', source: dense }],
+      trigger: 'schedule',
     });
     const [repoRow] = await rows();
     expect(repoRow).toMatchObject({
@@ -752,8 +816,13 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
     // The density moving is the same finding, not a new one.
     const lighter = dense.replace('load(0) as any', 'load(0)');
     await runAntiSlopScan({
-      db, workspaceId, repoId, commitSha: 'w18-04-again', files: [],
-      sources: [{ path: 'src/dense.ts', source: lighter }], trigger: 'schedule',
+      db,
+      workspaceId,
+      repoId,
+      commitSha: 'w18-04-again',
+      files: [],
+      sources: [{ path: 'src/dense.ts', source: lighter }],
+      trigger: 'schedule',
     });
     expect((await rows()).length).toBe(1);
 
@@ -764,11 +833,18 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
       ...Array.from({ length: 6 }, (_, i) => `+const a${i} = x as any;`),
     ].join('\n');
     await runAntiSlopScan({
-      db, workspaceId, repoId, commitSha: 'w18-04-pr', trigger: 'pr_synced',
+      db,
+      workspaceId,
+      repoId,
+      commitSha: 'w18-04-pr',
+      trigger: 'pr_synced',
       files: [{ path: 'src/pr.ts', patch }],
     });
     const pr = (await rows()).find((r) => r.title.startsWith('This change adds'));
-    expect(pr).toMatchObject({ title: 'This change adds 6 checker suppressions', experimental: true });
+    expect(pr).toMatchObject({
+      title: 'This change adds 6 checker suppressions',
+      experimental: true,
+    });
 
     // Deprecated: the rule stops — no row is sighted again.
     const before = (await rows()).map((r) => [r.id, r.occurrenceCount]);
@@ -779,8 +855,13 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
       provenance: { source: 'ours', license: 'UNLICENSED', author: 'test', date: '2026-10-15' },
     });
     await runAntiSlopScan({
-      db, workspaceId, repoId, commitSha: 'w18-04-deprecated', files: [],
-      sources: [{ path: 'src/dense.ts', source: dense }], trigger: 'schedule',
+      db,
+      workspaceId,
+      repoId,
+      commitSha: 'w18-04-deprecated',
+      files: [],
+      sources: [{ path: 'src/dense.ts', source: dense }],
+      trigger: 'schedule',
     });
     expect((await rows()).map((r) => [r.id, r.occurrenceCount])).toEqual(before);
   });
@@ -928,7 +1009,13 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
     ];
     const scan = (commitSha: string) =>
       runAntiSlopScan({
-        db, workspaceId, repoId, commitSha, files: [], sources, trigger: 'schedule',
+        db,
+        workspaceId,
+        repoId,
+        commitSha,
+        files: [],
+        sources,
+        trigger: 'schedule',
       });
     const rows = (ruleId: string) =>
       db
@@ -1282,14 +1369,26 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
 
     // No snapshotDir: the stored SBOM is not consulted, nothing is guessed.
     await runAntiSlopScan({
-      db, workspaceId, repoId, commitSha: 'w18-06-none', files: [], sources, trigger: 'schedule',
+      db,
+      workspaceId,
+      repoId,
+      commitSha: 'w18-06-none',
+      files: [],
+      sources,
+      trigger: 'schedule',
     });
     expect(await rows('slop.duplicate_purpose_deps')).toEqual([]);
     expect(await rows('slop.library_reimplementation')).toEqual([]);
 
     await runAntiSlopScan({
-      db, workspaceId, repoId, commitSha: 'w18-06-shadow', files: [], sources,
-      snapshotDir: triggering, trigger: 'schedule',
+      db,
+      workspaceId,
+      repoId,
+      commitSha: 'w18-06-shadow',
+      files: [],
+      sources,
+      snapshotDir: triggering,
+      trigger: 'schedule',
     });
     const duplicates = await rows('slop.duplicate_purpose_deps');
     expect(duplicates.length).toBe(12);
@@ -1298,16 +1397,18 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
     const dates = duplicates.find((r) => r.title.includes('(dates): moment, dayjs'));
     expect(dates).toMatchObject({ file: 'web/package.json', lineStart: 6 });
     const reimpl = await rows('slop.library_reimplementation');
-    expect(reimpl.map((r) => `${r.file}:${r.lineStart}`).sort()).toEqual([
-      'api/app/text.py:6',
-      'api/app/text.py:13',
-      'jvm/src/main/java/com/acme/Text.java:6',
-      'svc/text.go:12',
-      'svc/text.go:16',
-      'web/src/util.ts:11',
-      'web/src/util.ts:20',
-      'web/src/util.ts:3',
-    ].sort());
+    expect(reimpl.map((r) => `${r.file}:${r.lineStart}`).sort()).toEqual(
+      [
+        'api/app/text.py:6',
+        'api/app/text.py:13',
+        'jvm/src/main/java/com/acme/Text.java:6',
+        'svc/text.go:12',
+        'svc/text.go:16',
+        'web/src/util.ts:11',
+        'web/src/util.ts:20',
+        'web/src/util.ts:3',
+      ].sort(),
+    );
     expect(reimpl.every((r) => r.experimental)).toBe(true);
 
     for (const ruleId of ['slop.duplicate_purpose_deps', 'slop.library_reimplementation']) {
@@ -1319,12 +1420,17 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
       });
     }
     const stopped = await runAntiSlopScan({
-      db, workspaceId, repoId, commitSha: 'w18-06-deprecated', files: [], sources: [],
-      snapshotDir: triggering, trigger: 'schedule',
+      db,
+      workspaceId,
+      repoId,
+      commitSha: 'w18-06-deprecated',
+      files: [],
+      sources: [],
+      snapshotDir: triggering,
+      trigger: 'schedule',
     });
     expect(stopped.deterministic).toBe(0);
   });
-
 
   it('writes the import graph for the exposure reprice (W18-25)', async () => {
     const sources = [
@@ -1349,8 +1455,15 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
     };
 
     await runAntiSlopScan({
-      db, workspaceId, repoId, commitSha: 'w18-25-sha', files, sources,
-      sourcesComplete: true, trigger: 'manual', gateway,
+      db,
+      workspaceId,
+      repoId,
+      commitSha: 'w18-25-sha',
+      files,
+      sources,
+      sourcesComplete: true,
+      trigger: 'manual',
+      gateway,
     });
 
     const graph = await readImportGraph(db, workspaceId, repoId);
@@ -1360,7 +1473,13 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
 
     // A capped snapshot is recorded as such, for the pricer to go neutral on.
     await runAntiSlopScan({
-      db, workspaceId, repoId, commitSha: 'w18-25-capped', files: [], sources, trigger: 'schedule',
+      db,
+      workspaceId,
+      repoId,
+      commitSha: 'w18-25-capped',
+      files: [],
+      sources,
+      trigger: 'schedule',
     });
     expect(await readImportGraph(db, workspaceId, repoId)).toMatchObject({
       commitSha: 'w18-25-capped',

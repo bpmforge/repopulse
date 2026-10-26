@@ -46,12 +46,32 @@ export function scheduledScanners(env: NodeJS.ProcessEnv = process.env): [string
 
 /**
  * Scanners that run as part of another scheduled job rather than their own:
- * the logging and performance packs run inside the weekly code-health sweep.
+ * the logging and performance packs run inside the weekly anti-slop sweep, on
+ * the snapshot it already took (workers/index.ts).
  */
 const RIDES_WITH: Record<string, string> = {
-  logging_hygiene: 'code_health_tools',
-  performance: 'code_health_tools',
+  logging_hygiene: 'anti_slop',
+  performance: 'anti_slop',
 };
+
+/**
+ * PR-push scanners that run only when the change gives them something to read
+ * (W21-02, security scanners/pr/run.ts PR_CONDITIONAL_SCANNERS).
+ */
+const PR_ONLY_WHEN: Record<string, string> = {
+  dependency_cve: 'on pull requests that change a manifest or lockfile',
+  container_image: 'on pull requests that change a file naming an image',
+};
+
+/** The pattern scanners PR_SCANS=off takes off PR pushes (W21-02). */
+const PR_PATTERN_KEYS = new Set([
+  'semgrep',
+  'anti_slop',
+  'logging_hygiene',
+  'performance',
+  'dependency_cve',
+  'container_image',
+]);
 
 type Field = number[] | null; // null = every value
 
@@ -145,7 +165,10 @@ export function scannerRuns(
   env: NodeJS.ProcessEnv = process.env,
   now: Date = new Date(),
 ): ScannerRuns {
-  const onChange = triggers.includes('pr_synced') || triggers.includes('push');
+  const onPush = triggers.includes('push');
+  const onPr =
+    triggers.includes('pr_synced') && !(env.PR_SCANS === 'off' && PR_PATTERN_KEYS.has(key));
+  const onChange = onPr || onPush;
   const manual = triggers.includes('manual');
   const schedule = new Map(scheduledScanners(env));
   const c = scanCrons(env);
@@ -160,7 +183,9 @@ export function scannerRuns(
   }
   const next = cron ? nextCronRun(cron, now) : null;
   const parts: string[] = [];
-  if (onChange) parts.push('on every pull request and push');
+  if (onPr && onPush) parts.push('on every pull request and push');
+  else if (onPr) parts.push(PR_ONLY_WHEN[key] ?? 'on every pull request push');
+  else if (onPush) parts.push('on every push');
   if (cron) {
     const word = key === 'secrets' ? 'history sweep monthly' : cadenceWord(cron);
     parts.push(next ? `${word}, next ${when(next)} (server time)` : `${word} (${cron})`);

@@ -74,6 +74,18 @@ export interface ProcessorDeps extends WorkerProviderDeps {
     deferred: number;
     skipped?: string;
   }>;
+  /**
+   * W21-02: queue the pattern scanners (SAST, anti-slop, logging, performance,
+   * and dependency/image when the change needs them) for every open PR head
+   * this repository has not had scanned. Injected by the worker entrypoint;
+   * they run on the security-scan lane, not inside this delta, because a
+   * snapshot scan takes minutes and a delta must stay a doorbell. Returns how
+   * many heads were queued and how many wait for the next delta.
+   */
+  queuePrScans?: (
+    workspaceId: number,
+    repoId: number,
+  ) => Promise<{ queued: number; deferred: number }>;
   /** Re-enqueue onto the backfill queue (continuations and planned entities). */
   backfillQueue: Queue;
   snapshotQueue: Queue;
@@ -475,11 +487,22 @@ export function deltaProcessor(deps: ProcessorDeps) {
         trigger: data.kind === 'push_commits' ? 'push' : 'pr_synced',
       });
     }
+    // W21-02: the pattern scanners, queued for the heads this delta warehoused.
+    // Best-effort like the stream: a queue hiccup must not fail ingestion, and
+    // the next delta asks the same idempotent question again.
+    let prScans: { queued: number; deferred: number } | { error: string } | undefined;
+    if (deps.queuePrScans && data.kind === 'pull_requests') {
+      try {
+        prScans = await deps.queuePrScans(data.workspaceId, data.repoId);
+      } catch (err) {
+        prScans = { error: err instanceof Error ? err.message : String(err) };
+      }
+    }
     // A webhook delta is the ONLY path that changes a live repo's data, so
     // without this a live dashboard never updates until someone reloads —
     // NFR-10 asks for webhook→dashboard within 60s.
     await emitSyncStatus(deps, data.workspaceId, data.repoId, 'sync.progress');
-    return { ...result, ...(secrets ? { secrets } : {}) };
+    return { ...result, ...(secrets ? { secrets } : {}), ...(prScans ? { prScans } : {}) };
   };
 }
 

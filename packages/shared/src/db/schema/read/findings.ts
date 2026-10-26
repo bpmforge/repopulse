@@ -17,6 +17,7 @@ import { sql } from 'drizzle-orm';
 import { workspaces } from '../core/workspaces.js';
 import { repos } from '../core/repos.js';
 import { users } from '../core/users.js';
+import { llmProviders } from '../core/llm-providers.js';
 import { pullRequests } from '../facts/pull-requests.js';
 import { analysisRuns } from './analysis-runs.js';
 import { scanRuns } from '../security/index.js';
@@ -85,6 +86,21 @@ export const findings = pgTable(
      * verified one.
      */
     verifyStatus: text('verify_status').notNull().default('unverified'),
+    /**
+     * W21-03: who gave the second opinion that set verify_status — the model,
+     * the AI connection (SET NULL on delete, its name kept beside it) — and
+     * when. verify_reason is that model's reason, or why no second opinion
+     * could be had. A contradicting verdict MARKS a finding; it never changes
+     * its status.
+     */
+    verifiedByModel: text('verified_by_model'),
+    verifiedByProviderId: bigint('verified_by_provider_id', { mode: 'number' }).references(
+      () => llmProviders.id,
+      { onDelete: 'set null' },
+    ),
+    verifiedByConnection: text('verified_by_connection'),
+    verifiedAt: timestamp('verified_at', { withTimezone: true }),
+    verifyReason: text('verify_reason'),
     // W8-02 scanner delta (§1.3). All nullable: an analysis finding has none of
     // them, and a NOT NULL default would make every LLM finding claim a rule id
     // it does not have.

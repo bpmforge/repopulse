@@ -81,7 +81,9 @@ export const BUILTIN_SCANNERS: readonly Scanner[] = [
     displayName: 'Semgrep (Opengrep, in-house rules)',
     version: 'semgrep.v1',
     inputs: 'snapshot',
-    triggers: ['schedule', 'manual'],
+    // W21-02: pr_synced runs over the PR's changed files only, out of the one
+    // snapshot every PR pattern scanner shares (scanners/pr/run.ts).
+    triggers: ['pr_synced', 'schedule', 'manual'],
     requiredTools: ['opengrep@1'],
   }),
   sweeper({
@@ -97,7 +99,8 @@ export const BUILTIN_SCANNERS: readonly Scanner[] = [
     displayName: 'Anti-slop',
     version: 'anti_slop.v1',
     inputs: 'snapshot',
-    triggers: ['schedule', 'manual'],
+    // W21-02: deterministic half only on a PR push, reporting on changed files.
+    triggers: ['pr_synced', 'schedule', 'manual'],
   }),
   sweeper({
     key: CHAINER_SCANNER_KEY,
@@ -167,8 +170,9 @@ export const BUILTIN_SCANNERS: readonly Scanner[] = [
     // STARTABLE AS OF W16-36. It had no caller anywhere for eight waves, so it
     // was catalogued without 'manual' — listed, so the screen stopped claiming
     // it was not installed, and not offered, because no button could reach it.
-    // The worker wires it now.
-    triggers: ['schedule', 'manual'],
+    // The worker wires it now. W21-02: on a PR push only when the PR changed a
+    // manifest or lockfile (PR_CONDITIONAL_SCANNERS).
+    triggers: ['pr_synced', 'schedule', 'manual'],
     requiredTools: ['syft@1', 'grype@0'],
   }),
   // W18-34. OFF BY DEFAULT: pulls the images named in Dockerfiles, compose files
@@ -180,7 +184,9 @@ export const BUILTIN_SCANNERS: readonly Scanner[] = [
     displayName: 'Container image CVEs',
     version: 'container_image.v1',
     inputs: 'manifests',
-    triggers: ['manual'],
+    // W21-02: still opt-in; once on, a PR push that changes a file naming an
+    // image runs it too (PR_CONDITIONAL_SCANNERS).
+    triggers: ['pr_synced', 'manual'],
     requiredTools: ['grype@0'],
   }),
   // W18-24. Reads GitHub code-scanning alerts through the budgeted client —
@@ -204,7 +210,8 @@ export const BUILTIN_SCANNERS: readonly Scanner[] = [
     displayName: 'Logging hygiene',
     version: 'logging.v1',
     inputs: 'snapshot',
-    triggers: ['schedule'],
+    // W21-02: and on every PR push, over the changed files (pack only).
+    triggers: ['pr_synced', 'schedule'],
   }),
   // W18-21. Arrivals only: it runs inside the secrets stream on the diff that
   // scan already fetched, so it has no runner of its own and no 'manual' —
@@ -231,7 +238,7 @@ export const BUILTIN_SCANNERS: readonly Scanner[] = [
     displayName: 'Performance patterns',
     version: 'perf.v1',
     inputs: 'snapshot',
-    triggers: ['schedule'],
+    triggers: ['pr_synced', 'schedule'],
   }),
 ];
 

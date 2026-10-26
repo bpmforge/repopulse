@@ -514,6 +514,16 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     validate: isCron,
   },
   {
+    name: 'PR_SCANS',
+    scope: 'shared',
+    required: false,
+    purpose:
+      "Run the pattern scanners (Semgrep, anti-slop, logging, performance; dependency CVEs when a manifest or lockfile changed; container images when turned on) on every pull-request push, over one source archive per head. 'off' leaves PR pushes to the secrets scan and the sensitive-change radar. Set the same value for the worker and the API, so the CI pull does not wait for scanners that do not run.",
+    ifWrong:
+      'PR pushes get only the secrets scan, and SAST, slop, logging and performance findings arrive with the weekly pass; or, set on one process only, the CI pull waits for scanners that never run.',
+    default: 'on',
+  },
+  {
     name: 'FIRST_SCAN_ON_LIVE',
     scope: 'worker',
     required: false,

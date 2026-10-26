@@ -26,6 +26,8 @@ import {
 } from './findings.js';
 import type { MatchFunnel } from './matches.js';
 import { runSlopsquatSnapshotScan, type SlopsquatResult } from '../slopsquat/run.js';
+import { candidatesFrom } from '../../validation/verify/select.js';
+import type { VerifyCandidate } from '../../validation/verify/types.js';
 
 // The dependency scanner, end to end (W8-06, SECURITY_SUITE.md §3.2, FR-SEC-5).
 //
@@ -65,10 +67,39 @@ export interface DependencyRunDeps {
   vulnDb?: string;
   /** Host directory holding the Go vulnerability database (V3). */
   goVulnDb?: string;
-  trigger?: 'schedule' | 'manual' | 'push';
+  trigger?: 'schedule' | 'manual' | 'push' | 'pr_synced';
   wallClockMs?: number;
   /** Host directory of the package-name index (W21-05). Defaults to packageIndexDir(). */
   packageIndexDir?: string;
+  /**
+   * W21-02. A tree someone else already fetched: the PR scan takes ONE snapshot
+   * of a pull request's head and every pattern scanner reads it, so this run
+   * makes no forge call of its own. Absent = fetch one, as the weekly pass does.
+   */
+  snapshot?: { dir: string; commitSha: string };
+  /** The pull request a `pr_synced` run is for; stamped on what it creates. */
+  pullRequestId?: number | null;
+  /**
+   * W21-03. The V5 second opinion on this run's CVEs, after they are stored
+   * and priced: the caller (the worker) owns which connection may be asked and
+   * how many calls are left this month. Never on a PR run. A failure here is
+   * reported on the result and never fails the scan.
+   */
+  verifyCves?: (args: {
+    candidates: VerifyCandidate[];
+    scanRunId: number;
+    commitSha: string;
+  }) => Promise<CveVerifySummary>;
+}
+
+/** What the V5 second opinion did on one run (W21-03). */
+export interface CveVerifySummary {
+  asked: number;
+  confirmed: number;
+  contradicted: number;
+  /** Why nobody was asked, when nobody was. */
+  refused?: string;
+  error?: string;
 }
 
 /**
@@ -129,6 +160,8 @@ export interface DependencyRunResult {
   /** Findings whose effective_risk this run wrote (V4). */
   findingsPriced: number;
   sbomStored: boolean;
+  /** W21-03: the second opinion on this run's CVEs, when one was wired. */
+  cveVerify?: CveVerifySummary;
   error?: string;
 }
 
@@ -170,72 +203,93 @@ export async function runDependencyScan(deps: DependencyRunDeps): Promise<Depend
     .returning();
   const runId = run!.id;
 
+  // A PULL REQUEST'S RUN IS A LOOK, NOT A SWEEP (W21-02). Its tree is a
+  // branch, so it stores no SBOM (the registers and owasp_llm read the newest
+  // one as the repository's), closes nothing (a PR that drops a vulnerable
+  // package has not fixed the default branch), and stamps the PR on what it
+  // creates so the CI pull can call it introduced.
+  const prRun = deps.trigger === 'pr_synced';
+  const withTree = <T>(fn: (snapshot: { dir: string; commitSha: string }) => Promise<T>) =>
+    deps.snapshot
+      ? fn(deps.snapshot)
+      : snapshotForScan(
+          { provider: deps.provider, repo: deps.repo, commitSha: deps.commitSha },
+          fn,
+        );
+
   try {
-    return await snapshotForScan(
-      { provider: deps.provider, repo: deps.repo, commitSha: deps.commitSha },
-      async (snapshot) => {
-        const tools = await runDependencyTools({
-          targetDir: snapshot.dir,
-          image: deps.image ?? DEFAULT_IMAGE,
-          vulnDb: deps.vulnDb ?? vulnDbDir(),
-          budget: { wallClockMs: deps.wallClockMs ?? DEFAULT_WALL_CLOCK_MS },
-        });
+    return await withTree(async (snapshot) => {
+      const tools = await runDependencyTools({
+        targetDir: snapshot.dir,
+        image: deps.image ?? DEFAULT_IMAGE,
+        vulnDb: deps.vulnDb ?? vulnDbDir(),
+        budget: { wallClockMs: deps.wallClockMs ?? DEFAULT_WALL_CLOCK_MS },
+      });
 
-        // W21-05: slopsquat reads the manifests in this same snapshot, so it
-        // costs no fetch. BEFORE the tool check on purpose: it needs neither
-        // syft nor grype, and a missing vulnerability database must not also
-        // hide a hallucinated package. Its run row and failures are its own.
-        const slopsquat = await runSlopsquatSnapshotScan({
-          db: deps.db,
-          workspaceId: deps.workspaceId,
-          repoId: deps.repoId,
-          commitSha: snapshot.commitSha,
-          snapshotDir: snapshot.dir,
-          trigger: deps.trigger ?? 'schedule',
-          ...(deps.packageIndexDir ? { indexDir: deps.packageIndexDir } : {}),
-        })
-          .then((r) =>
-            r.status === 'disabled'
-              ? null
-              : {
-                  status: r.status,
-                  signals: r.signals,
-                  findingsCreated: r.findingsCreated,
-                  notChecked: r.notChecked,
-                },
-          )
-          .catch(() => null);
+      // W21-05: slopsquat reads the manifests in this same snapshot, so it
+      // costs no fetch. BEFORE the tool check on purpose: it needs neither
+      // syft nor grype, and a missing vulnerability database must not also
+      // hide a hallucinated package. Its run row and failures are its own.
+      // Not on a pull request's run (W21-02): W21-05 already checks a PR
+      // head's changed manifests in diff mode beside the secrets stream, so
+      // a second, whole-tree look here would double the run and the findings.
+      const slopsquat = prRun
+        ? null
+        : await runSlopsquatSnapshotScan({
+            db: deps.db,
+            workspaceId: deps.workspaceId,
+            repoId: deps.repoId,
+            commitSha: snapshot.commitSha,
+            snapshotDir: snapshot.dir,
+            trigger:
+              deps.trigger === undefined || deps.trigger === 'pr_synced'
+                ? 'schedule'
+                : deps.trigger,
+            ...(deps.packageIndexDir ? { indexDir: deps.packageIndexDir } : {}),
+          })
+            .then((r) =>
+              r.status === 'disabled'
+                ? null
+                : {
+                    status: r.status,
+                    signals: r.signals,
+                    findingsCreated: r.findingsCreated,
+                    notChecked: r.notChecked,
+                  },
+            )
+            .catch(() => null);
 
-        if (tools.status !== 'succeeded' || tools.document === null) {
-          // RETURN BEFORE persistFindings. A failed tool run reaching the store
-          // with an empty findings list would auto-resolve every dependency
-          // finding this repository has — a crashed scanner marking real CVEs
-          // as fixed. The scan_run row is left failed with the tool's own
-          // reason, so "grype found nothing" and "grype did not run" are two
-          // visibly different states.
-          await closeRun(
-            deps.db,
-            runId,
-            'failed',
-            0,
-            tools.error ?? 'tool run failed',
-            tools.toolVersions,
-          );
-          return {
-            status: 'failed' as const,
-            scanRunId: runId,
-            ...emptyFunnel,
-            slopsquat,
-            ...(tools.error ? { error: tools.error } : {}),
-          };
-        }
+      if (tools.status !== 'succeeded' || tools.document === null) {
+        // RETURN BEFORE persistFindings. A failed tool run reaching the store
+        // with an empty findings list would auto-resolve every dependency
+        // finding this repository has — a crashed scanner marking real CVEs
+        // as fixed. The scan_run row is left failed with the tool's own
+        // reason, so "grype found nothing" and "grype did not run" are two
+        // visibly different states.
+        await closeRun(
+          deps.db,
+          runId,
+          'failed',
+          0,
+          tools.error ?? 'tool run failed',
+          tools.toolVersions,
+        );
+        return {
+          status: 'failed' as const,
+          scanRunId: runId,
+          ...emptyFunnel,
+          slopsquat,
+          ...(tools.error ? { error: tools.error } : {}),
+        };
+      }
 
-        // The SBOM is stored BEFORE the findings, and stored even when there
-        // are none: an empty findings list against a real component list is
-        // the good result, and it is only legible if the component list is
-        // there to read. Upserted because sboms is unique on
-        // (workspace, repo, commit) and a re-scan of the same commit is
-        // ordinary — the document is regenerated, not accumulated.
+      // The SBOM is stored BEFORE the findings, and stored even when there
+      // are none: an empty findings list against a real component list is
+      // the good result, and it is only legible if the component list is
+      // there to read. Upserted because sboms is unique on
+      // (workspace, repo, commit) and a re-scan of the same commit is
+      // ordinary — the document is regenerated, not accumulated.
+      if (!prRun)
         await deps.db
           .insert(security.sboms)
           .values({
@@ -256,101 +310,126 @@ export async function runDependencyScan(deps: DependencyRunDeps): Promise<Depend
             },
           });
 
-        // V3 runs BEFORE the funnel because its proof is an input to it. It
-        // preflights for a Go vulnerability database and a vendored go.mod and
-        // returns a stated reason when either is missing, rather than starting
-        // a container that would fail — so a JavaScript repository costs
-        // nothing here and a Go one says why it was not proven.
-        const reachability = await goReachability({
-          targetDir: snapshot.dir,
-          image: deps.image ?? DEFAULT_IMAGE,
-          goVulnDb: deps.goVulnDb ?? goVulnDbDir(),
-          budget: { wallClockMs: deps.wallClockMs ?? DEFAULT_WALL_CLOCK_MS },
-        });
+      // V3 runs BEFORE the funnel because its proof is an input to it. It
+      // preflights for a Go vulnerability database and a vendored go.mod and
+      // returns a stated reason when either is missing, rather than starting
+      // a container that would fail — so a JavaScript repository costs
+      // nothing here and a Go one says why it was not proven.
+      const reachability = await goReachability({
+        targetDir: snapshot.dir,
+        image: deps.image ?? DEFAULT_IMAGE,
+        goVulnDb: deps.goVulnDb ?? goVulnDbDir(),
+        budget: { wallClockMs: deps.wallClockMs ?? DEFAULT_WALL_CLOCK_MS },
+      });
 
-        // W18-46: call sites of catalogued vulnerable functions in JS/TS and
-        // Python. Costs nothing unless a catalogued package is in this scan.
-        const symbols = await symbolReachability({
-          targetDir: snapshot.dir,
-          matches: tools.matches,
-          image: deps.image ?? DEFAULT_IMAGE,
-          budget: { wallClockMs: deps.wallClockMs ?? DEFAULT_WALL_CLOCK_MS },
-        });
+      // W18-46: call sites of catalogued vulnerable functions in JS/TS and
+      // Python. Costs nothing unless a catalogued package is in this scan.
+      const symbols = await symbolReachability({
+        targetDir: snapshot.dir,
+        matches: tools.matches,
+        image: deps.image ?? DEFAULT_IMAGE,
+        budget: { wallClockMs: deps.wallClockMs ?? DEFAULT_WALL_CLOCK_MS },
+      });
 
-        const validation = validateVulnerabilities({
-          matches: tools.matches,
-          snapshotDir: snapshot.dir,
-          goReachability: reachability,
-          symbolReachability: symbols,
-          // grype's OWN count, so `raw → deduped` is the whole narrowing rather
-          // than the part of it that happened after the reader had already
-          // merged the (purl, CVE) duplicates.
-          rawMatchCount: tools.matchFunnel?.rawMatches ?? tools.matches.length,
-        });
+      const validation = validateVulnerabilities({
+        matches: tools.matches,
+        snapshotDir: snapshot.dir,
+        goReachability: reachability,
+        symbolReachability: symbols,
+        // grype's OWN count, so `raw → deduped` is the whole narrowing rather
+        // than the part of it that happened after the reader had already
+        // merged the (purl, CVE) duplicates.
+        rawMatchCount: tools.matchFunnel?.rawMatches ?? tools.matches.length,
+      });
 
-        // W18-36: lockfile graphs, so a transitive CVE names the direct dependency
-        // to bump instead of only the vulnerable package's own fixed version.
-        const fixGraphs = readFixGraphs(snapshot.dir).graphs;
-        const mapped = dependencyFindings(validation.vulnerabilities, tools.document, (v) =>
-          adviseFix(fixGraphs, {
-            packageType: v.packageType,
-            name: v.packageName,
-            version: v.packageVersion,
-            fixVersions: v.fixVersions,
-          }),
-        );
+      // W18-36: lockfile graphs, so a transitive CVE names the direct dependency
+      // to bump instead of only the vulnerable package's own fixed version.
+      const fixGraphs = readFixGraphs(snapshot.dir).graphs;
+      const mapped = dependencyFindings(validation.vulnerabilities, tools.document, (v) =>
+        adviseFix(fixGraphs, {
+          packageType: v.packageType,
+          name: v.packageName,
+          version: v.packageVersion,
+          fixVersions: v.fixVersions,
+        }),
+      );
 
-        // W18-37: OpenSSF malicious packages. A hit is its own finding at
-        // severity 5; a missing index is a stated note on the run, never a
-        // silent "none found".
-        const malicious = loadMaliciousIndex();
-        const maliciousHits = malicious.ok
-          ? matchMalicious(packagesFromSbom(tools.document), malicious.index).map(maliciousFinding)
-          : [];
-        mapped.priced.push(...maliciousHits);
-        mapped.findings.push(...maliciousHits.map((h) => h.finding));
+      // W18-37: OpenSSF malicious packages. A hit is its own finding at
+      // severity 5; a missing index is a stated note on the run, never a
+      // silent "none found".
+      // W21-03: the V5 candidates are the VALIDATED vulnerabilities, index-
+      // aligned with their prices — taken before the malicious hits join the
+      // list, which have no vulnerability behind them.
+      let verifyCandidates: VerifyCandidate[] | null = null;
+      let cveVerify: CveVerifySummary | undefined;
+      if (deps.verifyCves && !prRun) {
+        try {
+          verifyCandidates = candidatesFrom(validation.vulnerabilities, mapped.priced);
+        } catch (err) {
+          cveVerify = { asked: 0, confirmed: 0, contradicted: 0, error: safeErrorText(err) };
+        }
+      }
 
-        const persisted = await persistFindings(deps.db, {
-          workspaceId: deps.workspaceId,
-          repoId: deps.repoId,
-          scanRunId: runId,
-          pullRequestId: null,
-          tier: 1,
-          findings: mapped.findings,
-          // The manifests this scan read. A CVE that a later scan of the same
-          // manifests no longer reports has been upgraded away, and this is
-          // the only signal persistFindings has for closing it — without it a
-          // patched dependency stays open forever.
-          reviewedFiles: mapped.reviewedFiles,
-          sweepDimensions: ['dependency'],
-          sweepScannerKey: DEPENDENCY_SCANNER_KEY,
-        });
+      const malicious = loadMaliciousIndex();
+      const maliciousHits = malicious.ok
+        ? matchMalicious(packagesFromSbom(tools.document), malicious.index).map(maliciousFinding)
+        : [];
+      mapped.priced.push(...maliciousHits);
+      mapped.findings.push(...maliciousHits.map((h) => h.finding));
 
-        const findingsPriced = await priceStoredFindings(deps, mapped.priced);
+      const persisted = await persistFindings(deps.db, {
+        workspaceId: deps.workspaceId,
+        repoId: deps.repoId,
+        scanRunId: runId,
+        pullRequestId: deps.pullRequestId ?? null,
+        tier: 1,
+        findings: mapped.findings,
+        // The manifests this scan read. A CVE that a later scan of the same
+        // manifests no longer reports has been upgraded away, and this is
+        // the only signal persistFindings has for closing it — without it a
+        // patched dependency stays open forever. Never on a PR run (above).
+        ...(prRun ? {} : { reviewedFiles: mapped.reviewedFiles }),
+        sweepDimensions: ['dependency'],
+        sweepScannerKey: DEPENDENCY_SCANNER_KEY,
+      });
 
-        await closeRun(deps.db, runId, 'succeeded', mapped.findings.length, null, {
-          ...tools.toolVersions,
-          ...(reachability.toolVersion ? { govulncheck: reachability.toolVersion } : {}),
-          ...(symbols.toolVersion ? { opengrep: symbols.toolVersion } : {}),
-        });
+      const findingsPriced = await priceStoredFindings(deps, mapped.priced);
 
-        return {
-          status: 'succeeded' as const,
-          scanRunId: runId,
-          sbomStored: true,
-          componentsScanned: tools.componentCount,
-          ...funnelNumbers(tools.matchFunnel, mapped.funnel),
-          validation: validation.funnel,
-          reachabilityNote: reachability.reason,
-          maliciousFound: maliciousHits.length,
-          maliciousNote: malicious.ok ? null : malicious.reason,
-          slopsquat,
-          findingsCreated: persisted.created,
-          findingsTotal: mapped.findings.length,
-          findingsPriced,
-        };
-      },
-    );
+      if (deps.verifyCves && verifyCandidates && verifyCandidates.length > 0) {
+        try {
+          cveVerify = await deps.verifyCves({
+            candidates: verifyCandidates,
+            scanRunId: runId,
+            commitSha: snapshot.commitSha,
+          });
+        } catch (err) {
+          cveVerify = { asked: 0, confirmed: 0, contradicted: 0, error: safeErrorText(err) };
+        }
+      }
+
+      await closeRun(deps.db, runId, 'succeeded', mapped.findings.length, null, {
+        ...tools.toolVersions,
+        ...(reachability.toolVersion ? { govulncheck: reachability.toolVersion } : {}),
+        ...(symbols.toolVersion ? { opengrep: symbols.toolVersion } : {}),
+      });
+
+      return {
+        status: 'succeeded' as const,
+        scanRunId: runId,
+        sbomStored: !prRun,
+        componentsScanned: tools.componentCount,
+        ...funnelNumbers(tools.matchFunnel, mapped.funnel),
+        validation: validation.funnel,
+        reachabilityNote: reachability.reason,
+        maliciousFound: maliciousHits.length,
+        maliciousNote: malicious.ok ? null : malicious.reason,
+        slopsquat,
+        findingsCreated: persisted.created,
+        findingsTotal: mapped.findings.length,
+        findingsPriced,
+        ...(cveVerify ? { cveVerify } : {}),
+      };
+    });
   } catch (err) {
     await closeRun(deps.db, runId, 'failed', 0, safeErrorText(err).slice(0, 500), null);
     return {

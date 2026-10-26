@@ -13,6 +13,8 @@ import {
   runSemgrepScan,
   SEMGREP_SCANNER_KEY,
   toIncomingFindings,
+  type SemgrepRunArgs,
+  type SemgrepRunResult,
 } from './scanner.js';
 
 // Full and incremental modes (W8-07, SECURITY_SUITE.md §3.3 / §4).
@@ -38,6 +40,8 @@ export interface SemgrepModeDeps {
   image?: string;
   /** Wall-clock cap for the container (§1.2). */
   wallClockMs?: number;
+  /** Defaults to runSemgrepScan; a test seam like the code-health scanners' runPack. */
+  runScan?: (args: SemgrepRunArgs) => Promise<SemgrepRunResult>;
 }
 
 export interface SemgrepModeResult {
@@ -121,7 +125,7 @@ export async function runSemgrepFull(
     return await snapshotForScan(
       { provider: deps.provider, repo: deps.repo, commitSha: deps.commitSha },
       async (snapshot) => {
-        const scan = await runSemgrepScan({
+        const scan = await (deps.runScan ?? runSemgrepScan)({
           targetDir: snapshot.dir,
           budget: { wallClockMs: deps.wallClockMs ?? DEFAULT_WALL_CLOCK_MS },
           ...(deps.image ? { image: deps.image } : {}),
@@ -216,21 +220,37 @@ const SCANNABLE =
  * they are.
  */
 export async function runSemgrepIncremental(
-  deps: SemgrepModeDeps & { prNumber: number; maxFiles?: number },
+  deps: SemgrepModeDeps & {
+    prNumber: number;
+    maxFiles?: number;
+    /**
+     * W21-02. The PR's changed files, already copied out of the ONE snapshot the
+     * PR scan fetched for this head (scanners/pr/run.ts). With it, this run makes
+     * no forge call at all: no file listing and no per-file content fetch, so
+     * every pattern scanner on a PR push shares one tarball. The directory
+     * belongs to the caller, which deletes it.
+     */
+    scoped?: { dir: string; paths: readonly string[] };
+  },
 ): Promise<SemgrepModeResult> {
   const runId = await openRun(deps, 'pr_synced');
   const maxFiles = deps.maxFiles ?? 200;
   const ctx: CallCtx = { lane: 'scan', repoId: String(deps.repoId) };
-  const root = await mkdtemp(path.join(tmpdir(), 'repopulse-semgrep-'));
+  const root = deps.scoped?.dir ?? (await mkdtemp(path.join(tmpdir(), 'repopulse-semgrep-')));
+  const runScan = deps.runScan ?? runSemgrepScan;
 
   try {
     const changed: string[] = [];
-    let cursor: string | undefined;
-    do {
-      const page = await deps.provider.getPullRequestFiles(ctx, deps.repo, deps.prNumber, cursor);
-      changed.push(...page.items.map((f) => f.path).filter((p) => SCANNABLE.test(p)));
-      cursor = page.nextCursor;
-    } while (cursor !== undefined && changed.length < maxFiles);
+    if (deps.scoped) {
+      changed.push(...deps.scoped.paths.filter((p) => SCANNABLE.test(p)));
+    } else {
+      let cursor: string | undefined;
+      do {
+        const page = await deps.provider.getPullRequestFiles(ctx, deps.repo, deps.prNumber, cursor);
+        changed.push(...page.items.map((f) => f.path).filter((p) => SCANNABLE.test(p)));
+        cursor = page.nextCursor;
+      } while (cursor !== undefined && changed.length < maxFiles);
+    }
 
     if (changed.length === 0) {
       // Nothing this pack can read. Recorded as a succeeded run with zero
@@ -247,8 +267,8 @@ export async function runSemgrepIncremental(
       };
     }
 
-    let written = 0;
-    for (const file of changed.slice(0, maxFiles)) {
+    let written = deps.scoped ? Math.min(changed.length, maxFiles) : 0;
+    for (const file of deps.scoped ? [] : changed.slice(0, maxFiles)) {
       const content = await deps.provider.getFileContent(ctx, deps.repo, file, deps.commitSha);
       // Null content means the forge truncated it (>1MB) or the file is
       // binary. Skipped rather than written empty: an empty file scans clean
@@ -260,7 +280,7 @@ export async function runSemgrepIncremental(
       written += 1;
     }
 
-    const scan = await runSemgrepScan({
+    const scan = await runScan({
       targetDir: root,
       budget: { wallClockMs: deps.wallClockMs ?? DEFAULT_WALL_CLOCK_MS },
       ...(deps.image ? { image: deps.image } : {}),
@@ -325,7 +345,8 @@ export async function runSemgrepIncremental(
       filesScanned: null,
     };
   } finally {
-    // Same discipline as a snapshot: these are the same customer bytes.
-    await shred(root);
+    // Same discipline as a snapshot: these are the same customer bytes. A
+    // scoped directory is the caller's, and the caller shreds it.
+    if (!deps.scoped) await shred(root);
   }
 }
