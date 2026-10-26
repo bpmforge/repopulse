@@ -359,7 +359,11 @@ that are strings by construction.
 `.get(key)` as a database call. 233 of its 327 hits here were `Map.get`, including the
 indexed fix this pack recommends. A one-argument `.get` now counts only when it is
 awaited: a query returns a promise (`await db.get(id)`, the labelled N+1) and `Map.get`
-never does. 94 hits remain and still need grading.
+never does. The 94 that remained were then read one by one: 3 were `Map/Set.delete(key)`
+(now excluded unless something is chained onto the `.delete`, as a query builder's
+`tx.delete(table).where(…)` always is), 6 are deliberate batch loops (up to 5,000 rows per
+iteration, correct but invisible to a pattern), 15 are the test-data seeder, and the rest
+are genuine per-row database calls in loops. 327 → 91.
 
 **Python (`perf.complexity.python.v1.yaml`, slice 2):** `list.pop(0)` / `insert(0, …)`
 in a loop (O(n²) → O(n) with `deque`; `deque` has no `pop(0)`, so this is a list),
