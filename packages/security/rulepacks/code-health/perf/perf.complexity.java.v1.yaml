@@ -1,0 +1,166 @@
+# bpm-rulepacks — algorithmic complexity, Java and Kotlin (W21-20 slice 4,
+# CODE_HEALTH_SUITE.md §9.1a).
+#
+# PROVENANCE: written for RepoPulse. Nothing here is copied or adapted from the
+# Semgrep registry (DESIGN_REVIEW.md G-18).
+#
+# The JVM siblings of perf.complexity.v1.yaml. Java's typed metavariables make
+# the membership and front-removal rules exact: `(List<$E> $L).contains` fires
+# only where the declared type is a List, never on a Set, whose contains is
+# already O(1).
+#
+# MEASURED before shipping on public application code (spring-petclinic,
+# apache/commons-lang: 680 .java; android/nowinandroid: 310 .kt; tests
+# excluded; 2026-10-26, every hit read): Java 1 hit (a contains over a class's
+# type parameters, correct shape, small list), Kotlin 0. The corpus says the
+# rules are quiet on well-kept code; their precision on code WITH the shapes
+# rests on the fixture pairs, and §8.2 promotion needs customer evidence.
+#
+# Lifecycle `candidate`: shadow until the promotion gate (§8.2).
+rules:
+  - id: bpm-perf-java-contains-in-loop
+    languages: [java]
+    severity: INFO
+    message: >-
+      List.contains / indexOf scans the whole list, and this runs once per
+      iteration of a loop: O(n·m) overall. When both grow, build a HashSet from
+      the list once before the loop (contains is then O(1)), making the whole
+      thing O(n + m). If the list is small by design, dismiss this.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1a
+      category: performance
+      complexity: O(n·m) -> O(n + m)
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              for ($T $X : $OUTER) { ... }
+          - pattern-inside: |
+              for (...; ...; ...) { ... }
+          - pattern-inside: |
+              while (...) { ... }
+          - pattern-inside: $OUTER.forEach(...)
+          - pattern-inside: $OUTER.stream().$OP(...)
+      - pattern-either:
+          - pattern: (List<$E> $L).contains(...)
+          - pattern: (List<$E> $L).indexOf(...)
+          - pattern: (ArrayList<$E> $L).contains(...)
+          - pattern: (ArrayList<$E> $L).indexOf(...)
+          - pattern: (List $L).contains(...)
+      - metavariable-regex:
+          metavariable: $L
+          regex: ^(?![A-Z][A-Z0-9_]*$).*
+
+  - id: bpm-perf-java-find-by-key-in-loop
+    languages: [java]
+    severity: INFO
+    message: >-
+      A stream that filters a whole collection by a value from the outer loop,
+      once per outer element: O(n·m) overall. When both grow, build a Map keyed
+      on that value once before the loop (Collectors.toMap / groupingBy), so
+      each lookup is O(1) and the whole thing is O(n + m).
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1a
+      category: performance
+      complexity: O(n·m) -> O(n + m)
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              for ($T $X : $OUTER) { ... }
+          - pattern-inside: $OUTER.forEach($X -> ...)
+          - pattern-inside: $OUTER.stream().$OP($X -> ...)
+      - pattern-either:
+          - pattern: $INNER.stream().filter($Y -> <... $X ...>).$TERM(...)
+          - pattern: $INNER.stream().anyMatch($Y -> <... $X ...>)
+      - metavariable-comparison:
+          comparison: str($INNER) != str($OUTER)
+
+  - id: bpm-perf-java-remove-front-in-loop
+    languages: [java]
+    severity: WARNING
+    message: >-
+      ArrayList.remove(0) or add(0, x) inside a loop shifts every remaining
+      element each time: O(n) per call, O(n²) for the loop. Use an ArrayDeque
+      (pollFirst / addFirst are O(1)), or iterate with an index.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1a
+      category: performance
+      complexity: O(n²) -> O(n)
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              while (...) { ... }
+          - pattern-inside: |
+              for (...; ...; ...) { ... }
+          - pattern-inside: |
+              for ($T $X : $OUTER) { ... }
+      - pattern-either:
+          - pattern: (List<$E> $L).remove(0)
+          - pattern: (ArrayList<$E> $L).remove(0)
+          - pattern: (List<$E> $L).add(0, $V)
+          - pattern: (ArrayList<$E> $L).add(0, $V)
+
+  - id: bpm-perf-kt-find-by-key-in-loop
+    languages: [kotlin]
+    severity: INFO
+    message: >-
+      find / firstOrNull / filter / any over a whole collection with a value
+      from the outer loop, once per outer element: O(n·m) overall. When both
+      grow, build a map once before the loop (associateBy / groupBy), so each
+      lookup is O(1) and the whole thing is O(n + m).
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1a
+      category: performance
+      complexity: O(n·m) -> O(n + m)
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              for ($X in $OUTER) { ... }
+          - pattern-inside: '$OUTER.forEach { $X -> ... }'
+          - pattern-inside: '$OUTER.map { $X -> ... }'
+          - pattern-inside: '$OUTER.mapNotNull { $X -> ... }'
+          - pattern-inside: '$OUTER.filter { $X -> ... }'
+      - pattern-either:
+          - pattern: '$INNER.find { <... $X ...> }'
+          - pattern: '$INNER.firstOrNull { <... $X ...> }'
+          - pattern: '$INNER.filter { <... $X ...> }'
+          - pattern: '$INNER.any { <... $X ...> }'
+          - pattern: '$INNER.count { <... $X ...> }'
+          - pattern: '$INNER.indexOfFirst { <... $X ...> }'
+      - metavariable-comparison:
+          comparison: str($INNER) != str($OUTER)
+      - metavariable-regex:
+          metavariable: $INNER
+          regex: ^(?![A-Z][A-Z0-9_]*$)(?!listOf)(?!setOf).*
+
+  - id: bpm-perf-kt-remove-front-in-loop
+    languages: [kotlin]
+    severity: WARNING
+    message: >-
+      removeAt(0), removeFirst() or add(0, x) on a MutableList inside a loop
+      shifts every remaining element each time: O(n²) for the loop. Use an
+      ArrayDeque (removeFirst / addFirst are O(1) there).
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1a
+      category: performance
+      complexity: O(n²) -> O(n)
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              while (...) { ... }
+          - pattern-inside: |
+              for ($X in $OUTER) { ... }
+      - pattern-either:
+          - pattern: $L.removeAt(0)
+          - pattern: $L.add(0, $V)
+      # A Kotlin ArrayDeque's removeFirst is the fix, not the defect; only
+      # removeAt(0) and add(0, …) are list-only.

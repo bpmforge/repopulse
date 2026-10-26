@@ -1,0 +1,92 @@
+# bpm-rulepacks — algorithmic complexity, Go (W21-20 slice 4,
+# CODE_HEALTH_SUITE.md §9.1a).
+#
+# PROVENANCE: written for RepoPulse. Nothing here is copied or adapted from the
+# Semgrep registry (DESIGN_REVIEW.md G-18).
+#
+# MEASURED before shipping on public application code (prometheus/
+# node_exporter: 205 .go, tests excluded; 2026-10-26, every hit read): 4 hits.
+# 2 joins that grow (routes x network links, looked up by interface index per
+# route: a map[index]name built once makes it linear), 2 over small lists (a
+# CLI exclude list; a 5-element package-level state list), 0 wrong.
+#
+# Lifecycle `candidate`: shadow until the promotion gate (§8.2).
+rules:
+  - id: bpm-perf-go-nested-range-join
+    languages: [go]
+    severity: INFO
+    message: >-
+      A range over a second slice, comparing its elements to the outer loop's
+      element, once per outer element: a join done by scanning, O(n·m). When
+      both grow, build a map keyed on the compared field once before the outer
+      loop, so each lookup is O(1) and the whole thing is O(n + m).
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1a
+      category: performance
+      complexity: O(n·m) -> O(n + m)
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-inside: |
+          for $I, $X := range $OUTER {
+            ...
+          }
+      - pattern: |
+          for $J, $Y := range $INNER {
+            ...
+          }
+      - pattern-inside: |
+          for $J, $Y := range $INNER {
+            ...
+            if <... $Y ...> == <... $X ...> {
+              ...
+            }
+            ...
+          }
+      - metavariable-comparison:
+          comparison: str($INNER) != str($OUTER)
+
+  - id: bpm-perf-go-contains-in-loop
+    languages: [go]
+    severity: INFO
+    message: >-
+      slices.Contains / slices.Index scans the slice, once per iteration of the
+      outer range: O(n·m) overall. When both grow, build a map[T]struct{} once
+      before the loop, so membership is O(1) and the whole thing is O(n + m).
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1a
+      category: performance
+      complexity: O(n·m) -> O(n + m)
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-inside: |
+          for $I, $X := range $OUTER {
+            ...
+          }
+      - pattern-either:
+          - pattern: slices.Contains($S, <... $X ...>)
+          - pattern: slices.Index($S, <... $X ...>)
+      - metavariable-comparison:
+          comparison: str($S) != str($OUTER)
+
+  - id: bpm-perf-go-prepend-in-loop
+    languages: [go]
+    severity: WARNING
+    message: >-
+      append([]T{x}, s...) inside a loop copies the whole slice to put one
+      element in front: O(n²) for the loop. Append to the end and reverse once
+      after the loop (slices.Reverse), which is O(n).
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1a
+      category: performance
+      complexity: O(n²) -> O(n)
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      note: No hit on the measurement corpus; evidence is the fixture pair only.
+    patterns:
+      - pattern-inside: |
+          for ... {
+            ...
+          }
+      - pattern: $S = append([]$T{$V}, $S...)

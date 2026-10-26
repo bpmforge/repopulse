@@ -21,6 +21,12 @@ const PACKS = [
   { area: 'anti-slop', file: 'code-health/anti-slop.java.v1.yaml', prefix: 'bpm-ch-' },
   { area: 'logging', file: 'code-health/logging.java.v1.yaml', prefix: 'bpm-log-' },
   { area: 'perf', file: 'code-health/perf/perf.java.v1.yaml', prefix: 'bpm-perf-' },
+  // W21-20: the algorithmic complexity rules, Java and Kotlin.
+  {
+    area: 'perf-complexity',
+    file: 'code-health/perf/perf.complexity.java.v1.yaml',
+    prefix: 'bpm-perf-',
+  },
   { area: 'security', file: 'semgrep/bpm-baseline.java.v1.yaml', prefix: 'bpm-' },
 ] as const;
 
@@ -65,7 +71,7 @@ describe('the Java/Kotlin packs are ours and shadowed', () => {
   }
 
   it('keeps code-health severities below the security range', () => {
-    for (const file of [PACKS[0].file, PACKS[1].file, PACKS[2].file]) {
+    for (const file of [PACKS[0].file, PACKS[1].file, PACKS[2].file, PACKS[3].file]) {
       expect(packText(file), file).not.toMatch(/severity: (ERROR|CRITICAL)/);
     }
   });
