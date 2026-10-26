@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { HAND_CHECKED_MANIFEST } from './hand-checked.data.js';
 import {
   HAND_CHECKED_BAR,
+  HAND_CHECKED_HELD,
   HAND_CHECKED_REASON,
   deriveHandChecked,
   handCheckedEntry,
@@ -60,14 +61,30 @@ describe('hand-checked manifest (W21-20)', () => {
     expect(HAND_CHECKED_MANIFEST.marked).toBeGreaterThan(0);
   });
 
-  it('every live entry clears the bar on its own numbers, and every other one does not', () => {
+  it('every live entry clears the bar on its own numbers; every other one misses it or is held', () => {
     expect(HAND_CHECKED_MANIFEST.rules.length).toBeGreaterThan(0);
     for (const e of HAND_CHECKED_MANIFEST.rules) {
       expect(e.tp, e.ruleId).toBeGreaterThanOrEqual(HAND_CHECKED_BAR.minTruePositives);
       expect(e.tp / (e.tp + e.fp), e.ruleId).toBeGreaterThanOrEqual(HAND_CHECKED_BAR.minPrecision);
     }
     for (const e of HAND_CHECKED_MANIFEST.notLive)
-      expect(meetsHandCheckedBar(e), e.ruleId).toBe(false);
+      expect(meetsHandCheckedBar(e) && !HAND_CHECKED_HELD.has(e.ruleId), e.ruleId).toBe(false);
+  });
+
+  it('keeps an owner-held rule in shadow even when its sample clears the bar', () => {
+    for (const [ruleId, reason] of HAND_CHECKED_HELD) {
+      expect(isHandCheckedRule(ruleId), ruleId).toBe(false);
+      expect(reason, ruleId).toMatch(/^held: /);
+      expect(
+        HAND_CHECKED_MANIFEST.notLive.some((e) => e.ruleId === ruleId),
+        ruleId,
+      ).toBe(true);
+    }
+    // includes-in-loop's sample clears the bar; the hold is what keeps it out.
+    const held = HAND_CHECKED_MANIFEST.notLive.find(
+      (e) => e.ruleId === 'bpm-perf-includes-in-loop',
+    )!;
+    expect(meetsHandCheckedBar(held)).toBe(true);
   });
 
   it("each entry's numbers are the sheet's brad column, recounted", () => {

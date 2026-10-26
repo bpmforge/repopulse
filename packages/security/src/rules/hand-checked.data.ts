@@ -102,52 +102,6 @@ export const HAND_CHECKED_MANIFEST: HandCheckedManifest = {
       ]
     },
     {
-      "ruleId": "bpm-perf-includes-in-loop",
-      "engine": "yaml",
-      "dimension": "performance",
-      "tp": 5,
-      "fp": 0,
-      "small": 25,
-      "precision": 1,
-      "suites": [
-        {
-          "suite": "excalidraw/excalidraw",
-          "tp": 2,
-          "fp": 0
-        },
-        {
-          "suite": "go-gitea/gitea",
-          "tp": 0,
-          "fp": 0
-        },
-        {
-          "suite": "outline/outline",
-          "tp": 2,
-          "fp": 0
-        },
-        {
-          "suite": "paperless-ngx/paperless-ngx",
-          "tp": 0,
-          "fp": 0
-        },
-        {
-          "suite": "prometheus/prometheus",
-          "tp": 1,
-          "fp": 0
-        },
-        {
-          "suite": "thingsboard/thingsboard",
-          "tp": 0,
-          "fp": 0
-        },
-        {
-          "suite": "zulip/zulip",
-          "tp": 0,
-          "fp": 0
-        }
-      ]
-    },
-    {
       "ruleId": "bpm-perf-java-contains-in-loop",
       "engine": "yaml",
       "dimension": "performance",
@@ -397,6 +351,52 @@ export const HAND_CHECKED_MANIFEST: HandCheckedManifest = {
           "suite": "traefik/traefik",
           "tp": 0,
           "fp": 1
+        }
+      ]
+    },
+    {
+      "ruleId": "bpm-perf-includes-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "tp": 5,
+      "fp": 0,
+      "small": 25,
+      "precision": 1,
+      "suites": [
+        {
+          "suite": "excalidraw/excalidraw",
+          "tp": 2,
+          "fp": 0
+        },
+        {
+          "suite": "go-gitea/gitea",
+          "tp": 0,
+          "fp": 0
+        },
+        {
+          "suite": "outline/outline",
+          "tp": 2,
+          "fp": 0
+        },
+        {
+          "suite": "paperless-ngx/paperless-ngx",
+          "tp": 0,
+          "fp": 0
+        },
+        {
+          "suite": "prometheus/prometheus",
+          "tp": 1,
+          "fp": 0
+        },
+        {
+          "suite": "thingsboard/thingsboard",
+          "tp": 0,
+          "fp": 0
+        },
+        {
+          "suite": "zulip/zulip",
+          "tp": 0,
+          "fp": 0
         }
       ]
     },

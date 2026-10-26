@@ -219,13 +219,13 @@ describe('RulePrecisionSummary (finding drawer)', () => {
 
   it('names the hand-check and the repositories marked as the stage reason (W21-20)', async () => {
     const rule: RulePrecisionReport['rules'][number] = {
-      ruleId: 'bpm-perf-includes-in-loop',
+      ruleId: 'bpm-perf-copy-on-append',
       lifecycle: 'active',
       lifecycleSource: 'hand-checked',
       starter: {
         reason: 'live via hand-checked evidence',
         evidence: {
-          ruleId: 'bpm-perf-includes-in-loop',
+          ruleId: 'bpm-perf-copy-on-append',
           tp: 5,
           fp: 0,
           precision: 1,
@@ -240,10 +240,10 @@ describe('RulePrecisionSummary (finding drawer)', () => {
       benchmark: null,
     };
     bodies['/rules/precision'] = { ...REPORT, rules: [rule] };
-    wrap(<RulePrecisionSummary ruleId="bpm-perf-includes-in-loop" />);
+    wrap(<RulePrecisionSummary ruleId="bpm-perf-copy-on-append" />);
     const state = await screen.findByTestId('finding-rule-lifecycle');
     expect(state.textContent).toMatch(/active.*live via hand-checked evidence/);
-    expect(screen.getByTestId('stage-reason-starter-bpm-perf-includes-in-loop').title).toBe(
+    expect(screen.getByTestId('stage-reason-starter-bpm-perf-copy-on-append').title).toBe(
       '100.0% precision, 5 TP / 0 FP: outline/outline 3 TP / 0 FP; zulip/zulip 2 TP / 0 FP',
     );
   });

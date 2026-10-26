@@ -80,6 +80,21 @@ export function parseSheetCsv(text: string): string[][] {
   return rows;
 }
 
+/**
+ * Rules held in shadow by owner decision even though their marked sample
+ * clears the bar. A sample is evidence, not a verdict on what it missed:
+ * bpm-perf-includes-in-loop's random 30 came out clean, but the proposed
+ * labels on all 200 of its hits give 77%, most misses being `.includes` on a
+ * string. It stays shadow until it stops firing on strings and is re-checked
+ * (2026-10-26, Brad accepted the recommendation to hold it).
+ */
+export const HAND_CHECKED_HELD: ReadonlyMap<string, string> = new Map([
+  [
+    'bpm-perf-includes-in-loop',
+    'held: 77% on all 200 hits (string receivers); re-check after the fix',
+  ],
+]);
+
 const MARKS = new Set(['true', 'small', 'wrong']);
 const round3 = (n: number): number => Math.round(n * 1000) / 1000;
 
@@ -130,7 +145,7 @@ export function deriveHandChecked(csv: string): HandCheckedManifest {
       precision: tp + fp > 0 ? round3(tp / (tp + fp)) : 0,
       suites,
     };
-    (meetsHandCheckedBar(entry) ? rules : notLive).push(entry);
+    (meetsHandCheckedBar(entry) && !HAND_CHECKED_HELD.has(ruleId) ? rules : notLive).push(entry);
   }
   const byId = (a: HandCheckedEntry, b: HandCheckedEntry) => a.ruleId.localeCompare(b.ruleId);
   return {

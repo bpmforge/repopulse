@@ -408,7 +408,7 @@ or fewer, a seeded random sample of 30 otherwise (seed 20261026) — **542 rows 
 proposed a label for every row; **Brad marked them** ("accept the proposals", 2026-10-26 14:16 UTC). Sheet,
 sample, method and per-repo totals: `docs/benchmarks/perf-hand-check/`.
 
-**Live by hand-check: 6 rules**, all from the W21-20 algorithmic set (true / wrong / small, and the
+**Live by hand-check: 5 rules**, all from the W21-20 algorithmic set; a sixth cleared the bar on its sample and is held (below) (true / wrong / small, and the
 repositories with a true or wrong mark):
 
 | Rule | True | Wrong | Small | Precision | Evidence (true/wrong) |
@@ -416,14 +416,15 @@ repositories with a true or wrong mark):
 | `bpm-perf-copy-on-append` | 6 | 0 | 9 | 100% | excalidraw/excalidraw 2/0; outline/outline 2/0; prometheus/prometheus 2/0 |
 | `bpm-perf-find-by-key-in-loop` | 5 | 0 | 25 | 100% | outline/outline 1/0; paperless-ngx/paperless-ngx 3/0; thingsboard/thingsboard 1/0 |
 | `bpm-perf-go-nested-range-join` | 6 | 0 | 15 | 100% | go-gitea/gitea 5/0; traefik/traefik 1/0 |
-| `bpm-perf-includes-in-loop` | 5 | 0 | 25 | 100% | excalidraw/excalidraw 2/0; outline/outline 2/0; prometheus/prometheus 1/0 |
 | `bpm-perf-java-contains-in-loop` | 7 | 0 | 23 | 100% | thingsboard/thingsboard 7/0 |
 | `bpm-perf-membership-in-list-in-loop-py` | 15 | 0 | 13 | 100% | saleor/saleor 7/0; zulip/zulip 8/0 |
 
-`bpm-perf-includes-in-loop` passed on its sample of 30 (5 true, 0 wrong); across all 200 of its hits the
-proposed labels give 48 true and 14 wrong (77%), mostly `.includes` on a string, which a pattern cannot
-tell from an array. Its sample decided under choice B; the full count is recorded so the next re-check can
-tighten the rule rather than rediscover it.
+**Held in shadow: `bpm-perf-includes-in-loop`.** It passed on its sample of 30 (5 true, 0 wrong; outline
+2/0, excalidraw 2/0, prometheus 1/0), but across all 200 of its hits the proposed labels give 48 true and 14
+wrong (77%), mostly `.includes` on a string, which a pattern cannot tell from an array. A sample is
+evidence, not a verdict on what it missed, so it is held (`HAND_CHECKED_HELD` in
+`packages/security/src/rules/hand-checked.ts`, owner-accepted recommendation 2026-10-26) until it stops
+firing on string receivers and is re-checked.
 
 **Marked and still shadow: 25 rules.** None of the original 27 perf rules passes: `await-in-loop`
 50%, `unbounded-promise-all` 56%, `java-db-call-in-loop` 35% and `orm-call-in-loop` 29% on their rows, the
