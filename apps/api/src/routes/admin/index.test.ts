@@ -351,6 +351,50 @@ describeIfLiveInfra('admin routes (W4-20, FR-AUTH-4 / NFR-11)', () => {
     expect(membership).toEqual([]);
   });
 
+  it('removing a member from THIS workspace leaves their other workspaces alone (Law 5)', async () => {
+    const cookie = await adminSession();
+    const [shared] = await db
+      .insert(core.users)
+      .values({
+        authProvider: 'github',
+        authSubject: 'law5-two-workspaces',
+        forgeUserId: 'law5-two-workspaces',
+        login: 'law5-two-workspaces',
+      })
+      .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'law5-two-workspaces' } })
+      .returning();
+    for (const ws of [workspaceId, otherWorkspaceId]) {
+      await db
+        .insert(core.workspaceMembers)
+        .values({ workspaceId: ws, userId: shared!.id, role: 'member' })
+        .onConflictDoUpdate({
+          target: [core.workspaceMembers.workspaceId, core.workspaceMembers.userId],
+          set: { role: 'member' },
+        });
+    }
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/api/v1/admin/members/${shared!.id}`,
+      cookies: { repopulse_sid: cookie },
+      headers: CSRF,
+    });
+    expect(res.statusCode).toBe(200);
+
+    const account = await db
+      .select({ id: core.users.id })
+      .from(core.users)
+      .where(eq(core.users.id, shared!.id));
+    expect(account, 'the account still belongs to the other workspace').toHaveLength(1);
+    const memberships = await db
+      .select({ workspaceId: core.workspaceMembers.workspaceId })
+      .from(core.workspaceMembers)
+      .where(eq(core.workspaceMembers.userId, shared!.id));
+    expect(memberships.map((m) => m.workspaceId)).toEqual([otherWorkspaceId]);
+
+    await db.delete(core.users).where(eq(core.users.id, shared!.id));
+  });
+
   // W20-19 (UX_TODO ADM-48/49; decision 2026-10-20): removing a member revokes
   // their CI tokens; connections and shared views stay with the workspace.
   it('removing a member revokes their CI tokens, keeps shared views and connections, says so first', async () => {

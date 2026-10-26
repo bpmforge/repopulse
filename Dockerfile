@@ -50,7 +50,7 @@ COPY packages/shared/package.json /app/packages/shared/
 FROM base AS prod-deps
 COPY --from=manifests /app ./
 RUN pnpm install --frozen-lockfile --prod \
- && pnpm store prune || true
+ && (pnpm store prune || true)
 
 # Runtime source: the TypeScript the workspace actually executes, without the
 # test suites, fixtures, e2e harness or web app that the api and worker never
@@ -149,7 +149,7 @@ WORKDIR /app
 FROM base-debian AS prod-deps-debian
 COPY --from=manifests /app ./
 RUN pnpm install --frozen-lockfile --prod \
- && pnpm store prune || true
+ && (pnpm store prune || true)
 
 # ---------- runtime: worker ----------
 FROM base-debian AS worker

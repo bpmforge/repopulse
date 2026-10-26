@@ -306,6 +306,16 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
       'Every report ends "failed" with a navigation error, because the headless browser cannot reach the page it prints.',
   },
   {
+    name: 'PLANS_VERIFY_CRON',
+    scope: 'worker',
+    required: false,
+    purpose:
+      'When the nightly job checks improvement-plan items against the latest metrics and marks them done or regressed. `off` disables it.',
+    ifWrong:
+      'Plan items never move to done or regressed, because only this job can set those states.',
+    default: '47 5 * * *',
+  },
+  {
     name: 'DATA_DIR',
     scope: 'shared',
     required: false,

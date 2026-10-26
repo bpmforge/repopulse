@@ -102,6 +102,7 @@ export default defineConfig({
             // mid-run — work no test asked for, against a fake forge, on the
             // same database the suite is asserting against.
             RECONCILE_CRON: 'off',
+            PLANS_VERIFY_CRON: 'off',
             ...workerForgeEnv,
           },
           reuseExistingServer: false,

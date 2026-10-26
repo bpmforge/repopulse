@@ -56,6 +56,7 @@ export default defineConfig({
         DEMO_FORGE_PORT: String(PORTS.demoE2eFakeForge),
         // No sweep firing mid-run against the fixture the assertions read.
         RECONCILE_CRON: 'off',
+        PLANS_VERIFY_CRON: 'off',
         SECRETS_HISTORY_CRON: 'off',
         SECURITY_WEEKLY_CRON: 'off',
       },
