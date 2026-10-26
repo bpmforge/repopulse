@@ -522,12 +522,14 @@ describeIfLiveInfra('CI pull: PR findings API + read-only CI token (W18-18)', ()
     };
     expect(body.pull).toMatchObject({ number: 7, head_sha: HEAD });
     // W20-15 (UX_TODO X-13): anti_slop and semgrep have finished at the head,
-    // but the scanners that run on every PR push (secrets, and the radar and,
+    // and logging_hygiene failed there, but the other scanners that run on
+    // every PR push (W21-02: performance; the secrets stream and the radar and,
     // since W21-05, slopsquat that ride it) have not, so the head is NOT
-    // scanned yet and says which.
+    // scanned yet and says which. dependency_cve is not waited for: it runs on
+    // a PR only when the change touched a manifest, and it has not started here.
     expect(body.head.scanned).toBe(false);
-    expect(body.head.pending).toEqual(['secrets', 'sensitive_change', 'slopsquat']);
-    expect(body.head.failed).toEqual([]);
+    expect(body.head.pending).toEqual(['performance', 'secrets', 'sensitive_change', 'slopsquat']);
+    expect(body.head.failed).toEqual(['logging_hygiene']);
     expect(body.head.scanners.map((s) => s.scanner_key)).toEqual(['anti_slop', 'semgrep']);
     // Severity desc, then id desc.
     expect(body.items.map((i) => i.id)).toEqual([
@@ -557,6 +559,7 @@ describeIfLiveInfra('CI pull: PR findings API + read-only CI token (W18-18)', ()
         startedAt: at,
       });
     await finish('secrets', 'succeeded');
+    await finish('performance', 'succeeded');
     const partial = (await get(findingsUrl(repoA), { token })).json() as {
       head: { scanned: boolean; pending: string[] };
     };
@@ -565,6 +568,15 @@ describeIfLiveInfra('CI pull: PR findings API + read-only CI token (W18-18)', ()
       pending: ['sensitive_change', 'slopsquat'],
     });
 
+    // W21-02: a conditional scanner that HAS started at the head (the PR
+    // changed a lockfile) is waited for until it finishes.
+    await finish('dependency_cve', 'running');
+    const waiting = (await get(findingsUrl(repoA), { token })).json() as {
+      head: { scanned: boolean; pending: string[] };
+    };
+    expect(waiting.head.pending).toEqual(['dependency_cve', 'sensitive_change', 'slopsquat']);
+    await finish('dependency_cve', 'succeeded');
+
     // A failed run is finished: the verdict is not held for ever, but the
     // failure is named so the caller knows what is missing.
     await finish('slopsquat', 'succeeded');
@@ -572,7 +584,11 @@ describeIfLiveInfra('CI pull: PR findings API + read-only CI token (W18-18)', ()
     const done = (await get(findingsUrl(repoA), { token })).json() as {
       head: { scanned: boolean; pending: string[]; failed: string[] };
     };
-    expect(done.head).toMatchObject({ scanned: true, pending: [], failed: ['sensitive_change'] });
+    expect(done.head).toMatchObject({
+      scanned: true,
+      pending: [],
+      failed: ['logging_hygiene', 'sensitive_change'],
+    });
   });
 
   it('carries the fields a CI needs to act on', async () => {

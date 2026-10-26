@@ -57,6 +57,9 @@ import {
   syncEolProducts,
   syncReleaseMeta,
   runCodeScanningPull,
+  PR_SCAN_MAX_TARGETS,
+  pendingPrPatternTargets,
+  runPrPatternScans,
 } from '@repopulse/security';
 import { security } from '@repopulse/shared';
 
@@ -209,6 +212,39 @@ async function main(): Promise<void> {
         repo: req.repo,
         trigger: req.trigger,
       }),
+    // W21-02: the pattern scanners on every PR push. One job per unscanned open
+    // head, keyed by the head, so a replayed webhook or a second delta for the
+    // same push queues nothing new — and each job fetches one archive for every
+    // scanner. PR_SCANS=off keeps PR pushes to the secrets stream alone.
+    ...(process.env.PR_SCANS !== 'off'
+      ? {
+          queuePrScans: async (workspaceId: number, repoId: number) => {
+            const found = await pendingPrPatternTargets(
+              db,
+              workspaceId,
+              repoId,
+              PR_SCAN_MAX_TARGETS,
+            );
+            const targets = found.slice(0, PR_SCAN_MAX_TARGETS);
+            for (const t of targets) {
+              await securityScanQueue.add(
+                'pr-scan',
+                {
+                  workspaceId,
+                  repoId,
+                  scannerKey: 'pr_patterns',
+                  commitSha: t.commitSha,
+                  prNumber: t.prNumber,
+                  trigger: 'pr_synced' as const,
+                  mode: 'pr' as const,
+                },
+                { jobId: `sec-pr-${repoId}-${t.commitSha}` },
+              );
+            }
+            return { queued: targets.length, deferred: found.length - targets.length };
+          },
+        }
+      : {}),
     ...(process.env.FORGE_BASE_URL ? { forgeBaseUrl: process.env.FORGE_BASE_URL } : {}),
     // SC-12 escape hatch, off unless the operator sets it. Lets the e2e fake
     // forge (http://127.0.0.1:PORT) drive the real ingestion path; still
@@ -331,6 +367,34 @@ async function main(): Promise<void> {
       // W8-01. Own lane, own workers (NFR-15).
       [QUEUE.securityScan]: scanProcessor({
         db,
+        // W21-02. One PR head, every enabled pattern scanner, one archive.
+        prRunner: async ({ workspaceId, repoId, commitSha, prNumber }) => {
+          if (prNumber === undefined) return { skipped: 'no_pr' };
+          const [pr] = await db
+            .select({ id: facts.pullRequests.id, headSha: facts.pullRequests.headSha })
+            .from(facts.pullRequests)
+            .where(
+              and(
+                eq(facts.pullRequests.workspaceId, workspaceId),
+                eq(facts.pullRequests.repoId, repoId),
+                eq(facts.pullRequests.number, prNumber),
+              ),
+            )
+            .limit(1);
+          // Pushed again while this waited: the new head has its own job, and
+          // an archive of the old one would be budget spent on nothing.
+          if (!pr || pr.headSha !== commitSha) return { skipped: 'superseded' };
+          const resolved = await providerForRepo(scanForgeDeps, workspaceId, repoId);
+          if (!resolved) return { skipped: 'no_connection' };
+          return runPrPatternScans({
+            db,
+            provider: resolved.provider,
+            workspaceId,
+            repoId,
+            repo: resolved.repoFullName,
+            target: { commitSha, prNumber, pullRequestId: pr.id },
+          });
+        },
         // W8-05: history mode, by scanner key. A map rather than a switch, so
         // FR-SEC-1's "the framework never branches on a scanner key" stays true.
         historyRunners: {

@@ -29,7 +29,7 @@ export interface ScanJobData {
    * commits to look at. `history_sweep` is the monthly fan-out that enqueues
    * one `history` job per repo.
    */
-  mode?: 'sha' | 'history' | 'history_sweep' | 'weekly' | 'weekly_sweep';
+  mode?: 'sha' | 'history' | 'history_sweep' | 'weekly' | 'weekly_sweep' | 'pr';
 }
 
 export interface HistoryRunner {
@@ -136,6 +136,12 @@ export interface ScanProcessorDeps {
    */
   weeklyRunners?: Record<string, HistoryRunner>;
   weeklySweep?: (scannerKey: string) => Promise<{ enqueued: number }>;
+  /**
+   * W21-02. The pattern scanners over one pull-request head (`mode: 'pr'`,
+   * `commitSha` the head, `prNumber` the PR). The runner records its own rows,
+   * one per scanner, and never throws for a scanner's failure.
+   */
+  prRunner?: (data: ScanJobData) => Promise<unknown>;
 }
 
 /**
@@ -247,6 +253,11 @@ export function scanProcessor(deps: ScanProcessorDeps) {
       const runner = deps.weeklyRunners?.[data.scannerKey];
       if (!runner) return;
       await runSweep(deps, data, runner);
+      return;
+    }
+
+    if (data.mode === 'pr') {
+      await deps.prRunner?.(data);
       return;
     }
 

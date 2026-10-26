@@ -3,7 +3,8 @@
 Traces to: FOUNDING_BRIEF D16 ("Verified + CI pull"), D9a, N-3, N-9 · W18-18 ·
 API_DESIGN.md "CI pull" · SECURITY_CONTROLS.md SC-31.
 
-RepoPulse scans every pull request it ingests. To get those results in front of
+RepoPulse scans every pull request it ingests (section 2 lists exactly what runs on
+each push). To get those results in front of
 the developer at PR time, **your CI asks RepoPulse what is new on the PR**, and then
 your pipeline decides what to do with the answer: fail the build, upload SARIF to
 code scanning, or post a comment. Anything posted is posted by your pipeline, with
@@ -95,8 +96,45 @@ line, because arguments end up in process lists and CI logs.
 | 3 | RepoPulse refused or could not be reached (bad token, a token that does not name the repository) |
 | 4 | not ready: RepoPulse has not ingested the PR yet, has not finished scanning its head, or holds a different head than `--sha` |
 
+### What runs on each PR push (W21-02)
+
+When the forge's webhook tells RepoPulse a PR was opened or pushed, these run on the
+new head, each one only if it is switched on for the repository (Repository →
+Security → Scanners; the defaults are in the table):
+
+| Scanner | Runs on a PR push | Reads | Default |
+|---|---|---|---|
+| `secrets` | always | the PR's patches | on |
+| `sensitive_change` | always (rides the secrets scan) | the PR's patches | on |
+| `semgrep` | always | the files the PR changed (Opengrep, the shipped packs) | on |
+| `anti_slop` | always | the head's tree; reports only on files the PR changed. Rule layer only: no model is called on a push | on |
+| `logging_hygiene` | always | the files the PR changed (the logging pack) | on |
+| `performance` | always | the files the PR changed (the performance pack) | on |
+| `dependency_cve` | only when the PR changes a manifest or lockfile | the whole head (syft + grype), because a lockfile is read whole | on |
+| `container_image` | only when switched on, and the PR changes a Dockerfile, compose file or manifest that names an image | the images those changed files name | **off** |
+
+Not on a PR push: code health (complexity, duplication), the registers, the attack
+chainer, the OWASP checklists and every model-backed (AI) pass. Those are weekly,
+nightly or started by hand. A PR run never closes a finding: only a scan of the
+default branch can say a finding is gone.
+
+**Forge cost per push.** For each new head: the PR's file list (one call per 100
+changed files) and **one** source archive, shared by every scanner above; the
+secrets scan reads the file list once more for the patches. A head that has
+already been scanned is not fetched again, so a replayed webhook, a label or a
+review on the same head costs nothing. At most three PR heads are queued per
+webhook delivery (newest first); the rest are picked up by the next one. All of it
+goes through the budgeted forge client on the scan lane. If that budget is spent,
+the head's scanners finish as `budget_exceeded` (listed in `head.failed`) and are
+retried on the next PR event. An operator can switch the pattern scanners off for
+PR pushes with `PR_SCANS=off` on both the worker and the API; PR pushes then run the
+secrets scan and the radar only.
+
 The head counts as scanned only once **every** scanner that runs on a PR push for
-that repository has finished a run on it, succeeded or failed (W20-15). The answer
+that repository has finished a run on it, succeeded or failed (W20-15). For
+`dependency_cve` and `container_image` that means: when the change gave them
+something to read. A PR that changes no manifest does not wait for a dependency
+scan that will not run. The answer
 names the ones still running (`head.pending`) and the ones that failed there
 (`head.failed`), and the markdown summary repeats both. A PR the forge's webhook
 has not reached RepoPulse with yet answers 404 with the problem type

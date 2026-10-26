@@ -11499,6 +11499,44 @@
           "Also fixed: packages/security/src/ecosystems/matrix.ts CocoaPods note did not match docs/ECOSYSTEMS.md on main (pre-existing test failure). The findings store now moves lineStart/lineEnd/evidence to the latest sighting for fingerprinted findings.",
           "Bugs noticed: the diff mode does not read lockfiles or .npmrc (snapshot mode does); slopsquat rides the secrets stream, so with secrets disabled it never runs on a PR head yet the PR checks list still expects it (same as sensitive_change). One early crates.io fetch during development sent a User-Agent containing the operator's email; later calls and the shipped builder use a neutral User-Agent."
         ]
+      },
+      {
+        "id": "W21-02",
+        "title": "Pattern scanners on every pull-request push",
+        "phase": 21,
+        "module": "security",
+        "stories": [],
+        "write_scope": [
+          "packages/security/src/scanners/**",
+          "packages/security/src/catalogue.ts",
+          "packages/security/src/config/defaults.ts",
+          "packages/security/src/index.ts",
+          "apps/api/src/workers/**",
+          "apps/api/src/routes/pulls/**",
+          "apps/api/src/lib/scan-schedule.ts",
+          "apps/api/src/routes/setup/env-registry.ts",
+          "docs/CI_INTEGRATION.md",
+          "docs/CONFIG.md",
+          "scripts/validate-plan.mjs",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W20-25"
+        ],
+        "acceptance": [
+          "Gap analysis 2026-10-26 (PR scans): a pull_requests delta queues one scan-lane job per open PR head not yet scanned (at most 3 per delta, newest first, jobId sec-pr-<repo>-<sha>); the job skips a head that is no longer the PR's head or already has a pr_synced pattern run, and otherwise fetches ONE tarball through snapshotForScan and runs every enabled pattern scanner on it: semgrep, anti_slop (deterministic layers), logging_hygiene and performance on the PR's changed files only; dependency_cve on the whole tree only when a manifest or lockfile changed; container_image only when enabled (off by default) and a changed file names an image",
+          "Budget: per new head, the PR file list (1 call per 100 files) plus 1 tarball, shared by every scanner; an already-scanned or superseded head costs nothing; a budget park writes budget_exceeded rows and the head is retried on the next delta; no model is called on a push; a PR run never sweeps, auto-resolves or stores an SBOM",
+          "X-13: GET /pulls/:n/new-findings (head.scanned, repopulse check --wait) waits for secrets, sensitive_change and the enabled always-run pattern scanners, and for dependency_cve / container_image only once they have started at that head; PR_SCANS=off removes the pattern scanners from the push and from the wait; per-repo enablement is respected",
+          "docs/CI_INTEGRATION.md states exactly what runs per PR push, what does not, and the forge cost; the Coverage table says 'on every pull request push' (or the conditional wording); PR_SCANS is in the env registry and docs/CONFIG.md",
+          "Workspace lint, typecheck and vitest green against a migrated database (no migration)"
+        ],
+        "points": 8,
+        "status": "done",
+        "notes": [
+          "Defaults chosen (cheap to change): PR scans on (PR_SCANS=on); only OPEN pull requests; at most 3 heads per delta, newest first (older heads wait for the next delta); conditional scanners run first so the CI wait sees them start before the rest finish; a scanner with nothing to read at the head still records a run (semgrep and performance a succeeded 'Nothing to scan' row) so the wait ends; a budget park is retried, any other tarball failure records failed rows; dependency file detection covers every ECOSYSTEMS lockfile plus package.json, pyproject.toml, requirements*.txt/.in, Pipfile, setup.py/cfg, go.mod, Cargo.toml, Gemfile, composer.json, pom.xml, build.gradle(.kts), *.csproj/fsproj/vbproj and the like.",
+          "Not verified here: a live opengrep, syft, grype or skopeo scan (no podman in this environment; the orchestrator is tested with recorded runners, the anti-slop path with a fake pack runner) and a real forge tarball fetch.",
+          "Bugs noticed and fixed: the Coverage table said logging_hygiene and performance ride the weekly code_health_tools job; they ride the weekly anti_slop job (workers/index.ts), so their next-run time was the wrong job's."
+        ]
       }
   ]
 }

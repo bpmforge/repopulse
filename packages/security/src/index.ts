@@ -102,3 +102,4 @@ export * from './triage/index.js';
 export * from './eval/index.js';
 export * from './rules/triage-clusters.js';
 export * from './updates/index.js';
+export * from './scanners/pr/run.js';

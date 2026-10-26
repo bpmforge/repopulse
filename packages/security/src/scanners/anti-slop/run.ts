@@ -311,7 +311,17 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
     // this snapshot is gone: the exposure reprice. Built from ALL sources, not
     // the slopsquat-filtered set: a file being flagged does not stop other
     // files importing it.
-    if (deps.sources?.length) {
+    // W21-02: a pull request's run reads the PR head's whole tree (the one
+    // snapshot every PR scanner shares) but REPORTS only on the files the PR
+    // changed, and it leaves the stored graph alone: that graph is the default
+    // branch's, and the reprice would otherwise price main by a branch.
+    const prScope =
+      deps.trigger === 'pr_synced' && deps.files.length > 0
+        ? new Set(deps.files.map((f) => f.path))
+        : null;
+    /** Repo-level findings a PR run keeps although they name no file. */
+    const prKeep = new Set<IncomingFinding>();
+    if (deps.sources?.length && prScope === null) {
       await writeImportGraph(deps.db, {
         workspaceId: deps.workspaceId,
         repoId: deps.repoId,
@@ -569,7 +579,13 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
         : 'deprecated';
     if (suppressionStatus !== 'deprecated') {
       const ceiling = deps.suppressionCeiling ?? SUPPRESSION_CEILING_PER_KLOC;
-      const density = sources.length ? suppressionDensity(sources, ceiling).findings : [];
+      // On a pull request the repository-wide rate is not about the change;
+      // the per-file outliers are, where the PR touched the file.
+      const density = sources.length
+        ? suppressionDensity(sources, ceiling).findings.filter(
+            (d) => prScope === null || d.file !== null,
+          )
+        : [];
       for (const found of density) {
         findings.push({
           dimension: 'slop',
@@ -604,7 +620,7 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
       }
       const added = prMode ? prSuppressionFinding(deps.files, ceiling) : null;
       if (added) {
-        findings.push({
+        const addedFinding: IncomingFinding = {
           dimension: 'slop',
           severity: 1,
           confidence: 4,
@@ -621,7 +637,9 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
           ruleId: added.ruleId,
           yields: null,
           experimental: suppressionStatus !== 'active',
-        });
+        };
+        prKeep.add(addedFinding);
+        findings.push(addedFinding);
       }
     }
     // Exception control flow and repository-over-CRUD (W18-09): structural
@@ -886,6 +904,14 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
           yields: null,
         });
       }
+    }
+    if (prScope !== null) {
+      // In place: `findings` is the one list every layer below appends to.
+      const kept = findings.filter(
+        (f) => prKeep.has(f) || (f.file !== null && prScope.has(f.file)),
+      );
+      findings.length = 0;
+      findings.push(...kept);
     }
     const deterministic = findings.length;
 

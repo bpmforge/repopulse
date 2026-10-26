@@ -35,7 +35,8 @@ export const SCANNER_DEFAULTS: readonly ScannerDefault[] = [
     key: 'dependency_cve',
     enabled: true,
     schedule: 'weekly',
-    rationale: 'Reads manifests already in the warehouse; no code leaves the network.',
+    rationale:
+      'Weekly, and on a pull-request push that changes a manifest or lockfile; no code leaves the network.',
   },
   {
     // W18-34. Opt-in: it makes outbound registry pulls and, for private images,
@@ -50,7 +51,7 @@ export const SCANNER_DEFAULTS: readonly ScannerDefault[] = [
     key: 'semgrep',
     enabled: true,
     schedule: 'weekly',
-    rationale: 'Valuable but slow — weekly rather than per-push so it never gates a PR.',
+    rationale: 'The whole tree weekly; on every pull-request push, only the files the PR changed.',
   },
   {
     key: 'owasp_web',
@@ -85,7 +86,8 @@ export const SCANNER_DEFAULTS: readonly ScannerDefault[] = [
     key: 'anti_slop',
     enabled: true,
     schedule: 'weekly',
-    rationale: 'Runs on the snapshot code health already paid for, so it costs one extra pass.',
+    rationale:
+      'Weekly over the tree, and on every pull-request push over the changed files (no model on a push).',
   },
   {
     key: 'logging_hygiene',
