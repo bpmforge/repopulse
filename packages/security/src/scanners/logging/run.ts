@@ -83,6 +83,21 @@ export const DEFAULT_EXCLUDED_GLOBS = [
   '**/*_test.py',
   '**/conftest.py',
   '**/__tests__/**',
+  // Rust keeps tests in `tests.rs` beside the module or in `tests/` and
+  // benchmarks in `benches/`; Swift in `*Tests` targets; Kotlin and Java in
+  // `*Test` classes under `src/test` or `androidTest`. Found by the Rust,
+  // Swift and Kotlin perf measurement (2026-10-26), where atuin's `tests.rs`
+  // files drew 30 of 48 hits.
+  '**/tests.rs',
+  '**/*_tests.rs',
+  '**/benches/**',
+  '**/*Tests/**',
+  '**/*Tests.swift',
+  '**/*Test.swift',
+  '**/androidTest/**',
+  '**/*Test.kt',
+  '**/*Tests.kt',
+  '**/*Test.java',
   '**/test/**',
   '**/tests/**',
   '**/e2e/**',

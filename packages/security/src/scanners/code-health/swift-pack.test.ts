@@ -42,6 +42,12 @@ const PACKS: PackFile[] = [
     maxSeverity: 'WARNING',
   },
   {
+    file: 'code-health/perf/perf.swift.v1.yaml',
+    prefix: 'bpm-perf-sw-',
+    fixtures: { trigger: 'perf/triggering', clean: 'perf/clean' },
+    maxSeverity: 'WARNING',
+  },
+  {
     file: 'semgrep/bpm-baseline.swift.v1.yaml',
     prefix: 'bpm-sw-',
     fixtures: { trigger: 'semgrep/vulnerable', clean: 'semgrep/safe' },
@@ -102,9 +108,17 @@ describe('the Swift pack is ours and ships in shadow', () => {
     expect(readRulepack(path.join(RULEPACKS, 'code-health')).files).toEqual(
       expect.arrayContaining(['anti-slop.swift.v1.yaml', 'logging.swift.v1.yaml']),
     );
+    expect(readRulepack(path.join(RULEPACKS, 'code-health/perf')).files).toContain(
+      'perf.swift.v1.yaml',
+    );
     expect(readRulepack(path.join(RULEPACKS, 'semgrep')).files).toEqual(
       expect.arrayContaining(['bpm-baseline.swift.v1.yaml', 'bpm-baseline.swift-plist.v1.yaml']),
     );
+  });
+
+  it('quotes no speedup figures in the perf rules', () => {
+    const perf = readFileSync(path.join(RULEPACKS, 'code-health/perf/perf.swift.v1.yaml'), 'utf8');
+    expect(perf).not.toMatch(/\d+x\b/);
   });
 });
 

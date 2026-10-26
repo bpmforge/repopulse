@@ -477,6 +477,19 @@ code, never by a name in it: 110 of 149 marked-wrong hits are gone, with 0 marke
 hits on the same corpus. The table and the honesty note (re-scoring against old marks does not make a rule
 live) are in `docs/benchmarks/perf-hand-check/README.md`, "Misfires fixed".
 
+
+**Rust, Swift and Kotlin (2026-10-26).** None of the hand-check repositories was Rust or Swift, and the one
+Kotlin repository had 7 hits, so no performance rule in those languages has been measured on real code.
+Coverage added, all in shadow: Rust 3 → 7 rules (sqlx query per item, blocking std calls in async code,
+`Vec::remove(0)` in a loop, linear search per item), Swift 0 → 5 (constant regex, a Foundation formatter
+or a Core Data fetch per iteration, `removeFirst()` in a loop, linear search per item), Kotlin 5 → 7
+(blocking calls in a suspend function, a date formatter per iteration). The hand-check lessons are in them
+from the start: `for` loops over items rather than `loop`/`while` pagination, a per-chunk query exempt,
+constant patterns only, and Kotlin's string-concat and DB rules now carry the same fixes as Java's. Each
+needs its own marked sample before it can go live. That sample is drawn: 92 hits on 9 public repositories,
+proposed labels and per-line links in `docs/benchmarks/perf-hand-check-langs/`, awaiting Brad's marks. On the
+proposals no rule reaches the bar (`sw-find-in-loop` is closest at 6 true, 0 wrong).
+
 ## Regression gate (W19-06)
 
 ```sh

@@ -96,6 +96,9 @@ describe('path exclusion', () => {
     expect(isExcluded('pkg/attestation/attest.go')).toBe(false);
     expect(isExcluded('app/latest_prices.py')).toBe(false);
     expect(isExcluded('app/contest.py')).toBe(false);
+    expect(isExcluded('src/latest.rs')).toBe(false);
+    expect(isExcluded('Sources/Contest.swift')).toBe(false);
+    expect(isExcluded('app/src/main/kotlin/LatestFeed.kt')).toBe(false);
     for (const file of [
       'src/routes/login.test.ts',
       'packages/x/src/thing.spec.js',
@@ -110,6 +113,14 @@ describe('path exclusion', () => {
       'app/orders_test.py',
       'app/conftest.py',
       'web/src/__tests__/list.ts',
+      'crates/db/src/sync/tests.rs',
+      'crates/db/src/parser_tests.rs',
+      'crates/db/benches/insert.rs',
+      'WikipediaUnitTests/Code/ArticleTests.swift',
+      'Sources/App/ArticleTest.swift',
+      'app/src/androidTest/java/a/LoginFlow.kt',
+      'app/src/main/kotlin/a/FeedTest.kt',
+      'core/src/main/java/a/ParserTest.java',
     ]) {
       expect(isExcluded(file), file).toBe(true);
     }
