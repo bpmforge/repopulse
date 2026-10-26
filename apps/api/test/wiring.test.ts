@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -59,6 +60,40 @@ describe('production wiring (regression gate)', () => {
     return Object.keys(QUEUE).filter((name) => block.includes(name));
   }
 
+  it('every queue with a processor also has a producer', () => {
+    // The other half of the processor check, missing until 2026-10-25: the
+    // plans.verify processor was registered and tested, and nothing ever added
+    // a job, so plan items could never reach done or regressed in a real
+    // install. A queue is fed by whoever creates a handle on it and adds to
+    // it: createQueue(QUEUE.x) in the worker or app, queueFor(QUEUE.x) in a
+    // route.
+    const repoRoot = new URL('../../../', import.meta.url).pathname;
+    const unfed = registeredProcessors().filter((name) => {
+      try {
+        execFileSync(
+          'git',
+          [
+            'grep',
+            '-qE',
+            `(createQueue|queueFor)\\(QUEUE\\.${name}([^A-Za-z0-9_]|$)`,
+            '--',
+            'apps',
+            'packages',
+            ':(exclude)*.test.ts',
+          ],
+          { cwd: repoRoot, stdio: 'pipe' },
+        );
+        return false;
+      } catch {
+        return true;
+      }
+    });
+    expect(
+      unfed,
+      'these queues have a processor but nothing creates a handle to enqueue onto them — the processor never runs',
+    ).toEqual([]);
+  });
+
   it('every declared queue has a processor, or is an asserted sink', () => {
     const registered = registeredProcessors();
     const unconsumed = Object.keys(QUEUE).filter((q) => !registered.includes(q));
@@ -94,10 +129,9 @@ describe('production wiring (regression gate)', () => {
       'rule_draft_pass',
     ]) {
       expect(worker, `${key} has no weekly/nightly runner`).toContain(`${key}: async`);
-      expect(
-        worker,
-        `${key} is never enqueued on a schedule`,
-      ).toMatch(new RegExp(`\\['${key}', (registersCron|weeklyCron)\\]`));
+      expect(worker, `${key} is never enqueued on a schedule`).toMatch(
+        new RegExp(`\\['${key}', (registersCron|weeklyCron)\\]`),
+      );
     }
     expect(worker).toContain('REGISTERS_NIGHTLY_CRON');
   });

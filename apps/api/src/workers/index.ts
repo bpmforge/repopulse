@@ -1026,6 +1026,24 @@ async function main(): Promise<void> {
   }
   log.info(`[worker] nightly reconcile: ${reconcileCron === 'off' ? 'disabled' : reconcileCron}`);
 
+  // Nightly plan verification (W5-06, IMPROVEMENT_PLANS.md §3, FR-PLANS-3).
+  // The processor was registered above but nothing ever added a job, so in a
+  // real install a plan item could never reach `done` or `regressed`: users
+  // cannot set those by hand, only this job can. Scheduled after the reconcile
+  // sweep (03:17), whose snapshots are what it reads. One job covers every
+  // workspace; the repeat key keeps it to one schedule across replicas.
+  const plansVerifyCron = process.env.PLANS_VERIFY_CRON ?? '47 5 * * *';
+  if (plansVerifyCron !== 'off') {
+    await createQueue(QUEUE.plansVerify, connection).add(
+      'verify',
+      {},
+      { repeat: { pattern: plansVerifyCron }, jobId: 'plans-verify-nightly' },
+    );
+  }
+  log.info(
+    `[worker] nightly plan verification: ${plansVerifyCron === 'off' ? 'disabled' : plansVerifyCron}`,
+  );
+
   // Snapshot orphan sweep (W8-03, NFR-13). A scan brackets its own snapshot in
   // a `finally`, which covers returning and throwing and CANNOT cover SIGKILL —
   // so a killed worker leaves a customer's source on disk until something else

@@ -493,7 +493,25 @@ export default async function adminRoutes(
             ),
           )
           .returning({ id: read.savedViews.id });
-        await tx.delete(core.users).where(eq(core.users.id, userId));
+        // THIS workspace's membership, then the account only if no other
+        // workspace still has them. `users` is global and memberships cascade
+        // from it, so deleting the user row here removed the person from every
+        // workspace they belonged to, on the say-so of one workspace's admin
+        // (Law 5). With one workspace (v1) the outcome is the same as before.
+        await tx
+          .delete(core.workspaceMembers)
+          .where(
+            and(
+              eq(core.workspaceMembers.workspaceId, workspaceId),
+              eq(core.workspaceMembers.userId, userId),
+            ),
+          );
+        const [elsewhere] = await tx
+          .select({ workspaceId: core.workspaceMembers.workspaceId })
+          .from(core.workspaceMembers)
+          .where(eq(core.workspaceMembers.userId, userId))
+          .limit(1);
+        if (!elsewhere) await tx.delete(core.users).where(eq(core.users.id, userId));
         return { revokedTokenIds: revoked.map((r) => r.id), movedViews: moved.length };
       });
 
