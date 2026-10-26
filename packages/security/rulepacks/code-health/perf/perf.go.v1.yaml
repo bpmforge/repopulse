@@ -57,10 +57,13 @@ rules:
     patterns:
       - pattern-either:
           # MatchString and friends compile their pattern on every call.
-          - pattern: regexp.MustCompile(...)
-          - pattern: regexp.Compile(...)
-          - pattern: regexp.MatchString(...)
-          - pattern: regexp.Match(...)
+          # A LITERAL pattern only (W21-20 hand-check): that is what can be
+          # hoisted. Every one of the 7 hits on the hand-check corpus compiled
+          # a distinct pattern from configuration, a column name or user input.
+          - pattern: regexp.MustCompile("...")
+          - pattern: regexp.Compile("...")
+          - pattern: regexp.MatchString("...", $S)
+          - pattern: regexp.Match("...", $B)
       - pattern-inside: |
           for ... { ... }
 
@@ -93,8 +96,31 @@ rules:
           - pattern: $S += strconv.Itoa(...)
           - pattern: $S += strconv.FormatInt(...)
           - pattern: '($S : string) += $X'
+      # Accumulation means the string outlives an iteration: it is declared
+      # BEFORE a loop that grows it. A name declared afresh inside the body
+      # and appended to once (`text := n.Data; text += "…"`) copies nothing
+      # across iterations; that was every one of the 9 hits marked wrong in
+      # W21-20. That span runs from the declaration to the loop's end, so the
+      # += must also be inside a loop.
       - pattern-inside: |
           for ... { ... }
+      - pattern-either:
+          - pattern-inside: |
+              $S := $INIT
+              ...
+              for ... { ... }
+          - pattern-inside: |
+              var $S $T
+              ...
+              for ... { ... }
+          - pattern-inside: |
+              var $S = $INIT
+              ...
+              for ... { ... }
+          - pattern-inside: |
+              var $S $T = $INIT
+              ...
+              for ... { ... }
 
   - id: bpm-perf-go-defer-in-loop
     languages: [go]
@@ -120,3 +146,12 @@ rules:
           $F := func(...) { ... }
       - pattern-not-inside: |
           go func(...) { ... }(...)
+      # Runs at most once: the defer's own block ends the function or the
+      # loop right after it (`defer f.Close()` ... `return m, nil` when the
+      # archive entry is found), which was 7 of the 11 hits marked wrong in
+      # W21-20. A regex because semgrep's `...` also matches a `return`
+      # nested in an `if`, which is the case that does pile up. The return
+      # must sit at the defer's own indentation, with nothing shallower
+      # between; the lookahead keeps the match to the defer line itself, so a
+      # later defer outside the loop cannot swallow one inside it.
+      - pattern-not-regex: (?m)^([ \t]+)defer .*(?=\n(?:\1.*\n|[ \t]*\n)*?\1(?:return\b|break [A-Za-z_]))

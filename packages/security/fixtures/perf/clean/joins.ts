@@ -66,3 +66,11 @@ export function pending(prs: Pr[], done: Set<number>): number {
   }
   return left.size;
 }
+
+// A regex built from the loop's own element is a different pattern each time:
+// there is nothing to hoist (bpm-perf-regex-compile-in-loop; W21-20 hand-check).
+export function stripRefs(text: string, urls: string[]): string {
+  let out = text;
+  for (const url of urls) out = out.replace(new RegExp(`\\(${url}\\)`, 'g'), '');
+  return out;
+}

@@ -41,25 +41,19 @@ rules:
       # silently. An async iteration over a cursor is also the one loop where a
       # per-item DB call is often correct.
       #
-      # An awaited call with any listed method, or a NOT-awaited one other than
-      # a one-argument .get or .delete. A query returns a promise and is awaited (`await
-      # db.get(id)`, the labelled N+1); Map.get(key) never is. Without this, 233
-      # of 327 hits on this repository were Map.get, including the indexed fix
-      # the algorithmic rules (perf.complexity.v1) recommend (W21-20).
+      # AWAITED calls only (W21-20 hand-check). A query returns a promise and is
+      # awaited (`await db.get(id)`, `await group.update(...)`); the hasher,
+      # lodash, Reflect, ProseMirror, widget and cache methods that share these
+      # names are synchronous. Before this, 20 of 30 marked hits on the
+      # hand-check corpus were such calls, and earlier 233 of 327 on this
+      # repository were Map.get. A query builder's `.delete(table)` sits inside
+      # an awaited chain (`await tx.delete(t).where(...)`), so it is matched
+      # there.
       - pattern-either:
           - pattern: await $DB.$M(...)
           - patterns:
-              - pattern: $DB.$M(...)
-              - pattern-not-inside: await $DB.$M(...)
-              - pattern-not: $DB.get($KEY)
-              # Same reasoning for a one-argument, not-awaited .delete: it is
-              # Map.delete / Set.delete (3 of the remaining 94 hits here)...
-              - pattern-not: $DB.delete($KEY)
-          # ...unless something is chained onto it: a query builder's
-          # `tx.delete(table).where(...)` always continues, Map.delete never does.
-          - patterns:
               - pattern: $DB.$M($KEY)
-              - pattern-inside: $DB.$M($KEY).$NEXT(...)
+              - pattern-inside: await $DB.$M($KEY).$NEXT(...)
               - metavariable-regex:
                   metavariable: $M
                   regex: ^delete$
@@ -102,6 +96,7 @@ rules:
       # firing on it would make the rule impossible to satisfy. The clean
       # fixture is what caught that.
       - pattern-not: await Promise.all(...)
+      - pattern-not: await Promise.allSettled(...)
       # Retry and backoff loops are sequential on purpose: attempt N+1 only
       # happens because attempt N failed. The W18-17 benchmark caught this
       # rule firing on exactly that shape, so a loop is exempt when it hands
@@ -155,14 +150,24 @@ rules:
       source: CODE_HEALTH_SUITE 9.1
       category: performance
       provenance: written for RepoPulse; not derived from any registry pack
+    # Build scripts and tooling run once, offline: blocking there blocks no
+    # one. 4 of the 12 hits marked wrong in W21-20 were in `build.js` or
+    # `tools/`.
+    paths:
+      exclude:
+        - 'build.*'
+        - '*.config.*'
+        - '**/tools/**'
+        - '**/scripts/**'
     patterns:
       - pattern-inside: |
           async function $F(...) { ... }
+      # Not existsSync: one stat call, and every one of the 4 marked in
+      # W21-20 was a one-off check before a stream or at startup.
       - pattern-either:
           - pattern: readFileSync(...)
           - pattern: writeFileSync(...)
           - pattern: readdirSync(...)
-          - pattern: existsSync(...)
           - pattern: $FS.readFileSync(...)
           - pattern: $FS.writeFileSync(...)
 
@@ -196,7 +201,26 @@ rules:
               for (...) { ... }
           - pattern-inside: |
               while (...) { ... }
-      - pattern: new RegExp(...)
+      # Only a pattern that is the SAME every iteration, which is what can be
+      # hoisted (W21-20 hand-check): a string literal, or a template whose every
+      # `${…}` is a constant reference (`(.*)/${Buckets.uploads}/`, `${MAX_LEN}`).
+      # A pattern built from the element (an attachment URL, an alert word, an
+      # SVG id, `${escapeRegExp(path)}`) is a different regex each iteration:
+      # 17 of 19 hits on the hand-check corpus were that, with nothing to move.
+      - pattern-either:
+          - pattern: new RegExp("...")
+          - pattern: new RegExp("...", $FLAGS)
+          - patterns:
+              - pattern-either:
+                  - pattern: new RegExp($ARG)
+                  - pattern: new RegExp($ARG, $FLAGS)
+              - metavariable-regex:
+                  metavariable: $ARG
+                  # A template literal whose interpolations are all
+                  # Capitalised.dotted.names: module constants and enums.
+                  # The closing `}` and backtick are optional because semgrep
+                  # (1.176) binds a template's text without them.
+                  regex: '^`([^`$\\]|\\.|\$(?!\{)|\$\{[A-Z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)*(\}|$))*`?$'
 
   - id: bpm-perf-string-concat-in-loop
     languages: [javascript, typescript]
@@ -219,6 +243,15 @@ rules:
       - metavariable-regex:
           metavariable: $S
           regex: (?i).*(str|text|html|sql|query|out|buf|result|body|message|content).*
+      # The name list cannot tell a counter from a string (`count` contains
+      # `out`, `result.skipped` contains `result`), so a visibly numeric
+      # right-hand side rules it out: a number, a `.length` or `.size`, or a
+      # `...count` value. All 4 numeric hits marked wrong in W21-20 were one.
+      - metavariable-regex:
+          metavariable: $X
+          regex: ^(?!\d+(\.\d+)?$)(?!.*\.(length|size)( \|\| 0)?$)(?!.*[cC]ount$)
+      # `s += s` doubles: the O(log n) way to repeat a string, already the fix.
+      - pattern-not: $S += $S
 
   - id: bpm-perf-unbounded-promise-all
     languages: [javascript, typescript]
@@ -257,31 +290,8 @@ rules:
     # reported the whole loop rather than the call. Each surface below is one
     # whose receiver says "database".
     patterns:
-      # The loop BODY, not the loop: `for row in session.scalars(q):` calls
-      # once, and so does a comprehension's iterable. pattern-inside alone
-      # covers the header too, so each form focuses on its body.
-      - pattern-either:
-          - patterns:
-              - pattern-inside: |
-                  for $ROW in $ROWS:
-                      $...BODY
-              - focus-metavariable: $...BODY
-          - patterns:
-              - pattern-inside: |
-                  while $COND:
-                      $...BODY
-              - focus-metavariable: $...BODY
-          # A comprehension is a loop too, and the commonest place for this.
-          - patterns:
-              - pattern-inside: '[$E for $V in $XS]'
-              - focus-metavariable: $E
-          - patterns:
-              - pattern-inside: '{$E for $V in $XS}'
-              - focus-metavariable: $E
-          - patterns:
-              - pattern-inside: '($E for $V in $XS)'
-              - focus-metavariable: $E
-      - pattern-either:
+      - &py-db-call
+        pattern-either:
           # DB-API cursors and SQLAlchemy connections.
           - patterns:
               - pattern: $DB.$M(...)
@@ -303,3 +313,54 @@ rules:
           # `instance.save()` apart from `image.save(path)`.
           - pattern: $OBJ.save()
           - pattern: $OBJ.save($KW=$V, ...)
+      # The loop BODY, not the loop: `for row in session.scalars(q):` calls
+      # once, and so does a comprehension's iterable. pattern-inside alone
+      # covers the header too, so each form focuses on its body.
+      - pattern-either:
+          - patterns:
+              - pattern-inside: |
+                  for $ROW in $ROWS:
+                      $...BODY
+              - focus-metavariable: $...BODY
+          - patterns:
+              - pattern-inside: |
+                  while $COND:
+                      $...BODY
+              - focus-metavariable: $...BODY
+          # A comprehension is a loop too, and the commonest place for this.
+          # The call must be inside the element: without the check a call
+          # that WRAPS a comprehension, `bulk_create([E(x) for x in xs])` or
+          # `filter(id__in=[x.id for x in xs])`, matched on the element. That
+          # is one query, and it was 6 of the 13 hits marked wrong (W21-20).
+          - patterns:
+              - pattern-inside: '[$E for $V in $XS]'
+              - focus-metavariable: $E
+              - metavariable-pattern:
+                  metavariable: $E
+                  patterns: [*py-db-call]
+          - patterns:
+              - pattern-inside: '{$E for $V in $XS}'
+              - focus-metavariable: $E
+              - metavariable-pattern:
+                  metavariable: $E
+                  patterns: [*py-db-call]
+          - patterns:
+              - pattern-inside: '($E for $V in $XS)'
+              - focus-metavariable: $E
+              - metavariable-pattern:
+                  metavariable: $E
+                  patterns: [*py-db-call]
+      # Batched by design: `bulk_create` / `bulk_update` in a loop is the
+      # chunked form, one query per batch rather than per row (W21-20).
+      - pattern-not: $MODEL.objects.bulk_create(...)
+      - pattern-not: $MODEL.objects.bulk_update(...)
+      # A queryset assigned and not evaluated runs no query: `qs =
+      # Doc.objects.filter(...)` or `.none()` (W21-20). Chained to an
+      # evaluating call, `.filter(...).first()`, the right-hand side is the
+      # whole chain and this does not apply. `x = Doc.objects.get(...)` runs
+      # its query, so only the lazy methods are named.
+      - pattern-not-inside: $X = $MODEL.objects.filter(...)
+      - pattern-not-inside: $X = $MODEL.objects.exclude(...)
+      - pattern-not-inside: $X = $MODEL.objects.none(...)
+      - pattern-not-inside: $X = $MODEL.objects.all(...)
+      - pattern-not-inside: $X = $MODEL.objects.using(...)

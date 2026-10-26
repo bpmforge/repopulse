@@ -168,12 +168,34 @@ rules:
       lifecycle: candidate
       provenance: written for RepoPulse; not derived from any registry pack
     patterns:
+      # Accumulation means the string outlives an iteration: it is assigned
+      # BEFORE a loop that grows it. A name assigned afresh inside the loop
+      # body and appended to once or twice (`content = msg.text; content +=
+      # link`) copies nothing across iterations; that was 7 of the 8 hits
+      # marked wrong in W21-20. That span runs from the assignment to the
+      # loop's end, so the += must also be inside a loop.
       - pattern-either:
           - pattern-inside: |
               for $V in $XS:
                   ...
           - pattern-inside: |
               while $COND:
+                  ...
+      - pattern-either:
+          - pattern-inside: |
+              $S = $INIT
+              ...
+              for $V in $XS:
+                  ...
+          - pattern-inside: |
+              $S = $INIT
+              ...
+              while $COND:
+                  ...
+          - pattern-inside: |
+              $S: $T = $INIT
+              ...
+              for $V in $XS:
                   ...
       # Only when the value is visibly a string — a name list like the
       # JavaScript rule's would fire on `total += row.amount`.
@@ -189,6 +211,8 @@ rules:
               - pattern-inside: |
                   $S = "..."
                   ...
+                  for $V in $XS:
+                      ...
               - pattern: $S += $X
 
   - id: bpm-perf-unbounded-gather-py

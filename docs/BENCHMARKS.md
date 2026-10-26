@@ -471,6 +471,12 @@ hand-checked`; `--check` exits 1 when stale). `hand-checked.test.ts` fails when 
 the sheet, when an entry's numbers differ from an independent recount of that column, when a row is
 unmarked, or when an entry falls below the bar; it also proves Claude's proposed column is never read.
 
+
+**Misfires fixed afterwards.** The marked-wrong hits were then used to tighten 12 rules by the form of the
+code, never by a name in it: 110 of 149 marked-wrong hits are gone, with 0 marked-true hits lost and 0 new
+hits on the same corpus. The table and the honesty note (re-scoring against old marks does not make a rule
+live) are in `docs/benchmarks/perf-hand-check/README.md`, "Misfires fixed".
+
 ## Regression gate (W19-06)
 
 ```sh

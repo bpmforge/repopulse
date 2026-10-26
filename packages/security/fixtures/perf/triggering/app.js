@@ -4,7 +4,7 @@ async function load(db, rows, ids) {
   let sql = '';
   for (const row of rows) {
     await db.query('select 1');
-    const re = new RegExp(row.pattern);
+    const re = new RegExp('^[a-z]+$', 'i');
     sql += row.name;
     void re;
   }
