@@ -32,11 +32,15 @@ const PACKS = {
   },
   perf: {
     dir: path.join(RULEPACKS, 'code-health/perf'),
-    files: ['perf.go.v1.yaml'],
+    // perf.complexity.go.v1.yaml: the algorithmic rules (W21-20).
+    files: ['perf.go.v1.yaml', 'perf.complexity.go.v1.yaml'],
     fixtures: path.join(FIXTURES, 'perf'),
     golden: [
+      'bpm-perf-go-contains-in-loop',
       'bpm-perf-go-db-call-in-loop',
       'bpm-perf-go-defer-in-loop',
+      'bpm-perf-go-nested-range-join',
+      'bpm-perf-go-prepend-in-loop',
       'bpm-perf-go-regex-compile-in-loop',
       'bpm-perf-go-string-concat-in-loop',
     ],
