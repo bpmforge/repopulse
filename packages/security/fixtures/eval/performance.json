@@ -58,6 +58,64 @@
       ],
       "labels": [],
       "note": "A map over a three-element constant."
+    },
+    {
+      "id": "perf-join-by-scan",
+      "kind": "diff",
+      "files": [
+        {
+          "path": "src/issues/owners.ts",
+          "patch": "@@ -1,3 +1,6 @@\n export function attachOwners(issues, owners) {\n-  return issues;\n+  return issues.map((issue) => ({\n+    ...issue,\n+    owner: owners.find((o) => o.id === issue.ownerId),\n+  }));\n }"
+        }
+      ],
+      "labels": [
+        {
+          "file": "src/issues/owners.ts",
+          "quote": "owner: owners.find((o) => o.id === issue.ownerId),"
+        }
+      ],
+      "note": "A find over every owner per issue: O(issues × owners); a Map by id makes it O(issues + owners). (W21-20)"
+    },
+    {
+      "id": "perf-linear-search-sorted",
+      "kind": "diff",
+      "files": [
+        {
+          "path": "src/metrics/asof.ts",
+          "patch": "@@ -1,2 +1,9 @@\n export function latestAsOf(events, queries) {\n+  const sorted = [...events].sort((a, b) => a.at - b.at);\n+  return queries.map((q) => {\n+    let hit = null;\n+    for (const e of sorted) { if (e.at <= q.at) hit = e; else break; }\n+    return hit;\n+  });\n }"
+        }
+      ],
+      "labels": [
+        {
+          "file": "src/metrics/asof.ts",
+          "quote": "for (const e of sorted) { if (e.at <= q.at) hit = e; else break; }"
+        }
+      ],
+      "note": "A front-to-back scan of sorted events per query: O(queries × events); a binary search makes each lookup O(log events). (W21-20)"
+    },
+    {
+      "id": "perf-clean-indexed-join",
+      "kind": "diff",
+      "files": [
+        {
+          "path": "src/issues/owners.ts",
+          "patch": "@@ -1,3 +1,5 @@\n export function attachOwners(issues, owners) {\n-  return issues;\n+  const byId = new Map(owners.map((o) => [o.id, o]));\n+  return issues.map((issue) => ({ ...issue, owner: byId.get(issue.ownerId) }));\n }"
+        }
+      ],
+      "labels": [],
+      "note": "The same join done with a Map built once: linear. (W21-20)"
+    },
+    {
+      "id": "perf-clean-constant-membership",
+      "kind": "diff",
+      "files": [
+        {
+          "path": "src/issues/open.ts",
+          "patch": "@@ -1,2 +1,5 @@\n const OPEN_STATES = ['open', 'reopened'];\n+export function openIssues(issues) {\n+  return issues.filter((i) => OPEN_STATES.includes(i.state));\n+}"
+        }
+      ],
+      "labels": [],
+      "note": "Membership in a two-element constant per issue: O(n·m) in shape, but m never grows. (W21-20)"
     }
   ]
 }
