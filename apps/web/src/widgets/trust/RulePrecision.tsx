@@ -9,6 +9,7 @@ import {
   LIFECYCLE_LABEL,
   triageText,
   type PrecisionText,
+  type RulePrecision,
   type RulePrecisionReport,
 } from './contracts.js';
 
@@ -197,7 +198,9 @@ export function RulePrecisionTable() {
                     </th>
                     <td className="py-2 pr-2 text-xs">
                       {LIFECYCLE_LABEL[rule.lifecycle]}
-                      <div className="text-fg-faint">from {rule.lifecycleSource}</div>
+                      <div className="text-fg-faint">
+                        <StageReason rule={rule} />
+                      </div>
                     </td>
                     <td className="py-2 pr-3 text-right tabular-nums">{rule.findings}</td>
                     <td className="py-2 pr-2">
@@ -255,7 +258,9 @@ export function RulePrecisionSummary({ ruleId }: { ruleId: string }) {
           <dt className="text-xs text-fg-muted">State</dt>
           <dd data-testid="finding-rule-lifecycle">
             {LIFECYCLE_LABEL[rule.lifecycle]}
-            <span className="ml-1 text-xs text-fg-faint">(from {rule.lifecycleSource})</span>
+            <span className="ml-1 text-xs text-fg-faint">
+              (<StageReason rule={rule} />)
+            </span>
           </dd>
           <dt className="text-xs text-fg-muted">Your triage</dt>
           <dd>
@@ -274,6 +279,30 @@ export function RulePrecisionSummary({ ruleId }: { ruleId: string }) {
   );
 }
 
+/**
+ * Why a rule is in its state (W21-04). A starter-set rule says so, with the
+ * benchmark numbers that put it there; everything else names its source.
+ */
+export function StageReason({
+  rule,
+}: {
+  rule: Pick<RulePrecision, 'ruleId' | 'lifecycleSource' | 'starter'>;
+}) {
+  if (!rule.starter) return <>from {rule.lifecycleSource}</>;
+  const { evidence } = rule.starter;
+  const suites = evidence.suites
+    .map((s) => `${s.suite}${s.trees ? ` (${s.trees.join(', ')})` : ''} ${s.tp} TP / ${s.fp} FP`)
+    .join('; ');
+  return (
+    <span
+      data-testid={`stage-reason-starter-${rule.ruleId}`}
+      title={`${(evidence.precision * 100).toFixed(1)}% precision, ${evidence.tp} TP / ${evidence.fp} FP: ${suites}`}
+    >
+      {rule.starter.reason}
+    </span>
+  );
+}
+
 const OVERRIDE_REASON_MIN = 10;
 
 /**
@@ -285,7 +314,7 @@ const OVERRIDE_REASON_MIN = 10;
 export function PackOverride({
   rule,
 }: {
-  rule: { ruleId: string; lifecycle: string; override?: boolean };
+  rule: { ruleId: string; lifecycle: string; override?: boolean; starter?: unknown };
 }) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
@@ -317,7 +346,11 @@ export function PackOverride({
       </div>
     );
   }
-  if (rule.lifecycle !== 'pack') return <span className="text-xs text-fg-faint">—</span>;
+  // A starter-set rule is live by shipped default, like a pack rule, so the
+  // same override moves it to shadow here (W21-04).
+  if (rule.lifecycle !== 'pack' && !rule.starter) {
+    return <span className="text-xs text-fg-faint">—</span>;
+  }
   return (
     <div className="flex flex-col gap-1 text-xs">
       {!open ? (

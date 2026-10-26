@@ -9711,7 +9711,7 @@
       "notes": [
         "Split from W18-45. The benchmark harness scores the fast lane and the YAML packs today; the adapters run only inside the scan image, so labelled runs need the Mac.",
         "Built the benchmark's adapters lane (engines.ts runAdapterLane through runCodeHealthTools in the scan image; suites carry a lane field; run.ts, report.ts and cli.ts) and the iac-adapters suite: 96 written defects with expect markers, a clean near-miss tree, and a real tree of this repository's own Dockerfile, Containerfile.scan and shell scripts with every finding read and judged. Measured 2026-10-17 on a quiet machine, two byte-identical runs: 115 TP, 7 FP, 2 FN over 87 rules (precision 94.3%, recall 98.3%); every other suite's numbers unchanged. Tools: checkov 3.3.29, actionlint 1.7.12, hadolint 2.15.1, shellcheck 0.11.0.",
-        "No rule is promoted: promotion is an admin action in the rule registry on 20 findings, 30 days and under 20% false positives from the workspace's own triage (the API refuses otherwise), and a labelled corpus cannot supply the days or the triage; no rule has more than 10 labelled findings. All 87 stay candidates with their numbers beside the gate; the 22 allowlisted checkov checks without a case are published as not yet run. A shipped-default promotion mechanism for adapter rules would bypass that gate and was not built.",
+        "No rule is promoted: promotion is an admin action in the rule registry on 20 findings, 30 days and under 20% false positives from the workspace's own triage (the API refuses otherwise), and a labelled corpus cannot supply the days or the triage; no rule has more than 10 labelled findings. All 87 stay candidates with their numbers beside the gate; the 22 allowlisted checkov checks without a case are published as not yet run. A shipped-default promotion mechanism for adapter rules would bypass that gate and was not built. Superseded in part 2026-10-26: the owner decided (W21-04, 'Starter set live') that rules with >= 5 TP at >= 80% precision on independent benchmarks ship live; hadolint DL3018 and DL4006 qualify on real files, and the gate is unchanged for every other rule.",
         "Findings: hadolint DL3013 (2) and DL3025 (4) are false positives on real files; shellcheck SC1010 fires on `echo done`; actionlint workflow-call is silent without a .git directory (measured both ways); checkov CKV_DOCKER_11 passes a repeated stage alias that hadolint DL3024 catches; actionlint's input check needs a major-tag action version. Follow-ups: give actionlint a project root in the adapter; a field promotion pass once shadow findings exist in a workspace; cases for the 22 not-yet-run checkov checks and more real files."
       ]
     },
@@ -11402,6 +11402,49 @@
           "Migration 0056_token_expiry_verifier (journal idx 54, when 1793800000000): forge_connections.token_owner_login, token_expires_at, token_checked_at; ai_triage_verdicts.llm_provider_id (FK llm_providers, SET NULL) and connection_name, backfilled from route.providerId / route.providerName.",
           "Not verified here: a real GitHub, GitLab or Gitea token read (contract tests use recorded shapes; GitHub's header format is not in its REST reference, only the 2021-07-26 changelog, so the parser accepts both forms seen in the wild); the image build with DOCS_REF (no container build here); the banner and inbox section on a device.",
           "Bugs noticed: the connect-time smoke listing and the new token read go through the unbudgeted discovery provider (as the smoke listing always has: no connection row exists yet); the nightly read is budgeted."
+        ]
+      },
+      {
+        "id": "W21-04",
+        "title": "Starter set: benchmark-proven rules live by default",
+        "phase": 21,
+        "module": "security",
+        "stories": [
+          "E13.6"
+        ],
+        "write_scope": [
+          "packages/security/src/rules/**",
+          "packages/security/src/scanners/semgrep/output.ts",
+          "packages/security/src/scanners/code-health/**",
+          "packages/security/src/index.ts",
+          "packages/security/package.json",
+          "apps/api/src/lib/rule-precision.ts",
+          "apps/api/src/lib/trust-surfaces.test.ts",
+          "apps/web/src/widgets/trust/**",
+          "docs/BENCHMARKS.md",
+          "docs/design/CODE_HEALTH_SUITE.md",
+          "scripts/validate-plan.mjs",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W18-48",
+          "W20-21"
+        ],
+        "acceptance": [
+          "Owner decision 2026-10-26 (Starter set live): a checked-in manifest (packages/security/src/rules/starter-set.data.ts) generated from docs/benchmarks/report.json by pnpm --filter @repopulse/security starter-set lists every rule with at least 5 TP and precision >= 80% on independent evidence (owasp-benchmark, juliet-java, juice-shop, iac-adapters real tree; never rule-fixtures, changes, sampleco or the adapter triggering fixtures), with its TP/FP per suite, plus the rules that have the sample but miss on precision",
+          "A starter-set rule is live in every workspace where no admin has decided: the YAML shipped status, the adapter shadow lookup (a seeded tool.<tool> candidate row with no updated_by is not a decision) and applyShadow (states experimental false, so earlier shadow findings count again from the next scan); a registry row for the rule, or a tool row an admin acted on, still wins, and Move to shadow (W20-21 FND-53) is offered on starter rules; the promotion gate is unchanged",
+          "Settings -> Rules -> Rule precision and the finding panel show the stage reason 'live via starter set (benchmark evidence)' with the per-suite evidence; GET /rules/precision returns lifecycleSource 'starter set' and starter {reason, evidence}",
+          "starter-set.test.ts fails when the manifest drifts from report.json, when an entry's per-suite numbers differ from a recount of the outcomes, or when an entry falls below the bar; docs/BENCHMARKS.md and CODE_HEALTH_SUITE.md section 8.2 state the decision, the bar, the 12 rules and why secrets, anti-slop, logging and performance rules stay shadow; W18-48's note points here",
+          "No migration; workspace eslint, typecheck and vitest green against a migrated database"
+        ],
+        "points": 5,
+        "status": "done",
+        "notes": [
+          "Owner decision 2026-10-26 ('Starter set live'), from GAP_ANALYSIS_2026-10-26 item 3. Revises W18-48, which ruled out a shipped-default promotion; the promotion gate itself (20 findings, 30 days, FP < 20%) is unchanged.",
+          "12 rules qualify on the 2026-10-16 report (commit e49421c): nine Java SAST rules on OWASP Benchmark and Juliet (bpm-inj-cmd-java 81.9%, bpm-inj-ldap-java 84.1%, bpm-inj-redirect-java 100%, bpm-inj-sql-java 81.0%, bpm-inj-xpath-java 89.7%, bpm-java-cookie-insecure, bpm-java-weak-cipher, bpm-java-weak-hash, bpm-java-weak-random 100%), bpm-js-sql-string-concat on Juice Shop (6/0, already live before; now carries its evidence) and hadolint DL3018 (9/0) and DL4006 (7/0) on this repository's real files. Below the bar with the sample: bpm-inj-trust-java 78.3%, bpm-inj-path-java 76.6%, bpm-inj-xss-java 75.3%, bpm-java-sql-string-concat 30.9%, bpm-java-command-concat 22.4%.",
+          "Defaults chosen (cheap to change): the iac-adapters suite counts only on its real tree, because its triggering tree is fixtures we wrote; FPs on our own corpora are not counted against a rule (none of the 12 has any); precision is checked unrounded; existing findings stored in shadow flip at the next scan rather than by a migration; the YAML lifecycle: candidate lines are left as they are (the manifest overrides them, and a rule that leaves the manifest falls back to them).",
+          "Secrets: no fast-lane secrets rule has 5 independent TPs (the most is generic-secret-assignment, 1 on Juice Shop). Anti-slop, logging, code-health and performance rules have no independent benchmark, so they stay shadow. The About page lists suite accuracy, not live-rule counts, so it is unchanged.",
+          "Gate 2026-10-26 against a freshly migrated database: eslint 0 problems, typecheck clean, vitest 5178 passed / 144 skipped / 1 failed (567 files). The one failure is pre-existing on main and outside this scope: src/ecosystems/matrix.test.ts, docs/ECOSYSTEMS.md not re-rendered after the W18-54 note in docs/ecosystems.json (71ec2e3). New tests: starter-set.test.ts (10), shadow.test.ts (+3), adapter shadow integration (+3), trust-surfaces (+1), web trust (+2)."
         ]
       }
   ]

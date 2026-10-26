@@ -1,6 +1,7 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import { security, type Database } from '@repopulse/shared';
 import { RULE_STATUSES, type RuleStatus } from './schema.js';
+import { isStarterRule } from './starter-set.js';
 
 // Shadow mode for rules that ship in a PACK FILE (W18-13, CODE_HEALTH_SUITE.md
 // §8.2).
@@ -22,8 +23,15 @@ export type EffectiveStatus = 'candidate' | 'active' | 'deprecated';
 
 const KNOWN = new Set<string>(RULE_STATUSES);
 
-/** Reads `metadata.lifecycle` off a rule's metadata. Anything but `candidate` is live. */
-export function shippedStatusOf(metadata: Record<string, unknown>): ShippedStatus {
+/**
+ * Reads `metadata.lifecycle` off a rule's metadata. Anything but `candidate` is live.
+ *
+ * W21-04: a rule in the starter set (starter-set.ts) ships live whatever its
+ * file says, because its precision was measured on independent benchmarks.
+ * The registry row still wins over this default (effectiveStatus).
+ */
+export function shippedStatusOf(metadata: Record<string, unknown>, ruleId?: string): ShippedStatus {
+  if (ruleId !== undefined && isStarterRule(ruleId)) return 'active';
   return metadata['lifecycle'] === 'candidate' ? 'candidate' : 'active';
 }
 
@@ -82,6 +90,10 @@ export interface LifecycleAware {
  * finding store reads "absent" as "keep the row's flag", and every pack rule
  * that predates this module is in that state. Stating `false` for them would
  * be harmless today and a silent override the day someone shadows one by hand.
+ *
+ * A starter-set rule (W21-04) IS stated: it ran in shadow before the starter
+ * set existed, so a workspace may hold its findings stamped experimental, and
+ * leaving the flag unset would keep them out of every count for good.
  */
 export function applyShadow<F extends LifecycleAware>(
   findings: readonly F[],
@@ -92,7 +104,7 @@ export function applyShadow<F extends LifecycleAware>(
     const row = registry.get(finding.ruleId);
     const status = effectiveStatus(finding.shippedStatus, row);
     if (status === 'deprecated') continue;
-    if (row === undefined && finding.shippedStatus === 'active') {
+    if (row === undefined && finding.shippedStatus === 'active' && !isStarterRule(finding.ruleId)) {
       out.push(finding);
       continue;
     }

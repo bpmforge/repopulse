@@ -8,6 +8,7 @@ import { runCodeHealthTools, CODE_HEALTH_SCANNER_KEY, type CodeHealthFinding } f
 import { dedupeAcrossTools, dedupeAgainstPack, listAdapters } from './adapters/registry.js';
 import type { AdapterFinding } from './adapters/types.js';
 import type { CodeHealthThresholds } from './thresholds.js';
+import { isStarterRule, toolRowIsAdminChoice } from '../../rules/starter-set.js';
 
 // code_health_tools run modes (W9-02, FR-CH-2, FR-SEC-9).
 //
@@ -114,6 +115,12 @@ export function adapterToIncoming(
  * shipped default is `candidate`. `active` → live finding, `deprecated` →
  * dropped, anything else → stored with experimental: true.
  *
+ * W21-04: a rule in the starter set (rules/starter-set.ts) ships `active`
+ * instead. An admin still decides: its own row wins, and so does a tool row
+ * an admin has acted on. The tool row the scan seeds itself (W20-08, a
+ * candidate with nobody's name on it) is the old default made visible, not a
+ * decision, so it does not hold a starter rule back.
+ *
  * Follow-up, deliberately not done here: the YAML `lifecycle` field
  * (rules/shadow.ts on the java-pack branch) is the long-term home for a
  * per-rule shipped default; when it lands, adapter rules should read their
@@ -140,7 +147,11 @@ export async function adapterShadowState(
     ids.add(`tool.${toolOf(f.ruleId)}`);
   }
   const rows = await db
-    .select({ ruleId: security.ruleRegistry.ruleId, status: security.ruleRegistry.status })
+    .select({
+      ruleId: security.ruleRegistry.ruleId,
+      status: security.ruleRegistry.status,
+      updatedBy: security.ruleRegistry.updatedBy,
+    })
     .from(security.ruleRegistry)
     .where(
       and(
@@ -148,7 +159,14 @@ export async function adapterShadowState(
         inArray(security.ruleRegistry.ruleId, [...ids]),
       ),
     );
-  const statusOf = new Map(rows.map((r) => [r.ruleId, r.status]));
+  const rowOf = new Map(rows.map((r) => [r.ruleId, r]));
+  const statusFor = (ruleId: string): string => {
+    const own = rowOf.get(ruleId);
+    if (own) return own.status;
+    const tool = rowOf.get(`tool.${toolOf(ruleId)}`);
+    if (isStarterRule(ruleId) && (!tool || !toolRowIsAdminChoice(tool))) return 'active';
+    return tool?.status ?? 'candidate';
+  };
 
   const kept: AdapterFinding[] = [];
   for (const f of findings) {
@@ -156,8 +174,7 @@ export async function adapterShadowState(
       kept.push(f);
       continue;
     }
-    const status =
-      statusOf.get(f.ruleId) ?? statusOf.get(`tool.${toolOf(f.ruleId)}`) ?? 'candidate';
+    const status = statusFor(f.ruleId);
     if (status === 'deprecated') continue;
     experimental.set(f, status !== 'active');
     kept.push(f);

@@ -44,6 +44,7 @@ export * from './scanners/sensitive-change/radar.js';
 export * from './scanners/sensitive-change/run.js';
 export * from './rules/schema.js';
 export * from './rules/lifecycle.js';
+export * from './rules/starter-set.js';
 export * from './rules/intake.js';
 export * from './rules/draft-run.js';
 export * from './scanners/code-health/adapters/types.js';

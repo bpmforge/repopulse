@@ -142,7 +142,38 @@ describe('benchmarkText for a tool adapter', () => {
   });
 });
 
+const STARTER_RULE: RulePrecisionReport['rules'][number] = {
+  ruleId: 'bpm-inj-sql-java',
+  lifecycle: 'active',
+  lifecycleSource: 'starter set',
+  starter: {
+    reason: 'live via starter set (benchmark evidence)',
+    evidence: {
+      ruleId: 'bpm-inj-sql-java',
+      tp: 230,
+      fp: 54,
+      precision: 0.81,
+      suites: [
+        { suite: 'juliet-java', tp: 15, fp: 0 },
+        { suite: 'owasp-benchmark', tp: 215, fp: 54 },
+      ],
+    },
+  },
+  findings: 3,
+  triage: { triaged: 0, falsePositives: 0, precision: null },
+  benchmark: { tp: 230, fp: 54, fn: 0, precision: 0.81, suites: ['juliet-java'], engine: 'yaml' },
+};
+
 describe('RulePrecisionTable', () => {
+  it('lets an admin move a starter-set rule to shadow, like a shipped rule (W21-04)', async () => {
+    bodies['/rules/precision'] = { ...REPORT, rules: [STARTER_RULE] };
+    bodies['/me/context'] = { role: 'admin' };
+    wrap(<RulePrecisionTable />);
+    const row = await screen.findByTestId('precision-row-bpm-inj-sql-java');
+    expect(row.textContent).toMatch(/live via starter set \(benchmark evidence\)/);
+    expect(await screen.findByTestId('pack-shadow-bpm-inj-sql-java')).toBeTruthy();
+  });
+
   it('shows both sources side by side with lifecycle, and "not measured yet" where empty', async () => {
     bodies['/rules/precision'] = REPORT;
     wrap(<RulePrecisionTable />);
@@ -174,6 +205,16 @@ describe('RulePrecisionSummary (finding drawer)', () => {
     expect((await screen.findByTestId('finding-rule-lifecycle')).textContent).toMatch(/rulepack/);
     expect(screen.getByTestId('finding-rule-triage').textContent).toMatch(/80%/);
     expect(screen.getByTestId('finding-rule-bench').textContent).toMatch(/20%/);
+  });
+
+  it('names the starter set and its benchmark evidence as the stage reason (W21-04)', async () => {
+    bodies['/rules/precision'] = { ...REPORT, rules: [STARTER_RULE] };
+    wrap(<RulePrecisionSummary ruleId="bpm-inj-sql-java" />);
+    const state = await screen.findByTestId('finding-rule-lifecycle');
+    expect(state.textContent).toMatch(/active.*live via starter set \(benchmark evidence\)/);
+    expect(screen.getByTestId('stage-reason-starter-bpm-inj-sql-java').title).toBe(
+      '81.0% precision, 230 TP / 54 FP: juliet-java 15 TP / 0 FP; owasp-benchmark 215 TP / 54 FP',
+    );
   });
 
   it('says it could not load rather than silently dropping the section', async () => {

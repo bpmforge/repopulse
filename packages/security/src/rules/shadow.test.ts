@@ -104,6 +104,39 @@ describe('the registry row always wins over the shipped default', () => {
   });
 });
 
+describe('the starter set ships live (W21-04)', () => {
+  // bpm-inj-sql-java is a starter rule whose YAML still says `candidate`;
+  // bpm-inj-xss-java missed the bar (75% on OWASP) and stays in shadow.
+  it('a starter rule is live whatever its file says; others read the file', () => {
+    expect(shippedStatusOf({ lifecycle: 'candidate' }, 'bpm-inj-sql-java')).toBe('active');
+    expect(shippedStatusOf({ lifecycle: 'candidate' }, 'bpm-inj-xss-java')).toBe('candidate');
+  });
+
+  it('states experimental: false so findings stored in shadow before count again', () => {
+    const out = applyShadow(
+      [finding('bpm-inj-sql-java', 'active'), finding('bpm-inj-xss-java', 'candidate')],
+      new Map(),
+    );
+    expect(out).toEqual([
+      { ruleId: 'bpm-inj-sql-java', shippedStatus: 'active', experimental: false },
+      { ruleId: 'bpm-inj-xss-java', shippedStatus: 'candidate', experimental: true },
+    ]);
+  });
+
+  it('an admin’s registry row wins over the starter set', () => {
+    const out = applyShadow(
+      [finding('bpm-inj-sql-java', 'active'), finding('bpm-java-weak-hash', 'active')],
+      new Map([
+        ['bpm-inj-sql-java', 'candidate' as const],
+        ['bpm-java-weak-hash', 'deprecated' as const],
+      ]),
+    );
+    expect(out).toEqual([
+      { ruleId: 'bpm-inj-sql-java', shippedStatus: 'active', experimental: true },
+    ]);
+  });
+});
+
 const databaseUrl = process.env.DATABASE_URL;
 const describeIfDb = databaseUrl ? describe : describe.skip;
 
