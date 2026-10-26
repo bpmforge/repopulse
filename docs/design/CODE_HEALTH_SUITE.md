@@ -369,12 +369,26 @@ already O(1)), find-by-key comprehensions / `next(…)` per outer element, and
 host (three projects, every hit read): 9 hits, 5 that grow with data, 4 over small lists,
 0 wrong; `acc + [x]` has no hit there and rests on its fixture pair.
 
+**Ranking by "on a request path" was measured and not built.** Walking this repository's
+import graph forward from every file `looksLikeEntryPoint` marks reaches 833 of 851 files
+(97.9%): the signal is true of nearly everything and ranks nothing. From the API route files
+alone it reaches 12.1%, an undercount, because routes reach the shared packages by package
+name, which the file-level graph does not resolve. Whether a FUNCTION runs during a request
+is a call-graph question (LLM tier, below) or a runtime one (traces, out of scope under
+D15). File-bound findings already price in the file's hotspot percentile (`price.ts`).
+
+**`performance.v3` checklist:** v2's items plus a lookup that scans a list per element of
+another collection, a linear search over already-sorted data (binary search, O(log n)),
+sorting inside a loop, a repeated computation, and copying on every append; every
+algorithmic finding's rationale starts `Grows with: <input>. O(…) → O(…) by <fix>.`, quotes
+no milliseconds or speedup, and skips collections small by construction. Four more eval
+cases (a join by scan, a linear search over sorted data, and their clean look-alikes). The
+performance specialist stays on v2 until a live model eval shows v3 does at least as well.
+
 Lifecycle `candidate` (shadow) like the rest of the pack: promotion follows §8.2 on
 customer evidence. Next in this pack: Java/Kotlin (typed metavariables make
 `(List $L).contains` exact; needs a real-application corpus), Go; and a
-`performance.v3` checklist for the cross-function cases a pattern cannot see (a binary
-search over sorted data, memoising a repeated computation), which must name the input
-that grows and state the complexity before and after.
+live eval of `performance.v3` against v2 before switching the specialist.
 
 ## 10. Tool adapter registry (FR-CH-10) — what else we support
 
