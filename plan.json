@@ -11446,6 +11446,37 @@
           "Secrets: no fast-lane secrets rule has 5 independent TPs (the most is generic-secret-assignment, 1 on Juice Shop). Anti-slop, logging, code-health and performance rules have no independent benchmark, so they stay shadow. The About page lists suite accuracy, not live-rule counts, so it is unchanged.",
           "Gate 2026-10-26 against a freshly migrated database: eslint 0 problems, typecheck clean, vitest 5178 passed / 144 skipped / 1 failed (567 files). The one failure is pre-existing on main and outside this scope: src/ecosystems/matrix.test.ts, docs/ECOSYSTEMS.md not re-rendered after the W18-54 note in docs/ecosystems.json (71ec2e3). New tests: starter-set.test.ts (10), shadow.test.ts (+3), adapter shadow integration (+3), trust-surfaces (+1), web trust (+2)."
         ]
-      }
+      },
+    {
+      "id": "W21-20",
+      "title": "Algorithmic complexity rules: joins by scan, membership by array, copy-on-append (JS/TS first)",
+      "phase": 21,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "packages/security/rulepacks/code-health/perf/**",
+        "packages/security/fixtures/perf/**",
+        "packages/security/fixtures/benchmark/rule-fixtures/suite.json",
+        "packages/security/src/scanners/code-health/perf-pack.test.ts",
+        "packages/analysis/checklists/**",
+        "docs/design/CODE_HEALTH_SUITE.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W21-04"
+      ],
+      "acceptance": [
+        "A perf pack that finds O(n·m) joins (find-by-key, includes against an array, per element of another collection) and O(k²) copy-on-append, each message stating the complexity before and after and the fix, quoting no speedup",
+        "Measured on a real corpus by reading every hit, with the result in CODE_HEALTH_SUITE §9.1a; RED/GREEN golden fixtures including the look-alikes it must not report",
+        "Java/Kotlin, Python and Go variants, measured the same way",
+        "performance.v3 checklist for cross-function complexity (binary search over sorted data, memoisation) that names the growing input and the complexity before and after, with eval cases"
+      ],
+      "points": 8,
+      "status": "in_progress",
+      "notes": [
+        "Owner request 2026-10-26 (Brad): RepoPulse should find the algorithmic performance problems in customers code that a review of RepoPulse itself found.",
+        "Slice 1 (JS/TS) built 2026-10-26: perf.complexity.v1.yaml, 3 rules, candidate. Measured on this repository, every hit read: find-by-key 19 (10 growing, 9 small, 0 wrong), includes 33 (15/16/2 string receivers), copy-on-append 14/14; caught every join the manual review found. Also fixed bpm-perf-orm-call-in-loop reporting Map.get as a DB call (233 of 327 hits): a one-argument .get now counts only when awaited, which keeps the labelled `await db.get(id)` N+1; 94 remain ungraded. Rule-fixtures benchmark: 5 new labels, fn 0 / fp 0."
+      ]
+    }
   ]
 }
