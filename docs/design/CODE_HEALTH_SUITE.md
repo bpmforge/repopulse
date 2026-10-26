@@ -361,9 +361,17 @@ indexed fix this pack recommends. A one-argument `.get` now counts only when it 
 awaited: a query returns a promise (`await db.get(id)`, the labelled N+1) and `Map.get`
 never does. 94 hits remain and still need grading.
 
+**Python (`perf.complexity.python.v1.yaml`, slice 2):** `list.pop(0)` / `insert(0, …)`
+in a loop (O(n²) → O(n) with `deque`; `deque` has no `pop(0)`, so this is a list),
+`x in L` in a loop where the same scope PROVES `L` is a list (`in` on a set or dict is
+already O(1)), find-by-key comprehensions / `next(…)` per outer element, and
+`acc = acc + [x]` in a loop. Measured on 487 files of first-party Python on the build
+host (three projects, every hit read): 9 hits, 5 that grow with data, 4 over small lists,
+0 wrong; `acc + [x]` has no hit there and rests on its fixture pair.
+
 Lifecycle `candidate` (shadow) like the rest of the pack: promotion follows §8.2 on
 customer evidence. Next in this pack: Java/Kotlin (typed metavariables make
-`(List $L).contains` exact), Python (`x in list` in a loop, `list.pop(0)`), Go; and a
+`(List $L).contains` exact; needs a real-application corpus), Go; and a
 `performance.v3` checklist for the cross-function cases a pattern cannot see (a binary
 search over sorted data, memoising a repeated computation), which must name the input
 that grows and state the complexity before and after.

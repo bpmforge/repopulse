@@ -1,0 +1,173 @@
+# bpm-rulepacks — algorithmic complexity, Python (W21-20 slice 2,
+# CODE_HEALTH_SUITE.md §9.1a).
+#
+# PROVENANCE: written for RepoPulse. Nothing here is copied or adapted from the
+# Semgrep registry (DESIGN_REVIEW.md G-18).
+#
+# The Python siblings of perf.complexity.v1.yaml: work that grows with the
+# product of two collections, or the square of one, where an index or the
+# right container makes it linear. Same contract: structural, the message names
+# when it matters and the fix, no speedup is quoted.
+#
+# Python's `in` is O(1) on a set or dict, so a membership test is reported only
+# where the same scope PROVES the right-hand side is a list (assigned a list
+# literal, list(), a list comprehension, or annotated `list`). `deque` has no
+# pop(0) at all, so `.pop(0)` is a list.
+#
+# MEASURED before shipping on 487 files of first-party Python on the build host
+# (three projects, virtualenvs and tests excluded; 2026-10-26, every hit read):
+# 9 hits, 5 that grow with data (a trade history scanned per symbol, a matrix
+# scanned per week inside a grid loop, twice; DataFrame columns tested against
+# a list; a FIFO lot queue using pop(0)), 4 over small lists, 0 wrong. A
+# constant (ALL_CAPS, also as `module.NAME`) as either collection is excluded:
+# measured as noise first.
+#
+# Lifecycle `candidate`: shadow until the promotion gate (§8.2).
+rules:
+  - id: bpm-perf-pop-front-in-loop-py
+    languages: [python]
+    severity: WARNING
+    message: >-
+      list.pop(0) or list.insert(0, x) inside a loop shifts every remaining
+      element each time: O(n) per call, O(n²) for the loop. Use
+      collections.deque (popleft / appendleft are O(1)), or iterate with an
+      index, or build the list in order and reverse it once.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1a
+      category: performance
+      complexity: O(n²) -> O(n)
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              for $X in $OUTER:
+                  ...
+          - pattern-inside: |
+              while $COND:
+                  ...
+      - pattern-either:
+          - pattern: $L.pop(0)
+          - pattern: $L.insert(0, $V)
+
+  - id: bpm-perf-membership-in-list-in-loop-py
+    languages: [python]
+    severity: INFO
+    message: >-
+      `in` against a list scans the whole list, and this runs once per element
+      of another collection: O(n·m) overall. When both grow, build a set from
+      the list once before the loop (membership is then O(1)), making the
+      whole thing O(n + m). If the list is small by design, dismiss this.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1a
+      category: performance
+      complexity: O(n·m) -> O(n + m)
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      # The right-hand side is PROVEN a list in this scope; `in` on a set or
+      # dict is already O(1).
+      - pattern-either:
+          - pattern-inside: |
+              $L = [...]
+              ...
+          - pattern-inside: |
+              $L = list(...)
+              ...
+          - pattern-inside: |
+              $L = [$E for ... in ...]
+              ...
+          - pattern-inside: |
+              $L: list = ...
+              ...
+          - pattern-inside: |
+              $L: list[...] = ...
+              ...
+          - pattern-inside: |
+              $L: List[...] = ...
+              ...
+      - pattern-either:
+          - pattern-inside: |
+              for $X in $OUTER:
+                  ...
+          - pattern-inside: '[$EO for $X in $OUTER]'
+          - pattern-inside: '[$EO for $X in $OUTER if $CO]'
+          - pattern-inside: '{$EO for $X in $OUTER}'
+      - pattern-either:
+          - pattern: <... $X ...> in $L
+          - pattern: <... $X ...> not in $L
+      - metavariable-comparison:
+          comparison: str($L) != str($OUTER)
+      - metavariable-regex:
+          metavariable: $L
+          regex: ^(?!(\w+\.)*[A-Z][A-Z0-9_]*$).*
+      - metavariable-regex:
+          metavariable: $OUTER
+          regex: ^(?!(\w+\.)*[A-Z][A-Z0-9_]*$).*
+
+  - id: bpm-perf-find-by-key-in-loop-py
+    languages: [python]
+    severity: INFO
+    message: >-
+      A lookup by key that scans a whole collection, once per element of
+      another: O(n·m) overall. When both grow, build a dict keyed on that field
+      once before the loop (or group the rows by it with a defaultdict(list)),
+      so each lookup is O(1) and the whole thing is O(n + m). If the inner
+      collection is small by design, dismiss this.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1a
+      category: performance
+      complexity: O(n·m) -> O(n + m)
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              for $X in $OUTER:
+                  ...
+          - pattern-inside: '[$EO for $X in $OUTER]'
+          - pattern-inside: '[$EO for $X in $OUTER if $CO]'
+      - pattern-either:
+          - pattern: '[$E for $Y in $INNER if $Y.$K == $V]'
+          - pattern: '[$E for $Y in $INNER if $V == $Y.$K]'
+          - pattern: '[$E for $Y in $INNER if $Y[$KK] == $V]'
+          - pattern: 'next($E for $Y in $INNER if $Y.$K == $V)'
+          - pattern: 'next(($E for $Y in $INNER if $Y.$K == $V), $D)'
+          - pattern: 'next($E for $Y in $INNER if $Y[$KK] == $V)'
+          - pattern: 'any($E for $Y in $INNER if $Y.$K == $V)'
+          - pattern: 'any($Y.$K == $V for $Y in $INNER)'
+      # The key compared against comes from the outer element: a join.
+      - metavariable-pattern:
+          metavariable: $V
+          pattern: <... $X ...>
+      - metavariable-comparison:
+          comparison: str($INNER) != str($OUTER)
+      - metavariable-regex:
+          metavariable: $INNER
+          regex: ^(?!(\w+\.)*[A-Z][A-Z0-9_]*$).*
+      - metavariable-regex:
+          metavariable: $OUTER
+          regex: ^(?!(\w+\.)*[A-Z][A-Z0-9_]*$).*
+
+  - id: bpm-perf-list-concat-in-loop-py
+    languages: [python]
+    severity: WARNING
+    message: >-
+      `acc = acc + [...]` inside a loop builds a new list from the old one each
+      time, so k iterations copy O(k²) elements. Use acc.append(x) or
+      acc.extend(xs), which add in place: O(k) in total.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1a
+      category: performance
+      complexity: O(k²) -> O(k)
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      note: >-
+        No hit on the measurement corpus; evidence is the fixture pair only.
+    patterns:
+      - pattern-inside: |
+          for $X in $OUTER:
+              ...
+      - pattern-either:
+          - pattern: $ACC = $ACC + [...]
+          - pattern: $ACC = $ACC + [$E for ... in ...]

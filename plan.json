@@ -11475,7 +11475,8 @@
       "status": "in_progress",
       "notes": [
         "Owner request 2026-10-26 (Brad): RepoPulse should find the algorithmic performance problems in customers code that a review of RepoPulse itself found.",
-        "Slice 1 (JS/TS) built 2026-10-26: perf.complexity.v1.yaml, 3 rules, candidate. Measured on this repository, every hit read: find-by-key 19 (10 growing, 9 small, 0 wrong), includes 33 (15/16/2 string receivers), copy-on-append 14/14; caught every join the manual review found. Also fixed bpm-perf-orm-call-in-loop reporting Map.get as a DB call (233 of 327 hits): a one-argument .get now counts only when awaited, which keeps the labelled `await db.get(id)` N+1; 94 remain ungraded. Rule-fixtures benchmark: 5 new labels, fn 0 / fp 0."
+        "Slice 1 (JS/TS) built 2026-10-26: perf.complexity.v1.yaml, 3 rules, candidate. Measured on this repository, every hit read: find-by-key 19 (10 growing, 9 small, 0 wrong), includes 33 (15/16/2 string receivers), copy-on-append 14/14; caught every join the manual review found. Also fixed bpm-perf-orm-call-in-loop reporting Map.get as a DB call (233 of 327 hits): a one-argument .get now counts only when awaited, which keeps the labelled `await db.get(id)` N+1; 94 remain ungraded. Rule-fixtures benchmark: 5 new labels, fn 0 / fp 0.",
+        "Slice 2 (Python) built 2026-10-26: perf.complexity.python.v1.yaml, 4 rules, candidate: pop(0)/insert(0) in a loop, membership in a scope-proven list, find-by-key comprehension/next per outer element, acc = acc + [x]. Measured on 487 files of first-party Python on the build host, every hit read: 9 hits, 5 growing, 4 small, 0 wrong (a constant on either side of `in` excluded after it showed up as noise). 5 more benchmark labels, fn 0 / fp 0. Java/Kotlin waits on a real-application corpus (download asked of the owner 2026-10-26)."
       ]
     }
   ]

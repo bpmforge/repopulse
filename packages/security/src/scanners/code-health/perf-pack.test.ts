@@ -95,14 +95,18 @@ describeIfScanImage('perf pack golden set', () => {
       // fixtures/perf/triggering/async_app.py exercises the Python half of the pack.
       'bpm-perf-await-in-loop-py',
       'bpm-perf-blocking-call-in-async-py',
-      // fixtures/perf/triggering/joins.ts: the algorithmic pack (W21-20).
+      // fixtures/perf/triggering/joins.ts and joins.py: the algorithmic packs (W21-20).
       'bpm-perf-copy-on-append',
       'bpm-perf-find-by-key-in-loop',
+      'bpm-perf-find-by-key-in-loop-py',
       'bpm-perf-includes-in-loop',
       'bpm-perf-json-deep-clone',
       'bpm-perf-json-deep-clone-py',
+      'bpm-perf-list-concat-in-loop-py',
+      'bpm-perf-membership-in-list-in-loop-py',
       'bpm-perf-orm-call-in-loop',
       'bpm-perf-orm-call-in-loop-py',
+      'bpm-perf-pop-front-in-loop-py',
       'bpm-perf-regex-compile-in-loop',
       'bpm-perf-regex-compile-in-loop-py',
       'bpm-perf-string-concat-in-loop',
