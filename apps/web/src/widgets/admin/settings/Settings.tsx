@@ -155,7 +155,8 @@ export function Settings() {
             {/* W20-22 (UX_TODO ADM-60): all seven sub-scores, and what each
                 really counts for once the three measured-only ones are in. */}
             <table className="table-plain w-full text-xs" data-testid="weights-effective">
-              <caption className="text-left text-fg-muted">
+              {/* pb-2 (W21-01): the caption sat flush on the header row. */}
+              <caption className="pb-2 text-left leading-relaxed text-fg-muted">
                 The four above add up to 1.00. Security, code health and supply chain are added on
                 top when a repository has been scanned for them, and then every weight is scaled so
                 the total is 100 %. A repository without those scans uses the four alone.

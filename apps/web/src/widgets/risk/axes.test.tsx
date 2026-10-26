@@ -171,6 +171,9 @@ describe('risk axis strip', () => {
     expect(score.textContent).toBe('91');
     expect(screen.getByLabelText('Security 91 of 100, healthy')).toBeInTheDocument();
     expect(screen.queryByLabelText(/grade/)).toBeNull();
+    // W21-01: the name comes first and the score is out of 100, so "91" is not
+    // read as a count of security findings.
+    expect(score.closest('li')).toHaveTextContent(/^Security\s*91\/100\s*· healthy/);
     const summary = screen.getByTestId('axis-strip-unmeasured-summary');
     expect(summary).toHaveTextContent('2 not measured');
     expect(summary).toHaveTextContent('Code Health, Supply Chain');

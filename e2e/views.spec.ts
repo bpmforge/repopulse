@@ -57,7 +57,9 @@ test('a shared view is readable by another workspace member (FR-WEB-4)', async (
 
   await page.getByTestId('share-view').click();
   await expect(page.getByTestId('share-slug')).toBeVisible();
-  const slugText = await page.getByTestId('share-slug').innerText();
+  // The URL itself: since W20-01 `share-slug` is the whole sentence with a Copy
+  // button after the link, so splitting ITS text took "Copy" into the slug.
+  const slugText = await page.getByTestId('share-url').innerText();
   const slug = slugText.split('/views/shared/')[1]?.trim();
   expect(slug, 'sharing must surface a slug the owner can hand over').toBeTruthy();
 

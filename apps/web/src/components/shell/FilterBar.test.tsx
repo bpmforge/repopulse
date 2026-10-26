@@ -157,4 +157,31 @@ describe('repository picker', () => {
     fireEvent.click(screen.getByTestId('filter-repos-apply'));
     expect(onChange).toHaveBeenCalledWith({ repos: null });
   });
+
+  // W21-01: a narrowed page says so, and clears in one click.
+  it('says the page is filtered and offers Show all, only while it is', () => {
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <FilterBar
+        value={{ window: '30d', repos: '1,3' } as never}
+        onChange={onChange}
+        repoOptions={repoOptions}
+        scope={reposOnly}
+      />,
+    );
+    expect(screen.getByTestId('filter-repos-active')).toHaveTextContent(
+      'Filtered to 2 repositories',
+    );
+    fireEvent.click(screen.getByTestId('filter-repos-clear'));
+    expect(onChange).toHaveBeenCalledWith({ repos: null });
+    rerender(
+      <FilterBar
+        value={{ window: '30d' } as never}
+        onChange={onChange}
+        repoOptions={repoOptions}
+        scope={reposOnly}
+      />,
+    );
+    expect(screen.queryByTestId('filter-repos-active')).toBeNull();
+  });
 });

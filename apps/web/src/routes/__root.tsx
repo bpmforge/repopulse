@@ -103,7 +103,9 @@ const SUBPAGE_LABELS: Record<string, string> = {
   analysis: 'Analysis',
   models: 'Models',
   patches: 'Verified fixes',
-  settings: 'Settings',
+  // W21-01: the tab is "Scoring"; the trail said "Settings › Settings".
+  settings: 'Scoring',
+  'ci-tokens': 'CI tokens',
   setup: 'Setup',
   audit: 'Audit log',
 };
@@ -698,7 +700,13 @@ function AppShell({ inert = false }: { inert?: boolean }) {
     repos?: string | null;
     person?: string | null;
   }) => {
+    // `to: pathname` (W21-01): this navigate belongs to the ROOT route, so
+    // with no `to` it resolved against "/" — every filter change made from
+    // Findings, Pull Requests, Plans or Repositories (saving a repository set
+    // included) landed on the Overview, silently filtered. A filter changes the
+    // page you are on, never which page.
     void navigate({
+      to: pathname,
       search: (prev: GlobalSearch) => mergeGlobalSearch(prev, patch),
     } as NavigateOptions);
   };
@@ -726,13 +734,18 @@ function AppShell({ inert = false }: { inert?: boolean }) {
   // the new page's heading (else <main>), so keyboard and screen-reader users
   // start on the page they asked for instead of back at the rail. Not on the
   // first render: landing on the app is not a navigation.
+  //
+  // Keyed on the PREVIOUS PATH, not a "first run" flag (W21-01). React's
+  // StrictMode runs every effect twice on mount in development, so the flag was
+  // already spent by the second run and the very first page load moved focus to
+  // the h1 — a keyboard user's first Tab then started INSIDE the page and never
+  // reached the rail, the filters or the Menu button above it.
   const mainRef = useRef<HTMLElement>(null);
-  const firstPath = useRef(true);
+  const lastPath = useRef<string | null>(null);
   useEffect(() => {
-    if (firstPath.current) {
-      firstPath.current = false;
-      return;
-    }
+    const previous = lastPath.current;
+    lastPath.current = pathname;
+    if (previous === null || previous === pathname) return;
     const raf = requestAnimationFrame(() => {
       const main = mainRef.current;
       if (!main || main.contains(document.activeElement)) return;

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { loginAsFixture } from './helpers/auth.js';
 import { expectNoA11yViolations } from './helpers/axe.js';
 
@@ -11,16 +11,37 @@ test('My Focus is reachable from the rail and shows my own work', async ({ page 
 
   // Reachability is part of the deliverable: the rail had no entry, so the
   // screen existed but nobody could navigate to it.
-  await page.getByTestId('rail').getByRole('link', { name: /my focus/i }).click();
+  await page
+    .getByTestId('rail')
+    .getByRole('link', { name: /my focus/i })
+    .click();
   await expect(page).toHaveURL(/\/me/);
   await expect(page.getByTestId('my-focus')).toBeVisible();
 
   // The seeder authors PRs as the fixture login, so these must be populated —
   // an empty list here means the identity mapping did not resolve, which is the
   // failure this screen is most prone to and least able to show.
+  //
+  // Since W20-12 (DSH-41) the list opens on OPEN pull requests, and the seeded
+  // fixture's own PRs may all be merged: then it says how many are hidden and
+  // offers them. Either way the rows must be reachable — "Nothing open" with
+  // no merged ones behind it would be the mapping failure in disguise.
+  await showMyPrs(page);
   await expect(page.getByTestId('my-prs').locator('tbody tr')).not.toHaveCount(0);
   await expect(page.getByTestId('my-hotspots').locator('tbody tr')).not.toHaveCount(0);
 });
+
+/** Reveal the merged and closed PRs when none of mine is open (W20-12). */
+async function showMyPrs(page: Page): Promise<void> {
+  const prs = page.getByTestId('my-prs');
+  await expect(
+    prs.locator('tbody tr').first().or(page.getByTestId('my-prs-none-open')),
+  ).toBeVisible();
+  if (await page.getByTestId('my-prs-none-open').isVisible()) {
+    await expect(page.getByTestId('my-prs-none-open')).toContainText(/[1-9]\d* merged or closed/);
+    await page.getByTestId('my-prs-toggle-closed').click();
+  }
+}
 
 test('the review queue excludes my own PRs', async ({ page }) => {
   await loginAsFixture(page);
@@ -63,6 +84,7 @@ test('stats are personal only — no cross-person comparison (N-9)', async ({ pa
 test('My Focus passes axe with real data', async ({ page }) => {
   await loginAsFixture(page);
   await page.goto('/me');
+  await showMyPrs(page);
   await expect(page.getByTestId('my-prs').locator('tbody tr').first()).toBeVisible();
   await expectNoA11yViolations(page);
 });

@@ -19,6 +19,14 @@ test('generate → ready → download a real PDF (FR-REPORTS-6)', async ({ page,
   await expectNoA11yViolations(page);
 
   await page.getByTestId('report-type').selectOption('repo_health');
+  // A Repository Health report is about ONE repository: with none chosen the
+  // button refuses and says why, rather than generating a report about nothing.
+  await expect(page.getByTestId('generate-report')).toBeDisabled();
+  await expect(page.getByTestId('generate-report')).toHaveAttribute(
+    'title',
+    /choose the repository/i,
+  );
+  await page.getByTestId('report-repo').selectOption({ index: 1 });
   await page.getByTestId('generate-report').click();
 
   // The row appears immediately as queued — the history table is how anyone
@@ -155,8 +163,8 @@ test('a report finishing in a BACKGROUNDED tab still reaches ready (W16-12)', as
   // ago — it passed in 161ms for exactly that reason, proving nothing.
   const idsOf = async () =>
     page.evaluate(() =>
-      [...document.querySelectorAll('[data-testid^="report-status-"]')].map(
-        (el) => el.getAttribute('data-testid')!,
+      [...document.querySelectorAll('[data-testid^="report-status-"]')].map((el) =>
+        el.getAttribute('data-testid')!,
       ),
     );
   const before = new Set(await idsOf());

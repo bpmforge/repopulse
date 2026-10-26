@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
-import { locationOf } from '../findings/contracts.js';
+import { foundByLabel, locationOf, type FoundBy } from '../findings/contracts.js';
 import { FindingSeverityBadge } from '../findings/FindingSeverity.js';
 
 // "New on this PR (what your CI sees)" (W20-15, UX_TODO X-15).
@@ -28,6 +28,8 @@ export interface PrCiFinding {
   status: string;
   introduced_by_pr: boolean;
   seen_at_head: boolean;
+  /** W21-01: absent from an older API, which then falls back to the key. */
+  found_by?: FoundBy;
 }
 
 export interface PrCiFindings {
@@ -45,10 +47,15 @@ export interface PrCiFindings {
 
 /** The head line: which commit, and which scanners have (and have not) read it. */
 export function headSummary(head: PrCiFindings['head']): string {
-  const sha = head.sha.slice(0, 7);
+  // A real commit id is abbreviated the usual way; anything else (a fixture's
+  // `payments-pr4-head`) is shown whole, because cutting it at 7 characters
+  // printed "Head payment" — a word, not a commit (W21-01).
+  const sha = /^[0-9a-f]{7,}$/i.test(head.sha) ? head.sha.slice(0, 7) : head.sha;
   const by = head.scanners.map((s) => s.scanner_key);
   const parts = [
-    by.length > 0 ? `Head ${sha} scanned by ${by.join(', ')}.` : `Head ${sha} not scanned yet.`,
+    by.length > 0
+      ? `Head commit ${sha} scanned by ${by.join(', ')}.`
+      : `Head commit ${sha} not scanned yet.`,
   ];
   if (head.pending && head.pending.length > 0) {
     parts.push(`Still scanning: ${head.pending.join(', ')}.`);
@@ -148,7 +155,12 @@ export function PrCiFindingsPanel({ repoId, number }: { repoId: string; number: 
                     <td className="py-1 font-mono text-xs">
                       {locationOf({ file: f.file, line_range: [f.line_start, f.line_end] })}
                     </td>
-                    <td className="py-1 text-xs">{f.rule_id ?? f.scanner_key ?? f.dimension}</td>
+                    <td className="py-1 text-xs" data-testid="pr-ci-found-by">
+                      {foundByLabel(f.found_by, f.rule_id) ??
+                        f.rule_id ??
+                        f.scanner_key ??
+                        f.dimension}
+                    </td>
                     <td className="py-1 text-xs whitespace-nowrap">
                       {f.seen_at_head ? 'yes' : 'not checked yet'}
                     </td>

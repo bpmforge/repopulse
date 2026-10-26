@@ -133,8 +133,12 @@ export function Inbox() {
       >
         Inbox
         {unread > 0 ? (
+          // W21-01: `text-surface`, not white. The dark theme's crit is a light
+          // red (#ff645a) and white on it is 2.9:1; the surface colour is the
+          // contrasting one in both themes (white on #b61e28, near-black on
+          // #ff645a).
           <span
-            className="rounded-full bg-crit px-1.5 text-[11px] font-medium text-white tabular-nums"
+            className="rounded-full bg-crit px-1.5 text-[11px] font-medium text-surface tabular-nums"
             data-testid="inbox-count"
           >
             {unread > 99 ? '99+' : unread}

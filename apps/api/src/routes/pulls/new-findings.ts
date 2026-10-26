@@ -6,6 +6,7 @@ import {
   PR_PATTERN_SCANNERS,
   isEnabled,
 } from '@repopulse/security';
+import { foundByOf, type FoundBy } from '../../lib/found-by.js';
 
 // "What is new on this PR?" (W18-18) — the question a customer's CI asks.
 //
@@ -72,6 +73,8 @@ export interface PrFindingItem {
   seen_at_head: boolean;
   first_seen_at: string;
   last_seen_at: string;
+  /** W21-01: the same attribution GET /findings gives, for the same label. */
+  found_by: FoundBy;
 }
 
 export interface PrFindingsResult {
@@ -328,8 +331,14 @@ export async function prFindings(
       firstSeenAt: read.findings.firstSeenAt,
       lastSeenAt: read.findings.lastSeenAt,
       introducedSql: sql<boolean>`${introduced}`,
+      // W21-01: who raised it, read exactly as GET /findings reads it.
+      analysisModelId: read.analysisRuns.modelId,
+      scanScannerVersion: security.scanRuns.scannerVersion,
+      scanToolVersions: security.scanRuns.toolVersions,
     })
     .from(read.findings)
+    .leftJoin(security.scanRuns, eq(security.scanRuns.id, read.findings.scanRunId))
+    .leftJoin(read.analysisRuns, eq(read.analysisRuns.id, read.findings.analysisRunId))
     .where(and(...filters))
     .orderBy(desc(read.findings.severity), desc(read.findings.id))
     .limit(q.limit + 1);
@@ -375,6 +384,7 @@ export async function prFindings(
         seen_at_head: headRun !== undefined && r.lastSeenAt >= headRun,
         first_seen_at: r.firstSeenAt.toISOString(),
         last_seen_at: r.lastSeenAt.toISOString(),
+        found_by: foundByOf(r),
       };
     }),
     next_cursor: rows.length > q.limit && last ? encodePrCursor(last) : null,

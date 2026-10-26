@@ -105,8 +105,10 @@ function AxisRow({ axis }: { axis: RiskAxis }) {
   const measured = isMeasuredAxis(axis);
   const word = axis.band ? HEALTH_BAND_LABEL[axis.band] : null;
   return (
-    <li className="flex flex-col gap-0.5" data-testid={`axis-${axis.axis}`}>
-      <div className="flex items-baseline gap-2">
+    <li className="flex min-w-0 flex-col gap-0.5" data-testid={`axis-${axis.axis}`}>
+      {/* flex-wrap (W21-01): in a quarter-width card at 768px the band word
+          ran 32px past the edge of the page. */}
+      <div className="flex flex-wrap items-baseline gap-x-2">
         <span
           className={measured ? 'w-8 text-lg font-semibold tabular-nums' : 'w-8 text-fg-muted'}
           data-testid={`axis-score-${axis.axis}`}

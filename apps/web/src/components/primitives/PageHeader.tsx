@@ -39,14 +39,18 @@ export function PageHeader({
       className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
       data-testid={testId ?? 'page-header'}
     >
-      <div className="min-w-0">
+      <div className="min-w-0 sm:flex-1">
         {/* One h1 per screen. The shell renders no other, so this is the
             document's real heading and a screen-reader user lands on it. */}
         <h1 className="text-3xl font-semibold tracking-tight text-fg">{title}</h1>
         {description ? <p className="mt-1 max-w-2xl text-sm text-fg-muted">{description}</p> : null}
         {meta ? <div className="mt-2 flex flex-wrap items-center gap-2">{meta}</div> : null}
       </div>
-      {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
+      {/* Not shrink-0 (W21-01): Findings' five actions could not wrap, and
+          pushed the page 106px sideways at 768px. They wrap, right-aligned. */}
+      {actions ? (
+        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">{actions}</div>
+      ) : null}
     </header>
   );
 }
@@ -76,7 +80,7 @@ export function SectionHeader({
       className="flex items-start justify-between gap-3"
       data-testid={testId ?? 'section-header'}
     >
-      <div className="min-w-0">
+      <div className="min-w-0 sm:flex-1">
         <Heading className="text-lg font-semibold text-fg">{title}</Heading>
         {description ? <p className="mt-0.5 text-xs text-fg-muted">{description}</p> : null}
       </div>

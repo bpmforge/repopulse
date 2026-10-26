@@ -143,125 +143,129 @@ const RERUN_STATES: readonly ScannerState[] = [
 export function ScannerStatusList({ scanners, manage = null }: Props) {
   const problems = scanners.filter((s) => (STATE_ORDER[s.state] ?? 9) <= 4).length;
   return (
-    <table className="table-plain w-full text-sm" data-testid="scanner-status">
-      <caption
-        className="pb-1 text-left text-xs text-fg-muted"
-        data-testid="scanner-status-caption"
-      >
-        {problems > 0
-          ? `${problems} of ${scanners.length} scanners need attention; they are listed first.`
-          : `${scanners.length} scanners.`}
-      </caption>
-      <thead>
-        <tr className="text-left text-xs text-fg-muted">
-          <th scope="col" className="py-1">
-            Scanner
-          </th>
-          <th scope="col" className="py-1">
-            State
-          </th>
-          <th scope="col" className="py-1">
-            Last run
-          </th>
-          <th scope="col" className="py-1">
-            Runs
-          </th>
-          <th scope="col" className="py-1 text-right">
-            Open
-          </th>
-          {manage && (
+    // W21-01: at phone width the six columns ran 103px past the page; the
+    // table scrolls inside its own region instead.
+    <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Scanners">
+      <table className="table-plain w-full text-sm" data-testid="scanner-status">
+        <caption
+          className="pb-1 text-left text-xs text-fg-muted"
+          data-testid="scanner-status-caption"
+        >
+          {problems > 0
+            ? `${problems} of ${scanners.length} scanners need attention; they are listed first.`
+            : `${scanners.length} scanners.`}
+        </caption>
+        <thead>
+          <tr className="text-left text-xs text-fg-muted">
+            <th scope="col" className="py-1">
+              Scanner
+            </th>
+            <th scope="col" className="py-1">
+              State
+            </th>
+            <th scope="col" className="py-1">
+              Last run
+            </th>
+            <th scope="col" className="py-1">
+              Runs
+            </th>
             <th scope="col" className="py-1 text-right">
-              On for this repository
+              Open
             </th>
-          )}
-        </tr>
-      </thead>
-      <tbody>
-        {sortScanners(scanners).map((scanner) => (
-          <tr
-            key={scanner.key}
-            className="border-t border-border"
-            data-testid={`scanner-row-${scanner.key}`}
-            data-state={scanner.state}
-          >
-            <th scope="row" className="py-1.5 text-left font-normal">
-              {scanner.display_name}
-              {scanner.scanner_version && (
-                <span className="ml-2 text-xs text-fg-muted">{scanner.scanner_version}</span>
-              )}
-              {!scanner.registered && (
-                // NOT "(not installed)" (W16-11, F16).
-                //
-                // That read as a missing TOOL — something you could go and
-                // install — and for these rows it never was: a scanner is
-                // unregistered when this build has no code for it, and no
-                // amount of installing changes that. It also said nothing
-                // about what to do, which is the half of F16 that mattered.
-                //
-                // Since W16-28 registered the catalogue, the only rows that
-                // reach here are scanners genuinely absent from the build.
-                <span
-                  className="ml-2 text-xs text-fg-muted"
-                  title="No code for this scanner ships in this build. It is documented so its absence is visible rather than looking deliberate."
-                >
-                  (not in this build)
-                </span>
-              )}
-            </th>
-            <td className="py-1.5">
-              {/* Word + glyph, never colour alone (UX_SPEC §7). */}
-              <span data-testid={`scanner-state-${scanner.key}`}>
-                {scannerStateLabel(scanner.state, scanner.open_findings)}
-              </span>
-              {scanner.state === 'all_rejected' && (
-                // HOW MANY, not just that it happened (W16-38). A reader
-                // deciding whether the prompt is wrong needs the number.
-                <div
-                  className="text-xs text-fg-muted"
-                  data-testid={`scanner-rejected-${scanner.key}`}
-                >
-                  The model proposed {scanner.validation_funnel?.proposed ?? 0} finding
-                  {(scanner.validation_funnel?.proposed ?? 0) === 1 ? '' : 's'} and the evidence
-                  check rejected every one — their quotes were not verbatim from the diff. That is a
-                  problem with the prompt or the check, not a clean repository.
-                </div>
-              )}
-              {scanner.error && (
-                <ScannerErrorDetail scannerKey={scanner.key} error={scanner.error} />
-              )}
-              {manage &&
-                scanner.registered &&
-                scanner.enabled &&
-                RERUN_STATES.includes(scanner.state) && (
-                  <RerunScanner scanner={scanner} manage={manage} />
-                )}
-            </td>
-            <td className="py-1.5">{when(scanner.last_run_at)}</td>
-            {/* W20-21 (FND-52): when it runs without anyone pressing Run. */}
-            <td
-              className="py-1.5 text-xs text-fg-muted"
-              data-testid={`scanner-runs-${scanner.key}`}
-              title={scanner.runs?.cron ? `Schedule: ${scanner.runs.cron}` : undefined}
+            {manage && (
+              <th scope="col" className="py-1 text-right">
+                On for this repository
+              </th>
+            )}
+          </tr>
+        </thead>
+        <tbody>
+          {sortScanners(scanners).map((scanner) => (
+            <tr
+              key={scanner.key}
+              className="border-t border-border"
+              data-testid={`scanner-row-${scanner.key}`}
+              data-state={scanner.state}
             >
-              {scanner.runs?.text ?? '—'}
-            </td>
-            <td className="py-1.5 text-right tabular-nums">
-              {/* A dash, not 0, when nothing has looked: a zero here is a
+              <th scope="row" className="py-1.5 text-left font-normal">
+                {scanner.display_name}
+                {scanner.scanner_version && (
+                  <span className="ml-2 text-xs text-fg-muted">{scanner.scanner_version}</span>
+                )}
+                {!scanner.registered && (
+                  // NOT "(not installed)" (W16-11, F16).
+                  //
+                  // That read as a missing TOOL — something you could go and
+                  // install — and for these rows it never was: a scanner is
+                  // unregistered when this build has no code for it, and no
+                  // amount of installing changes that. It also said nothing
+                  // about what to do, which is the half of F16 that mattered.
+                  //
+                  // Since W16-28 registered the catalogue, the only rows that
+                  // reach here are scanners genuinely absent from the build.
+                  <span
+                    className="ml-2 text-xs text-fg-muted"
+                    title="No code for this scanner ships in this build. It is documented so its absence is visible rather than looking deliberate."
+                  >
+                    (not in this build)
+                  </span>
+                )}
+              </th>
+              <td className="py-1.5">
+                {/* Word + glyph, never colour alone (UX_SPEC §7). */}
+                <span data-testid={`scanner-state-${scanner.key}`}>
+                  {scannerStateLabel(scanner.state, scanner.open_findings)}
+                </span>
+                {scanner.state === 'all_rejected' && (
+                  // HOW MANY, not just that it happened (W16-38). A reader
+                  // deciding whether the prompt is wrong needs the number.
+                  <div
+                    className="text-xs text-fg-muted"
+                    data-testid={`scanner-rejected-${scanner.key}`}
+                  >
+                    The model proposed {scanner.validation_funnel?.proposed ?? 0} finding
+                    {(scanner.validation_funnel?.proposed ?? 0) === 1 ? '' : 's'} and the evidence
+                    check rejected every one — their quotes were not verbatim from the diff. That is
+                    a problem with the prompt or the check, not a clean repository.
+                  </div>
+                )}
+                {scanner.error && (
+                  <ScannerErrorDetail scannerKey={scanner.key} error={scanner.error} />
+                )}
+                {manage &&
+                  scanner.registered &&
+                  scanner.enabled &&
+                  RERUN_STATES.includes(scanner.state) && (
+                    <RerunScanner scanner={scanner} manage={manage} />
+                  )}
+              </td>
+              <td className="py-1.5">{when(scanner.last_run_at)}</td>
+              {/* W20-21 (FND-52): when it runs without anyone pressing Run. */}
+              <td
+                className="py-1.5 text-xs text-fg-muted"
+                data-testid={`scanner-runs-${scanner.key}`}
+                title={scanner.runs?.cron ? `Schedule: ${scanner.runs.cron}` : undefined}
+              >
+                {scanner.runs?.text ?? '—'}
+              </td>
+              <td className="py-1.5 text-right tabular-nums">
+                {/* A dash, not 0, when nothing has looked: a zero here is a
                   claim, and an unrun scanner has not earned it. Nor from a
                   scan still in flight, one that never finished, one that
                   scanned nothing, or one whose every finding was rejected —
                   the count column must not make the claim the label refused. */}
-              {hasMeasuredCount(scanner.state) ? scanner.open_findings : '—'}
-            </td>
-            {manage && (
-              <td className="py-1.5 text-right">
-                {scanner.registered ? <ScannerToggle scanner={scanner} manage={manage} /> : '—'}
+                {hasMeasuredCount(scanner.state) ? scanner.open_findings : '—'}
               </td>
-            )}
-          </tr>
-        ))}
-      </tbody>
-    </table>
+              {manage && (
+                <td className="py-1.5 text-right">
+                  {scanner.registered ? <ScannerToggle scanner={scanner} manage={manage} /> : '—'}
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

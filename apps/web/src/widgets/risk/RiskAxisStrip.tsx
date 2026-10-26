@@ -41,15 +41,27 @@ export function RiskAxisStrip({ repoId, window }: { repoId: string; window?: str
         const word = axis.band ? HEALTH_BAND_LABEL[axis.band] : '';
         return (
           <li key={axis.axis} className="flex items-center gap-1" title={axis.basis}>
-            <span
-              className="font-semibold tabular-nums"
-              data-testid={`axis-strip-score-${axis.axis}`}
-              aria-label={`${axisLabel(axis.axis)} ${axis.score} of 100, ${word}`}
-            >
-              {axis.score}
+            {/* W21-01: the axis name first and the score out of 100. "25
+                Security" beside a Findings badge of 2 read as 25 security
+                findings; it is a 0-100 sub-score. */}
+            <span className="text-fg-muted" aria-hidden="true">
+              {axisLabel(axis.axis)}
             </span>
-            <span className="text-fg-muted">
-              {axisLabel(axis.axis)} · {word}
+            {/* One span for "25/100", so the row's gap does not split it. */}
+            <span>
+              <span
+                className="font-semibold tabular-nums"
+                data-testid={`axis-strip-score-${axis.axis}`}
+                aria-label={`${axisLabel(axis.axis)} ${axis.score} of 100, ${word}`}
+              >
+                {axis.score}
+              </span>
+              <span className="text-fg-muted" aria-hidden="true">
+                /100
+              </span>
+            </span>
+            <span className="text-fg-muted" aria-hidden="true">
+              · {word}
             </span>
             {/* Screen readers get the basis as text, not only as a tooltip. */}
             <span className="sr-only">{axis.basis}</span>

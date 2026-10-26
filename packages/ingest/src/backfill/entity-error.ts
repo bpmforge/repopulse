@@ -49,7 +49,8 @@ export async function updateRepoEntityError(
     .select({ lastError: core.repos.lastError })
     .from(core.repos)
     .where(eq(core.repos.id, repoId))
-    .for('update');
+    // NO KEY UPDATE, not UPDATE (W21-01): see recordEnrichmentOutcome.
+    .for('no key update');
   if (!repo) return;
   const line = spliceErrorLine(repo.lastError, previous, next);
   if (line === repo.lastError) return;
@@ -119,7 +120,15 @@ export async function recordEnrichmentOutcome(
     .select({ id: core.repos.id })
     .from(core.repos)
     .where(eq(core.repos.id, scope.repoId))
-    .for('update');
+    // NO KEY UPDATE, not UPDATE (W21-01). Every enrich transaction has already
+    // inserted reviews or check runs by now, and each of those foreign keys
+    // holds a KEY SHARE lock on this repo row. FOR UPDATE conflicts with KEY
+    // SHARE, so two PR jobs of one repo each waited for the other's KEY SHARE
+    // and Postgres killed one as a deadlock — the job then sat out a 60-second
+    // backoff and the repo stayed backfilling. NO KEY UPDATE still serializes
+    // the read-modify-write below against itself (and is what the UPDATE of
+    // repos.last_error takes anyway) but does not conflict with KEY SHARE.
+    .for('no key update');
   const previous = await readEntityError(tx, scope.repoId, entity);
   if (previous === next) return;
   await writeCursor(tx, scope, entity, { cursorValue: null, backfillDone: true, lastError: next });

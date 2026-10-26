@@ -1,10 +1,11 @@
 import 'dotenv/config';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { core, createDb, facts, read, security, type Database } from '@repopulse/shared';
-import { rangeBounds } from '@repopulse/metrics';
+import { computeRangeHeadline, rangeBounds } from '@repopulse/metrics';
+import { computeDemoSnapshots } from '../../lib/demo-snapshots.js';
 import errorEnvelopePlugin from '../../plugins/error-envelope.js';
 import orgRoutes from './index.js';
 import securityRoutes from '../security/index.js';
@@ -236,6 +237,7 @@ describeIfDb('/org/summary for a custom date range (W20-20, DSH-56)', () => {
     await app?.close();
     for (const ws of [workspaceId, otherWorkspaceId]) {
       await db.delete(read.findings).where(eq(read.findings.workspaceId, ws));
+      await db.delete(read.metricSnapshots).where(eq(read.metricSnapshots.workspaceId, ws));
       await db.delete(security.scanRuns).where(eq(security.scanRuns.workspaceId, ws));
       await db.delete(facts.prReviews).where(eq(facts.prReviews.workspaceId, ws));
       await db.delete(facts.checkRuns).where(eq(facts.checkRuns.workspaceId, ws));
@@ -281,6 +283,53 @@ describeIfDb('/org/summary for a custom date range (W20-20, DSH-56)', () => {
     expect(tile(body.tiles, 'M9')).toMatchObject({ value: 1, previous: null });
     // M4: both in-range PRs merged 10 hours after opening.
     expect(tile(body.tiles, 'M4').value).toBeCloseTo(10);
+  });
+
+  it('a prior period with nothing in it is no comparison for any tile, counts included (W21-01)', async () => {
+    // 2026-09-15..2026-09-28: the previous fourteen days are 09-01..09-14,
+    // which hold PRs, a review and commits, so the comparison stands.
+    const later = await summary('window=2026-09-15..2026-09-28');
+    expect(tile(later.body.tiles, 'M1').previous).toBe(15);
+    // 2026-08-11..2026-08-24: the previous fourteen days (07-28..08-10) hold
+    // nothing at all. M1 used to read that as "up from 0" while M5 beside it
+    // said there was no prior period.
+    const { status, body } = await summary('window=2026-08-11..2026-08-24');
+    expect(status).toBe(200);
+    for (const t of body.tiles) {
+      expect(t.previous).toBeNull();
+      expect(t.delta).toBeNull();
+    }
+    expect(tile(body.tiles, 'M10').value).toBe(0);
+  });
+
+  it('the demo’s computed snapshots agree with a range over the same days (W21-01)', async () => {
+    const asOf = new Date();
+    await computeDemoSnapshots(db, workspaceId, [repoId], asOf);
+    const live = await computeRangeHeadline(db, {
+      workspaceId,
+      repoIds: [repoId],
+      start: new Date(asOf.getTime() - 90 * 86_400_000),
+      end: new Date(asOf.getTime() + 1),
+    });
+    const res = await app.inject({ method: 'GET', url: '/org/summary?window=90d' });
+    const preset = tile((res.json() as { tiles: Tile[] }).tiles, 'M5');
+    // All four seeded PRs are merged inside the last 90 days; two were reviewed.
+    expect(live.metrics.M5).toMatchObject({ value: 0.5, numerator: 2, denominator: 4 });
+    expect(preset.value).toBe(0.5);
+    expect(preset.sample).toEqual({ numerator: 2, denominator: 4 });
+    // The org rollup row it also writes pools the repositories.
+    const org = await db
+      .select({ value: read.metricSnapshots.value, denominator: read.metricSnapshots.denominator })
+      .from(read.metricSnapshots)
+      .where(
+        and(
+          eq(read.metricSnapshots.workspaceId, workspaceId),
+          isNull(read.metricSnapshots.repoId),
+          eq(read.metricSnapshots.metricKey, 'M5'),
+          eq(read.metricSnapshots.window, '90d'),
+        ),
+      );
+    expect(org.map((r) => [Number(r.value), Number(r.denominator)])).toEqual([[0.5, 4]]);
   });
 
   it('reads only repositories of the caller’s workspace', async () => {

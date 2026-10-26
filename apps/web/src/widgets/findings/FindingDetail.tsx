@@ -17,6 +17,7 @@ import {
   findingUrl,
   foundByText,
   verifiedByText,
+  VERIFY_LABEL,
   SEVERITY_LABEL,
   statusLabel,
   tomorrow,
@@ -215,6 +216,16 @@ export function FindingDetail({
           ) : null}
           {finding.verify_reason ? (
             <span data-testid="finding-verify-reason">Second opinion: {finding.verify_reason}</span>
+          ) : null}
+          {/* W21-01: a verify verdict with no model to name. Since W21-03 the
+              second-model pass records its model and verified_by names it; a
+              finding verified before that (and the seeded demo data) has only
+              the outcome. The list and the PR page showed "verified by a second
+              model" while this panel said nothing, so it says it here too. */}
+          {!finding.verified_by && finding.verify_status !== 'unverified' ? (
+            <span data-testid="finding-verify-status">
+              {VERIFY_LABEL[finding.verify_status] ?? finding.verify_status}
+            </span>
           ) : null}
           {/* The status, from the server's copy of the finding — never from
               the button that was just pressed (W17-23). */}
@@ -487,167 +498,181 @@ export function FindingDetail({
           </ul>
         </div>
 
-        <div className="flex flex-wrap items-end gap-2 border-t border-border pt-3">
-          <label className="flex flex-col gap-1 text-xs text-fg-muted">
-            Note (required)
-            <input
-              className="w-72 panel px-2 py-1 text-sm"
-              data-testid="finding-note"
-              ref={noteRef}
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-            />
-          </label>
-          {/* W20-01 (UX_TODO FND-01): only Confirm and Dismiss existed, both
+        {/* W21-01: three rows — what you write, what you do to the status,
+            and everything else. One wrapping row of all of them put "Note
+            (required)" at a different height from "Dismiss reason" (whose help
+            text hangs below it) and broke the buttons across lines at random. */}
+        <div
+          className="flex flex-col gap-3 border-t border-border pt-3"
+          data-testid="finding-triage"
+        >
+          <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
+            <label className="flex min-w-0 flex-col gap-1 text-xs text-fg-muted">
+              Note (required)
+              <input
+                className="h-8 w-72 max-w-full panel px-2 py-1 text-sm"
+                data-testid="finding-note"
+                ref={noteRef}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+              />
+            </label>
+            {/* W20-01 (UX_TODO FND-01): only Confirm and Dismiss existed, both
               always enabled, so "mark fixed", "won't fix" and any reopen could
               not be done from the UI and a dismissed finding answered both
               buttons with a 409. The buttons are now the transitions the
               lifecycle allows from THIS status, and nothing else. */}
-          {allowed.includes('dismissed') && (
-            <label className="flex flex-col gap-1 text-xs text-fg-muted">
-              Dismiss reason
-              <select
-                className="panel px-2 py-1 text-sm"
-                data-testid="finding-dismiss-reason"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-              >
-                {DISMISS_REASONS.map((r) => (
-                  <option key={r} value={r}>
-                    {DISMISS_REASON_LABEL[r].label}
-                  </option>
-                ))}
-              </select>
-              {/* W20-13 (UX_TODO FND-25): what the chosen reason means. */}
-              <span className="max-w-72 text-fg-faint" data-testid="finding-dismiss-reason-help">
-                {isDismissReason(reason) ? DISMISS_REASON_LABEL[reason].help : ''}
-              </span>
-            </label>
-          )}
-          {allowed.includes('dismissed') && reason === 'accepted_risk' && (
-            <label className="flex flex-col gap-1 text-xs text-fg-muted">
-              Review by (required)
-              <input
-                type="date"
-                className="panel px-2 py-1 text-sm"
-                data-testid="finding-review-by"
-                min={tomorrow()}
-                value={reviewBy}
-                onChange={(e) => setReviewBy(e.target.value)}
-              />
-            </label>
-          )}
-          {allowed.map((to) => {
-            const action = FINDING_ACTIONS[to];
-            const closing = CLOSING.includes(to);
-            const locked = closing && closingLocked;
-            const needsReview = to === 'dismissed' && reason === 'accepted_risk' && reviewBy === '';
-            return (
-              <button
-                key={to}
-                type="button"
-                className={ACTION_BUTTON}
-                data-testid={action.testId}
-                title={
-                  locked
-                    ? `${action.hint} Only an admin may do this for a high or critical finding, or one on a pull request that is still open.`
-                    : action.hint
-                }
-                disabled={
-                  pending === to ||
-                  note.trim() === '' ||
-                  locked ||
-                  (closing && noteTooShort) ||
-                  needsReview
-                }
-                aria-busy={pending === to || undefined}
-                onClick={() => {
-                  const from = finding.status;
-                  const fromReason = finding.dismiss_reason;
-                  const fromReviewBy = finding.review_by ?? null;
-                  transition.mutate(
-                    to === 'dismissed'
-                      ? {
-                          status: to,
-                          note,
-                          dismiss_reason: reason,
-                          ...(reason === 'accepted_risk' ? { review_by: reviewBy } : {}),
-                        }
-                      : { status: to, note },
-                    {
-                      onSuccess: () => {
-                        setNote('');
-                        setLastChange({
-                          findingId: finding.id,
-                          from,
-                          to,
-                          fromReason,
-                          fromReviewBy,
-                          reason: to === 'dismissed' ? reason : null,
-                          undone: false,
-                        });
+            {allowed.includes('dismissed') && (
+              <label className="flex flex-col gap-1 text-xs text-fg-muted">
+                Dismiss reason
+                <select
+                  className="h-8 panel px-2 py-1 text-sm"
+                  data-testid="finding-dismiss-reason"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                >
+                  {DISMISS_REASONS.map((r) => (
+                    <option key={r} value={r}>
+                      {DISMISS_REASON_LABEL[r].label}
+                    </option>
+                  ))}
+                </select>
+                {/* W20-13 (UX_TODO FND-25): what the chosen reason means. */}
+                <span className="max-w-72 text-fg-faint" data-testid="finding-dismiss-reason-help">
+                  {isDismissReason(reason) ? DISMISS_REASON_LABEL[reason].help : ''}
+                </span>
+              </label>
+            )}
+            {allowed.includes('dismissed') && reason === 'accepted_risk' && (
+              <label className="flex flex-col gap-1 text-xs text-fg-muted">
+                Review by (required)
+                <input
+                  type="date"
+                  className="panel px-2 py-1 text-sm"
+                  data-testid="finding-review-by"
+                  min={tomorrow()}
+                  value={reviewBy}
+                  onChange={(e) => setReviewBy(e.target.value)}
+                />
+              </label>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2" data-testid="finding-actions">
+            {allowed.map((to) => {
+              const action = FINDING_ACTIONS[to];
+              const closing = CLOSING.includes(to);
+              const locked = closing && closingLocked;
+              const needsReview =
+                to === 'dismissed' && reason === 'accepted_risk' && reviewBy === '';
+              return (
+                <button
+                  key={to}
+                  type="button"
+                  className={ACTION_BUTTON}
+                  data-testid={action.testId}
+                  title={
+                    locked
+                      ? `${action.hint} Only an admin may do this for a high or critical finding, or one on a pull request that is still open.`
+                      : action.hint
+                  }
+                  disabled={
+                    pending === to ||
+                    note.trim() === '' ||
+                    locked ||
+                    (closing && noteTooShort) ||
+                    needsReview
+                  }
+                  aria-busy={pending === to || undefined}
+                  onClick={() => {
+                    const from = finding.status;
+                    const fromReason = finding.dismiss_reason;
+                    const fromReviewBy = finding.review_by ?? null;
+                    transition.mutate(
+                      to === 'dismissed'
+                        ? {
+                            status: to,
+                            note,
+                            dismiss_reason: reason,
+                            ...(reason === 'accepted_risk' ? { review_by: reviewBy } : {}),
+                          }
+                        : { status: to, note },
+                      {
+                        onSuccess: () => {
+                          setNote('');
+                          setLastChange({
+                            findingId: finding.id,
+                            from,
+                            to,
+                            fromReason,
+                            fromReviewBy,
+                            reason: to === 'dismissed' ? reason : null,
+                            undone: false,
+                          });
+                        },
                       },
-                    },
-                  );
-                }}
-              >
-                {pending === to ? action.busy : action.label}
-              </button>
-            );
-          })}
-          {/* Plain text to the clipboard, nothing to the forge (W17-23). A
+                    );
+                  }}
+                >
+                  {pending === to ? action.busy : action.label}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Plain text to the clipboard, nothing to the forge (W17-23). A
               review is acted on in a PR thread or a ticket, and this is the
               way there that does not require RepoPulse to write to either. */}
-          <button
-            type="button"
-            className={ACTION_BUTTON}
-            data-testid="finding-copy-summary"
-            onClick={copySummary}
-          >
-            {copied === 'copied'
-              ? 'Copied'
-              : copied === 'failed'
-                ? 'Copy failed — select the text instead'
-                : 'Copy review summary'}
-          </button>
-          <button
-            type="button"
-            className={ACTION_BUTTON}
-            data-testid="finding-copy-link"
-            onClick={copyLink}
-          >
-            {linkCopied === 'copied'
-              ? 'Link copied'
-              : linkCopied === 'failed'
-                ? 'Copy failed'
-                : 'Copy link'}
-          </button>
-          {/* To the plan for this finding's repository (W17-24): a link that
-              carries the id, and only navigates. */}
-          <PlanForRepoLink repoId={finding.repo.id} />
-          {/* W20-21 (UX_TODO FND-51): ask the scanner to look again. */}
-          {isAdmin && finding.scanner_key && finding.found_by?.kind !== 'imported' && (
-            <RescanToVerify repoId={finding.repo.id} scannerKey={finding.scanner_key} />
-          )}
-          {/* W20-08 (UX_TODO FND-65): an admin turns a finding pattern into a
-              rule proposal; it lands proposed and runs nowhere until accepted. */}
-          {isAdmin && !proposing && (
             <button
               type="button"
               className={ACTION_BUTTON}
-              data-testid="finding-propose-rule"
-              onClick={() => setProposing(true)}
+              data-testid="finding-copy-summary"
+              onClick={copySummary}
             >
-              Propose a rule from this finding
+              {copied === 'copied'
+                ? 'Copied'
+                : copied === 'failed'
+                  ? 'Copy failed — select the text instead'
+                  : 'Copy review summary'}
             </button>
-          )}
-          <button
-            type="button"
-            className={`text-xs text-fg-muted underline underline-offset-2 ${FOCUS_RING}`}
-            onClick={onClose}
-          >
-            Close
-          </button>
+            <button
+              type="button"
+              className={ACTION_BUTTON}
+              data-testid="finding-copy-link"
+              onClick={copyLink}
+            >
+              {linkCopied === 'copied'
+                ? 'Link copied'
+                : linkCopied === 'failed'
+                  ? 'Copy failed'
+                  : 'Copy link'}
+            </button>
+            {/* To the plan for this finding's repository (W17-24): a link that
+              carries the id, and only navigates. */}
+            <PlanForRepoLink repoId={finding.repo.id} />
+            {/* W20-21 (UX_TODO FND-51): ask the scanner to look again. */}
+            {isAdmin && finding.scanner_key && finding.found_by?.kind !== 'imported' && (
+              <RescanToVerify repoId={finding.repo.id} scannerKey={finding.scanner_key} />
+            )}
+            {/* W20-08 (UX_TODO FND-65): an admin turns a finding pattern into a
+              rule proposal; it lands proposed and runs nowhere until accepted. */}
+            {isAdmin && !proposing && (
+              <button
+                type="button"
+                className={ACTION_BUTTON}
+                data-testid="finding-propose-rule"
+                onClick={() => setProposing(true)}
+              >
+                Propose a rule from this finding
+              </button>
+            )}
+            <button
+              type="button"
+              className={`text-xs text-fg-muted underline underline-offset-2 ${FOCUS_RING}`}
+              onClick={onClose}
+            >
+              Close
+            </button>
+          </div>
         </div>
         {/* A refused write says so where the button is (W17-23). Before this a
             409 — someone else triaged it first, or the row is in a state this

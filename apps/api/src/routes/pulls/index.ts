@@ -68,6 +68,18 @@ const item = z.object({
   seen_at_head: z.boolean(),
   first_seen_at: z.string(),
   last_seen_at: z.string(),
+  // W21-01: who raised it, the same shape GET /findings returns.
+  found_by: z.discriminatedUnion('kind', [
+    z.object({
+      kind: z.literal('imported'),
+      tool: z.string(),
+      source: z.enum(['sarif', 'code_scanning']),
+      tool_version: z.string().nullable(),
+    }),
+    z.object({ kind: z.literal('model'), model: z.string() }),
+    z.object({ kind: z.literal('scanner'), scanner: z.string(), version: z.string().nullable() }),
+    z.object({ kind: z.literal('unknown') }),
+  ]),
 });
 
 const response = z.object({

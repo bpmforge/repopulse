@@ -65,7 +65,9 @@ describe('New on this PR (W20-15, UX_TODO X-15)', () => {
 
   it('shows the head commit and which scanners have read it', () => {
     render(<PrCiFindingsPanel repoId="3" number="7" />);
-    expect(screen.getByTestId('pr-ci-head')).toHaveTextContent('Head abc1234 scanned by semgrep.');
+    expect(screen.getByTestId('pr-ci-head')).toHaveTextContent(
+      'Head commit abc1234 scanned by semgrep.',
+    );
   });
 
   it('says when the head is not fully scanned, naming what is still running', () => {
@@ -101,6 +103,13 @@ describe('New on this PR (W20-15, UX_TODO X-15)', () => {
   it('names failed scanners in the head line', () => {
     expect(
       headSummary({ sha: 'abcdef123', scanned: true, scanners: [], failed: ['secrets'] }),
-    ).toBe('Head abcdef1 not scanned yet. Failed at this head: secrets.');
+    ).toBe('Head commit abcdef1 not scanned yet. Failed at this head: secrets.');
+  });
+
+  // W21-01: a ref that is not a commit id is shown whole, never cut to a word.
+  it('shows a non-hex head ref whole rather than cutting it at seven characters', () => {
+    expect(headSummary({ sha: 'payments-pr4-head', scanned: false, scanners: [] })).toBe(
+      'Head commit payments-pr4-head not scanned yet.',
+    );
   });
 });

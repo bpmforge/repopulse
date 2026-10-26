@@ -102,9 +102,14 @@ export default async function orgRoutes(
         const common = { workspaceId, repoIds, botGlobs: effective.botLoginGlobs };
         const current = await computeRangeHeadline(opts.db, { ...common, ...bounds });
         const previous = await computeRangeHeadline(opts.db, { ...common, ...bounds.previous });
+        // W21-01: a prior period with nothing in it (from before the synced
+        // history) is no comparison for ANY tile. The counts used to read it
+        // as 0 ("up from 0") while the rates beside them said "no prior
+        // period"; now every tile says the latter.
+        const comparable = previous.activity > 0;
         const tiles = KPI_METRICS.map((metricKey) => {
-          const now = current[metricKey];
-          const prev = previous[metricKey].value;
+          const now = current.metrics[metricKey];
+          const prev = comparable ? previous.metrics[metricKey].value : null;
           return {
             metric_key: metricKey,
             value: now.value,

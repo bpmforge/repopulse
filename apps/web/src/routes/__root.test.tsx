@@ -132,12 +132,20 @@ describe('app shell (__root) — W4-02', () => {
   });
 
   it('offers only the filters the screen APPLIES (W16-50)', async () => {
-    // The org overview applies the window and nothing else: its nine widgets
-    // read five org-rollup endpoints with no repo_id, and it is already scoped
-    // to one person by nobody. A control that silently does nothing is worse
-    // than a missing one — which is what all three used to be, everywhere.
+    // The org overview applies the window and, since W20-05/W20-16 made every
+    // widget read `repos`, the repository set (W21-01) — but no person. A
+    // control that silently does nothing is worse than a missing one — which
+    // is what all three used to be, everywhere.
     renderAt('/?window=90d&person=octocat');
     expect(await screen.findByTestId('filter-window')).toBeInTheDocument();
+    expect(screen.queryByTestId('filter-person')).not.toBeInTheDocument();
+    expect(screen.getByTestId('filter-repos')).toBeInTheDocument();
+  });
+
+  it('offers nothing on a screen that applies none of them (My Focus)', async () => {
+    renderAt('/me?window=90d&person=octocat');
+    await screen.findByTestId('main');
+    expect(screen.queryByTestId('filter-window')).not.toBeInTheDocument();
     expect(screen.queryByTestId('filter-person')).not.toBeInTheDocument();
     expect(screen.queryByTestId('filter-repos')).not.toBeInTheDocument();
   });

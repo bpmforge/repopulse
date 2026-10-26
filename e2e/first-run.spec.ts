@@ -51,7 +51,6 @@ async function createAccountAsAdmin(page: Page): Promise<void> {
   await ctx.close();
 }
 
-
 /**
  * Sign in and WAIT for it to have happened.
  *
@@ -199,9 +198,12 @@ test.describe('connecting a forge for the first time', () => {
 
     await expect(page.getByTestId('admin-sync')).toBeVisible({ timeout: 15_000 });
     // Whatever phase it is in, it is one of the RECORDED ones. A UI inventing a
-    // percentage would not be constrained to this vocabulary.
+    // percentage would not be constrained to this vocabulary. Since W20-14
+    // (INS-44) each recorded phase is shown in words (phaseLabel): live is
+    // "Up to date", history "Loading history", and so on — still exactly one of
+    // the recorded phases, and nothing else.
     await expect(page.getByTestId('sync-phase')).toHaveText(
-      /queued|history|enrichment|live|paused|error/i,
+      /^(Queued|Loading history|Loading details|Up to date|Waiting for rate limit|Paused|Error)$/,
     );
   });
 });

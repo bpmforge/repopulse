@@ -191,3 +191,29 @@ describe('foundByText (W20-15, UX_TODO X-10)', () => {
     expect(foundByText({ tier: 2 })).toBe('Tier 2');
   });
 });
+
+// W21-01: one wording of "who found it", shared by the finding panel and the
+// PR's "New on this PR" table, which had drifted apart.
+describe('foundByLabel', () => {
+  it('words every kind once, and says nothing for an unknown finder', async () => {
+    const { foundByLabel, foundByText } = await import('./contracts.js');
+    expect(foundByLabel({ kind: 'model', model: 'm-1' } as never)).toBe('your AI model m-1');
+    expect(
+      foundByLabel({ kind: 'scanner', scanner: 'secret_scan', version: '1.2' } as never, 'r.x'),
+    ).toBe('the secret scan scanner 1.2, rule r.x');
+    expect(
+      foundByLabel({
+        kind: 'imported',
+        tool: 'CodeQL',
+        tool_version: '2.19',
+        source: 'code_scanning',
+      } as never),
+    ).toBe('imported from CodeQL v2.19 (code scanning)');
+    expect(foundByLabel({ kind: 'unknown' } as never)).toBeNull();
+    expect(foundByLabel(null)).toBeNull();
+    // The panel's sentence is the same label behind "Found by:".
+    expect(foundByText({ found_by: { kind: 'model', model: 'm-1' } } as never)).toBe(
+      'Found by: your AI model m-1',
+    );
+  });
+});

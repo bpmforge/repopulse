@@ -11618,6 +11618,44 @@
         "Slice 3 (2026-10-26): performance.v3 checklist (algorithmic items; every finding names what grows and O(before) -> O(after); no ms or speedups; skip small-by-construction) with golden snapshot tests and 4 more eval cases (performance now 8: 4 planted, 4 clean). The specialist stays on v2: no model host was reachable (localhost:1234 and 192.168.13.179:1234 both silent), so the v2-vs-v3 live eval is NOT run. Request-path ranking measured and not built: entry-point import reachability covers 97.9% of this repo (ranks nothing), 12.1% from API routes only (undercounts package-name imports); hotspot percentile already prices file-bound findings.",
         "orm-call-in-loop graded (2026-10-26): the 94 remaining hits read one by one; 3 Map/Set.delete(key) now excluded unless chained (a query builder's tx.delete(table).where() is), 6 deliberate batch loops, 15 test seeder, the rest genuine per-row DB calls. 327 -> 91. Clean fixture locks Map.get/.delete in a loop."
       ]
-    }
+    },
+      {
+        "id": "W21-01",
+        "title": "Tour findings and a green e2e suite",
+        "phase": 21,
+        "module": "web",
+        "stories": [],
+        "write_scope": [
+          "apps/web/**",
+          "apps/api/**",
+          "e2e/**",
+          "packages/metrics/src/snapshots/range.ts",
+          "packages/ingest/src/backfill/entity-error.ts",
+          "packages/ingest/src/backfill/entity-errors.integration.test.ts",
+          "packages/shared/src/testing/seed/seed.ts",
+          "packages/analysis/src/providers/probe.ts",
+          "packages/analysis/src/providers/probe.test.ts",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W20-25"
+        ],
+        "acceptance": [
+          "pnpm e2e is fully green: each of the 36 failures on main is fixed as a stale test (assertion updated to what the screen now does, never weakened, skipped or quarantined) or as a real bug in the product",
+          "The twelve items of the 2026-10-25 screenshot tour are fixed: no focus ring on the h1 after navigation; a repo filter or saved set keeps you on the page, and a filtered page says so with a clear control; one filter-row height and a repo picker wherever the page honours repos; custom-range deltas and coverage consistent with the presets; each count says what it counts; one found-by label; PR head ref and check rows distinguishable; triage layout; breadcrumbs; scoring caption spacing; report box text size; the verify status shown",
+          "Tenancy: every new or changed query is workspace-filtered; no migration; no forge writes",
+          "Workspace eslint, typecheck and vitest green against a migrated database; screenshots of the changed screens retaken"
+        ],
+        "points": 8,
+        "status": "done",
+        "notes": [
+          "Coordinator 2026-10-26: allowing non-streaming model servers was requested and then put on HOLD (W16-39 measured that a non-streamed call over about five minutes is cut off). The save-time streaming check is unchanged; only its message now says why streaming is required.",
+          "Real bugs found by the e2e run: route focus moved to the h1 on the very first load under React StrictMode, which broke every keyboard test (the effect now compares with the last path); the shell's filter navigate had no `to`, so a repo filter or saved set landed on the Overview; the seed's wipe missed seven tables that reference repos or findings, so a second seed after an ingest failed on a foreign key; two PR enrichment jobs of one repo deadlocked on FOR UPDATE of the repo row against their own foreign-key KEY SHARE locks (now FOR NO KEY UPDATE), so an ingested repo sat in backfilling through a 60-second retry backoff; PageHeader actions, the risk axes card, the Scanners table and the flakiest-workflows table ran past the page at narrow widths; setup checklist links were under the 24px target size; the Inbox count was white on the dark theme's light red (2.9:1); a re-seed kept a fixture repository's Tier-3 opt-in, so a second e2e run started opted in.",
+          "Tour item 4: a custom range whose previous period holds nothing at all (before the synced history) now has no previous value on any tile; counts used to say 'up from 0'. The preset/range disagreement on review coverage was the demo's synthetic snapshot series (the seeder's random walk), not the product: in production both read the same readers. Demo mode now computes the newest snapshots from the seeded facts with the nightly job's own driver and pools them into the org rollup row.",
+          "Tour item 12: 'verified by <model>' read only ai_triage_verdicts, the AI triage of rule-raised findings (W20-25). The tour's finding was raised by a model and confirmed by the second-model verify pass (W6-05), which stored verify_status and no model name, so there was nothing to name. W21-03 (merged meanwhile) records the verifying model and verified_by now names it; this ticket shows the verify outcome in the panel for a finding verified before that (and the seeded demo data), where no model is known.",
+          "Environment, not product: Redis is shared by every worktree on this host, and a run whose sessions sat in database 0 lost them part-way through while other branches ran their suites (30 failures, all from the sign-in page or the auth rate limit). The suite was run with REDIS_URL pointing at its own database index, passed as an environment variable only.",
+          "Not done here: the 390px-at-200%-zoom overflow test stays an expected failure (195 CSS px is below the WCAG reflow floor; several screens still scroll sideways there)."
+        ]
+      }
   ]
 }

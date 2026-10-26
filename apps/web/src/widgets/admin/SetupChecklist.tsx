@@ -153,7 +153,7 @@ export function SetupChecklist({ linkActions = true }: { linkActions?: boolean }
                 linkActions ? (
                   <Link
                     to={check.action.to as never}
-                    className="text-xs text-accent underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                    className="inline-flex min-h-6 items-center self-start text-xs text-accent underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                     data-testid={`setup-action-${check.id}`}
                   >
                     {check.action.label} →
@@ -161,7 +161,7 @@ export function SetupChecklist({ linkActions = true }: { linkActions?: boolean }
                 ) : (
                   <a
                     href={check.action.to}
-                    className="text-xs text-accent"
+                    className="inline-flex min-h-6 items-center self-start text-xs text-accent"
                     data-testid={`setup-action-${check.id}`}
                   >
                     {check.action.label} →
@@ -177,7 +177,7 @@ export function SetupChecklist({ linkActions = true }: { linkActions?: boolean }
                 href={docsUrl(check.docs)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs text-fg-muted underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                className="inline-flex min-h-6 items-center self-start text-xs text-fg-muted underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                 data-testid={`setup-doc-${check.id ?? check.docs}`}
               >
                 See {check.docs}

@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { and, eq } from 'drizzle-orm';
 import { core, createDb, type Database } from '@repopulse/shared';
 import {
+  ForgeHttpError,
   GiteaProvider,
   createAuthHeaderProvider,
   type ForgeHttpClient,
@@ -11,6 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ingestEntityPages } from './backfill.js';
 import { isHistoryBackfillComplete } from './completion.js';
 import { repoSyncStatus } from '../status/status.js';
+import { recordEnrichmentOutcome } from './entity-error.js';
 
 // W17-35: a backfill entity whose fetch fails must say so (W14-01 acceptance:
 // "no failure absorbed silently").
@@ -221,5 +223,33 @@ describeIfLiveInfra('backfill entity fetch errors are recorded, not absorbed (W1
     ).rejects.toMatchObject({ status: 502 });
     expect(await cursorRow(repoId, 'issues')).toBeUndefined();
     expect(await isHistoryBackfillComplete(db, repoId)).toBe(false);
+  });
+  it('two enrich jobs of one repo recording a refusal do not deadlock (W21-01)', async () => {
+    // Each PR enrichment transaction inserts child rows of the repo first (its
+    // reviews and check runs), and every such foreign key holds a KEY SHARE
+    // lock on the repo row. recordEnrichmentOutcome then locked that row FOR
+    // UPDATE, which conflicts with KEY SHARE: two jobs at once each waited on
+    // the other, and the e2e ingest spec's repo stayed backfilling while one
+    // job sat out its retry backoff.
+    const repoId = await makeRepo('two-jobs');
+    const scope = { workspaceId, repoId };
+    const refused = new ForgeHttpError(404, 'review_comments', 'not found');
+    let arrived = 0;
+    let release!: () => void;
+    const bothHoldKeyShare = new Promise<void>((r) => (release = r));
+    const job = (entity: 'commits' | 'prs') =>
+      db.transaction(async (tx) => {
+        await tx
+          .insert(core.syncCursors)
+          .values({ workspaceId, repoId, entityType: entity, backfillDone: true });
+        arrived += 1;
+        if (arrived === 2) release();
+        await bothHoldKeyShare;
+        await recordEnrichmentOutcome(tx, scope, 'review_comments', refused);
+      });
+
+    await expect(Promise.all([job('commits'), job('prs')])).resolves.toBeDefined();
+    expect((await cursorRow(repoId, 'review_comments'))?.last_error).toMatch(/404/);
+    expect(await repoLastError(repoId)).toMatch(/review_comments/);
   });
 });

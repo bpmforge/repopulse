@@ -50,8 +50,12 @@ test('filter → open → acknowledge, with the note the API insists on', async 
 
   // W19-10: a finding no AI pass has looked at says so; it never reads as
   // "reviewed and fine".
+  // Since W20-11 (AI-44) a finding no pass WILL triage (not rule-raised, say)
+  // says that instead of "Not yet run" — and both still say it means nothing.
   await expect(page.getByTestId('ai-section')).toBeVisible();
-  await expect(page.getByTestId('ai-not-run')).toContainText(/Not yet run/);
+  const noReview = page.getByTestId('ai-not-run').or(page.getByTestId('ai-not-eligible'));
+  await expect(noReview).toContainText(/Not yet run|No AI review/);
+  await expect(noReview).toContainText(/says nothing about the finding either way/);
 
   // A status change with no note must be impossible from the UI, because the
   // API refuses it: "why was this closed?" is the first question anyone asks
@@ -68,7 +72,8 @@ test('filter → open → acknowledge, with the note the API insists on', async 
   await expect(page.getByTestId('finding-history')).toContainText(/confirmed/);
   await expect(page.getByTestId('finding-history')).toContainText(/fixture-dev/);
   await expect(page.getByTestId('finding-history')).not.toContainText(/automatic/);
-  await expect(page.getByTestId(`finding-${id}`)).toContainText(/confirmed/);
+  // The row's status reads "Confirmed" since the W20 labels.
+  await expect(page.getByTestId(`finding-${id}`)).toContainText(/confirmed/i);
 });
 
 test('bulk triage applies to a selection and refuses without a note', async ({ page }) => {
@@ -221,15 +226,22 @@ test('a link opens a finding the filters HIDE (W16-32)', async ({ page }) => {
   await loginAsFixture(page);
   await page.goto('/findings');
 
-  // Dismiss one, so it leaves the default (status = open) list.
+  // Dismiss one, so it leaves the default (status = open) list. It is picked
+  // from that default list — an OPEN finding — because the first row under
+  // "Any" is the one the triage test above just confirmed, and a confirmed
+  // finding offers no Dismiss (W20-01). Then "Any", so the panel survives the
+  // dismissal.
+  const firstOpen = page.locator('[data-testid^="finding-open-"]').first();
+  await expect(firstOpen).toBeVisible();
+  const id = (await firstOpen.getAttribute('data-testid'))!.replace('finding-open-', '');
   await page.getByTestId('filter-status').selectOption('');
-  const open = page.locator('[data-testid^="finding-open-"]').first();
+  const open = page.getByTestId(`finding-open-${id}`);
   await expect(open).toBeVisible();
-  const id = (await open.getAttribute('data-testid'))!.replace('finding-open-', '');
   await open.click();
   await expect(page.getByTestId('finding-detail')).toBeVisible();
   await page.getByTestId('finding-note').fill('W16-32 link fixture');
-  await page.getByTestId('finding-dismiss-reason').selectOption('false positive');
+  // The value is the API's reason key; the label became "False positive" (W20-01).
+  await page.getByTestId('finding-dismiss-reason').selectOption('false_positive');
   await page.getByTestId('finding-dismiss').click();
   // Dismissed rows leave the default list, which is the whole point of the
   // fixture — wait for the transition before sharing the link.

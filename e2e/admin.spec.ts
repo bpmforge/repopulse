@@ -173,6 +173,9 @@ test('the Identities tab lists real identities and merges one, passing axe (W5-0
   await mergeButton.click();
   await expect(page.getByTestId('merge-picker')).toBeVisible();
   await page.locator('[data-testid^="merge-into-"]').first().click();
+  // W20-04 (ADM-10): picking a target asks first; the merge applies on confirm.
+  await expect(page.getByTestId('merge-confirm')).toBeVisible();
+  await page.getByTestId('merge-confirm-do').click();
 
   const undo = page.getByTestId(`identity-unmerge-${sourceId}`);
   await expect(undo).toBeVisible();
@@ -214,7 +217,9 @@ test('the Analysis tab states the consequence of Tier-3 opt-in and audits the to
   await page.goto('/admin/analysis');
   await expect(page.getByTestId('analysis-policy')).toBeVisible();
 
-  const row = page.locator('[data-testid^="analysis-repo-"]').first();
+  // The ROW: since W20 the tbody is `analysis-repo-rows`, which the bare
+  // prefix also matched, and the "first row" became the whole table.
+  const row = page.locator('tr[data-testid^="analysis-repo-"]').first();
   await expect(row).toBeVisible();
 
   const toggle = row.locator('input[data-testid^="tier3-"]');
@@ -231,7 +236,9 @@ test('the Analysis tab states the consequence of Tier-3 opt-in and audits the to
   await expect(confirm).toContainText(/Anthropic/);
   await expect(confirm).toContainText(/not available yet/i);
   await page.locator('[data-testid^="tier3-confirm-do-"]').first().click();
-  await expect(row).toContainText(/opted in \(nothing is sent yet\)/i);
+  // The state is worded as the permission it is ("hosted second opinions
+  // allowed"); that nothing has been sent is the next assertion.
+  await expect(row).toContainText(/opted in \(hosted second opinions allowed\)/i);
 
   // Nothing has actually been sent — the opt-in is permission, not a call.
   await expect(row).toContainText(/nothing sent/i);
@@ -264,9 +271,12 @@ test('the rule workbench shows shadow evidence and blocks an unready promotion',
   // has just seen a finding attributed to bpm-log-console-in-prod concludes the
   // screen is broken. It holds only CANDIDATE rules drafted from this
   // workspace's own findings (W16-57).
+  // W20-08 reworded it to say HOW a rule gets here (an admin proposes one, or a
+  // shadow tool raises a finding) and that the pack rules are not listed.
   if ((await frame.getAttribute('data-state')) === 'empty') {
-    await expect(frame).toContainText(/candidate rules/i);
+    await expect(frame).toContainText(/admin proposes one/i);
     await expect(frame).toContainText(/shadow/i);
+    await expect(frame).toContainText(/always on and are not listed/i);
   } else {
     await expect(page.getByTestId('rules-table')).toBeVisible();
   }

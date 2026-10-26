@@ -118,3 +118,38 @@ describe('a shadow finding is labelled in the panel (W18-29)', () => {
     expect(screen.queryByTestId('finding-shadow-note')).toBeNull();
   });
 });
+
+// W21-01 (tour item 12): a model-raised finding confirmed by the second-model
+// verify pass (W6-05) said nothing about it in the panel — "verified by
+// <model>" reads the AI triage of RULE findings, which this pass is not — while
+// the list beside it said "verified by a second model".
+describe('the verify pass outcome is in the panel (W21-01)', () => {
+  it('says verified, and says nothing for an unverified finding', () => {
+    const { rerender } = render(
+      <FindingDetail
+        finding={{ ...hostile(), verify_status: 'confirmed' } as Finding}
+        onClose={vi.fn()}
+        invalidate={[]}
+      />,
+    );
+    expect(screen.getByTestId('finding-verify-status')).toHaveTextContent(/second model/i);
+    rerender(<FindingDetail finding={hostile()} onClose={vi.fn()} invalidate={[]} />);
+    expect(screen.queryByTestId('finding-verify-status')).toBeNull();
+    // Once the pass names its model (W21-03), "verified by <model>" says it.
+    rerender(
+      <FindingDetail
+        finding={
+          {
+            ...hostile(),
+            verify_status: 'confirmed',
+            verified_by: { model: 'm-2', connection: null, verdict: 'confirmed', at: null },
+          } as Finding
+        }
+        onClose={vi.fn()}
+        invalidate={[]}
+      />,
+    );
+    expect(screen.queryByTestId('finding-verify-status')).toBeNull();
+    expect(screen.getByTestId('finding-verified-by')).toHaveTextContent(/m-2/);
+  });
+});

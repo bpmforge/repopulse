@@ -12,6 +12,7 @@ import { buildApp } from './app.js';
 import { and, eq } from 'drizzle-orm';
 import { credentials, local, workspace as workspaceModule } from '@repopulse/auth';
 import { assertDemoAllowed, demoRequested, DEMO_ACCOUNT } from './lib/demo.js';
+import { computeDemoSnapshots } from './lib/demo-snapshots.js';
 
 // Demo entrypoint (W13-02): the whole product, no GitHub account required.
 //
@@ -67,6 +68,9 @@ const db = createDb(requireEnv('DATABASE_URL'));
 // is broken", which is the opposite of what a demo is for. seedWarehouse is
 // idempotent by fixture id.
 const seeded = await seedWarehouse(db);
+// W21-01: the newest snapshots come from the seeded facts (lib/demo-snapshots),
+// so a preset window and a custom range over the same days agree.
+await computeDemoSnapshots(db, seeded.workspaceId, seeded.repoIds);
 
 // W16-02 (F1). A REAL local account, so the email/password form the sign-in
 // screen puts first actually works in demo mode. `createLocalUser` returns
@@ -133,10 +137,7 @@ if (!demoAccount.ok && demoAccount.reason !== 'exists') {
     // doors, so whichever lost it would be the one that lands on an empty
     // screen. The seeder makes DEMO_LOGIN a full contributor, so the demo
     // account authors PRs, reviews others' and appears in the ownership data.
-    await db
-      .update(core.users)
-      .set({ forgeUserId: DEMO_LOGIN })
-      .where(eq(core.users.id, row.id));
+    await db.update(core.users).set({ forgeUserId: DEMO_LOGIN }).where(eq(core.users.id, row.id));
     await db
       .update(core.identities)
       .set({ userId: row.id })
