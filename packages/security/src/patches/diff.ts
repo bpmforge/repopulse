@@ -292,9 +292,11 @@ export function applyPatch(source: string, parsed: ParsedDiff): AppliedPatch {
       );
     }
 
-    out.push(...lines.slice(cursor, at));
+    // Loops, not push(...slice): one argument per line throws RangeError
+    // (call stack) at about 125k lines, and generated files get that long.
+    for (let i = cursor; i < at; i++) out.push(lines[i]!);
     const newBlock = hunk.lines.filter((l) => l.kind !== '-').map((l) => l.text);
-    out.push(...newBlock);
+    for (const line of newBlock) out.push(line);
 
     const oldStartLine = oldBlock.length === 0 ? at : at + 1;
     const newStartLine = newBlock.length === 0 ? at + delta : at + delta + 1;
@@ -306,7 +308,7 @@ export function applyPatch(source: string, parsed: ParsedDiff): AppliedPatch {
     cursor = at + oldBlock.length;
     delta += newBlock.length - oldBlock.length;
   }
-  out.push(...lines.slice(cursor));
+  for (let i = cursor; i < lines.length; i++) out.push(lines[i]!);
 
   const after = out.length === 0 ? '' : out.join('\n') + (trailingNewline ? '\n' : '');
   if (after === source) {
