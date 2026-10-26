@@ -38,3 +38,43 @@ pub fn long_names(names: &[String]) -> usize {
     let total: usize = names.iter().map(|n| n.len()).collect::<Vec<usize>>().iter().sum();
     long + total
 }
+
+pub async fn users(pool: &sqlx::PgPool, ids: &[i64]) -> Vec<User> {
+    let mut out = Vec::new();
+    for id in ids {
+        // bpm-perf-rs-db-call-in-loop
+        let u = sqlx::query_as::<_, User>("select * from users where id = $1")
+            .bind(id)
+            .fetch_one(pool)
+            .await
+            .unwrap();
+        out.push(u);
+    }
+    out
+}
+
+pub async fn config(path: &str) -> String {
+    // bpm-perf-rs-blocking-in-async
+    std::thread::sleep(std::time::Duration::from_millis(5));
+    std::fs::read_to_string(path).unwrap()
+}
+
+pub fn drain_front(mut queue: Vec<u32>) -> u32 {
+    let mut total = 0;
+    while !queue.is_empty() {
+        // bpm-perf-rs-remove-front-in-loop
+        total += queue.remove(0);
+    }
+    total
+}
+
+pub fn owned_by(orders: &[Order], users: &[User]) -> usize {
+    let mut n = 0;
+    for o in orders {
+        // bpm-perf-rs-find-in-loop
+        if users.iter().any(|u| u.id == o.user_id) {
+            n += 1;
+        }
+    }
+    n
+}

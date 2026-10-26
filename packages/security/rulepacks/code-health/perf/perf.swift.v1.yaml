@@ -1,0 +1,175 @@
+# bpm-rulepacks — performance, Swift variants v1 (CODE_HEALTH_SUITE.md §9.1).
+#
+# PROVENANCE: written for RepoPulse. Nothing here is copied or adapted from the
+# Semgrep registry or from SwiftLint (DESIGN_REVIEW.md G-18).
+#
+# Same contract as perf.v1.yaml: structural shapes, no claimed speedups, nothing
+# above WARNING. Each rule names a cost that repeats once per iteration of a
+# loop and that moving one line out of the loop removes.
+#
+# String `+=` is NOT here: Swift appends to a uniquely referenced String in
+# place, so the copy-per-iteration that makes it a defect in Java or Go does
+# not happen.
+rules:
+  - id: bpm-perf-sw-regex-in-loop
+    languages: [swift]
+    severity: WARNING
+    message: >-
+      A regex compiled from a constant pattern inside a loop. Compilation is
+      the expensive half of using a regex and the pattern never changes
+      between iterations: build it once, outside the loop or in a static.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Literal patterns only: a pattern built from loop data has to be
+        compiled per iteration. Regex literals (`/\d+/`) are compiled at build
+        time and are never matched.
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              for $X in $XS { ... }
+          - pattern-inside: |
+              while $C { ... }
+          - pattern-inside: |
+              $XS.forEach { ... }
+          - pattern-inside: |
+              $XS.forEach { $P in ... }
+      - pattern-either:
+          - pattern: 'NSRegularExpression(pattern: "...")'
+          - pattern: 'NSRegularExpression(pattern: "...", options: $O)'
+          - pattern: Regex("...")
+
+  - id: bpm-perf-sw-formatter-in-loop
+    languages: [swift]
+    severity: INFO
+    message: >-
+      A formatter created inside a loop. DateFormatter and its relatives are
+      expensive to set up and safe to reuse, so one formatter, made once
+      outside the loop (or cached), does the same job.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        The Foundation formatter classes by name. The `.formatted()` APIs
+        cache their formatters and are never matched.
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              for $X in $XS { ... }
+          - pattern-inside: |
+              while $C { ... }
+          - pattern-inside: |
+              $XS.forEach { ... }
+          - pattern-inside: |
+              $XS.forEach { $P in ... }
+      - pattern-either:
+          - pattern: DateFormatter()
+          - pattern: ISO8601DateFormatter()
+          - pattern: NumberFormatter()
+          - pattern: DateComponentsFormatter()
+          - pattern: MeasurementFormatter()
+
+  - id: bpm-perf-sw-fetch-in-loop
+    languages: [swift]
+    severity: WARNING
+    message: >-
+      A Core Data fetch inside a loop. Each fetch is a trip to the store, so N
+      items means N queries. Fetch the set once with an `IN` predicate and
+      look the results up by key.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        A receiver named like a managed object context (`context`, `moc`,
+        `viewContext`, ...): `fetch` alone is too common a name to match.
+    patterns:
+      - pattern-either:
+          # The body, not the header: `for row in try context.fetch(request)`
+          # fetches once (2 hits on the 2026-10-26 measurement).
+          - patterns:
+              - pattern-inside: |
+                  for $X in $XS { $...BODY }
+              - focus-metavariable: $...BODY
+          - pattern-inside: |
+              $XS.forEach { ... }
+          - pattern-inside: |
+              $XS.forEach { $P in ... }
+      - pattern-either:
+          - pattern: $CTX.fetch($REQ)
+          - pattern: '$CTX.count(for: $REQ)'
+      - metavariable-regex:
+          metavariable: $CTX
+          regex: (?i)^(.*\.)?\w*(context|moc)$
+
+  - id: bpm-perf-sw-remove-front-in-loop
+    languages: [swift]
+    severity: INFO
+    message: >-
+      Removing or inserting at the front of an array inside a loop. Each call
+      shifts every remaining element, so draining an array this way is O(n²).
+      Iterate instead, track a start index, or use a Deque
+      (swift-collections).
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Without types, a Deque's or ArraySlice's removeFirst (which is cheap)
+        looks the same as an Array's.
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              for $X in $XS { ... }
+          - pattern-inside: |
+              while $C { ... }
+          - pattern-inside: |
+              repeat { ... } while $C
+      - pattern-either:
+          - pattern: $A.removeFirst()
+          - pattern: '$A.remove(at: 0)'
+          - pattern: '$A.insert($E, at: 0)'
+      # Trimming a prefix (`while path.hasPrefix("/") { path.removeFirst() }`)
+      # drops a few characters, not a queue.
+      - pattern-not-inside: |
+          while $A.hasPrefix($P) { ... }
+
+  - id: bpm-perf-sw-find-in-loop
+    languages: [swift]
+    severity: INFO
+    message: >-
+      A linear search of one collection for every item of another. That is
+      O(n·m): build a Dictionary or Set keyed by what is searched for, once,
+      before the loop.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Fires whatever the searched collection's size; a handful of fixed
+        entries is not worth a dictionary, and only a literal array is
+        recognised as one.
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              for $X in $XS { ... }
+          - pattern-inside: |
+              $XS.forEach { ... }
+          - pattern-inside: |
+              $XS.forEach { $P in ... }
+      - pattern-either:
+          - pattern: '$A.first(where: $F)'
+          - pattern: '$A.firstIndex(where: $F)'
+          - pattern: '$A.contains(where: $F)'
+          - pattern: '$A.firstIndex(of: $V)'
+      - pattern-not: '[...].$M(...)'
+      # A character searched for in a String (`line.firstIndex(of: ":")`).
+      - pattern-not: '$A.firstIndex(of: "...")'

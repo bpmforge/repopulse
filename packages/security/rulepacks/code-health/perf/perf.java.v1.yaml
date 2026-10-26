@@ -85,8 +85,14 @@ rules:
       - pattern-either:
           - pattern-inside: |
               for ($X in $XS) { ... }
-          - pattern-inside: |
-              while ($COND) { ... }
+          # `while (true)` or `while (hasMore)` is cursor pagination: one
+          # query per page (the Java hand-check, W21-20: 8 of 13 wrong).
+          - patterns:
+              - pattern-inside: |
+                  while ($COND) { ... }
+              - metavariable-regex:
+                  metavariable: $COND
+                  regex: ^(?!true$)(?![A-Za-z_]\w*$)
           - pattern-inside: |
               $C.forEach { ... }
           - pattern-inside: |
@@ -100,6 +106,11 @@ rules:
           regex: ^(find\w*|get(One|ById|Reference)|exists\w*|count\w*|save|saveAndFlush|delete\w*|persist|merge|createQuery|createNativeQuery|query\w*|update|execute)$
       # The query that PRODUCES the collection being iterated runs once.
       - pattern-not-inside: '$DB.$M(...).forEach { ... }'
+      - pattern-not-inside: |
+          for ($Y in $DB.$M(...)) { ... }
+      # One query per chunk is the batched form.
+      - pattern-not-inside: |
+          for ($Y in $ZS.chunked($N)) { ... }
       - pattern-not-inside: '$DB.$M(...).map { ... }'
 
   - id: bpm-perf-java-regex-compile-in-loop
@@ -219,18 +230,41 @@ rules:
       lifecycle: candidate
       provenance: written for RepoPulse; not derived from any registry pack
     patterns:
+      # The declaration comes BEFORE the loop: a String declared in the body
+      # and appended to once copies nothing across iterations (every Java hit
+      # marked wrong in the W21-20 hand-check). That span runs from the
+      # declaration to the loop's end, so the loop is also required below.
       - pattern-either:
           - pattern-inside: |
               var $S = "..."
               ...
+              for ($L in $LS) { ... }
           # `"..."` does not match the EMPTY literal on Opengrep 1.27.1 (the
           # pinned engine), and `var out = ""` is the usual shape.
           - pattern-inside: |
               var $S = ""
               ...
+              for ($L in $LS) { ... }
           - pattern-inside: |
               var $S: String = $INIT
               ...
+              for ($L in $LS) { ... }
+          - pattern-inside: |
+              var $S = "..."
+              ...
+              while ($W) { ... }
+          - pattern-inside: |
+              var $S = ""
+              ...
+              while ($W) { ... }
+          - pattern-inside: |
+              var $S = "..."
+              ...
+              $WS.forEach { ... }
+          - pattern-inside: |
+              var $S = ""
+              ...
+              $WS.forEach { ... }
       - pattern-either:
           - pattern-inside: |
               for ($X in $XS) { ... }
@@ -241,3 +275,72 @@ rules:
       - pattern-either:
           - pattern: $S += $V
           - pattern: $S = $S + $V
+
+  - id: bpm-perf-kt-blocking-in-suspend
+    languages: [kotlin]
+    severity: WARNING
+    message: >-
+      A blocking call inside a suspend function. It parks the thread the
+      coroutine runs on, so every coroutine sharing that dispatcher waits. Use
+      delay() instead of Thread.sleep, plain suspension instead of
+      runBlocking, and withContext(Dispatchers.IO) for file work.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Thread.sleep, runBlocking and java.io.File's read/write helpers only.
+        Blocking inside a library the coroutine calls is not visible here.
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              suspend fun $F(...) { ... }
+          - pattern-inside: |
+              suspend fun $F(...) = $BODY
+          - pattern-inside: |
+              suspend fun $F(...): $R = $BODY
+      # The fix this rule asks for.
+      - pattern-not-inside: |
+          withContext(...) { ... }
+      - pattern-either:
+          - pattern: Thread.sleep(...)
+          - pattern: runBlocking { ... }
+          - pattern: runBlocking(...) { ... }
+          - patterns:
+              - pattern: File($P).$IO(...)
+              - metavariable-regex:
+                  metavariable: $IO
+                  regex: ^(readText|readBytes|readLines|writeText|writeBytes|appendText)$
+
+  - id: bpm-perf-kt-formatter-in-loop
+    languages: [kotlin]
+    severity: INFO
+    message: >-
+      A date formatter built inside a loop. Parsing the pattern is the
+      expensive part and it never changes between iterations: build the
+      formatter once, outside the loop (a DateTimeFormatter is immutable and
+      safe to share).
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Literal patterns only: a pattern built from loop data has to be
+        parsed per iteration.
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              for ($X in $XS) { ... }
+          - pattern-inside: |
+              while ($COND) { ... }
+          - pattern-inside: |
+              $C.forEach { ... }
+          - pattern-inside: |
+              $C.map { ... }
+      - pattern-either:
+          - pattern: SimpleDateFormat("...")
+          - pattern: SimpleDateFormat("...", $LOCALE)
+          - pattern: DateTimeFormatter.ofPattern("...")
+          - pattern: DateTimeFormatter.ofPattern("...", $LOCALE)

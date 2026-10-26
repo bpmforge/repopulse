@@ -1,5 +1,8 @@
 package com.example.reports
 
+import java.io.File
+import java.text.SimpleDateFormat
+
 class Reports(private val userRepository: UserRepository) {
     fun owners(ids: List<Long>) {
         for (id in ids) {
@@ -27,6 +30,22 @@ class Reports(private val userRepository: UserRepository) {
         for (cell in cells) {
             // ruleid: bpm-perf-kt-string-concat-in-loop
             out += "$cell,"
+        }
+        return out
+    }
+
+    suspend fun settings(path: String): String {
+        // ruleid: bpm-perf-kt-blocking-in-suspend
+        Thread.sleep(50)
+        // ruleid: bpm-perf-kt-blocking-in-suspend
+        return File(path).readText()
+    }
+
+    fun stamps(times: List<Long>): List<String> {
+        val out = mutableListOf<String>()
+        for (t in times) {
+            // ruleid: bpm-perf-kt-formatter-in-loop
+            out.add(SimpleDateFormat("yyyy-MM-dd").format(t))
         }
         return out
     }

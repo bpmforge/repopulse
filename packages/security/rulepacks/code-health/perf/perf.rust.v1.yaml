@@ -27,6 +27,11 @@ rules:
         compiled per iteration, and one built from a loop-invariant variable
         cannot be told apart from it without dataflow.
     patterns:
+      # Test code is not on anyone's hot path: `mod tests`, and any mod, fn or
+      # impl under a test attribute (TEST REGIONS in anti-slop.rust.v1.yaml).
+      - pattern-not-inside: |
+          mod tests { ... }
+      - pattern-not-regex: (?ms)^([ \t]*)#\[(?:cfg\([^\n]*(?<!not\()\btest\b[^\n]*\)|(?:[\w:]+::)?test\b[^\n]*)\][ \t]*\n(?:[ \t]*#\[[^\n]*\n)*[ \t]*(?:pub(?:\([^)\n]*\))?\s+)?(?:async\s+)?(?:mod|fn|impl)\b[^;{]*\{.*?^\1\}
       # `while ... { }` rather than `while $C { }`: with a metavariable in the
       # condition, semgrep 1.181 raises an internal matching error on some
       # files (NoTokenLocation), which reaches the scan as a tool error.
@@ -63,6 +68,11 @@ rules:
         owned value, and telling a cheap clone (an Arc) from an expensive one
         needs types.
     patterns:
+      # Test code is not on anyone's hot path: `mod tests`, and any mod, fn or
+      # impl under a test attribute (TEST REGIONS in anti-slop.rust.v1.yaml).
+      - pattern-not-inside: |
+          mod tests { ... }
+      - pattern-not-regex: (?ms)^([ \t]*)#\[(?:cfg\([^\n]*(?<!not\()\btest\b[^\n]*\)|(?:[\w:]+::)?test\b[^\n]*)\][ \t]*\n(?:[ \t]*#\[[^\n]*\n)*[ \t]*(?:pub(?:\([^)\n]*\))?\s+)?(?:async\s+)?(?:mod|fn|impl)\b[^;{]*\{.*?^\1\}
       - pattern-either:
           - pattern-inside: |
               for $P in $C.iter() { ... }
@@ -95,7 +105,191 @@ rules:
         borrow before mutating the source, or to reverse an iterator that is
         not double-ended, is the common reason to write it, and both are
         correct.
-    pattern-either:
-      - pattern: $X.collect::<Vec<$T>>().iter()
-      - pattern: $X.collect::<Vec<$T>>().len()
-      - pattern: $X.collect::<Vec<$T>>().is_empty()
+    patterns:
+      # Test code is not on anyone's hot path: `mod tests`, and any mod, fn or
+      # impl under a test attribute (TEST REGIONS in anti-slop.rust.v1.yaml).
+      - pattern-not-inside: |
+          mod tests { ... }
+      - pattern-not-regex: (?ms)^([ \t]*)#\[(?:cfg\([^\n]*(?<!not\()\btest\b[^\n]*\)|(?:[\w:]+::)?test\b[^\n]*)\][ \t]*\n(?:[ \t]*#\[[^\n]*\n)*[ \t]*(?:pub(?:\([^)\n]*\))?\s+)?(?:async\s+)?(?:mod|fn|impl)\b[^;{]*\{.*?^\1\}
+      - pattern-either:
+          - pattern: $X.collect::<Vec<$T>>().iter()
+          - pattern: $X.collect::<Vec<$T>>().len()
+          - pattern: $X.collect::<Vec<$T>>().is_empty()
+
+  - id: bpm-perf-rs-db-call-in-loop
+    languages: [rust]
+    severity: WARNING
+    message: >-
+      A database query awaited once per item of a loop. N items means N round
+      trips, each a full network wait, and the cost grows with data nobody
+      controls. Fetch the set in one query (`WHERE id = ANY($1)`) or batch the
+      writes.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        sqlx's fetch methods only, which no other common crate shares; a
+        Diesel or SeaORM query is not recognised. `for` loops only: a `loop`
+        or `while` that fetches page after page is cursor pagination, the
+        shape the W21-20 hand-check marked wrong in Java nine times in ten.
+    patterns:
+      # The body, not the header: the iterator expression after `in` runs once.
+      - patterns:
+          - pattern-inside: |
+              for $P in $I { $...BODY }
+          - focus-metavariable: $...BODY
+      # A literal list of statements, or a range with literal bounds, is not
+      # data-sized: `for sql in ["...", "..."]`, `for attempt in 0..10` (a
+      # retry). Both were hits on the 2026-10-26 measurement.
+      - metavariable-regex:
+          metavariable: $I
+          regex: ^(?!\[)(?!\d+\s*\.\.=?\s*\d+$)
+      # One query per chunk is the batched form, not the per-item one.
+      - pattern-not-inside: |
+          for $CP in $CI.chunks($N) { ... }
+      - pattern-not-inside: |
+          mod tests { ... }
+      # Any mod, fn or impl under a test attribute (TEST REGIONS in
+      # anti-slop.rust.v1.yaml): a metavariable cannot name a module.
+      - pattern-not-regex: (?ms)^([ \t]*)#\[(?:cfg\([^\n]*(?<!not\()\btest\b[^\n]*\)|(?:[\w:]+::)?test\b[^\n]*)\][ \t]*\n(?:[ \t]*#\[[^\n]*\n)*[ \t]*(?:pub(?:\([^)\n]*\))?\s+)?(?:async\s+)?(?:mod|fn|impl)\b[^;{]*\{.*?^\1\}
+      # Spelled out rather than one `$Q.$M(...)` with a metavariable-regex:
+      # opengrep 1.25 reports that form twice per location next to the
+      # pattern-not-inside above.
+      - pattern-either:
+          - pattern: $Q.fetch_one($EXEC).await
+          - pattern: $Q.fetch_all($EXEC).await
+          - pattern: $Q.fetch_optional($EXEC).await
+
+  - id: bpm-perf-rs-blocking-in-async
+    languages: [rust]
+    severity: WARNING
+    message: >-
+      A blocking call inside async code. It parks the executor thread, so
+      every other task scheduled on it waits too. Use the async equivalent
+      (tokio::fs, tokio::time::sleep) or move the work to spawn_blocking.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        std::fs and std::thread::sleep only, by path; a `use std::fs` import
+        is followed. Blocking inside a library the async code calls is not
+        visible here.
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              async fn $F(...) -> $R { ... }
+          - pattern-inside: |
+              async fn $F(...) { ... }
+          - pattern-inside: |
+              async move { ... }
+          - pattern-inside: |
+              async { ... }
+      # The fix this rule asks for, and test bodies, which run on a test
+      # runtime with nothing else waiting.
+      - pattern-not-inside: $X::spawn_blocking(...)
+      - pattern-not-inside: spawn_blocking(...)
+      - pattern-not-inside: $X::block_in_place(...)
+      - pattern-not-inside: block_in_place(...)
+      - pattern-not-inside: |
+          mod tests { ... }
+      # Any mod, fn or impl under a test attribute (TEST REGIONS in
+      # anti-slop.rust.v1.yaml): a metavariable cannot name a module.
+      - pattern-not-regex: (?ms)^([ \t]*)#\[(?:cfg\([^\n]*(?<!not\()\btest\b[^\n]*\)|(?:[\w:]+::)?test\b[^\n]*)\][ \t]*\n(?:[ \t]*#\[[^\n]*\n)*[ \t]*(?:pub(?:\([^)\n]*\))?\s+)?(?:async\s+)?(?:mod|fn|impl)\b[^;{]*\{.*?^\1\}
+      - pattern-either:
+          - pattern: std::thread::sleep(...)
+          - pattern: std::fs::$IO(...)
+          - pattern: std::fs::File::open(...)
+          - pattern: std::fs::File::create(...)
+
+  - id: bpm-perf-rs-remove-front-in-loop
+    languages: [rust]
+    severity: INFO
+    message: >-
+      Removing or inserting at the front of a Vec inside a loop. Each call
+      shifts every remaining element, so draining a Vec this way is O(n²).
+      A VecDeque pops from the front in O(1); or iterate and drain once.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Without types, a VecDeque's remove(0) (which is cheap) looks the same
+        as a Vec's.
+    patterns:
+      # Test code is not on anyone's hot path: `mod tests`, and any mod, fn or
+      # impl under a test attribute (TEST REGIONS in anti-slop.rust.v1.yaml).
+      - pattern-not-inside: |
+          mod tests { ... }
+      - pattern-not-regex: (?ms)^([ \t]*)#\[(?:cfg\([^\n]*(?<!not\()\btest\b[^\n]*\)|(?:[\w:]+::)?test\b[^\n]*)\][ \t]*\n(?:[ \t]*#\[[^\n]*\n)*[ \t]*(?:pub(?:\([^)\n]*\))?\s+)?(?:async\s+)?(?:mod|fn|impl)\b[^;{]*\{.*?^\1\}
+      - pattern-either:
+          - pattern-inside: |
+              for $P in $I { ... }
+          - pattern-inside: |
+              while ... { ... }
+          - pattern-inside: |
+              loop { ... }
+      - pattern-either:
+          - pattern: $V.remove(0)
+          - pattern: $V.insert(0, $X)
+      # A Vec created inside the loop body is fresh each pass, with a few
+      # entries: one shift of a short list, not a drain (2 of 4 hits on the
+      # 2026-10-26 measurement; the string-concat lesson of W21-20).
+      - pattern-not-inside: |
+          for $FP in $FI {
+              ...
+              let mut $V = $INIT;
+              ...
+          }
+      - pattern-not-inside: |
+          while ... {
+              ...
+              let mut $V = $INIT;
+              ...
+          }
+
+  - id: bpm-perf-rs-find-in-loop
+    languages: [rust]
+    severity: INFO
+    message: >-
+      A linear search of one collection for every item of another. That is
+      O(n·m): build a HashMap or HashSet keyed by what is searched for, once,
+      before the loop.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Fires whatever the searched collection's size; a handful of fixed
+        entries is not worth a map, and only a literal array is recognised as
+        one.
+    patterns:
+      # Test code is not on anyone's hot path: `mod tests`, and any mod, fn or
+      # impl under a test attribute (TEST REGIONS in anti-slop.rust.v1.yaml).
+      - pattern-not-inside: |
+          mod tests { ... }
+      - pattern-not-regex: (?ms)^([ \t]*)#\[(?:cfg\([^\n]*(?<!not\()\btest\b[^\n]*\)|(?:[\w:]+::)?test\b[^\n]*)\][ \t]*\n(?:[ \t]*#\[[^\n]*\n)*[ \t]*(?:pub(?:\([^)\n]*\))?\s+)?(?:async\s+)?(?:mod|fn|impl)\b[^;{]*\{.*?^\1\}
+      # The body, not the header: the iterator expression after `in` runs once.
+      - patterns:
+          - pattern-inside: |
+              for $P in $I { $...BODY }
+          - focus-metavariable: $...BODY
+      - pattern-either:
+          - pattern: $V.iter().any(...)
+          - pattern: $V.iter().find(...)
+          - pattern: $V.iter().position(...)
+      # A literal list of constants is small by construction.
+      - pattern-not: '[...].iter().$M(...)'
+      # A collection that belongs to the loop's own item (`row.content.iter()
+      # .any(..)`) is searched once per item, not joined against: the
+      # commonest wrong hit on the 2026-10-26 measurement. So is a loop with
+      # literal bounds (`for attempt in 1..=3`), which is not data-sized.
+      - pattern-not: $P.$F.iter().$M(...)
+      - metavariable-regex:
+          metavariable: $I
+          regex: ^(?!\d+\s*\.\.=?\s*\d+$)
