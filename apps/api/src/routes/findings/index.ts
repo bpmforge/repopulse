@@ -266,6 +266,12 @@ function findingsQuery(db: Database) {
         dismissReason: read.findings.dismissReason,
         occurrenceCount: read.findings.occurrenceCount,
         verifyStatus: read.findings.verifyStatus,
+        // W21-03: the second model's verdict, when one was had, and its reason
+        // (or why none could be had).
+        secondModel: read.findings.verifiedByModel,
+        secondConnection: read.findings.verifiedByConnection,
+        secondAt: read.findings.verifiedAt,
+        verifyReason: read.findings.verifyReason,
         firstSeenAt: read.findings.firstSeenAt,
         lastSeenAt: read.findings.lastSeenAt,
         tier: read.findings.tier,
@@ -393,15 +399,12 @@ function toFinding(r: FindingRow) {
     found_by: foundByOf(r),
     // W20-25 (UX_TODO X-10): which of the customer's AI models judged it, on
     // which connection, and what it said. Null when no model has.
-    verified_by:
-      r.verifiedModel === null || r.verifiedModel === undefined
-        ? null
-        : {
-            model: r.verifiedModel,
-            connection: r.verifiedConnection ?? null,
-            verdict: r.verifiedVerdict ?? null,
-            at: r.verifiedAt === null ? null : new Date(r.verifiedAt).toISOString(),
-          },
+    // W21-03: or the second model's verify verdict (confirmed / contradicted),
+    // whichever is newer.
+    verified_by: verifiedByOf(r),
+    // W21-03: the second model's reason for its verdict, or why no second
+    // opinion could be had. Null when no verify step has run.
+    verify_reason: r.verifyReason ?? null,
     // W20-18 (UX_TODO X-08): the tracker issue (Jira, Linear, ...) someone
     // linked, http(s) only; null when nobody has.
     external_ticket_url: r.externalTicketUrl,
@@ -498,6 +501,46 @@ export type FoundBy =
   | { kind: 'model'; model: string }
   | { kind: 'scanner'; scanner: string; version: string | null }
   | { kind: 'unknown' };
+
+/**
+ * Which AI model judged a finding (W20-25), now including the second-model
+ * verify (W21-03): the newer of the newest triage answer and the verify
+ * verdict. A verify verdict reads 'confirmed' or 'contradicted'; a
+ * contradiction marks the finding and never changes its status.
+ */
+export function verifiedByOf(r: {
+  verifiedModel?: string | null;
+  verifiedConnection?: string | null;
+  verifiedVerdict?: string | null;
+  verifiedAt?: string | Date | null;
+  secondModel: string | null;
+  secondConnection: string | null;
+  secondAt: Date | null;
+  verifyStatus: string;
+}): { model: string; connection: string | null; verdict: string | null; at: string | null } | null {
+  const triageAt = r.verifiedAt ? new Date(r.verifiedAt) : null;
+  const triage =
+    r.verifiedModel === null || r.verifiedModel === undefined
+      ? null
+      : {
+          model: r.verifiedModel,
+          connection: r.verifiedConnection ?? null,
+          verdict: r.verifiedVerdict ?? null,
+          at: triageAt ? triageAt.toISOString() : null,
+        };
+  const second =
+    r.secondModel === null || r.verifyStatus === 'unverified'
+      ? null
+      : {
+          model: r.secondModel,
+          connection: r.secondConnection,
+          verdict: r.verifyStatus,
+          at: r.secondAt ? r.secondAt.toISOString() : null,
+        };
+  if (!second) return triage;
+  if (!triage) return second;
+  return (r.secondAt?.getTime() ?? 0) >= (triageAt?.getTime() ?? 0) ? second : triage;
+}
 
 function foundByOf(r: FindingRow): FoundBy {
   const ext = externalOf(r);

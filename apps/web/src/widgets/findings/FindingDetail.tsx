@@ -213,6 +213,9 @@ export function FindingDetail({
           {verifiedByText(finding.verified_by) ? (
             <span data-testid="finding-verified-by">{verifiedByText(finding.verified_by)}</span>
           ) : null}
+          {finding.verify_reason ? (
+            <span data-testid="finding-verify-reason">Second opinion: {finding.verify_reason}</span>
+          ) : null}
           {/* The status, from the server's copy of the finding — never from
               the button that was just pressed (W17-23). */}
           <span data-testid="finding-status">

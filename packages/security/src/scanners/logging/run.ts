@@ -7,9 +7,11 @@ import {
   validateFindings,
   FindingParseError,
   needsVerification,
-  verdictToStatus,
+  findingVerdict,
+  excerptAround,
   type AnalysisGateway,
   type DiffFile,
+  type SecondModelVerify,
 } from '@repopulse/analysis';
 import { repoContextFor } from '../context/repo-context.js';
 import { buildChecklistPrompt, loadChecklist } from '../owasp/checklist.js';
@@ -138,11 +140,8 @@ export interface LoggingRunDeps {
   trigger?: 'pr_synced' | 'schedule' | 'manual';
   pullRequestId?: number | null;
   excludedGlobs?: readonly string[];
-  verify?: (finding: {
-    title: string;
-    evidenceQuote: string;
-    file: string;
-  }) => Promise<{ refuted: boolean; reason: string }>;
+  /** Second-model verify (W21-03). A refutation marks a finding; it is still stored. */
+  verify?: SecondModelVerify;
   checklistDir?: string;
 }
 
@@ -292,16 +291,23 @@ export async function runLoggingScan(deps: LoggingRunDeps): Promise<LoggingRunRe
         }
         // Same verify gate as every other judgement layer (FR-ANALYSIS-9):
         // "this log line is inadequate" is an opinion about someone's code.
+        // W21-03: a refuted finding is stored, marked contradicted, never
+        // dropped — a model may not dismiss what another raised.
+        let verdict: ReturnType<typeof findingVerdict> | undefined;
         if (deps.verify && needsVerification(finding.severity)) {
-          const verdict = await deps.verify({
-            title: finding.title,
-            evidenceQuote: finding.evidence_quote,
-            file: finding.file,
-          });
-          if (verdictToStatus(verdict) === 'contradicted') {
-            refuted += 1;
-            continue;
-          }
+          verdict = findingVerdict(
+            await deps.verify({
+              title: finding.title,
+              evidenceQuote: finding.evidence_quote,
+              file: finding.file,
+              severity: finding.severity,
+              dimension: 'logging',
+              rationale: finding.rationale,
+              excerpt: excerptAround(chunk.text, { quote: finding.evidence_quote }),
+              finder: { providerId: result.route?.providerId ?? null, model: result.model },
+            }),
+          );
+          if (verdict.status === 'contradicted') refuted += 1;
         }
 
         judgment += 1;
@@ -325,6 +331,7 @@ export async function runLoggingScan(deps: LoggingRunDeps): Promise<LoggingRunRe
             finding.yields.length > 0
               ? Object.fromEntries(finding.yields.map((y) => [y, true]))
               : null,
+          ...(verdict ? { verify: verdict } : {}),
         });
       }
     }

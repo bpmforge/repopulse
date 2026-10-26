@@ -24,6 +24,7 @@ import { plansVerifyProcessor } from './plans-processor.js';
 import { scanProcessor } from './scan-processor.js';
 import { patchProcessor } from './patch-processor.js';
 import { aiPassProcessor } from './ai-pass-processor.js';
+import { createSecondModelVerifier, cveVerifyHook } from './second-model.js';
 import { snapshotSources } from './ai-pass-sources.js';
 import { forgeDiffSources } from './ai-pass-diff.js';
 import { SCHEDULER_TICK_MS, runScheduleTick } from './ai-pass-scheduler.js';
@@ -124,6 +125,25 @@ async function main(): Promise<void> {
   // have analysed on the first one's model, or silently got none at all while
   // its own configured provider sat there enabled.
   const gateways = createGatewayResolver(db, process.env, credentials.loadTokenKey());
+
+  // W21-03: a second-model verifier for one scan run of one repository. The
+  // pinned gateway is built fresh per connection (as a second opinion's is),
+  // so a just-edited connection is what is used; its calls go on the monthly
+  // cap through the analysis_runs verify row finish() writes.
+  const secondModelFor = (
+    workspaceId: number,
+    repoId: number,
+    hosts: Parameters<typeof createSecondModelVerifier>[0]['hosts'],
+  ) =>
+    createSecondModelVerifier({
+      db,
+      workspaceId,
+      repoId,
+      hosts,
+      ledger: 'own',
+      pinned: (pin) =>
+        buildWorkerGateway(db, process.env, credentials.loadTokenKey(), workspaceId, pin),
+    });
 
   // The boot line still reports the DEFAULT workspace, because that is the one
   // an operator setting this up has, and "which hosts answer" is worth saying
@@ -517,6 +537,12 @@ async function main(): Promise<void> {
             if (!head?.sha) {
               return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_head_sha' };
             }
+            // W21-03: V5, the second opinion on the run's top CVEs, on a
+            // connection the decisions allow (see second-model.ts). AI off,
+            // no usable connection or no calls left: nobody is asked.
+            const cveGateway = (await isAiPaused(db, workspaceId))
+              ? null
+              : await gateways.for(workspaceId);
             const result = await runDependencyScan({
               db,
               provider: resolved.provider,
@@ -524,6 +550,16 @@ async function main(): Promise<void> {
               repoId,
               repo: resolved.repoFullName,
               commitSha: head.sha,
+              ...(cveGateway
+                ? {
+                    verifyCves: cveVerifyHook({
+                      db,
+                      workspaceId,
+                      repoId,
+                      verifier: secondModelFor(workspaceId, repoId, cveGateway.hosts),
+                    }),
+                  }
+                : {}),
             });
             return {
               scanned: result.status === 'succeeded' ? 1 : 0,
@@ -603,40 +639,55 @@ async function main(): Promise<void> {
               },
               async (snapshot) => {
                 const sources = readSnapshotSources(snapshot.dir);
-                const [slop, logging] = [
-                  await runAntiSlopScan({
-                    db,
-                    workspaceId,
-                    repoId,
-                    commitSha: head.sha,
-                    files: [],
-                    sources: sources.files,
-                    sourcesComplete: !sources.truncated && sources.skipped === 0,
-                    snapshotDir: snapshot.dir,
-                    // W18-30. The pack's eight bpm-ch-* rules, on the tree the
-                    // logging scanner already runs over. Each scanner loads only
-                    // its own pack files, so this is no second pass over the
-                    // same rules — it is the first pass over these ones.
-                    targetDir: snapshot.dir,
-                    trigger: 'schedule',
-                    // THE JUDGEMENT HALF, finally reachable. It was written,
-                    // tested against a stub and shipped with no gateway to
-                    // call — `deps.gateway ? ... : { chunks: [] }` meant every
-                    // scheduled run reported judgment: 0 and nobody noticed,
-                    // because that is also what a clean repository looks like.
-                    ...(analysisGateway ? { gateway: analysisGateway.gateway } : {}),
-                  }),
-                  await runLoggingScan({
-                    db,
-                    workspaceId,
-                    repoId,
-                    commitSha: head.sha,
-                    files: [],
-                    targetDir: snapshot.dir,
-                    trigger: 'schedule',
-                    ...(analysisGateway ? { gateway: analysisGateway.gateway } : {}),
-                  }),
-                ];
+                // W21-03: the second opinion on what the judgement halves
+                // raise, on a different connection from the one that raised
+                // it. Its calls are recorded on the monthly cap below.
+                const verifier = analysisGateway
+                  ? secondModelFor(workspaceId, repoId, analysisGateway.hosts)
+                  : null;
+                let slop: Awaited<ReturnType<typeof runAntiSlopScan>>;
+                let logging: Awaited<ReturnType<typeof runLoggingScan>>;
+                try {
+                  [slop, logging] = [
+                    await runAntiSlopScan({
+                      db,
+                      workspaceId,
+                      repoId,
+                      commitSha: head.sha,
+                      files: [],
+                      sources: sources.files,
+                      sourcesComplete: !sources.truncated && sources.skipped === 0,
+                      snapshotDir: snapshot.dir,
+                      // W18-30. The pack's eight bpm-ch-* rules, on the tree the
+                      // logging scanner already runs over. Each scanner loads only
+                      // its own pack files, so this is no second pass over the
+                      // same rules — it is the first pass over these ones.
+                      targetDir: snapshot.dir,
+                      trigger: 'schedule',
+                      // THE JUDGEMENT HALF, finally reachable. It was written,
+                      // tested against a stub and shipped with no gateway to
+                      // call — `deps.gateway ? ... : { chunks: [] }` meant every
+                      // scheduled run reported judgment: 0 and nobody noticed,
+                      // because that is also what a clean repository looks like.
+                      ...(analysisGateway ? { gateway: analysisGateway.gateway } : {}),
+                      ...(verifier ? { verify: verifier.verify } : {}),
+                    }),
+                    await runLoggingScan({
+                      db,
+                      workspaceId,
+                      repoId,
+                      commitSha: head.sha,
+                      files: [],
+                      targetDir: snapshot.dir,
+                      trigger: 'schedule',
+                      ...(analysisGateway ? { gateway: analysisGateway.gateway } : {}),
+                      ...(verifier ? { verify: verifier.verify } : {}),
+                    }),
+                  ];
+                } finally {
+                  // Calls made before a throw still go on the cap.
+                  await verifier?.finish();
+                }
                 // W18-22. The ONE recorded trace of files the reader skipped
                 // (over the size limit, or past the read cap): the run that
                 // read the tree is marked partial, which the coverage map
@@ -1057,6 +1108,20 @@ async function main(): Promise<void> {
           );
           return built ? { gateway: built.gateway, hosts: built.hosts } : null;
         },
+        // W21-03: the pass's own findings get a second model's verdict, inside
+        // the pass's call cap and counted on its row (not a separate ledger).
+        verifierFor: ({ workspaceId, repoId, hosts, maxCalls, wrap }) =>
+          createSecondModelVerifier({
+            db,
+            workspaceId,
+            repoId,
+            hosts,
+            ledger: 'caller',
+            maxCalls,
+            wrap,
+            pinned: (pin) =>
+              buildWorkerGateway(db, process.env, credentials.loadTokenKey(), workspaceId, pin),
+          }),
       }),
     },
     // Structured, so an aggregator can alert on it: this is the callback that

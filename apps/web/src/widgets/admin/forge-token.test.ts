@@ -41,4 +41,13 @@ describe('verifiedByText (X-10)', () => {
     expect(verifiedByText(null)).toBeNull();
     expect(verifiedByText(undefined)).toBeNull();
   });
+
+  it('W21-03: states a second-model verdict, a contradiction as left open', () => {
+    expect(
+      verifiedByText({ model: 'judge-b', connection: 'Box B', verdict: 'contradicted', at: null }),
+    ).toBe('verified by judge-b (Box B): contradicted, left open for a person to decide');
+    expect(
+      verifiedByText({ model: 'judge-b', connection: null, verdict: 'confirmed', at: null }),
+    ).toBe('verified by judge-b: confirmed');
+  });
 });

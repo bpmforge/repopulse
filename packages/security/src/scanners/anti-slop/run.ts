@@ -14,11 +14,12 @@ import {
   FindingParseError,
   mayBeSurfacedLoudly,
   needsVerification,
-  verdictToStatus,
+  findingVerdict,
   estimateTokens,
   PROMPT_BUDGET_TOKENS,
   type AnalysisGateway,
   type DiffFile,
+  type SecondModelVerify,
 } from '@repopulse/analysis';
 import { loadChecklist } from '../owasp/checklist.js';
 import { REPO_CONTEXT_MAX_TOKENS, repoContextForCandidates } from '../context/repo-context.js';
@@ -152,12 +153,12 @@ export interface AntiSlopDeps {
   pullRequestId?: number | null;
   /** Workspace override of SUPPRESSION_CEILING_PER_KLOC (W18-04). */
   suppressionCeiling?: number;
-  /** Runs a second, independent judgement. Absent = nothing is surfaced. */
-  verify?: (finding: {
-    title: string;
-    evidenceQuote: string;
-    file: string;
-  }) => Promise<{ refuted: boolean; reason: string }>;
+  /**
+   * Runs a second, independent judgement (W21-03). Absent = nothing is
+   * surfaced loudly. A refutation MARKS the finding contradicted; it is still
+   * stored, open, for a person to decide.
+   */
+  verify?: SecondModelVerify;
   checklistDir?: string;
 }
 
@@ -174,7 +175,7 @@ export interface AntiSlopResult {
   candidates: number;
   /** Candidates left unjudged by the per-run cap — reported, never silent. */
   candidatesCapped: number;
-  /** Judgement findings a verifier refuted — kept out, and counted. */
+  /** Judgement findings a verifier refuted — stored, marked contradicted, and counted. */
   refuted: number;
   /** Judgement findings nobody could verify: stored, never surfaced loudly. */
   unverified: number;
@@ -991,24 +992,28 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
         // model's opinion away from being an accusation about someone's code,
         // so it does not reach the store until an independent verifier has had
         // the chance to refute it.
-        let verifyStatus: 'unverified' | 'confirmed' | 'contradicted' = 'unverified';
+        //
+        // W21-03: a refuted finding is STORED, marked contradicted, never
+        // dropped: a model may not dismiss what another model raised. The
+        // contradiction lowers its price and keeps it off every loud surface
+        // (mayBeSurfacedLoudly); a person decides.
+        let verdict: ReturnType<typeof findingVerdict> | undefined;
         if (deps.verify && needsVerification(finding.severity)) {
-          const verdict = await deps.verify({
-            title: finding.title,
-            evidenceQuote: finding.evidence_quote,
-            file: finding.file,
-          });
-          verifyStatus = verdictToStatus(verdict);
+          verdict = findingVerdict(
+            await deps.verify({
+              title: finding.title,
+              evidenceQuote: finding.evidence_quote,
+              file: finding.file,
+              severity: finding.severity,
+              dimension: candidate.dimension,
+              rationale: finding.rationale,
+              excerpt: candidate.excerpt.text,
+              finder: { providerId: result.route?.providerId ?? null, model: result.model },
+            }),
+          );
         }
-
-        if (verifyStatus === 'contradicted') {
-          // Dropped entirely, not stored quietly: a refuted structural claim
-          // is one the product got wrong, and keeping it in a list "for
-          // reference" is how a triage queue fills with things nobody trusts.
-          refuted += 1;
-          continue;
-        }
-        if (verifyStatus === 'unverified') unverified += 1;
+        if (verdict?.status === 'contradicted') refuted += 1;
+        if (!verdict || verdict.status === 'unverified') unverified += 1;
 
         judgment += 1;
         findings.push({
@@ -1030,6 +1035,7 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
           scannerKey: ANTI_SLOP_SCANNER_KEY,
           ruleId: 'slop.judgment',
           yields: null,
+          ...(verdict ? { verify: verdict } : {}),
         });
       }
     }

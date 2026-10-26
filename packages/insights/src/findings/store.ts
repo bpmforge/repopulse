@@ -58,6 +58,48 @@ export interface IncomingFinding {
    * manifest lines above it change.
    */
   fingerprint?: string | null;
+  /**
+   * W21-03: a second model's verdict on this finding, when one was asked for.
+   * Absent = no verify step ran and an existing row keeps what it has. A
+   * contradicting verdict MARKS the finding (verify_status); it never changes
+   * its status, so nothing is dismissed by a model.
+   */
+  verify?: FindingVerify;
+}
+
+/** What a second opinion records on a finding (W21-03). */
+export interface FindingVerify {
+  status: 'unverified' | 'confirmed' | 'contradicted';
+  model: string | null;
+  providerId: number | null;
+  connection: string | null;
+  /** The verifier's reason, or why no second opinion could be had. */
+  reason: string | null;
+}
+
+/**
+ * The columns a verdict writes. An `unverified` outcome (no second opinion
+ * could be had) sets only its reason, and only over a finding that has no real
+ * verdict yet: a later run that could not ask must not erase an earlier answer.
+ */
+function verifyColumns(
+  v: FindingVerify,
+  now: Date,
+  priorStatus: string | null,
+): Partial<typeof read.findings.$inferInsert> {
+  if (v.status === 'unverified') {
+    return priorStatus === null || priorStatus === 'unverified'
+      ? { verifyReason: v.reason?.slice(0, 1000) ?? null }
+      : {};
+  }
+  return {
+    verifyStatus: v.status,
+    verifiedByModel: v.model,
+    verifiedByProviderId: v.providerId,
+    verifiedByConnection: v.connection,
+    verifiedAt: now,
+    verifyReason: v.reason?.slice(0, 1000) ?? null,
+  };
 }
 
 export interface PersistParams {
@@ -221,6 +263,9 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
       lineStart: minDefined(prior.finding.lineStart, entry.finding.lineStart),
       lineEnd: maxDefined(prior.finding.lineEnd, entry.finding.lineEnd),
       suggestedFix: prior.finding.suggestedFix ?? entry.finding.suggestedFix,
+      ...(prior.finding.verify || entry.finding.verify
+        ? { verify: prior.finding.verify ?? entry.finding.verify! }
+        : {}),
     };
   }
   const deduped = [...folded.values()];
@@ -273,6 +318,7 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
         experimental: finding.experimental ?? false,
         contextLines: finding.context?.lines ?? null,
         contextStartLine: finding.context?.startLine ?? null,
+        ...(finding.verify ? verifyColumns(finding.verify, now, null) : {}),
         dedupKey: key,
         status: 'open',
         firstSeenAt: now,
@@ -335,6 +381,7 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
               evidence: finding.evidenceQuote,
             }
           : {}),
+        ...(finding.verify ? verifyColumns(finding.verify, now, prior.verifyStatus) : {}),
       })
       .where(eq(read.findings.id, prior.id));
     result.updated += 1;
@@ -441,6 +488,39 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
   });
 
   return result;
+}
+
+/**
+ * Records second-model verdicts on findings already stored (W21-03), by dedup
+ * key. Workspace- and repo-filtered (Law 5). Never touches status: a
+ * contradicted finding stays open for a person to decide.
+ */
+export async function recordVerdicts(
+  db: Database,
+  params: {
+    workspaceId: number;
+    repoId: number;
+    verdicts: readonly { dedupKey: string; verify: FindingVerify }[];
+  },
+): Promise<{ recorded: number }> {
+  const now = new Date();
+  let recorded = 0;
+  for (const { dedupKey: key, verify } of params.verdicts) {
+    const where = and(
+      eq(read.findings.workspaceId, params.workspaceId),
+      eq(read.findings.repoId, params.repoId),
+      eq(read.findings.dedupKey, key),
+      ...(verify.status === 'unverified' ? [eq(read.findings.verifyStatus, 'unverified')] : []),
+    );
+    const cols = verifyColumns(verify, now, null);
+    const rows = await db
+      .update(read.findings)
+      .set(cols)
+      .where(where)
+      .returning({ id: read.findings.id });
+    recorded += rows.length;
+  }
+  return { recorded };
 }
 
 /** Open-finding counts per file, for hotspot ranking (FR-INSIGHTS-5). */

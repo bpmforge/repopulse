@@ -3,15 +3,19 @@ import type { Job } from 'bullmq';
 import { core, read, safeErrorText, type Database } from '@repopulse/shared';
 import {
   contextWindowForRole,
+  excerptAround,
+  findingVerdict,
+  needsVerification,
   runSpecialists,
   specialistById,
   type AnalysisGateway,
   type LlmRole,
   type RoutingPolicy,
   type SpecialistId,
+  type SecondModelVerify,
   type T2Host,
 } from '@repopulse/analysis';
-import { dedupKey, persistFindings } from '@repopulse/insights';
+import { dedupKey, persistFindings, recordVerdicts, type FindingVerify } from '@repopulse/insights';
 import { TRIAGE_TOP_N, runTriage, type TriageCandidate } from '@repopulse/security';
 import { overlaps, rangesByFile, type DiffRequest, type LoadedDiff } from './ai-pass-diff.js';
 import { isAiPaused } from '../lib/ai-pause.js';
@@ -86,6 +90,18 @@ export interface AiPassDeps {
     workspaceId: number,
     pin: { providerId: number; model: string },
   ) => Promise<{ gateway: AnalysisGateway; hosts: T2Host[] } | null>;
+  /**
+   * W21-03: a second-model verifier for this pass's own findings, limited to
+   * the calls the pass has left and counted on its row (`wrap` is the pass's
+   * cancel check and call counter). Absent = no verify step on this server.
+   */
+  verifierFor?: (args: {
+    workspaceId: number;
+    repoId: number;
+    hosts: T2Host[];
+    maxCalls: number;
+    wrap: (g: AnalysisGateway) => AnalysisGateway;
+  }) => { verify: SecondModelVerify; calls(): number };
   maxCalls?: number;
   now?: () => Date;
 }
@@ -125,8 +141,10 @@ export function trackPassGateway(
   inner: AnalysisGateway,
   db: Database,
   ids: { workspaceId: number; runId: number },
+  /** Calls the pass already made through another tracker (W21-03 verify step). */
+  startAt = 0,
 ): AnalysisGateway {
-  let calls = 0;
+  let calls = startAt;
   const where = and(
     eq(read.aiPassRuns.id, ids.runId),
     eq(read.aiPassRuns.workspaceId, ids.workspaceId),
@@ -446,6 +464,28 @@ export function aiPassProcessor(deps: AiPassDeps) {
         diffRanges,
       });
 
+      // 4. W21-03: a second model's verdict on what the specialists raised
+      // (severity 3 and up), with the calls the pass has left. A contradiction
+      // MARKS a finding; it is never dismissed by a model.
+      const fileText = new Map<string, string>(
+        input.kind === 'diff'
+          ? input.files.map((f) => [f.path, stripPatchPrefix(f.patch ?? '')])
+          : input.kind === 'module'
+            ? input.files.map((f) => [f.path, f.content])
+            : [],
+      );
+      const verify = await verifyStep({
+        deps,
+        wg,
+        run,
+        workspaceId,
+        runId,
+        callsSoFar: spec.calls + triage.calls,
+        maxCalls,
+        findings: spec.findings,
+        fileText,
+      });
+
       const planned = spec.plan.waves.flatMap((w) => w.specialists.map((s) => s.specialist.id));
       const summary = {
         waves: spec.plan.waves.map((w) => ({
@@ -477,10 +517,11 @@ export function aiPassProcessor(deps: AiPassDeps) {
           filesRead,
           ...(filesSkipped ? { filesSkipped } : {}),
           ...(unreadable.length > 0 ? { unreadable } : {}),
+          verify: verify.summary,
         },
         triageFunnel: triage.funnel as unknown as Record<string, unknown> | null,
         triageSkipped: triage.skipped,
-        calls: spec.calls + triage.calls,
+        calls: spec.calls + triage.calls + verify.calls,
         analysisRunIds,
         ...(nothingRelevant
           ? {
@@ -500,6 +541,94 @@ export function aiPassProcessor(deps: AiPassDeps) {
       return fail('error', safeErrorText(err), progress);
     }
   }
+}
+
+type SpecialistFinding = Awaited<ReturnType<typeof runSpecialists>>['findings'][number];
+
+/** What the verify step did, on the pass row (specialists.verify). */
+export interface PassVerifySummary {
+  asked: number;
+  confirmed: number;
+  contradicted: number;
+  /** Findings at or above the floor that got no second opinion, and the first reason why. */
+  unverified: number;
+  reason: string | null;
+}
+
+async function verifyStep(a: {
+  deps: AiPassDeps;
+  wg: { gateway: AnalysisGateway; hosts: T2Host[] };
+  run: typeof read.aiPassRuns.$inferSelect;
+  workspaceId: number;
+  runId: number;
+  callsSoFar: number;
+  maxCalls: number;
+  findings: readonly SpecialistFinding[];
+  fileText: ReadonlyMap<string, string>;
+}): Promise<{ summary: PassVerifySummary | null; calls: number }> {
+  const due = a.findings.filter((f) => needsVerification(f.severity));
+  if (!a.deps.verifierFor || due.length === 0) return { summary: null, calls: 0 };
+  const summary: PassVerifySummary = {
+    asked: 0,
+    confirmed: 0,
+    contradicted: 0,
+    unverified: 0,
+    reason: null,
+  };
+  const remaining = Math.max(0, a.maxCalls - a.callsSoFar);
+  const verifier = a.deps.verifierFor({
+    workspaceId: a.workspaceId,
+    repoId: a.run.repoId,
+    hosts: a.wg.hosts,
+    maxCalls: remaining,
+    wrap: (g) =>
+      trackPassGateway(g, a.deps.db, { workspaceId: a.workspaceId, runId: a.runId }, a.callsSoFar),
+  });
+  const verdicts: { dedupKey: string; verify: FindingVerify }[] = [];
+  for (const f of due) {
+    const evidenceQuote = stripPatchPrefix(f.evidence_quote);
+    const lineStart = Math.max(1, f.line_range[0]);
+    const before = verifier.calls();
+    const v = findingVerdict(
+      await verifier.verify({
+        title: f.title,
+        evidenceQuote,
+        file: f.file,
+        severity: f.severity,
+        dimension: f.dimension,
+        rationale: f.rationale,
+        excerpt: excerptAround(a.fileText.get(f.file) ?? evidenceQuote, {
+          quote: evidenceQuote,
+          line: lineStart,
+        }),
+        finder: { providerId: f.route?.providerId ?? null, model: f.model ?? null },
+      }),
+    );
+    if (verifier.calls() > before) summary.asked += 1;
+    if (v.status === 'confirmed') summary.confirmed += 1;
+    else if (v.status === 'contradicted') summary.contradicted += 1;
+    else {
+      summary.unverified += 1;
+      summary.reason ??= v.reason;
+    }
+    verdicts.push({
+      dedupKey: dedupKey({
+        dimension: f.dimension,
+        file: f.file,
+        evidenceQuote,
+        lineStart,
+        scannerKey: null,
+        ruleId: null,
+      }),
+      verify: v,
+    });
+  }
+  await recordVerdicts(a.deps.db, {
+    workspaceId: a.workspaceId,
+    repoId: a.run.repoId,
+    verdicts,
+  });
+  return { summary, calls: verifier.calls() };
 }
 
 async function triageStep(a: {

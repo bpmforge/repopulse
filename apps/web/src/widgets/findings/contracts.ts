@@ -71,6 +71,11 @@ export interface Finding {
   verified_by?: VerifiedBy | null;
   /** W6-05. 'unverified' is honest, not missing: nobody re-judged it. */
   verify_status: 'unverified' | 'confirmed' | 'contradicted';
+  /**
+   * W21-03: the second model's reason for its verdict, or why no second opinion
+   * could be had. Null when no verify step ran; optional for an older API.
+   */
+  verify_reason?: string | null;
   // W8-10 scanner delta. NULL on an analysis finding, and null rather than ''
   // so an absent rule id renders as nothing at all instead of a blank chip
   // that looks like a rendering bug.
@@ -240,6 +245,9 @@ const VERDICT_WORDS: Record<string, string> = {
   real: 'judged real',
   likely_false_positive: 'judged a likely false positive',
   needs_human: 'left for a person to judge',
+  // W21-03: the second-model verify. A contradiction marks, never dismisses.
+  confirmed: 'confirmed',
+  contradicted: 'contradicted, left open for a person to decide',
 };
 
 /**

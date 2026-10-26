@@ -26,6 +26,8 @@ import {
 } from './findings.js';
 import type { MatchFunnel } from './matches.js';
 import { runSlopsquatSnapshotScan, type SlopsquatResult } from '../slopsquat/run.js';
+import { candidatesFrom } from '../../validation/verify/select.js';
+import type { VerifyCandidate } from '../../validation/verify/types.js';
 
 // The dependency scanner, end to end (W8-06, SECURITY_SUITE.md §3.2, FR-SEC-5).
 //
@@ -77,6 +79,27 @@ export interface DependencyRunDeps {
   snapshot?: { dir: string; commitSha: string };
   /** The pull request a `pr_synced` run is for; stamped on what it creates. */
   pullRequestId?: number | null;
+  /**
+   * W21-03. The V5 second opinion on this run's CVEs, after they are stored
+   * and priced: the caller (the worker) owns which connection may be asked and
+   * how many calls are left this month. Never on a PR run. A failure here is
+   * reported on the result and never fails the scan.
+   */
+  verifyCves?: (args: {
+    candidates: VerifyCandidate[];
+    scanRunId: number;
+    commitSha: string;
+  }) => Promise<CveVerifySummary>;
+}
+
+/** What the V5 second opinion did on one run (W21-03). */
+export interface CveVerifySummary {
+  asked: number;
+  confirmed: number;
+  contradicted: number;
+  /** Why nobody was asked, when nobody was. */
+  refused?: string;
+  error?: string;
 }
 
 /**
@@ -137,6 +160,8 @@ export interface DependencyRunResult {
   /** Findings whose effective_risk this run wrote (V4). */
   findingsPriced: number;
   sbomStored: boolean;
+  /** W21-03: the second opinion on this run's CVEs, when one was wired. */
+  cveVerify?: CveVerifySummary;
   error?: string;
 }
 
@@ -332,6 +357,19 @@ export async function runDependencyScan(deps: DependencyRunDeps): Promise<Depend
       // W18-37: OpenSSF malicious packages. A hit is its own finding at
       // severity 5; a missing index is a stated note on the run, never a
       // silent "none found".
+      // W21-03: the V5 candidates are the VALIDATED vulnerabilities, index-
+      // aligned with their prices — taken before the malicious hits join the
+      // list, which have no vulnerability behind them.
+      let verifyCandidates: VerifyCandidate[] | null = null;
+      let cveVerify: CveVerifySummary | undefined;
+      if (deps.verifyCves && !prRun) {
+        try {
+          verifyCandidates = candidatesFrom(validation.vulnerabilities, mapped.priced);
+        } catch (err) {
+          cveVerify = { asked: 0, confirmed: 0, contradicted: 0, error: safeErrorText(err) };
+        }
+      }
+
       const malicious = loadMaliciousIndex();
       const maliciousHits = malicious.ok
         ? matchMalicious(packagesFromSbom(tools.document), malicious.index).map(maliciousFinding)
@@ -357,6 +395,18 @@ export async function runDependencyScan(deps: DependencyRunDeps): Promise<Depend
 
       const findingsPriced = await priceStoredFindings(deps, mapped.priced);
 
+      if (deps.verifyCves && verifyCandidates && verifyCandidates.length > 0) {
+        try {
+          cveVerify = await deps.verifyCves({
+            candidates: verifyCandidates,
+            scanRunId: runId,
+            commitSha: snapshot.commitSha,
+          });
+        } catch (err) {
+          cveVerify = { asked: 0, confirmed: 0, contradicted: 0, error: safeErrorText(err) };
+        }
+      }
+
       await closeRun(deps.db, runId, 'succeeded', mapped.findings.length, null, {
         ...tools.toolVersions,
         ...(reachability.toolVersion ? { govulncheck: reachability.toolVersion } : {}),
@@ -377,6 +427,7 @@ export async function runDependencyScan(deps: DependencyRunDeps): Promise<Depend
         findingsCreated: persisted.created,
         findingsTotal: mapped.findings.length,
         findingsPriced,
+        ...(cveVerify ? { cveVerify } : {}),
       };
     });
   } catch (err) {

@@ -99,7 +99,12 @@ export function monthStart(d: Date): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
 }
 
-/** Model calls this workspace's passes (manual and scheduled) have used this month. */
+/**
+ * Model calls this workspace has used this month: its passes (manual and
+ * scheduled), plus — W21-03, decision AI-14 — every second-model verify call,
+ * recorded as analysis_runs rows of pass_kind 'verify' (chunk_count = calls).
+ * Verify calls made inside an AI pass are on that pass's row, not here.
+ */
 export async function monthlyCallsUsed(
   db: Database,
   workspaceId: number,
@@ -114,7 +119,17 @@ export async function monthlyCallsUsed(
         gte(read.aiPassRuns.createdAt, monthStart(now)),
       ),
     );
-  return row?.n ?? 0;
+  const [verify] = await db
+    .select({ n: sql<number>`coalesce(sum(${read.analysisRuns.chunkCount}), 0)::int` })
+    .from(read.analysisRuns)
+    .where(
+      and(
+        eq(read.analysisRuns.workspaceId, workspaceId),
+        eq(read.analysisRuns.passKind, 'verify'),
+        gte(read.analysisRuns.startedAt, monthStart(now)),
+      ),
+    );
+  return (row?.n ?? 0) + (verify?.n ?? 0);
 }
 
 export async function monthlyCap(db: Database, workspaceId: number): Promise<number> {

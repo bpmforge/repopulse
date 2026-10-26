@@ -1119,6 +1119,59 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
     });
   });
 
+  it('W21-03: a second model judges what the specialists raised; a contradiction marks, never dismisses, and its calls count on the pass', async () => {
+    const runId = await newRun();
+    const asked: { finder: unknown; excerpt: string; maxCalls: number }[] = [];
+    let verifyCalls = 0;
+    const { d, gw } = deps({
+      verifierFor: ({ maxCalls }) => ({
+        verify: async (req) => {
+          verifyCalls += 1;
+          asked.push({ finder: req.finder, excerpt: req.excerpt, maxCalls });
+          return {
+            refuted: true,
+            reason: 'the id is validated upstream',
+            verifier: { model: 'judge-b', providerId: null, connection: 'Box B' },
+          };
+        },
+        calls: () => verifyCalls,
+      }),
+    });
+    const result = await aiPassProcessor(d)(job(runId));
+    expect(result.status).toBe('succeeded');
+    expect(verifyCalls).toBeGreaterThan(0);
+    // Told who raised it (so it is someone else) and shown the code.
+    expect(asked[0]!.finder).toEqual({ providerId: 1, model: 'scripted-model' });
+    expect(asked[0]!.excerpt).toContain('db.query');
+    // Only the calls the pass had left.
+    expect(asked[0]!.maxCalls).toBeLessThanOrEqual(30 - gw.calls.length);
+
+    const run = await runOf(runId);
+    expect(run.calls).toBe(gw.calls.length + verifyCalls);
+    expect((run.specialists as { verify: unknown }).verify).toMatchObject({
+      asked: verifyCalls,
+      contradicted: verifyCalls,
+      confirmed: 0,
+    });
+
+    const [mine] = await db
+      .select()
+      .from(read.findings)
+      .where(
+        and(
+          eq(read.findings.workspaceId, WS),
+          eq(read.findings.title, 'security: SQL built from a parameter'),
+        ),
+      );
+    expect(mine).toMatchObject({
+      status: 'open',
+      verifyStatus: 'contradicted',
+      verifiedByModel: 'judge-b',
+      verifiedByConnection: 'Box B',
+      verifyReason: 'the id is validated upstream',
+    });
+  });
+
   it('never auto-resolves other findings: a finding the pass did not re-raise stays open', async () => {
     const bystander = await ruleFinding({ file: 'src/routes/users.ts', title: 'bystander' });
     const runId = await newRun();
