@@ -56,3 +56,13 @@ export function groupByRepo(prs: Pr[]): Map<number, Pr[]> {
   }
   return byRepo;
 }
+
+// Map/Set bookkeeping in a loop is not a database call (bpm-perf-orm-call-in-loop
+// once reported every one-argument .get / .delete; W21-20).
+export function pending(prs: Pr[], done: Set<number>): number {
+  const left = new Map<number, Pr>(prs.map((p) => [p.id, p]));
+  for (const id of done) {
+    if (left.get(id)) left.delete(id);
+  }
+  return left.size;
+}

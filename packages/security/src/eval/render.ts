@@ -71,7 +71,7 @@ export function renderModelEval(file: ModelEvalFile): string {
     '- **Format failures** — cases where the model never produced the required JSON after one retry; scored',
     '  as having found nothing, and counted because it is a property of the model.',
     '',
-    '> The fixtures are small (four cases per role: two with a planted defect, two clean), written for this',
+    '> The fixtures are small (four cases per role, eight for performance; half with a planted defect, half clean), written for this',
     '> ticket by an AI assistant, and **their labels have not been reviewed by a person**. They are an',
     '> indicative floor, not an accuracy estimate. The OWASP Benchmark and Juliet slices in',
     '> `fixtures/benchmark` grade scanner detection and need a fetched corpus; they are **not** part of',

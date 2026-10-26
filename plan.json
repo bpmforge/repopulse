@@ -11592,6 +11592,11 @@
         "packages/security/fixtures/benchmark/rule-fixtures/suite.json",
         "packages/security/src/scanners/code-health/perf-pack.test.ts",
         "packages/analysis/checklists/**",
+        "packages/analysis/src/chunker/checklist-v3.test.ts",
+        "packages/security/fixtures/eval/performance.json",
+        "packages/security/src/eval/eval.test.ts",
+        "packages/security/src/eval/render.ts",
+        "docs/MODEL_EVAL.md",
         "docs/design/CODE_HEALTH_SUITE.md",
         "plan.json"
       ],
@@ -11609,7 +11614,9 @@
       "notes": [
         "Owner request 2026-10-26 (Brad): RepoPulse should find the algorithmic performance problems in customers code that a review of RepoPulse itself found.",
         "Slice 1 (JS/TS) built 2026-10-26: perf.complexity.v1.yaml, 3 rules, candidate. Measured on this repository, every hit read: find-by-key 19 (10 growing, 9 small, 0 wrong), includes 33 (15/16/2 string receivers), copy-on-append 14/14; caught every join the manual review found. Also fixed bpm-perf-orm-call-in-loop reporting Map.get as a DB call (233 of 327 hits): a one-argument .get now counts only when awaited, which keeps the labelled `await db.get(id)` N+1; 94 remain ungraded. Rule-fixtures benchmark: 5 new labels, fn 0 / fp 0.",
-        "Slice 2 (Python) built 2026-10-26: perf.complexity.python.v1.yaml, 4 rules, candidate: pop(0)/insert(0) in a loop, membership in a scope-proven list, find-by-key comprehension/next per outer element, acc = acc + [x]. Measured on 487 files of first-party Python on the build host, every hit read: 9 hits, 5 growing, 4 small, 0 wrong (a constant on either side of `in` excluded after it showed up as noise). 5 more benchmark labels, fn 0 / fp 0. Java/Kotlin waits on a real-application corpus (download asked of the owner 2026-10-26)."
+        "Slice 2 (Python) built 2026-10-26: perf.complexity.python.v1.yaml, 4 rules, candidate: pop(0)/insert(0) in a loop, membership in a scope-proven list, find-by-key comprehension/next per outer element, acc = acc + [x]. Measured on 487 files of first-party Python on the build host, every hit read: 9 hits, 5 growing, 4 small, 0 wrong (a constant on either side of `in` excluded after it showed up as noise). 5 more benchmark labels, fn 0 / fp 0. Java/Kotlin waits on a real-application corpus (download asked of the owner 2026-10-26).",
+        "Slice 3 (2026-10-26): performance.v3 checklist (algorithmic items; every finding names what grows and O(before) -> O(after); no ms or speedups; skip small-by-construction) with golden snapshot tests and 4 more eval cases (performance now 8: 4 planted, 4 clean). The specialist stays on v2: no model host was reachable (localhost:1234 and 192.168.13.179:1234 both silent), so the v2-vs-v3 live eval is NOT run. Request-path ranking measured and not built: entry-point import reachability covers 97.9% of this repo (ranks nothing), 12.1% from API routes only (undercounts package-name imports); hotspot percentile already prices file-bound findings.",
+        "orm-call-in-loop graded (2026-10-26): the 94 remaining hits read one by one; 3 Map/Set.delete(key) now excluded unless chained (a query builder's tx.delete(table).where() is), 6 deliberate batch loops, 15 test seeder, the rest genuine per-row DB calls. 327 -> 91. Clean fixture locks Map.get/.delete in a loop."
       ]
     }
   ]

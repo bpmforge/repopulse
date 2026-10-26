@@ -27,14 +27,18 @@ const f = (file: string, quote: string) => ({
 });
 
 describe('the labelled fixtures', () => {
-  it('give every role four cases: two with a planted defect and two clean', () => {
+  it('give every role at least four cases, half with a planted defect and half clean', () => {
+    // Four per role; performance has eight since W21-20 added the algorithmic
+    // shapes (a join by scan, a linear search over sorted data) and their clean
+    // look-alikes. The balance is what keeps precision and recall comparable.
     for (const role of SPECIALIST_IDS) {
-      expect(cases[role], role).toHaveLength(4);
+      expect(cases[role].length, role).toBeGreaterThanOrEqual(4);
       expect(
         cases[role].filter((c) => c.labels.length > 0),
         role,
-      ).toHaveLength(2);
+      ).toHaveLength(cases[role].length / 2);
     }
+    expect(cases.performance).toHaveLength(8);
   });
 
   it('plant each defect on a quote that really appears in the code shown', () => {

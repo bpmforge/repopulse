@@ -42,7 +42,7 @@ rules:
       # per-item DB call is often correct.
       #
       # An awaited call with any listed method, or a NOT-awaited one other than
-      # a one-argument .get. A query returns a promise and is awaited (`await
+      # a one-argument .get or .delete. A query returns a promise and is awaited (`await
       # db.get(id)`, the labelled N+1); Map.get(key) never is. Without this, 233
       # of 327 hits on this repository were Map.get, including the indexed fix
       # the algorithmic rules (perf.complexity.v1) recommend (W21-20).
@@ -52,6 +52,17 @@ rules:
               - pattern: $DB.$M(...)
               - pattern-not-inside: await $DB.$M(...)
               - pattern-not: $DB.get($KEY)
+              # Same reasoning for a one-argument, not-awaited .delete: it is
+              # Map.delete / Set.delete (3 of the remaining 94 hits here)...
+              - pattern-not: $DB.delete($KEY)
+          # ...unless something is chained onto it: a query builder's
+          # `tx.delete(table).where(...)` always continues, Map.delete never does.
+          - patterns:
+              - pattern: $DB.$M($KEY)
+              - pattern-inside: $DB.$M($KEY).$NEXT(...)
+              - metavariable-regex:
+                  metavariable: $M
+                  regex: ^delete$
       # A call inside a BOUNDED batch is the fix, not the defect — same
       # reasoning as await-in-loop above, and again the clean fixture is what
       # caught it.
