@@ -1,17 +1,20 @@
-// GENERATED from docs/benchmarks/perf-hand-check/sheet.csv (the `brad` column) by
+// GENERATED from the `brad` column of the HAND_CHECKED_SHEETS by
 // `pnpm --filter @repopulse/security hand-checked` (hand-checked-cli.ts).
 // Do not edit by hand: hand-checked.test.ts fails when this file and the
-// marked sheet disagree, or when an entry falls below the bar.
+// marked sheets disagree, or when an entry falls below the bar.
 import type { HandCheckedManifest } from './hand-checked.js';
 
 export const HAND_CHECKED_MANIFEST: HandCheckedManifest = {
-  "source": "docs/benchmarks/perf-hand-check/sheet.csv",
+  "sources": [
+    "docs/benchmarks/perf-hand-check/sheet.csv",
+    "docs/benchmarks/perf-hand-check-langs/sheet.csv"
+  ],
   "ticket": "W21-20",
   "bar": {
     "minPrecision": 0.8,
     "minTruePositives": 5
   },
-  "marked": 542,
+  "marked": 627,
   "rules": [
     {
       "ruleId": "bpm-perf-copy-on-append",
@@ -139,6 +142,32 @@ export const HAND_CHECKED_MANIFEST: HandCheckedManifest = {
         {
           "suite": "zulip/zulip",
           "tp": 8,
+          "fp": 0
+        }
+      ]
+    },
+    {
+      "ruleId": "bpm-perf-sw-find-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "tp": 6,
+      "fp": 0,
+      "small": 23,
+      "precision": 1,
+      "suites": [
+        {
+          "suite": "home-assistant/iOS",
+          "tp": 2,
+          "fp": 0
+        },
+        {
+          "suite": "kickstarter/ios-oss",
+          "tp": 0,
+          "fp": 0
+        },
+        {
+          "suite": "wikimedia/wikipedia-ios",
+          "tp": 4,
           "fp": 0
         }
       ]
@@ -507,12 +536,28 @@ export const HAND_CHECKED_MANIFEST: HandCheckedManifest = {
       ]
     },
     {
+      "ruleId": "bpm-perf-kt-db-call-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "tp": 0,
+      "fp": 0,
+      "small": 2,
+      "precision": 0,
+      "suites": [
+        {
+          "suite": "thunderbird/thunderbird-android",
+          "tp": 0,
+          "fp": 0
+        }
+      ]
+    },
+    {
       "ruleId": "bpm-perf-kt-find-by-key-in-loop",
       "engine": "yaml",
       "dimension": "performance",
       "tp": 1,
       "fp": 0,
-      "small": 7,
+      "small": 8,
       "precision": 1,
       "suites": [
         {
@@ -523,6 +568,27 @@ export const HAND_CHECKED_MANIFEST: HandCheckedManifest = {
         {
           "suite": "mihonapp/mihon",
           "tp": 1,
+          "fp": 0
+        },
+        {
+          "suite": "thunderbird/thunderbird-android",
+          "tp": 0,
+          "fp": 0
+        }
+      ]
+    },
+    {
+      "ruleId": "bpm-perf-kt-regex-compile-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "tp": 2,
+      "fp": 0,
+      "small": 0,
+      "precision": 1,
+      "suites": [
+        {
+          "suite": "thunderbird/thunderbird-android",
+          "tp": 2,
           "fp": 0
         }
       ]
@@ -637,6 +703,75 @@ export const HAND_CHECKED_MANIFEST: HandCheckedManifest = {
       ]
     },
     {
+      "ruleId": "bpm-perf-rs-blocking-in-async",
+      "engine": "yaml",
+      "dimension": "performance",
+      "tp": 3,
+      "fp": 4,
+      "small": 13,
+      "precision": 0.429,
+      "suites": [
+        {
+          "suite": "atuinsh/atuin",
+          "tp": 1,
+          "fp": 4
+        },
+        {
+          "suite": "lldap/lldap",
+          "tp": 2,
+          "fp": 0
+        }
+      ]
+    },
+    {
+      "ruleId": "bpm-perf-rs-db-call-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "tp": 2,
+      "fp": 0,
+      "small": 1,
+      "precision": 1,
+      "suites": [
+        {
+          "suite": "atuinsh/atuin",
+          "tp": 2,
+          "fp": 0
+        }
+      ]
+    },
+    {
+      "ruleId": "bpm-perf-rs-find-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "tp": 2,
+      "fp": 3,
+      "small": 8,
+      "precision": 0.4,
+      "suites": [
+        {
+          "suite": "atuinsh/atuin",
+          "tp": 2,
+          "fp": 3
+        }
+      ]
+    },
+    {
+      "ruleId": "bpm-perf-rs-remove-front-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "tp": 0,
+      "fp": 1,
+      "small": 1,
+      "precision": 0,
+      "suites": [
+        {
+          "suite": "atuinsh/atuin",
+          "tp": 0,
+          "fp": 1
+        }
+      ]
+    },
+    {
       "ruleId": "bpm-perf-string-concat-in-loop",
       "engine": "yaml",
       "dimension": "performance",
@@ -690,6 +825,43 @@ export const HAND_CHECKED_MANIFEST: HandCheckedManifest = {
           "suite": "zulip/zulip",
           "tp": 1,
           "fp": 7
+        }
+      ]
+    },
+    {
+      "ruleId": "bpm-perf-sw-fetch-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "tp": 1,
+      "fp": 1,
+      "small": 6,
+      "precision": 0.5,
+      "suites": [
+        {
+          "suite": "wikimedia/wikipedia-ios",
+          "tp": 1,
+          "fp": 1
+        }
+      ]
+    },
+    {
+      "ruleId": "bpm-perf-sw-remove-front-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "tp": 1,
+      "fp": 0,
+      "small": 4,
+      "precision": 1,
+      "suites": [
+        {
+          "suite": "home-assistant/iOS",
+          "tp": 0,
+          "fp": 0
+        },
+        {
+          "suite": "wikimedia/wikipedia-ios",
+          "tp": 1,
+          "fp": 0
         }
       ]
     },

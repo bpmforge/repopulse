@@ -11,11 +11,11 @@ import { STARTER_SET_BAR, meetsStarterBar, type StarterSetEntry } from './starte
 // 80%, where precision = true / (true + wrong) and "small list" hits (correct
 // shape, small input by design) count as neither.
 //
-// The evidence is the marked sheet, nothing else: hand-checked.data.ts is
-// generated from docs/benchmarks/perf-hand-check/sheet.csv's `brad` column by
+// The evidence is the marked sheets, nothing else: hand-checked.data.ts is
+// generated from the `brad` column of every sheet in HAND_CHECKED_SHEETS by
 // `pnpm --filter @repopulse/security hand-checked`, and hand-checked.test.ts
 // fails when the two disagree or an entry falls below the bar. Claude's
-// proposed labels are in the sheet too and are never read here.
+// proposed labels are in the sheets too and are never read here.
 //
 // An admin's registry row still wins, exactly as for the starter set.
 
@@ -25,8 +25,15 @@ export const HAND_CHECKED_BAR = STARTER_SET_BAR;
 /** The stage reason shown in Settings → Rules and the finding panel. */
 export const HAND_CHECKED_REASON = 'live via hand-checked evidence';
 
-/** The sheet the manifest is derived from, relative to the repository root. */
-export const HAND_CHECKED_SHEET = 'docs/benchmarks/perf-hand-check/sheet.csv';
+/**
+ * The sheets the manifest is derived from, relative to the repository root:
+ * the W21-20 hand-check, then Rust, Swift and Kotlin (2026-10-26). A hit that
+ * appears on more than one sheet is counted once (see deriveHandChecked).
+ */
+export const HAND_CHECKED_SHEETS = [
+  'docs/benchmarks/perf-hand-check/sheet.csv',
+  'docs/benchmarks/perf-hand-check-langs/sheet.csv',
+] as const;
 
 /**
  * One rule's marked evidence. The starter set's entry shape, so the API and
@@ -38,10 +45,10 @@ export interface HandCheckedEntry extends StarterSetEntry {
 }
 
 export interface HandCheckedManifest {
-  source: typeof HAND_CHECKED_SHEET;
+  sources: typeof HAND_CHECKED_SHEETS;
   ticket: 'W21-20';
   bar: { minPrecision: number; minTruePositives: number };
-  /** Every marked row, so a sheet with unmarked rows cannot produce a manifest. */
+  /** Every distinct marked hit, so a sheet with unmarked rows cannot produce a manifest. */
   marked: number;
   rules: HandCheckedEntry[];
   /** Marked rules that do not clear the bar: stated, so the line is visible. */
@@ -102,26 +109,42 @@ const round3 = (n: number): number => Math.round(n * 1000) / 1000;
 export const meetsHandCheckedBar = meetsStarterBar;
 
 /**
- * Derives the manifest from the marked sheet. Reads the `brad` column only;
- * throws on a row that is not marked, because a half-marked sheet is not a
- * verdict. Pure; no I/O.
+ * Derives the manifest from the marked sheets, in HAND_CHECKED_SHEETS order.
+ * Reads the `brad` column only; throws on a row that is not marked, because a
+ * half-marked sheet is not a verdict. A hit (rule, repository, file, line) on
+ * more than one sheet counts once — the Rust/Swift/Kotlin corpus re-scanned
+ * mihon — and two sheets marking the same hit differently throw, because a
+ * contradiction is not a verdict either. Pure; no I/O.
  */
-export function deriveHandChecked(csv: string): HandCheckedManifest {
-  const [header, ...rows] = parseSheetCsv(csv).filter((r) => r.length > 1);
-  const col = (name: string): number => {
-    const i = header!.indexOf(name);
-    if (i < 0) throw new Error(`sheet.csv has no "${name}" column`);
-    return i;
-  };
-  const [cRule, cRepo, cBrad] = [col('rule'), col('repo'), col('brad')];
+export function deriveHandChecked(...csvs: string[]): HandCheckedManifest {
+  const marks = new Map<string, { rule: string; repo: string; mark: string }>();
+  for (const csv of csvs) {
+    const [header, ...rows] = parseSheetCsv(csv).filter((r) => r.length > 1);
+    const col = (name: string): number => {
+      const i = header!.indexOf(name);
+      if (i < 0) throw new Error(`sheet.csv has no "${name}" column`);
+      return i;
+    };
+    const [cRule, cRepo, cFile, cLine, cBrad] = ['rule', 'repo', 'file', 'line', 'brad'].map(col);
+    for (const r of rows) {
+      const mark = r[cBrad!]!.trim();
+      if (!MARKS.has(mark)) throw new Error(`unmarked or invalid row ${r[0]}: "${mark}"`);
+      const [rule, repo] = [r[cRule!]!, r[cRepo!]!];
+      const key = [rule, repo, r[cFile!], r[cLine!]].join('\0');
+      const seen = marks.get(key);
+      if (seen && seen.mark !== mark)
+        throw new Error(
+          `${rule} ${repo} ${r[cFile!]}:${r[cLine!]} is marked both "${seen.mark}" and "${mark}"`,
+        );
+      marks.set(key, { rule, repo, mark });
+    }
+  }
   const perRule = new Map<string, Map<string, { tp: number; fp: number; small: number }>>();
-  for (const r of rows) {
-    const mark = r[cBrad]!.trim();
-    if (!MARKS.has(mark)) throw new Error(`unmarked or invalid row ${r[0]}: "${mark}"`);
-    const repos = perRule.get(r[cRule]!) ?? new Map();
-    perRule.set(r[cRule]!, repos);
-    const c = repos.get(r[cRepo]!) ?? { tp: 0, fp: 0, small: 0 };
-    repos.set(r[cRepo]!, c);
+  for (const { rule, repo, mark } of marks.values()) {
+    const repos = perRule.get(rule) ?? new Map();
+    perRule.set(rule, repos);
+    const c = repos.get(repo) ?? { tp: 0, fp: 0, small: 0 };
+    repos.set(repo, c);
     if (mark === 'true') c.tp += 1;
     else if (mark === 'wrong') c.fp += 1;
     else c.small += 1;
@@ -149,10 +172,10 @@ export function deriveHandChecked(csv: string): HandCheckedManifest {
   }
   const byId = (a: HandCheckedEntry, b: HandCheckedEntry) => a.ruleId.localeCompare(b.ruleId);
   return {
-    source: HAND_CHECKED_SHEET,
+    sources: HAND_CHECKED_SHEETS,
     ticket: 'W21-20',
     bar: { ...HAND_CHECKED_BAR },
-    marked: rows.length,
+    marked: marks.size,
     rules: rules.sort(byId),
     notLive: notLive.sort(byId),
   };
