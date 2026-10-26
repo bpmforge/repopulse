@@ -1,26 +1,537 @@
-# Hand-check marking sheet: W21-20 performance rules
+# Hand-check marking sheet: performance rules
 
 Generated from the run described in [README.md](README.md). Each row is one hit. **Proposed** is Claude's reading, not the verdict. Fill the **Brad** column with `true`, `small` or `wrong` (or edit `sheet.csv`, which has the same rows). The recount uses your column only.
 
 Labels: **true** = the shape is real and both inputs grow with data; **small** = real shape, but one input is small by design (counts as neither true nor wrong); **wrong** = not this shape.
 
-## Proposed counts per rule
+**Which rows to mark (owner choice B, 2026-10-26):** every hit for a rule with 30 hits or fewer; for a larger rule, a seeded random sample of 30 (seed 20261026; per rule: all hits if <=30, else Fisher-Yates with mulberry32(seed ^ javaHash(rule)) over ids sorted ascending, first 30). The bar is judged on these rows: at least 5 true and precision of at least 80% among them. `proposals-all.csv` has Claude's proposed label for every W21-20 hit, sampled or not, for reference.
 
-| Rule | Hits | true | small | wrong | pending | Proposed precision | ≥5 true and ≥80%? |
-|---|--:|--:|--:|--:|--:|--:|---|
-| `bpm-perf-copy-on-append` | 15 | 6 | 9 | 0 | 0 | 100% | yes (proposed) |
-| `bpm-perf-find-by-key-in-loop` | 52 | 8 | 44 | 0 | 0 | 100% | yes (proposed) |
-| `bpm-perf-find-by-key-in-loop-py` | 2 | 0 | 2 | 0 | 0 | — | no: fewer than 5 true |
-| `bpm-perf-go-contains-in-loop` | 23 | 0 | 23 | 0 | 0 | — | no: fewer than 5 true |
-| `bpm-perf-go-nested-range-join` | 21 | 6 | 15 | 0 | 0 | 100% | yes (proposed) |
-| `bpm-perf-go-prepend-in-loop` | 1 | 0 | 0 | 1 | 0 | 0% | no: fewer than 5 true |
-| `bpm-perf-includes-in-loop` | 200 | 48 | 138 | 14 | 0 | 77% | no: precision |
-| `bpm-perf-java-contains-in-loop` | 30 | 7 | 23 | 0 | 0 | 100% | yes (proposed) |
-| `bpm-perf-java-find-by-key-in-loop` | 11 | 1 | 9 | 1 | 0 | 50% | no: fewer than 5 true |
-| `bpm-perf-java-remove-front-in-loop` | 2 | 0 | 1 | 1 | 0 | 0% | no: fewer than 5 true |
-| `bpm-perf-kt-find-by-key-in-loop` | 8 | 1 | 7 | 0 | 0 | 100% | no: fewer than 5 true |
-| `bpm-perf-membership-in-list-in-loop-py` | 28 | 15 | 13 | 0 | 0 | 100% | yes (proposed) |
-| `bpm-perf-pop-front-in-loop-py` | 3 | 0 | 2 | 1 | 0 | 0% | no: fewer than 5 true |
+## Proposed counts per rule (marking set)
+
+| Rule | All hits | Marking set | true | small | wrong | pending | Proposed precision | ≥5 true and ≥80%? |
+|---|--:|--:|--:|--:|--:|--:|--:|---|
+| `bpm-perf-await-in-loop` | 412 | 30 | 11 | 8 | 11 | 0 | 50% | no: precision |
+| `bpm-perf-await-in-loop-py` | 4 | 4 | 0 | 2 | 2 | 0 | 0% | no: fewer than 5 true |
+| `bpm-perf-copy-on-append` | 15 | 15 | 6 | 9 | 0 | 0 | 100% | yes (proposed) |
+| `bpm-perf-find-by-key-in-loop` | 52 | 30 | 5 | 25 | 0 | 0 | 100% | yes (proposed) |
+| `bpm-perf-find-by-key-in-loop-py` | 2 | 2 | 0 | 2 | 0 | 0 | — | no: fewer than 5 true |
+| `bpm-perf-go-contains-in-loop` | 23 | 23 | 0 | 23 | 0 | 0 | — | no: fewer than 5 true |
+| `bpm-perf-go-db-call-in-loop` | 8 | 8 | 2 | 6 | 0 | 0 | 100% | no: fewer than 5 true |
+| `bpm-perf-go-defer-in-loop` | 15 | 15 | 1 | 3 | 11 | 0 | 8% | no: fewer than 5 true |
+| `bpm-perf-go-nested-range-join` | 21 | 21 | 6 | 15 | 0 | 0 | 100% | yes (proposed) |
+| `bpm-perf-go-prepend-in-loop` | 1 | 1 | 0 | 0 | 1 | 0 | 0% | no: fewer than 5 true |
+| `bpm-perf-go-regex-compile-in-loop` | 7 | 7 | 0 | 0 | 7 | 0 | 0% | no: fewer than 5 true |
+| `bpm-perf-go-string-concat-in-loop` | 38 | 30 | 0 | 21 | 9 | 0 | 0% | no: fewer than 5 true |
+| `bpm-perf-includes-in-loop` | 200 | 30 | 5 | 25 | 0 | 0 | 100% | yes (proposed) |
+| `bpm-perf-java-contains-in-loop` | 30 | 30 | 7 | 23 | 0 | 0 | 100% | yes (proposed) |
+| `bpm-perf-java-db-call-in-loop` | 44 | 30 | 7 | 10 | 13 | 0 | 35% | no: precision |
+| `bpm-perf-java-find-by-key-in-loop` | 11 | 11 | 1 | 9 | 1 | 0 | 50% | no: fewer than 5 true |
+| `bpm-perf-java-regex-compile-in-loop` | 1 | 1 | 0 | 1 | 0 | 0 | — | no: fewer than 5 true |
+| `bpm-perf-java-remove-front-in-loop` | 2 | 2 | 0 | 1 | 1 | 0 | 0% | no: fewer than 5 true |
+| `bpm-perf-java-string-concat-in-loop` | 25 | 25 | 2 | 13 | 10 | 0 | 17% | no: fewer than 5 true |
+| `bpm-perf-json-deep-clone` | 6 | 6 | 1 | 2 | 3 | 0 | 25% | no: fewer than 5 true |
+| `bpm-perf-kt-find-by-key-in-loop` | 8 | 8 | 1 | 7 | 0 | 0 | 100% | no: fewer than 5 true |
+| `bpm-perf-membership-in-list-in-loop-py` | 28 | 28 | 15 | 13 | 0 | 0 | 100% | yes (proposed) |
+| `bpm-perf-orm-call-in-loop` | 61 | 30 | 8 | 2 | 20 | 0 | 29% | no: precision |
+| `bpm-perf-orm-call-in-loop-py` | 304 | 30 | 2 | 15 | 13 | 0 | 13% | no: fewer than 5 true |
+| `bpm-perf-pop-front-in-loop-py` | 3 | 3 | 0 | 2 | 1 | 0 | 0% | no: fewer than 5 true |
+| `bpm-perf-regex-compile-in-loop` | 19 | 19 | 2 | 0 | 17 | 0 | 11% | no: fewer than 5 true |
+| `bpm-perf-string-concat-in-loop` | 144 | 30 | 2 | 23 | 5 | 0 | 29% | no: fewer than 5 true |
+| `bpm-perf-string-concat-in-loop-py` | 101 | 30 | 1 | 21 | 8 | 0 | 11% | no: fewer than 5 true |
+| `bpm-perf-sync-io-in-async` | 12 | 12 | 0 | 0 | 12 | 0 | 0% | no: fewer than 5 true |
+| `bpm-perf-unbounded-gather-py` | 1 | 1 | 0 | 1 | 0 | 0 | — | no: fewer than 5 true |
+| `bpm-perf-unbounded-promise-all` | 125 | 30 | 5 | 21 | 4 | 0 | 56% | no: precision |
+
+## `bpm-perf-await-in-loop`
+
+### #146 · outline/outline@670410b236 · `server/commands/documentPermanentDeleter.ts:123`
+
+```
+121:   let totalDeleted = 0;
+122:   for (let i = 0; i < destroyBatches.length; i++) {
+123:     totalDeleted += await Document.scope("withDrafts").destroy({
+124:       where: {
+125:         id: destroyBatches[i],
+126:         deletedAt: { [Op.ne]: null },
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | destroy in deliberate 10-id batches with inter-batch sleep to keep lock window short; sequential by design |  |
+
+### #155 · outline/outline@670410b236 · `server/commands/groupsSyncer.ts:121`
+
+```
+119:         createdById: user.id,
+120:       });
+121:       await externalGroup.update({ groupId: group.id }, { transaction });
+122:       externalGroup.groupId = group.id;
+123:       result.groupsCreated++;
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | external-group sync writes inside one transaction; ordered find/create/update per group must be sequential |  |
+
+### #237 · outline/outline@670410b236 · `server/queues/processors/ImportsProcessor.ts:529`
+
+```
+527:               color: output.color,
+528:               content: transformedContent,
+529:               text: await DocumentHelper.toMarkdown(transformedContent, {
+530:                 includeTitle: false,
+531:               }),
+532:               collectionId: collectionInternalId,
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | import loop creates docs in a shared transaction with parent ordering; toMarkdown per doc is part of ordered writes |  |
+
+### #268 · outline/outline@670410b236 · `server/queues/tasks/CommentUpdatedNotificationsTask.ts:60`
+
+```
+58:           NotificationEventType.MentionedInComment
+59:         ) &&
+60:         (await canUserAccessDocument(recipient, document.id))
+61:       ) {
+62:         await Notification.create({
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | loop over user mentions in one comment: User.findByPk + access check per mention; mentions per comment are few |  |
+
+### #282 · outline/outline@670410b236 · `server/queues/tasks/DocumentPublishedNotificationsTask.ts:44`
+
+```
+42:         !recipient ||
+43:         recipient.id === actorId ||
+44:         !(await canUserAccessDocument(recipient, document.id))
+45:       ) {
+46:         continue;
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | loop over user mentions in a published doc: findByPk + canUserAccessDocument per mention; batchable, grows with doc |  |
+
+### #328 · outline/outline@670410b236 · `server/queues/tasks/RevisionCreatedNotificationsTask.ts:183`
+
+```
+181: 
+182:     for (const recipient of recipients) {
+183:       const notify = await this.shouldNotify(document, recipient);
+184: 
+185:       if (notify) {
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | loop over all document notification recipients awaiting shouldNotify per recipient; independent, grows with subscribers |  |
+
+### #329 · outline/outline@670410b236 · `server/queues/tasks/RevisionCreatedNotificationsTask.ts:186`
+
+```
+184: 
+185:       if (notify) {
+186:         await Notification.create({
+187:           event: NotificationEventType.UpdateDocument,
+188:           userId: recipient.id,
+189:           revisionId: event.modelId,
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | Notification.create per recipient of a document update; independent inserts, could bulkCreate/parallelise |  |
+
+### #343 · outline/outline@670410b236 · `server/queues/tasks/UpdateTeamsAttachmentsSizeTask.ts:43`
+
+```
+41: 
+42:         for (const teamId of teamIds) {
+43:           await new UpdateTeamAttachmentsSizeTask().schedule({ teamId });
+44:         }
+45:       }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | per-team await schedule() inside 100-row batches; independent job enqueues, could Promise.all or bulk add |  |
+
+### #378 · outline/outline@670410b236 · `server/services/worker.ts:66`
+
+```
+64:               // websockets are a special case on their own queue because they must
+65:               // only be consumed by the websockets service rather than workers.
+66:               await websocketQueue().add(job.data);
+67:             } else if (
+68:               ProcessorClass.applicableEvents.includes(event.name) ||
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | loop over the fixed set of registered processors adding queue jobs per event; bounded by code |  |
+
+### #383 · outline/outline@670410b236 · `server/utils/CacheHelper.ts:224`
+
+```
+222: 
+223:           if (keys.length > 0) {
+224:             await Redis.defaultClient.unlink(...keys);
+225:             deleted += keys.length;
+226:           }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | Redis SCAN cursor pagination; each unlink follows the scan page whose cursor drives the next iteration |  |
+
+### #384 · outline/outline@670410b236 · `server/utils/ShutdownHelper.ts:97`
+
+```
+95:       const handlers = shutdownGroups[key];
+96: 
+97:       await Promise.allSettled(
+98:         handlers.map(async (handler) => {
+99:           Logger.debug("lifecycle", `Running shutdown handler ${handler.key}`);
+100: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | shutdown groups run in deliberate order; each group already uses Promise.allSettled internally |  |
+
+### #424 · immich-app/immich@f7b8ae5da3 · `server/src/bin/sync-sql.ts:121`
+
+```
+119:       for (const key of Object.keys(instance)) {
+120:         const subInstance = (instance as any)[key];
+121:         data.push(...(await this.runTargets(subInstance, `${Repository.name}.${key}`)));
+122:       }
+123:     }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | dev SQL-generator over a fixed handful of nested repository keys |  |
+
+### #471 · immich-app/immich@f7b8ae5da3 · `server/src/services/database.service.ts:110`
+
+```
+108:         const isDepended = dbName === DatabaseExtension.Vector && extension === DatabaseExtension.VectorChord;
+109:         if (dbName !== extension && installedVersion && !isDepended) {
+110:           await this.dropExtension(dbName);
+111:         }
+112:       }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | drops the few installed Postgres extensions during startup; tiny fixed list, ordered DDL |  |
+
+### #483 · immich-app/immich@f7b8ae5da3 · `server/src/services/integrity.service.ts:385`
+
+```
+383:     let total = 0;
+384:     for await (const batchPaths of batched(assetPaths, JOBS_LIBRARY_PAGINATION_SIZE)) {
+385:       await this.jobRepository.queue({
+386:         name: JobName.IntegrityMissingFiles,
+387:         data: {
+388:           items: batchPaths,
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | for-await over a DB stream, queuing one job per already-batched page; streaming with backpressure |  |
+
+### #504 · immich-app/immich@f7b8ae5da3 · `server/src/services/media.service.ts:87`
+
+```
+85:       }
+86: 
+87:       await this.jobRepository.queueAll(jobs);
+88:     }
+89: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | for-await over asset stream queuing one queueAll per batch; already batched, streaming |  |
+
+### #506 · immich-app/immich@f7b8ae5da3 · `server/src/services/media.service.ts:100`
+
+```
+98:           }
+99: 
+100:           await this.personRepository.update({ ownerId, personGroupId, faceAssetId: face.id });
+101:         }
+102: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | per person missing a face: getRandomFace + update awaited one by one across all persons; N+1 on growing table |  |
+
+### #523 · immich-app/immich@f7b8ae5da3 · `server/src/services/person.service.ts:103`
+
+```
+101:     const changeFeaturePhoto = new Map<string, PersonId>();
+102:     for (const data of dto.data) {
+103:       const faces = await this.personRepository.getFacesByIds(
+104:         [{ personGroupId: data.personId, assetId: data.assetId }],
+105:         { viewingUserId: auth.user.id },
+106:       );
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | getFacesByIds per item of request dto.data (bulk reassign); one query per item, batchable |  |
+
+### #524 · immich-app/immich@f7b8ae5da3 · `server/src/services/person.service.ts:109`
+
+```
+107: 
+108:       for (const face of faces) {
+109:         const ids = await this.checkAccess({ auth, permission: Permission.PersonCreate, ids: [face.id] });
+110: 
+111:         if (ids.size !== 1) {
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | checkAccess per face inside per-item loop over request data; could check all face ids in one call |  |
+
+### #544 · immich-app/immich@f7b8ae5da3 · `server/src/services/storage-template.service.ts:194`
+
+```
+192:       const storageLabel = user?.storageLabel || null;
+193:       const filename = asset.originalFileName || asset.id;
+194:       await this.moveAsset(asset, { storageLabel, filename });
+195: 
+196:       if (!asset.livePhotoVideoId) {
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | storage migration awaits moveAsset per streamed asset across whole library; bounded concurrency possible |  |
+
+### #549 · immich-app/immich@f7b8ae5da3 · `server/src/services/storage.service.ts:71`
+
+```
+69:           }
+70: 
+71:           await this.verifyReadAccess(folder);
+72:           await this.verifyWriteAccess(folder);
+73: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | verifies read/write on the fixed StorageFolder enum (few folders) at startup |  |
+
+### #607 · immich-app/immich@f7b8ae5da3 · `server/src/services/sync.service.ts:899`
+
+```
+897:         }
+898: 
+899:         await sendEntityBackfillCompleteAck(response, backfillType, createId);
+900:       }
+901:     } else if (partners.length > 0) {
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | writes sync acks to a response stream in order; sequential writes are required |  |
+
+### #612 · immich-app/immich@f7b8ae5da3 · `server/src/services/sync.service.ts:946`
+
+```
+944:     const upserts = this.syncRepository.assetFace.getUpsertsV2({ ...options, ack: checkpointMap[upsertType] });
+945:     for await (const { updateId, ...data } of upserts) {
+946:       await send(response, { type: upsertType, ids: [updateId], data });
+947:     }
+948:   }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | for-await over DB stream writing ordered sync events to response stream; must be sequential |  |
+
+### #625 · immich-app/immich@f7b8ae5da3 · `server/src/services/tag.service.ts:150`
+
+```
+148:       }
+149: 
+150:       await this.updateTags(assetId);
+151:       await this.eventRepository.emit('AssetUntag', { assetId });
+152:     }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | updateTags + emit per asset id from request BulkIdsDto; independent per asset, grows with request |  |
+
+### #638 · immich-app/immich@f7b8ae5da3 · `server/src/services/workflow-execution.service.ts:452`
+
+```
+450:         );
+451:         if (result?.changes) {
+452:           await write(
+453:             {
+454:               user: {
+455:                 id: readResult.authUserId,
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | workflow steps run in order, each step consumes the previous step's payload/changes |  |
+
+### #662 · immich-app/immich@f7b8ae5da3 · `web/src/lib/managers/timeline-manager/timeline-manager.svelte.ts:192`
+
+```
+190:       startTimelineMonth: options?.startTimelineMonth,
+191:     })) {
+192:       await this.loadTimelineMonth(timelineMonth.yearMonth, { cancelable: false });
+193:       yield* timelineMonth.assetsIterator({ startTimelineDay, startAsset, direction });
+194:       startTimelineDay = startAsset = undefined;
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | async generator lazily loading one month at a time as the consumer iterates; sequential by design |  |
+
+### #671 · immich-app/immich@f7b8ae5da3 · `web/src/lib/utils/asset-utils.ts:86`
+
+```
+84:       } else {
+85:         downloadUrlPost(url, archive.assetIds, archiveName);
+86:         const $t = await getFormatter();
+87:         const $locale = get(locale);
+88:         toastManager.primary(
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | getFormatter awaited only in the single-archive branch, so it runs once |  |
+
+### #673 · immich-app/immich@f7b8ae5da3 · `web/src/lib/utils/asset-utils.ts:272`
+
+```
+270:     for (const timelineMonth of timelineManager.months) {
+271:       if (!timelineMonth.isLoaded) {
+272:         await timelineManager.loadTimelineMonth(timelineMonth.yearMonth);
+273:       }
+274: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | select-all loads every unloaded timeline month sequentially; months grow with library, could load bounded-parallel |  |
+
+### #889 · zulip/zulip@36d2312680 · `web/e2e-tests/lib/common.ts:181`
+
+```
+179:         if (typeof expected_value === "boolean") {
+180:             assert.equal(
+181:                 await page.$eval(
+182:                     `${form_selector} input[name="${CSS.escape(name)}"]`,
+183:                     (el) => el.checked,
+184:                 ),
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | e2e test helper checking a handful of form fields with page.$eval |  |
+
+### #1371 · thingsboard/thingsboard@7a53801216 · `ui-ngx/esbuild/tb-esbuild-plugins.ts:52`
+
+```
+50:         if (!compressFileTypes.some((ext) => ext === path.extname(file.path))) continue;
+51:         if (file.contents.byteLength <= compressThreshold) continue;
+52:         const compressedContent = await gzipContent(file.contents);
+53:         const compressedFilePath = `${file.path}${outputExt}`;
+54:         gzippedFiles.push(
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | build plugin gzips every output file over 10KB sequentially; hundreds of chunks, could Promise.all |  |
+
+### #1414 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/iot-hub/device-install-dialog/device-install-dialog.component.ts:158`
+
+```
+156:           const ext = path.split('.').pop()?.toLowerCase();
+157:           if (imageExtensions.has(ext)) {
+158:             const blob = await entry.async('blob');
+159:             const blobUrl = URL.createObjectURL(blob);
+160:             this.zipImages.set(path, blobUrl);
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | extracts entries of a small IoT-hub template zip; few files, JSZip in-memory |  |
+
+
+## `bpm-perf-await-in-loop-py`
+
+### #409 · immich-app/immich@f7b8ae5da3 · `machine-learning/immich_ml/main.py:113`
+
+```
+111:     ]
+112:     for entry in (entry for request in requests for entry in request.entries()):
+113:         await _preload(entry)
+114: 
+115: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | preloads the configured ML models at startup; a handful of entries |  |
+
+### #686 · saleor/saleor@1771e1cf6c · `saleor/asgi/asgi_handler.py:108`
+
+```
+106:                 task.cancel()
+107:                 try:
+108:                     await task
+109:                 except asyncio.CancelledError:
+110:                     # Task re-raised the CancelledError as expected.
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | awaits cancellation of at most 2 tasks (disconnect watcher + request) |  |
+
+### #873 · zulip/zulip@36d2312680 · `tools/run-dev:271`
+
+```
+269:     while upstream_response is None:
+270:         try:
+271:             upstream_response = await session.request(
+272:                 request.method,
+273:                 request.url.with_host("127.0.0.1").with_port(upstream_port),
+274:                 headers=[
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | dev proxy retry loop until upstream responds; each attempt depends on previous failure |  |
+
+### #1049 · zulip/zulip@36d2312680 · `zerver/lib/push_notifications.py:182`
+
+```
+180:         for _attempt in range(APNS_MAX_RETRIES - 1):
+181:             try:
+182:                 return await self.apns.send_notification(request)
+183:             except ProtocolError as exc:
+184:                 # If aioapns tried to use a connection that APNs had already closed,
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | APNs send retry loop; next attempt only after previous ProtocolError |  |
+
 
 ## `bpm-perf-copy-on-append`
 
@@ -248,21 +759,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 
 ## `bpm-perf-find-by-key-in-loop`
 
-### #13 · excalidraw/excalidraw@b7de45e881 · `packages/element/src/sortElements.ts:93`
-
-```
-91:       element.type === "text" &&
-92:       element.containerId &&
-93:       elementsMap
-94:         .get(element.containerId)
-95:         ?.boundElements?.some((el) => el.id === element.id)
-96:     ) {
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | boundElements of one container (its text + bound arrows) is a handful; lookup is per element via elementsMap |  |
-
 ### #79 · outline/outline@670410b236 · `app/models/Group.ts:123`
 
 ```
@@ -277,48 +773,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 | Proposed | Reason | Brad |
 |---|---|---|
 | true | groupMemberships x groupUsers.some(): both store-wide collections, grows with groups/users |  |
-
-### #386 · outline/outline@670410b236 · `server/utils/authentication.ts:57`
-
-```
-55:   const teams = await Team.findAll({ where: { id: teamIds } });
-56:   const team = teamIds
-57:     .map((id) => teams.find((t) => t.id === id))
-58:     .find((t) => t && !t.isSuspended && !t.isTeamUrl(ctx.href));
-59:   if (!team) {
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | teamIds come from sign-in cookies; a user is signed into a handful of teams |  |
-
-### #389 · outline/outline@670410b236 · `server/utils/indexing.ts:73`
-
-```
-71:   const sortable = stars.sort(function (a, b) {
-72:     return (
-73:       documents.findIndex((d) => d.id === a.documentId) -
-74:       documents.findIndex((d) => d.id === b.documentId)
-75:     );
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | sort comparator does two findIndex scans of documents per comparison; stars per user grow |  |
-
-### #436 · immich-app/immich@f7b8ae5da3 · `server/src/repositories/database.repository.ts:173`
-
-```
-171:     const promises = [];
-172:     for (const indexName of names) {
-173:       const row = rows.find((index) => index.indexname === indexName);
-174:       const table = VECTOR_INDEX_TABLES[indexName];
-175:       if (!row) {
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | names = fixed vector index names (a couple); rows from pg_indexes for those names |  |
 
 ### #439 · immich-app/immich@f7b8ae5da3 · `server/src/repositories/integrity.repository.ts:50`
 
@@ -362,34 +816,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 |---|---|---|
 | small | newFiles x oldFiles of one asset: a few file types (thumbnail/preview/fullsize) per asset |  |
 
-### #543 · immich-app/immich@f7b8ae5da3 · `server/src/services/storage-template.service.ts:191`
-
-```
-189: 
-190:     for await (const asset of assets) {
-191:       const user = users.find((user) => user.id === asset.ownerId);
-192:       const storageLabel = user?.storageLabel || null;
-193:       const filename = asset.originalFileName || asset.id;
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | streams every asset and does users.find per asset; O(assets*users), both data-derived |  |
-
-### #910 · zulip/zulip@36d2312680 · `web/src/debug.ts:20`
-
-```
-18:     for (const o of document.querySelectorAll("*")) {
-19:         if (o.id && ids.has(o.id)) {
-20:             const el = collisions.find((c) => c.id === o.id);
-21: 
-22:             ids.add(o.id);
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | collisions.find per duplicate DOM id; DOM-size-derived (debug helper) |  |
-
 ### #1164 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/components/common/custom-field-display/custom-field-display.component.ts:121`
 
 ```
@@ -403,20 +829,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 | Proposed | Reason | Brad |
 |---|---|---|
 | true | doc-link ids x results.find; links per field data-derived (usually modest) |  |
-
-### #1165 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/components/common/custom-fields-dropdown/custom-fields-dropdown.component.ts:105`
-
-```
-103:     this.unusedFields.set(
-104:       this.customFields.filter(
-105:         (f) => !this.existingFields?.find((e) => e.field === f.id)
-106:       )
-107:     )
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | customFields x existingFields; custom fields are a per-install config list (tens) |  |
 
 ### #1166 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/components/common/input/document-link/document-link.component.ts:110`
 
@@ -446,20 +858,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 |---|---|---|
 | small | title search results (truncated page) x manually selected docs |  |
 
-### #1169 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/components/common/input/drag-drop-select/drag-drop-select.component.ts:44`
-
-```
-42:     this.selectedItems =
-43:       newValue
-44:         ?.map((id) => this.items.find((i) => i.id === id))
-45:         .filter((item) => item) ?? []
-46:   }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | selected ids x items: items is a fixed list of selectable fields |  |
-
 ### #1171 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/components/common/input/tags/tags.component.ts:227`
 
 ```
@@ -474,20 +872,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 |---|---|---|
 | true | doc tags x all tags list; tag catalogs can be thousands; getter may run per render |  |
 
-### #1178 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/components/dashboard/widgets/saved-view-widget/saved-view-widget.component.ts:165`
-
-```
-163:     this.displayFields.set(
-164:       this.displayFields().filter((field) =>
-165:         this.settingsService.allDisplayFields().some((f) => f.id === field)
-166:       )
-167:     )
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | display fields x allDisplayFields: fixed built-in fields plus a few custom fields |  |
-
 ### #1181 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/services/document-list-view.service.ts:204`
 
 ```
@@ -501,34 +885,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 | Proposed | Reason | Brad |
 |---|---|---|
 | small | display fields x allDisplayFields: fixed small field list |  |
-
-### #1182 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/services/document-list-view.service.ts:568`
-
-```
-566:     this.activeListViewState.displayFields = this.displayFieldsInitialized
-567:       ? fields?.filter((field) =>
-568:           this.settings.allDisplayFields().some((f) => f.id === field)
-569:         )
-570:       : fields
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | display fields x allDisplayFields: fixed small field list |  |
-
-### #1187 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/services/rest/saved-view.service.ts:111`
-
-```
-109:     return sorted?.length > 0
-110:       ? sorted
-111:           .map((id) => sidebarViews.find((v) => v.id === id))
-112:           .concat(sidebarViews.filter((v) => !sorted.includes(v.id)))
-113:           .filter((v) => v)
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | sort-order ids x sidebarViews (find + includes); saved views per user are tens |  |
 
 ### #1189 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/services/rest/saved-view.service.ts:128`
 
@@ -557,20 +913,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 | Proposed | Reason | Brad |
 |---|---|---|
 | small | dedupe of Angular modules list; tens of modules |  |
-
-### #1405 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/alias/entity-alias-dialog.component.ts:150`
-
-```
-148:     if (!isEmpty(this.alias.filter?.filters)) {
-149:       this.alias.filter.filters = this.alias.filter.filters.filter((value, index, self) =>
-150:         self.findIndex(v => v.relationType === value.relationType && isEqual(v.entityTypes, value.entityTypes)) === index &&
-151:         (value.relationType || value.entityTypes?.length)
-152:       );
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | findIndex dedupe of alias relation filters; a handful |  |
 
 ### #1425 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/role/operation-type-list.component.ts:205`
 
@@ -670,20 +1012,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 |---|---|---|
 | small | dataItems x ctx.data per update: chart keys config-sized; grows with multi-entity datasources |  |
 
-### #1450 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/chart/time-series-chart.ts:279`
-
-```
-277:       this.latestData = formattedDataFormDatasourceData(this.ctx.latestData);
-278:       for (const item of this.dataItems) {
-279:         let latestData = this.latestData.find(data => data.$datasource === item.datasource);
-280:         if (!latestData) {
-281:           latestData = {} as FormattedData;
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | dataItems x latestData by datasource: config-sized |  |
-
 ### #1451 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/chart/time-series-chart.ts:287`
 
 ```
@@ -698,20 +1026,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 |---|---|---|
 | small | thresholds x latestData: a few thresholds |  |
 
-### #1452 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/chart/time-series-chart.ts:299`
-
-```
-297:         const maxType = (yAxis.settings.max as ValueSourceConfig).type;
-298:         if (minType === ValueSourceType.latestKey && yAxis.minLatestDataKey) {
-299:           const data = this.ctx.latestData.find(d => d.dataKey === yAxis.minLatestDataKey);
-300:           if (data?.data[0]) {
-301:             const value = this.parseAxisLimitData(data.data[0][1], yAxis.unitConvertor);
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | loop over y-axes (a few) with find in latestData |  |
-
 ### #1453 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/chart/time-series-chart.ts:310`
 
 ```
@@ -725,20 +1039,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 | Proposed | Reason | Brad |
 |---|---|---|
 | small | loop over y-axes (a few) with find in latestData |  |
-
-### #1454 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/chart/time-series-chart.ts:478`
-
-```
-476:           }
-477:           dataKey.settings = keySettings;
-478:           const datasourceData = this.ctx.data ? this.ctx.data.find(d => d.dataKey === dataKey) : null;
-479:           const units: TbUnit = isNotEmptyTbUnits(dataKey.units) ? dataKey.units : this.ctx.units;
-480:           const unitSymbol = this.unitService.getTargetUnitSymbol(units);
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | data keys x ctx.data during setup: config-sized |  |
 
 ### #1466 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/maps/map.ts:1302`
 
@@ -767,20 +1067,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 | Proposed | Reason | Brad |
 |---|---|---|
 | small | walks a short id path through nested form properties; not a join |  |
-
-### #1474 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/settings/common/action/location-keys-table.component.ts:158`
-
-```
-156:   private prepareKeysFormArray(value: LocationKeyMapping[] | undefined): FormArray {
-157:     const mappings = (value || []).filter(mapping => this.availableKeys.includes(mapping?.argument));
-158:     mandatoryLocationKeys.filter(argument => !mappings.some(mapping => mapping.argument === argument))
-159:       .forEach((argument) => mappings.splice(mandatoryLocationKeys.indexOf(argument), 0,
-160:         locationKeyMapping(argument)));
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | fixed mandatoryLocationKeys x mappings: a few |  |
 
 ### #1479 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/settings/common/dynamic-form/dynamic-form-property-panel.component.ts:269`
 
@@ -838,48 +1124,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 |---|---|---|
 | small | widgetLayouts x dashboardWidgets.findIndex: widgets per dashboard tens |  |
 
-### #1488 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/pages/ai-solution-creator/overview/solution-creator-overview-entities.component.ts:374`
-
-```
-372:       if (!tId) continue;
-373:       for (const c of customers) {
-374:         if (!this.description.relations.some(x => x.child === c.name)) {
-375:           const cId = nodeByName.get(c.name)?.id;
-376:           if (cId) pushLink(tId, cId, 'Manages');
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | tenantUsers x customers x relations.some: AI-generated solution has tens of entities |  |
-
-### #1489 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/pages/ai-solution-creator/overview/solution-creator-overview-entities.component.ts:387`
-
-```
-385:       for (const a of assets) {
-386:         if (a.scope === c.name || a.scope === c.scope) {
-387:           if (!this.description.relations.some(x => x.child === a.name)) {
-388:             const aId = nodeByName.get(a.name)?.id;
-389:             if (aId) pushLink(cId, aId, 'Own');
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | customers x assets x relations.some: AI-generated solution description, tens of entities |  |
-
-### #1490 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/pages/ai-solution-creator/overview/solution-creator-overview-entities.component.ts:401`
-
-```
-399:       for (const d of devices) {
-400:         if (d.scope === c.name || d.scope === c.scope) {
-401:           if (!this.description.relations.some(x => x.child === d.name)) {
-402:             const aId = nodeByName.get(d.name)?.id;
-403:             if (aId) pushLink(cId, aId, 'Own');
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | customers x devices x relations.some: AI-generated solution description, tens of entities |  |
-
 ### #1491 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/pages/ai-solution-creator/overview/solution-creator-overview-entities.component.ts:415`
 
 ```
@@ -894,20 +1138,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 |---|---|---|
 | small | customers x users x relations.some: AI-generated solution description, tens of entities |  |
 
-### #1496 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/pages/reporting/template/components/time-series-chart-preview.component.ts:217`
-
-```
-215:               datasource.latestDataKeys = [];
-216:             }
-217:             let dataKey = datasource.latestDataKeys.find(d => d.type === threshold.latestKeyType && d.name === threshold.latestKey);
-218:             if (!dataKey) {
-219:               dataKey = {
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | thresholds x latestDataKeys of one chart: a few |  |
-
 ### #1497 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/pages/scada-symbol/metadata-components/scada-symbol-metadata-tags.component.ts:190`
 
 ```
@@ -921,34 +1151,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 | Proposed | Reason | Brad |
 |---|---|---|
 | small | existing tags x symbol tags of one SCADA symbol: a few |  |
-
-### #1498 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/pages/scada-symbol/metadata-components/scada-symbol-metadata-tags.component.ts:203`
-
-```
-201:     }
-202:     const tagRemoved = !!existing.find(existingTag =>
-203:       !result.find(t => t.tag === existingTag.tag));
-204:     return {
-205:       tags: result,
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | existing tags x symbol tags of one SCADA symbol: a few |  |
-
-### #1535 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/models/dynamic-form.models.ts:300`
-
-```
-298:       }
-299:     } else {
-300:       let propertyGroup = groups.find(g => g.title === property.group);
-301:       if (!propertyGroup) {
-302:         propertyGroup = {
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | properties x groups of a dynamic form: config-sized |  |
 
 ### #1540 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/models/telemetry/telemetry.models.ts:591`
 
@@ -1337,6 +1539,335 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 | small | CrossProviderNamespaces config list per ingress; a few namespaces |  |
 
 
+## `bpm-perf-go-db-call-in-loop`
+
+### #1589 · go-gitea/gitea@85211296dd · `modelmigration/v1_22/v286.go:46`
+
+```
+44: 			}
+45: 			for _, s := range droppedIndexes {
+46: 				_, err := db.Exec(s)
+47: 				if err != nil {
+48: 					return errors.New(s + " " + err.Error())
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | migration drops 3 fixed MSSQL indexes; constant DDL list |  |
+
+### #1590 · go-gitea/gitea@85211296dd · `modelmigration/v1_22/v286.go:56`
+
+```
+54: 			var err error
+55: 			if setting.Database.Type.IsMySQL() {
+56: 				_, err = db.Exec(fmt.Sprintf("ALTER TABLE `%s` MODIFY COLUMN `%s` VARCHAR(64)", alts[0], alts[1]))
+57: 			} else if setting.Database.Type.IsMSSQL() {
+58: 				_, err = db.Exec(fmt.Sprintf("ALTER TABLE [%s] ALTER COLUMN [%s] NVARCHAR(64)", alts[0], alts[1]))
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | migration ALTERs a fixed list of table/column pairs; DDL cannot be batched meaningfully |  |
+
+### #1591 · go-gitea/gitea@85211296dd · `modelmigration/v1_22/v286.go:58`
+
+```
+56: 				_, err = db.Exec(fmt.Sprintf("ALTER TABLE `%s` MODIFY COLUMN `%s` VARCHAR(64)", alts[0], alts[1]))
+57: 			} else if setting.Database.Type.IsMSSQL() {
+58: 				_, err = db.Exec(fmt.Sprintf("ALTER TABLE [%s] ALTER COLUMN [%s] NVARCHAR(64)", alts[0], alts[1]))
+59: 			} else {
+60: 				_, err = db.Exec(fmt.Sprintf("ALTER TABLE `%s` ALTER COLUMN `%s` TYPE VARCHAR(64)", alts[0], alts[1]))
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | migration ALTERs a fixed list of table/column pairs (MSSQL branch) |  |
+
+### #1592 · go-gitea/gitea@85211296dd · `modelmigration/v1_22/v286.go:60`
+
+```
+58: 				_, err = db.Exec(fmt.Sprintf("ALTER TABLE [%s] ALTER COLUMN [%s] NVARCHAR(64)", alts[0], alts[1]))
+59: 			} else {
+60: 				_, err = db.Exec(fmt.Sprintf("ALTER TABLE `%s` ALTER COLUMN `%s` TYPE VARCHAR(64)", alts[0], alts[1]))
+61: 			}
+62: 			if err != nil {
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | migration ALTERs a fixed list of table/column pairs (Postgres branch) |  |
+
+### #1593 · go-gitea/gitea@85211296dd · `modelmigration/v1_22/v286.go:74`
+
+```
+72: 			}
+73: 			for _, s := range recreateIndexes {
+74: 				_, err := db.Exec(s)
+75: 				if err != nil {
+76: 					return errors.New(s + " " + err.Error())
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | migration recreates 3 fixed MSSQL indexes |  |
+
+### #1609 · go-gitea/gitea@85211296dd · `models/repostats/repo.go:299`
+
+```
+297: 	return db.WithTx(ctx, func(ctx context.Context) error {
+298: 		for _, user := range users {
+299: 			if _, err := db.Exec(ctx, "UPDATE `user` SET num_stars=(SELECT COUNT(*) FROM `star` WHERE uid=?) WHERE id=?", user.ID, user.ID); err != nil {
+300: 				return err
+301: 			}
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | one UPDATE per user recomputing num_stars over all users in batches; one set-based UPDATE would do |  |
+
+### #1611 · go-gitea/gitea@85211296dd · `models/unittest/fixtures_loader.go:138`
+
+```
+136: 	}
+137: 	for i := range fixture.sqlInserts {
+138: 		_, err = tx.Exec(fixture.sqlInserts[i], fixture.sqlInsertArgs[i]...)
+139: 	}
+140: 	if err != nil {
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | test fixture loader inserting fixture rows; test-only, small data |  |
+
+### #1659 · go-gitea/gitea@85211296dd · `services/projects/issue.go:199`
+
+```
+197: 		// that moving an issue's column in one project doesn't affect its column in other
+198: 		// projects when the issue is assigned to multiple projects.
+199: 		_, err = db.Exec(ctx, "UPDATE `project_issue` SET project_board_id=?, sorting=? WHERE issue_id=? AND project_id=?",
+200: 			column.ID, sorting, issueID, column.ProjectID)
+201: 		if err != nil {
+202: 			return nil, err
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | per issue in a column reorder: ProjectColumnMap query + UPDATE; grows with column size, batchable via CASE |  |
+
+
+## `bpm-perf-go-defer-in-loop`
+
+### #1561 · prometheus/prometheus@a83f7158e7 · `scrape/manager.go:399`
+
+```
+397: 	for _, s := range oldScrapeFailureLoggers {
+398: 		if s != nil {
+399: 			defer s.Close()
+400: 		}
+401: 	}
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | intentional: closes the old failure loggers at function exit after swapping in new ones |  |
+
+### #1564 · prometheus/prometheus@a83f7158e7 · `tsdb/compact.go:626`
+
+```
+624: 				return nil, err
+625: 			}
+626: 			defer b.Close()
+627: 		}
+628: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | opened blocks must stay open until compaction finishes using them after the loop |  |
+
+### #1565 · prometheus/prometheus@a83f7158e7 · `tsdb/head_append.go:1822`
+
+```
+1820: 		acc.histogramsAppended += len(b.histograms) + len(b.floatHistograms)
+1821: 		a.commitExemplars(b)
+1822: 		defer b.close(h)
+1823: 	}
+1824: 	defer h.metrics.activeAppenders.Dec()
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | batches deliberately closed at end of commit after all are processed |  |
+
+### #1566 · prometheus/prometheus@a83f7158e7 · `tsdb/wlog/wlog.go:388`
+
+```
+386: 		case donec := <-w.stopc:
+387: 			close(w.actorc)
+388: 			defer close(donec)
+389: 			break Loop
+390: 		}
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | defer then break Loop immediately; executes once |  |
+
+### #1594 · go-gitea/gitea@85211296dd · `modelmigration/v1_9/v82.go:92`
+
+```
+90: 					return err
+91: 				}
+92: 				defer gitRepo.Close()
+93: 				gitRepoCache[release.RepoID] = gitRepo
+94: 			}
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | git repos are cached in gitRepoCache and reused across iterations, so must stay open until return |  |
+
+### #1615 · go-gitea/gitea@85211296dd · `modules/lfs/filesystem_client.go:53`
+
+```
+51: 			return err
+52: 		}
+53: 		defer f.Close()
+54: 		if err := callback(p, f, nil); err != nil {
+55: 			return err
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | LFS Download keeps every opened object file open until all objects are processed; objects list grows |  |
+
+### #1623 · go-gitea/gitea@85211296dd · `modules/packages/composer/metadata.go:142`
+
+```
+140: 				return nil, err
+141: 			}
+142: 			defer f.Close()
+143: 
+144: 			return util.ReadWithLimit(f, limit)
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | defer followed by return in the same iteration; runs at most once |  |
+
+### #1624 · go-gitea/gitea@85211296dd · `modules/packages/conda/metadata.go:113`
+
+```
+111: 				return nil, err
+112: 			}
+113: 			defer f.Close()
+114: 
+115: 			dec, err := zstd.NewReader(f)
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | defer followed by return in the same iteration; runs at most once |  |
+
+### #1625 · go-gitea/gitea@85211296dd · `modules/packages/conda/metadata.go:119`
+
+```
+117: 				return nil, err
+118: 			}
+119: 			defer dec.Close()
+120: 
+121: 			p, err := parsePackageTar(dec)
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | defer followed by return in the same iteration; runs at most once |  |
+
+### #1626 · go-gitea/gitea@85211296dd · `modules/packages/cran/metadata.go:138`
+
+```
+136: 				return nil, err
+137: 			}
+138: 			defer f.Close()
+139: 
+140: 			p, err := ParseDescription(f)
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | defer followed by return in the same iteration; runs at most once |  |
+
+### #1627 · go-gitea/gitea@85211296dd · `modules/packages/debian/metadata.go:116`
+
+```
+114: 					return nil, err
+115: 				}
+116: 				defer gzr.Close()
+117: 
+118: 				inner = gzr
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | defer gzip reader for the control.tar member of a .deb; only one such member, so at most once |  |
+
+### #1628 · go-gitea/gitea@85211296dd · `modules/packages/debian/metadata.go:131`
+
+```
+129: 					return nil, err
+130: 				}
+131: 				defer zr.Close()
+132: 
+133: 				inner = zr
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | defer zstd reader for the control.tar member of a .deb; only one such member, so at most once |  |
+
+### #1629 · go-gitea/gitea@85211296dd · `modules/packages/goproxy/metadata.go:83`
+
+```
+81: 				return nil, err
+82: 			}
+83: 			defer f.Close()
+84: 
+85: 			bytes, err := io.ReadAll(&io.LimitedReader{R: f, N: maxGoModFileSize})
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | defer followed by return after reading go.mod; runs at most once |  |
+
+### #1630 · go-gitea/gitea@85211296dd · `modules/packages/nuget/metadata.go:158`
+
+```
+156: 				return nil, err
+157: 			}
+158: 			defer f.Close()
+159: 
+160: 			return ParseNuspecMetaData(archive, f)
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | defer followed by return after nuspec parse; runs at most once |  |
+
+### #1722 · traefik/traefik@f1f227eda7 · `pkg/tls/ocsp.go:175`
+
+```
+173: 			continue
+174: 		}
+175: 		defer res.Body.Close()
+176: 
+177: 		if res.StatusCode/100 != 2 {
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | OCSP responders per cert (usually 1-2); failed bodies stay open until return |  |
+
+
 ## `bpm-perf-go-nested-range-join`
 
 ### #1555 · prometheus/prometheus@a83f7158e7 · `model/labels/labels_common.go:166`
@@ -1672,35 +2203,532 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 | wrong | prepend only in len(ss)==1 case; ss is capped at 2 elements |  |
 
 
+## `bpm-perf-go-regex-compile-in-loop`
+
+### #1560 · prometheus/prometheus@a83f7158e7 · `promql/promqltest/test.go:734`
+
+```
+732: 		if cmd.fail && strings.HasPrefix(defLine, "expected_fail_regexp") {
+733: 			pattern := strings.TrimSpace(strings.TrimPrefix(defLine, "expected_fail_regexp"))
+734: 			cmd.expectedFailRegexp, err = regexp.Compile(pattern)
+735: 			if err != nil {
+736: 				return i, nil, formatErr("invalid regexp '%s' for expected_fail_regexp: %w", pattern, err)
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | compiles a distinct user-supplied pattern then breaks; nothing to hoist |  |
+
+### #1581 · go-gitea/gitea@85211296dd · `modelmigration/base/db.go:365`
+
+```
+363: 		// Remove the required columnNames
+364: 		for _, name := range columnNames {
+365: 			tableSQL = regexp.MustCompile(regexp.QuoteMeta("`"+name+"`")+"[^`,)]*?[,)]").ReplaceAllString(tableSQL, "")
+366: 		}
+367: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | regexp differs per column name (QuoteMeta of name); cannot hoist; migration-only |  |
+
+### #1622 · go-gitea/gitea@85211296dd · `modules/markup/sanitizer_custom.go:25`
+
+```
+23: 					panic("Markup sanitizer rule regexp must start with ^ and end with $ to be strict")
+24: 				}
+25: 				policy.AllowAttrs(rule.AllowAttr).Matching(regexp.MustCompile(rule.Regexp)).OnElements(rule.Element)
+26: 			} else {
+27: 				policy.AllowAttrs(rule.AllowAttr).OnElements(rule.Element)
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | compiles each distinct config sanitizer rule once at setup; nothing to hoist |  |
+
+### #1713 · traefik/traefik@f1f227eda7 · `pkg/middlewares/headers/header.go:34`
+
+```
+32: 	regexes := make([]*regexp.Regexp, len(cfg.AccessControlAllowOriginListRegex))
+33: 	for i, str := range cfg.AccessControlAllowOriginListRegex {
+34: 		reg, err := regexp.Compile(str)
+35: 		if err != nil {
+36: 			return nil, fmt.Errorf("error occurred during origin parsing: %w", err)
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | compiles each distinct configured origin regex once at middleware construction |  |
+
+### #1714 · traefik/traefik@f1f227eda7 · `pkg/middlewares/stripprefixregex/strip_prefix_regex.go:35`
+
+```
+33: 
+34: 	for _, exp := range config.Regex {
+35: 		reg, err := regexp.Compile(strings.TrimSpace(exp))
+36: 		if err != nil {
+37: 			return nil, err
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | compiles each distinct configured regex once at middleware construction |  |
+
+### #1716 · traefik/traefik@f1f227eda7 · `pkg/muxer/tcp/matcher_v2.go:141`
+
+```
+139: 		}
+140: 
+141: 		regexp, err := regexp.Compile(preparedPattern)
+142: 		if err != nil {
+143: 			return err
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | compiles each distinct HostSNIRegexp template once at router build |  |
+
+### #1717 · traefik/traefik@f1f227eda7 · `pkg/muxer/tcp/matcher_v2.go:151`
+
+```
+149: 	tree.matcher = func(meta ConnData) bool {
+150: 		for _, regexp := range regexps {
+151: 			if regexp.MatchString(meta.serverName) {
+152: 				return true
+153: 			}
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | MatchString on precompiled regexps, no compile in loop |  |
+
+
+## `bpm-perf-go-string-concat-in-loop`
+
+### #1558 · prometheus/prometheus@a83f7158e7 · `promql/parser/generated_parser.y.go:990`
+
+```
+988: 	for i, tok := range expected {
+989: 		if i == 0 {
+990: 			res += ", expecting "
+991: 		} else {
+992: 			res += " or "
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | yacc error message over capped expected-token list (few tokens) |  |
+
+### #1559 · prometheus/prometheus@a83f7158e7 · `promql/parser/generated_parser.y.go:992`
+
+```
+990: 			res += ", expecting "
+991: 		} else {
+992: 			res += " or "
+993: 		}
+994: 		res += yyTokname(tok)
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | yacc error message over capped expected-token list (few tokens) |  |
+
+### #1562 · prometheus/prometheus@a83f7158e7 · `scrape/scrape.go:803`
+
+```
+801: 			val += ";" + model.EscapingKey + "=" + scheme.String()
+802: 		}
+803: 		val += fmt.Sprintf(";q=0.%d", weight)
+804: 		vals = append(vals, val)
+805: 		weight--
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | val is fresh each iteration with one append; no accumulation across iterations |  |
+
+### #1577 · prometheus/prometheus@a83f7158e7 · `web/ui/mantine-ui/src/promql/tools/gen_functions_docs/main.go:132`
+
+```
+130: 			}
+131: 		} else {
+132: 			currentDocs += line
+133: 		}
+134: 	}
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | build-time docs generator accumulating lines of one function section; small input |  |
+
+### #1582 · go-gitea/gitea@85211296dd · `modelmigration/base/db.go:406`
+
+```
+404: 		for _, col := range columnNames {
+405: 			if cols != "" {
+406: 				cols += ", "
+407: 			}
+408: 			cols += "DROP COLUMN `" + col + "` CASCADE"
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | migration joins a few dropped column names |  |
+
+### #1584 · go-gitea/gitea@85211296dd · `modelmigration/base/db.go:434`
+
+```
+432: 		for _, col := range columnNames {
+433: 			if cols != "" {
+434: 				cols += ", "
+435: 			}
+436: 			cols += "DROP COLUMN `" + col + "`"
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | migration joins a few dropped column names |  |
+
+### #1586 · go-gitea/gitea@85211296dd · `modelmigration/base/db.go:445`
+
+```
+443: 		for _, col := range columnNames {
+444: 			if cols != "" {
+445: 				cols += ", "
+446: 			}
+447: 			cols += "`" + strings.ToLower(col) + "`"
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | migration joins a few column names (MSSQL) |  |
+
+### #1587 · go-gitea/gitea@85211296dd · `modelmigration/base/db.go:447`
+
+```
+445: 				cols += ", "
+446: 			}
+447: 			cols += "`" + strings.ToLower(col) + "`"
+448: 		}
+449: 		sql := fmt.Sprintf("SELECT Name FROM sys.default_constraints WHERE parent_object_id = OBJECT_ID('%[1]s') AND parent_column_id IN (SELECT column_id FROM sys.columns WHERE LOWER(name) IN (%[2]s) AND object_id = OBJECT_ID('%[1]s'))",
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | migration joins a few column names (MSSQL) |  |
+
+### #1603 · go-gitea/gitea@85211296dd · `models/issues/pull.go:961`
+
+```
+959: 	for _, char := range line {
+960: 		if escape {
+961: 			token += string(char)
+962: 			escape = false
+963: 		} else if string(char) == "\\" {
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | per-char token building in one CODEOWNERS line; tokens are short |  |
+
+### #1604 · go-gitea/gitea@85211296dd · `models/issues/pull.go:973`
+
+```
+971: 			}
+972: 		} else {
+973: 			token += string(char)
+974: 		}
+975: 	}
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | per-char token building in one CODEOWNERS line; tokens are short |  |
+
+### #1613 · go-gitea/gitea@85211296dd · `modules/auth/password/password.go:67`
+
+```
+65: 		for _, val := range values {
+66: 			if complexity, ok := charComplexities[val]; ok {
+67: 				validChars += complexity.ValidChars
+68: 				requiredList = append(requiredList, complexity)
+69: 			}
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | concatenates a few fixed password-complexity char classes once at setup |  |
+
+### #1614 · go-gitea/gitea@85211296dd · `modules/auth/password/password.go:74`
+
+```
+72: 			// No valid character classes found; use all classes as default
+73: 			for _, complexity := range charComplexities {
+74: 				validChars += complexity.ValidChars
+75: 				requiredList = append(requiredList, complexity)
+76: 			}
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | concatenates the fixed default char classes once at setup |  |
+
+### #1618 · go-gitea/gitea@85211296dd · `modules/markup/html_commit.go:184`
+
+```
+182: 		text := text1 + textDots + text2
+183: 		if hash != "" {
+184: 			text += " (" + hash + ")"
+185: 		}
+186: 		replaceContent(node, start, end, createCodeLink(urlFull, text, "compare"))
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | text is fresh per node with a single append; no accumulation across iterations |  |
+
+### #1619 · go-gitea/gitea@85211296dd · `modules/markup/html_issue.go:56`
+
+```
+54: 		if m[4] != -1 && m[5] != -1 {
+55: 			if locale, ok := ctx.Value(translation.ContextKey).(translation.Locale); ok {
+56: 				text += " " + locale.TrString("repo.from_comment")
+57: 			} else {
+58: 				text += " (comment)"
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | single append to a freshly built link text; not accumulating in a loop |  |
+
+### #1620 · go-gitea/gitea@85211296dd · `modules/markup/html_issue.go:58`
+
+```
+56: 				text += " " + locale.TrString("repo.from_comment")
+57: 			} else {
+58: 				text += " (comment)"
+59: 			}
+60: 		}
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | single append to a freshly built link text; not accumulating in a loop |  |
+
+### #1621 · go-gitea/gitea@85211296dd · `modules/markup/html_link.go:93`
+
+```
+91: 		}
+92: 
+93: 		name += tail
+94: 		image := false
+95: 		ext := path.Ext(link)
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | single append to fresh name per link; not accumulating |  |
+
+### #1631 · go-gitea/gitea@85211296dd · `modules/setting/config_env.go:72`
+
+```
+70: 		}
+71: 		if inKey {
+72: 			key += string(decodedBytes)
+73: 		} else {
+74: 			section += string(decodedBytes)
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | decodes a few escaped sequences in one env var name |  |
+
+### #1632 · go-gitea/gitea@85211296dd · `modules/setting/config_env.go:74`
+
+```
+72: 			key += string(decodedBytes)
+73: 		} else {
+74: 			section += string(decodedBytes)
+75: 		}
+76: 		last = unescapeIdx[1]
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | decodes a few escaped sequences in one env var name |  |
+
+### #1633 · go-gitea/gitea@85211296dd · `modules/timeutil/since.go:105`
+
+```
+103: 
+104: 		diff, diffStr = computeTimeDiffFloor(diff, lang)
+105: 		timeStr += ", " + diffStr
+106: 	}
+107: 	return strings.TrimPrefix(timeStr, ", ")
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | time-since string over at most a handful of time units |  |
+
+### #1634 · go-gitea/gitea@85211296dd · `modules/translation/mock.go:33`
+
+```
+31: 		switch v := arg.(type) {
+32: 		case string:
+33: 			ret += v + ","
+34: 		default:
+35: 			ret += fmt.Sprint(v) + ","
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | mock locale (tests) concatenating 1-2 args, as the code comment notes |  |
+
+### #1636 · go-gitea/gitea@85211296dd · `modules/translation/mock.go:47`
+
+```
+45: 		switch v := arg.(type) {
+46: 		case template.HTML:
+47: 			ret += v + ","
+48: 		case string:
+49: 			ret += template.HTML(html.EscapeString(v)) + ","
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | mock locale (tests) concatenating 1-2 args |  |
+
+### #1637 · go-gitea/gitea@85211296dd · `modules/translation/mock.go:49`
+
+```
+47: 			ret += v + ","
+48: 		case string:
+49: 			ret += template.HTML(html.EscapeString(v)) + ","
+50: 		default:
+51: 			ret += template.HTML(html.EscapeString(fmt.Sprint(v))) + ","
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | mock locale (tests) concatenating 1-2 args |  |
+
+### #1643 · go-gitea/gitea@85211296dd · `routers/private/manager_process.go:118`
+
+```
+116: 			}
+117: 			_, _ = fmt.Fprintf(sb, "\n")
+118: 			indent += "| "
+119: 			if len(stack.Labels) > 0 {
+120: 				_, _ = fmt.Fprintf(sb, "%sLabels:      %q:%q", indent, stack.Labels[0].Name, stack.Labels[0].Value)
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | indent is re-declared each iteration (shadowed copy); writes go to a strings.Builder |  |
+
+### #1644 · go-gitea/gitea@85211296dd · `routers/private/manager_process.go:130`
+
+```
+128: 			}
+129: 			_, _ = fmt.Fprintf(sb, "%sStack:\n", indent)
+130: 			indent += "  "
+131: 			for _, entry := range stack.Entry {
+132: 				_, _ = fmt.Fprintf(sb, "%s+ %s\n", indent, entry.Function)
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | indent is a per-iteration shadowed copy, grows by 2 chars once; output uses a Builder |  |
+
+### #1646 · go-gitea/gitea@85211296dd · `routers/web/feed/convert.go:210`
+
+```
+208: 				for _, commit := range push.Commits {
+209: 					if len(desc) != 0 {
+210: 						desc += "\n\n"
+211: 					}
+212: 					desc += fmt.Sprintf("<a href=\"%s\">%s</a>\n%s",
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | feed description over commits of one push action; feed commit count is capped |  |
+
+### #1647 · go-gitea/gitea@85211296dd · `routers/web/feed/convert.go:212`
+
+```
+210: 						desc += "\n\n"
+211: 					}
+212: 					desc += fmt.Sprintf("<a href=\"%s\">%s</a>\n%s",
+213: 						html.EscapeString(fmt.Sprintf("%s/commit/%s", act.GetRepoAbsoluteLink(ctx), commit.Sha1)),
+214: 						commit.Sha1,
+215: 						renderUtils.RenderCommitMessage(commit.Message, act.Repo),
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | feed description over commits of one push action; feed commit count is capped |  |
+
+### #1648 · go-gitea/gitea@85211296dd · `routers/web/feed/convert.go:232`
+
+```
+230: 				comment := act.GetIssueInfos()[1]
+231: 				if len(comment) != 0 {
+232: 					desc += "\n\n" + string(renderCommentMarkdown(ctx, act, comment, true))
+233: 				}
+234: 			case activities_model.ActionMergePullRequest, activities_model.ActionAutoMergePullRequest:
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | single append inside a switch case, not accumulating in the loop |  |
+
+### #1653 · go-gitea/gitea@85211296dd · `routers/web/user/setting/keys.go:142`
+
+```
+140: 		keyIDs := ""
+141: 		for _, key := range keys {
+142: 			keyIDs += key.KeyID
+143: 			keyIDs += ", "
+144: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | joins key IDs of one uploaded GPG key block; a handful of keys |  |
+
+### #1657 · go-gitea/gitea@85211296dd · `services/gitdiff/gitdiff.go:1261`
+
+```
+1259: 			var suffix string
+1260: 			_, _ = fmt.Fscanf(rd, "%s ", &suffix)
+1261: 			name += " " + suffix
+1262: 			char, _ = rd.ReadByte()
+1263: 			_ = rd.UnreadByte()
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | rebuilds a filename with spaces from a diff header; few words |  |
+
+### #1706 · traefik/traefik@f1f227eda7 · `internal/gendoc.go:72`
+
+```
+70: 
+71: 		if flat.Default == "" {
+72: 			line += "|"
+73: 		} else {
+74: 			line += flat.Default + " |"
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | line is fresh per flag with one append; written out each iteration |  |
+
+
 ## `bpm-perf-includes-in-loop`
-
-### #6 · excalidraw/excalidraw@b7de45e881 · `excalidraw-app/sentry.ts:17`
-
-```
-15:   !SENTRY_DISABLED &&
-16:   Object.keys(SentryEnvHostnameMap).find(
-17:     (item) => window.location.hostname.indexOf(item) >= 0,
-18:   );
-19: 
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| wrong | window.location.hostname is a string; indexOf is substring search over 3 fixed hostname keys |  |
-
-### #7 · excalidraw/excalidraw@b7de45e881 · `packages/common/src/emitter.ts:37`
-
-```
-35:     const _handlers = handlers.flat();
-36:     this.subscribers = this.subscribers.filter(
-37:       (handler) => !_handlers.includes(handler),
-38:     );
-39:   }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | subscribers filtered against _handlers = the few handler args passed to off() |  |
 
 ### #10 · excalidraw/excalidraw@b7de45e881 · `packages/element/src/dragElements.ts:86`
 
@@ -1716,90 +2744,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 |---|---|---|
 | true | all scene elements x ids of selected frames; both grow with the drawing, size unknown, data-derived |  |
 
-### #11 · excalidraw/excalidraw@b7de45e881 · `packages/element/src/duplicate.ts:227`
-
-```
-225:     for (const groupId of Object.keys(opts.appState.selectedGroupIds)) {
-226:       elements
-227:         .filter((el) => el.groupIds?.includes(groupId))
-228:         .forEach((el) => _idsOfElementsToDuplicate.set(el.id, el));
-229:     }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | el.groupIds is one element's group nesting chain (a few ids); outer loop over all elements |  |
-
-### #12 · excalidraw/excalidraw@b7de45e881 · `packages/element/src/elbowArrow.ts:291`
-
-```
-289:     arrow.fixedSegments?.map((segment) => segment.index) ?? [];
-290:   const deletedSegmentIdx = oldFixedSegmentIndices.findIndex(
-291:     (idx) => !newFixedSegmentIndices.includes(idx),
-292:   );
-293: 
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | fixed segment indices of a single elbow arrow; a handful per arrow |  |
-
-### #14 · excalidraw/excalidraw@b7de45e881 · `packages/element/src/zindex.ts:175`
-
-```
-173:     containerElement?.id,
-174:   ].filter((id): id is NonDeletedExcalidrawElement["id"] => !!id);
-175:   const bindableIdx = elements.findIndex((el) => bindableIds.includes(el.id));
-176:   const arrowIdx = elements.findIndex((el) => el.id === arrow.id);
-177: 
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | bindableIds has at most 3 ids (hovered, bound text, container) |  |
-
-### #15 · excalidraw/excalidraw@b7de45e881 · `packages/excalidraw/actions/actionBoundText.tsx:391`
-
-```
-389:         .map((el) => el.id);
-390:       const linearElements = updatedElements.filter((ele) =>
-391:         linearElementIds.includes(ele.id),
-392:       ) as ExcalidrawLinearElement[];
-393:       linearElements.forEach((ele) => {
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | arrow ids bound to one text element (typically few) vs all updated elements |  |
-
-### #21 · excalidraw/excalidraw@b7de45e881 · `packages/excalidraw/components/App.bucketFill.ts:241`
-
-```
-239:               common === null
-240:                 ? groupIds
-241:                 : common.filter((groupId) => groupIds.includes(groupId)),
-242:             null as string[] | null,
-243:           ) ?? [];
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | intersection of per-element groupIds arrays (group nesting depth, a few ids) |  |
-
-### #23 · excalidraw/excalidraw@b7de45e881 · `packages/excalidraw/components/App.selection.ts:194`
-
-```
-192:     const boundElements = linear.boundElements?.map((def) => def.id) ?? [];
-193:     const onlySingleLinearSelected = targetElements.every(
-194:       (el) => el.id === linear.id || boundElements.includes(el.id),
-195:     );
-196: 
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | boundElements of one linear element (its labels, a few) vs selected elements |  |
-
 ### #25 · excalidraw/excalidraw@b7de45e881 · `packages/excalidraw/components/App.tsx:10852`
 
 ```
@@ -1813,160 +2757,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 | Proposed | Reason | Brad |
 |---|---|---|
 | true | dropped library itemIds x whole library items; both user data, size unknown |  |
-
-### #27 · excalidraw/excalidraw@b7de45e881 · `packages/excalidraw/components/LibraryMenuHeaderContent.tsx:36`
-
-```
-34:   libraryItems: LibraryItems,
-35:   selectedItems: LibraryItem["id"][],
-36: ) => libraryItems.filter((item) => selectedItems.includes(item.id));
-37: 
-38: export const LibraryDropdownMenuButton: React.FC<{
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | selectedItems ids x libraryItems; selection and library both grow with user data |  |
-
-### #28 · excalidraw/excalidraw@b7de45e881 · `packages/excalidraw/components/LibraryMenuHeaderContent.tsx:94`
-
-```
-92:   const items = itemsSelected
-93:     ? libraryItemsData.libraryItems.filter((item) =>
-94:         selectedItems.includes(item.id),
-95:       )
-96:     : libraryItemsData.libraryItems;
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | selectedItems ids x libraryItems; selection and library both grow with user data |  |
-
-### #29 · excalidraw/excalidraw@b7de45e881 · `packages/excalidraw/components/LibraryMenuHeaderContent.tsx:295`
-
-```
-293:   const removeFromLibrary = async (libraryItems: LibraryItems) => {
-294:     const nextItems = libraryItems.filter(
-295:       (item) => !selectedItems.includes(item.id),
-296:     );
-297:     library.setLibrary(nextItems).catch(() => {
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | selectedItems ids x libraryItems on remove; both data-derived |  |
-
-### #30 · excalidraw/excalidraw@b7de45e881 · `packages/excalidraw/components/LibraryMenuItems.tsx:193`
-
-```
-191:       if (selectedItems.includes(id)) {
-192:         targetElements = libraryItems.filter((item) =>
-193:           selectedItems.includes(item.id),
-194:         );
-195:       } else {
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | selectedItems ids x libraryItems; both data-derived |  |
-
-### #50 · excalidraw/excalidraw@b7de45e881 · `packages/fractional-indexing/src/index.ts:113`
-
-```
-111:   digits: string = BASE_62_DIGITS,
-112: ): void {
-113:   const validChars = key.split("").every((char) => digits.includes(char));
-114:   if (key === `A${digits[0].repeat(26)}` || !validChars) {
-115:     throw new Error(`invalid order key: ${key}`);
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| wrong | digits is a string (base-62 alphabet); includes is a character lookup, not array membership |  |
-
-### #54 · outline/outline@670410b236 · `.oxlint/react-router.mjs:173`
-
-```
-171:                 entry.name !== node.name ||
-172:                 entry.node.id === node ||
-173:                 !ancestors.includes(entry.owner)
-174:               ) {
-175:                 continue;
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | ancestors = AST ancestor chain of one node (tree depth, bounded) vs tracked entries |  |
-
-### #58 · outline/outline@670410b236 · `app/actions/index.ts:378`
-
-```
-376:   const applicableTypes = ["button", "link", "route", "group", "submenu"];
-377:   return items.some(
-378:     (item) => applicableTypes.includes(item.type) && item.visible
-379:   );
-380: }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | applicableTypes is a fixed 5-element literal |  |
-
-### #61 · outline/outline@670410b236 · `app/components/DocumentExplorer/DocumentExplorer.tsx:220`
-
-```
-218:     }
-219:     const ids = flatten(items.map(flattenTree))
-220:       .filter((item) => deepExpandedNodes.includes(item.id))
-221:       .flatMap(expandableDescendantIds);
-222: 
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | deepExpandedNodes (alt-clicked ids, grows) x all flattened tree items; size unknown, data-derived |  |
-
-### #62 · outline/outline@670410b236 · `app/components/DocumentExplorer/DocumentExplorer.tsx:232`
-
-```
-230:     collections.orderedData
-231:       .filter(
-232:         (collection) => expandedNodes.includes(collection.id) || searchTerm
-233:       )
-234:       .forEach((collection) => {
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | expandedNodes (incl. deep-expanded descendants, can be large) x collections |  |
-
-### #63 · outline/outline@670410b236 · `app/components/FilterOptions.tsx:65`
-
-```
-63:   const [open, setOpen] = React.useState(false);
-64:   const selectedItems = options.filter((option) =>
-65:     selectedKeys.includes(option.key)
-66:   );
-67:   const [query, setQuery] = React.useState("");
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | selectedKeys x filter options (options can be users/collections); size unknown, data-derived |  |
-
-### #65 · outline/outline@670410b236 · `app/components/Notifications/Notifications.tsx:49`
-
-```
-47:         ? active
-48:         : active.filter((notification) =>
-49:             Notification.filterCategories[filter].includes(notification.event)
-50:           );
-51: 
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | Notification.filterCategories[filter] is a fixed list of event types |  |
 
 ### #66 · outline/outline@670410b236 · `app/components/Sharing/Collection/AccessControlList.tsx:144`
 
@@ -1982,20 +2772,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 |---|---|---|
 | small | invitedInSession = ids invited in this dialog session (few) in sort comparator over group memberships |  |
 
-### #67 · outline/outline@670410b236 · `app/components/Sharing/Collection/AccessControlList.tsx:206`
-
-```
-204:                   .sort((a, b) =>
-205:                     (
-206:                       (invitedInSession.includes(a.user.id) ? "_" : "") +
-207:                       a.user.name
-208:                     ).localeCompare(b.user.name)
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | invitedInSession = ids invited in this dialog session (few) in sort comparator over user memberships |  |
-
 ### #69 · outline/outline@670410b236 · `app/components/Sharing/Document/DocumentMemberList.tsx:142`
 
 ```
@@ -2009,174 +2785,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 | Proposed | Reason | Brad |
 |---|---|---|
 | small | invitedInSession = ids invited in this dialog session (few) in sort comparator over group memberships |  |
-
-### #71 · outline/outline@670410b236 · `app/components/Sidebar/components/DraggableSection.tsx:51`
-
-```
-49: ): SidebarSection[] {
-50:   const all = Object.values(SidebarSection);
-51:   const valid = [...new Set(saved)].filter((section) => all.includes(section));
-52:   return [...valid, ...all.filter((section) => !valid.includes(section))];
-53: }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | all = Object.values(SidebarSection) enum, a handful of sections |  |
-
-### #72 · outline/outline@670410b236 · `app/components/Sidebar/components/DraggableSection.tsx:52`
-
-```
-50:   const all = Object.values(SidebarSection);
-51:   const valid = [...new Set(saved)].filter((section) => all.includes(section));
-52:   return [...valid, ...all.filter((section) => !valid.includes(section))];
-53: }
-54: 
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | valid is a subset of SidebarSection enum values; both a handful |  |
-
-### #73 · outline/outline@670410b236 · `app/components/Table.tsx:197`
-
-```
-195:       columns.filter(
-196:         (column) =>
-197:           !id || column.type !== "data" || !hiddenColumns.includes(column.id)
-198:       ),
-199:     [id, columns, hiddenColumns]
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | hiddenColumns x table columns; column definitions are a fixed small set |  |
-
-### #74 · outline/outline@670410b236 · `app/components/Table.tsx:598`
-
-```
-596:   );
-597:   const visibleCount = dataColumns.filter(
-598:     (column) => !hiddenColumns.includes(column.id)
-599:   ).length;
-600: 
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | hiddenColumns x data columns of a table; fixed small set |  |
-
-### #85 · outline/outline@670410b236 · `app/scenes/Document/components/Comments/LightboxComments.tsx:48`
-
-```
-46:     .threadsInDocument(document.id)
-47:     .filter(
-48:       (comment) => commentIds.includes(comment.id) && !comment.isResolved
-49:     );
-50: 
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | commentIds at one editor position (a few) vs document comment threads |  |
-
-### #86 · outline/outline@670410b236 · `app/scenes/Document/components/References.tsx:202`
-
-```
-200:   if (sharedTree) {
-201:     return flattenTree(sharedTree).filter((node) =>
-202:       document.backlinkIds?.includes(node.id)
-203:     ) as Document[];
-204:   }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | document.backlinkIds x flattened shared-tree nodes; both grow with documents |  |
-
-### #88 · outline/outline@670410b236 · `app/stores/CollectionsStore.ts:204`
-
-```
-202:       (collection) =>
-203:         collection.permission &&
-204:         Object.values(CollectionPermission).includes(collection.permission)
-205:     );
-206:   }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | Object.values(CollectionPermission) is a small enum |  |
-
-### #89 · outline/outline@670410b236 · `app/stores/GroupsStore.ts:38`
-
-```
-36:     const groupIds = memberships.map((member) => member.groupId);
-37:     const groups = this.orderedData.filter((group) =>
-38:       groupIds.includes(group.id)
-39:     );
-40: 
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | groupIds from collection memberships x all groups in store; both data-derived |  |
-
-### #90 · outline/outline@670410b236 · `app/stores/GroupsStore.ts:57`
-
-```
-55:     const groupIds = memberships.map((member) => member.groupId);
-56:     const groups = this.orderedData.filter(
-57:       (group) => !groupIds.includes(group.id)
-58:     );
-59: 
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | groupIds from document memberships x all groups in store; both data-derived |  |
-
-### #91 · outline/outline@670410b236 · `app/stores/GroupsStore.ts:76`
-
-```
-74:     const groupIds = memberships.map((member) => member.groupId);
-75:     const groups = this.orderedData.filter(
-76:       (group) => !groupIds.includes(group.id)
-77:     );
-78: 
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | groupIds from collection memberships x all groups in store; both data-derived |  |
-
-### #92 · outline/outline@670410b236 · `app/stores/UsersStore.ts:163`
-
-```
-161:     const userIds = groupUsers.map((groupUser) => groupUser.userId);
-162:     const users = this.activeOrInvited.filter(
-163:       (user) => !userIds.includes(user.id)
-164:     );
-165:     return queriedUsers(users, query);
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | userIds of collection memberships x all active/invited users; both grow with team size |  |
-
-### #93 · outline/outline@670410b236 · `app/stores/UsersStore.ts:174`
-
-```
-172:     const userIds = groupUsers.map((groupUser) => groupUser.userId);
-173:     const users = this.activeOrInvited.filter((user) =>
-174:       userIds.includes(user.id)
-175:     );
-176:     return queriedUsers(users, query);
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | userIds of collection memberships x all active/invited users; both grow with team size |  |
 
 ### #94 · outline/outline@670410b236 · `app/stores/UsersStore.ts:185`
 
@@ -2192,244 +2800,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 |---|---|---|
 | true | userIds of group members x all active/invited users; both grow with team size |  |
 
-### #95 · outline/outline@670410b236 · `app/stores/UsersStore.ts:196`
-
-```
-194:     const userIds = groupUsers.map((groupUser) => groupUser.userId);
-195:     const users = this.activeOrInvited.filter((user) =>
-196:       userIds.includes(user.id)
-197:     );
-198:     return queriedUsers(users, query);
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | userIds of group members x all active/invited users; both grow with team size |  |
-
-### #107 · outline/outline@670410b236 · `plugins/discord/server/auth/discord.ts:178`
-
-```
-176:                 const { roles } = guildMember;
-177:                 const hasRole = roles?.some((role) =>
-178:                   env.DISCORD_SERVER_ROLES?.includes(role)
-179:                 );
-180: 
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | env.DISCORD_SERVER_ROLES is a configured comma list (few) vs member's roles |  |
-
-### #111 · outline/outline@670410b236 · `plugins/github/server/GitHubIssueProvider.ts:205`
-
-```
-203:         );
-204:         sources = sources.filter(
-205:           (source) => !removedSourceIds.includes(source.id)
-206:         );
-207:       }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | removed repo ids from webhook x integration issue sources (repos); both data-derived |  |
-
-### #123 · outline/outline@670410b236 · `plugins/notion/server/tasks/NotionAPIImportTask.ts:157`
-
-```
-155:           error.code === APIErrorCode.Unauthorized ||
-156:           this.skippableErrorMessages.some((errorMsg) =>
-157:             error.message.includes(errorMsg)
-158:           )
-159:         ) {
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| wrong | error.message is a string; includes is substring search over a fixed error-message list |  |
-
-### #124 · outline/outline@670410b236 · `plugins/search-postgres/server/PostgresSearchProvider.ts:905`
-
-```
-903:     );
-904:     const remainder = terms
-905:       .filter((term) => !identifiers.includes(term))
-906:       .join(" ");
-907: 
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | identifiers is capped by .slice(0, 3) |  |
-
-### #127 · outline/outline@670410b236 · `plugins/webhooks/client/components/WebhookSubscriptionForm.tsx:195`
-
-```
-193:         const isGroupSelected = selectedGroups.includes(group);
-194:         const selectedChildEvents = groupEvents.filter((event) =>
-195:           events.includes(event)
-196:         );
-197:         const isPartiallySelected =
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | events (selected webhook events, bounded by fixed WEBHOOK_EVENTS) x a group's fixed event list |  |
-
-### #161 · outline/outline@670410b236 · `server/commands/teamUpdater.ts:61`
-
-```
-59:     // Only keep existing domains if they are still in the list of allowed domains
-60:     const newAllowedDomains = team.allowedDomains.filter((existingTeamDomain) =>
-61:       allowedDomains.includes(existingTeamDomain.name)
-62:     );
-63: 
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | allowedDomains is a team's handful of configured email domains (limit-checked) |  |
-
-### #162 · outline/outline@670410b236 · `server/commands/teamUpdater.ts:67`
-
-```
-65:     const existingDomains = team.allowedDomains.map((x) => x.name);
-66:     const newDomains = allowedDomains.filter(
-67:       (newDomain) => newDomain !== "" && !existingDomains.includes(newDomain)
-68:     );
-69:     // Created one at a time so that the limit check on each create counts the
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | existingDomains = team's few configured allowed domains |  |
-
-### #164 · outline/outline@670410b236 · `server/commands/teamUpdater.ts:83`
-
-```
-81:     // Destroy the existing TeamDomains that were removed
-82:     const deletedDomains = existingAllowedDomains.filter(
-83:       (x) => !allowedDomains.includes(x.name)
-84:     );
-85:     await Promise.all(deletedDomains.map((x) => x.destroyWithCtx(ctx)));
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | allowedDomains is a team's handful of configured email domains |  |
-
-### #169 · outline/outline@670410b236 · `server/converters/MimeArchiveConverter.ts:184`
-
-```
-182:       let replaced = false;
-183:       for (const reference of references) {
-184:         if (html.includes(reference)) {
-185:           const dataUri = `data:${contentType};base64,${attachment.content.toString(
-186:             "base64"
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| wrong | html is a string; includes is substring search per reference |  |
-
-### #170 · outline/outline@670410b236 · `server/logging/Logger.ts:228`
-
-```
-226: 
-227:       for (const key of Object.keys(output)) {
-228:         if (sensitiveFields.includes(key)) {
-229:           output[key] = "[Filtered]";
-230:         } else if (isObject(output[key])) {
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | sensitiveFields is a fixed list of field names |  |
-
-### #171 · outline/outline@670410b236 · `server/main.ts:115`
-
-```
-113:   // loop through requested services at startup
-114:   for (const name of env.SERVICES) {
-115:     if (!Object.keys(services).includes(name)) {
-116:       throw new Error(`Unknown service ${name}`);
-117:     }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | Object.keys(services) is a fixed set of service names; env.SERVICES a few |  |
-
-### #196 · outline/outline@670410b236 · `server/models/base/Model.ts:518`
-
-```
-516: 
-517:       if (
-518:         virtualFields.includes(String(change)) ||
-519:         blobFields.includes(String(change)) ||
-520:         skippedFields.includes(String(change))
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | virtualFields: static per-model field-name list, a few entries |  |
-
-### #197 · outline/outline@670410b236 · `server/models/base/Model.ts:519`
-
-```
-517:       if (
-518:         virtualFields.includes(String(change)) ||
-519:         blobFields.includes(String(change)) ||
-520:         skippedFields.includes(String(change))
-521:       ) {
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | blobFields: static per-model field-name list, a few entries |  |
-
-### #198 · outline/outline@670410b236 · `server/models/base/Model.ts:520`
-
-```
-518:         virtualFields.includes(String(change)) ||
-519:         blobFields.includes(String(change)) ||
-520:         skippedFields.includes(String(change))
-521:       ) {
-522:         continue;
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | skippedFields: per-instance changeset-skip list, a few field names |  |
-
-### #256 · outline/outline@670410b236 · `server/queues/tasks/CommentCreatedNotificationsTask.ts:54`
-
-```
-52: 
-53:     for (const mention of mentions) {
-54:       if (userIdsMentioned.includes(mention.modelId)) {
-55:         continue;
-56:       }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | dedupe of user mentions in a single comment (a few); each iteration awaits a DB lookup |  |
-
-### #260 · outline/outline@670410b236 · `server/queues/tasks/CommentCreatedNotificationsTask.ts:91`
-
-```
-89:     const mentionedGroup: string[] = [];
-90:     for (const group of groupMentions) {
-91:       if (mentionedGroup.includes(group.modelId)) {
-92:         continue;
-93:       }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | dedupe of group mentions in a single comment (a few) |  |
-
 ### #263 · outline/outline@670410b236 · `server/queues/tasks/CommentCreatedNotificationsTask.ts:119`
 
 ```
@@ -2443,132 +2813,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 | Proposed | Reason | Brad |
 |---|---|---|
 | small | userIdsMentioned = users mentioned in one comment (few) vs notification recipients |  |
-
-### #265 · outline/outline@670410b236 · `server/queues/tasks/CommentUpdatedNotificationsTask.ts:43`
-
-```
-41:       ProsemirrorHelper.toProsemirror(comment.data),
-42:       { type: MentionType.User }
-43:     ).filter((mention) => newMentionIds.includes(mention.id));
-44:     const userIdsMentioned: string[] = [];
-45: 
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | newMentionIds = mentions added in one comment edit (few) vs comment's mentions |  |
-
-### #266 · outline/outline@670410b236 · `server/queues/tasks/CommentUpdatedNotificationsTask.ts:47`
-
-```
-45: 
-46:     for (const mention of mentions) {
-47:       if (userIdsMentioned.includes(mention.modelId)) {
-48:         continue;
-49:       }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | dedupe of user mentions in a single comment (a few) |  |
-
-### #270 · outline/outline@670410b236 · `server/queues/tasks/CommentUpdatedNotificationsTask.ts:77`
-
-```
-75:       ProsemirrorHelper.toProsemirror(comment.data),
-76:       { type: MentionType.Group }
-77:     ).filter((mention) => newMentionIds.includes(mention.id));
-78: 
-79:     const mentionedGroup: string[] = [];
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | newMentionIds = mentions added in one comment edit (few) vs group mentions |  |
-
-### #271 · outline/outline@670410b236 · `server/queues/tasks/CommentUpdatedNotificationsTask.ts:81`
-
-```
-79:     const mentionedGroup: string[] = [];
-80:     for (const group of groupMentions) {
-81:       if (mentionedGroup.includes(group.modelId)) {
-82:         continue;
-83:       }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | dedupe of group mentions in a single comment (a few) |  |
-
-### #274 · outline/outline@670410b236 · `server/queues/tasks/CommentUpdatedNotificationsTask.ts:142`
-
-```
-140: 
-141:       for (const userId of userIds) {
-142:         if (userIdsNotified.includes(userId)) {
-143:           continue;
-144:         }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | userIdsNotified = participants of one comment thread (tens at most); per-iteration DB awaits dominate |  |
-
-### #284 · outline/outline@670410b236 · `server/queues/tasks/DocumentPublishedNotificationsTask.ts:75`
-
-```
-73:     const mentionedGroup: string[] = [];
-74:     for (const group of groupMentions) {
-75:       if (mentionedGroup.includes(group.modelId)) {
-76:         continue;
-77:       }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | dedupe of group mentions in one document (few) |  |
-
-### #287 · outline/outline@670410b236 · `server/queues/tasks/DocumentPublishedNotificationsTask.ts:96`
-
-```
-94:       const mentionedUser: string[] = [];
-95:       for (const user of usersFromMentionedGroup) {
-96:         if (mentionedUser.includes(user.userId)) {
-97:           continue;
-98:         }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | mentionedUser dedupe grows to group size over all GroupUser rows of a group; O(g^2), though DB awaits dominate |  |
-
-### #291 · outline/outline@670410b236 · `server/queues/tasks/DocumentPublishedNotificationsTask.ts:131`
-
-```
-129:         actorId: document.lastModifiedById,
-130:       })
-131:     ).filter((recipient) => !userIdsMentioned.includes(recipient.id));
-132: 
-133:     for (const recipient of recipients) {
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | userIdsMentioned (users mentioned in doc) x doc notification recipients; size unknown, data-derived |  |
-
-### #320 · outline/outline@670410b236 · `server/queues/tasks/RevisionCreatedNotificationsTask.ts:110`
-
-```
-108:     const mentionedGroup: string[] = [];
-109:     for (const group of groupMentions) {
-110:       if (mentionedGroup.includes(group.modelId)) {
-111:         continue;
-112:       }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | dedupe of newly added group mentions in one revision (few) |  |
 
 ### #323 · outline/outline@670410b236 · `server/queues/tasks/RevisionCreatedNotificationsTask.ts:131`
 
@@ -2584,286 +2828,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 |---|---|---|
 | true | mentionedUser dedupe grows to group size over all GroupUser rows of a group; O(g^2), though DB awaits dominate |  |
 
-### #327 · outline/outline@670410b236 · `server/queues/tasks/RevisionCreatedNotificationsTask.ts:177`
-
-```
-175:         actorId: document.lastModifiedById,
-176:       })
-177:     ).filter((recipient) => !userIdsMentioned.includes(recipient.id));
-178:     if (!recipients.length) {
-179:       return;
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | userIdsMentioned (users mentioned in doc) x doc notification recipients; size unknown, data-derived |  |
-
-### #347 · outline/outline@670410b236 · `server/routes/api/auth/auth.ts:177`
-
-```
-175:           presentAvailableTeam(
-176:             availableTeam,
-177:             signedInTeamIds.includes(availableTeam.id) ||
-178:               availableTeam.id === user.teamId
-179:           )
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | signedInTeamIds = teams the user is signed into (a handful) vs available teams |  |
-
-### #393 · outline/outline@670410b236 · `shared/editor/lib/ExtensionManager.ts:96`
-
-```
-94:         nodes[i].marks = marks
-95:           .split(" ")
-96:           .filter((m: string) => Object.keys(this.marks).includes(m))
-97:           .join(" ");
-98:       }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | Object.keys(this.marks) = editor mark types (~20 fixed) vs a node's mark names |  |
-
-### #394 · outline/outline@670410b236 · `shared/editor/lib/ExtensionManager.ts:118`
-
-```
-116:         marks[i].excludes = excludes
-117:           .split(" ")
-118:           .filter((m: string) => Object.keys(marks).includes(m))
-119:           .join(" ");
-120:       }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | Object.keys(marks) = editor mark types (~20 fixed) vs a mark's excludes names |  |
-
-### #408 · outline/outline@670410b236 · `shared/utils/currency.ts:62`
-
-```
-60:   // Must contain at least one currency symbol
-61:   const hasCurrencySymbol = currencySymbols.some((symbol) =>
-62:     trimmed.includes(symbol)
-63:   );
-64:   if (!hasCurrencySymbol) {
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| wrong | trimmed is a string; includes is substring search over a fixed currency-symbol list |  |
-
-### #419 · immich-app/immich@f7b8ae5da3 · `packages/cli/src/utils.ts:61`
-
-```
-59: 
-60:   for (const permission of permissions) {
-61:     if (!_apiKey.permissions.includes(permission)) {
-62:       missing.push(permission);
-63:     }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | api key permissions bounded by the Permission enum vs the few permissions requested |  |
-
-### #421 · immich-app/immich@f7b8ae5da3 · `packages/plugin-core/src/index.ts:188`
-
-```
-186: 
-187:     for (const tag of config.tags) {
-188:       if (assetTags.includes(tag)) {
-189:         if (config.matching === 'any') {
-190:           return { workflow: { continue: true } };
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | one asset's tag ids x workflow config tags; both a handful |  |
-
-### #444 · immich-app/immich@f7b8ae5da3 · `server/src/repositories/machine-learning.repository.ts:102`
-
-```
-100:     // delete old servers
-101:     for (const url of Object.keys(this.healthyMap)) {
-102:       if (!config.urls.includes(url)) {
-103:         delete this.healthyMap[url];
-104:       }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | config.urls = configured ML server URLs (a few) |  |
-
-### #474 · immich-app/immich@f7b8ae5da3 · `server/src/services/duplicate.service.ts:127`
-
-```
-125: 
-126:     for (const assetId of groupAssetIds) {
-127:       if (idsToKeep.includes(assetId) && idsToTrash.includes(assetId)) {
-128:         return {
-129:           id: duplicateId,
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | idsToKeep/idsToTrash within one duplicate group (a few assets) |  |
-
-### #475 · immich-app/immich@f7b8ae5da3 · `server/src/services/duplicate.service.ts:136`
-
-```
-134:       }
-135: 
-136:       if (!idsToKeep.includes(assetId) && !idsToTrash.includes(assetId)) {
-137:         return {
-138:           id: duplicateId,
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | idsToKeep/idsToTrash within one duplicate group (a few assets) |  |
-
-### #541 · immich-app/immich@f7b8ae5da3 · `server/src/services/shared-link.service.ts:202`
-
-```
-200:     const results: AssetIdsResponseDto[] = [];
-201:     for (const assetId of dto.assetIds) {
-202:       const wasRemoved = removedAssetIds.includes(assetId);
-203:       if (!wasRemoved) {
-204:         results.push({ assetId, success: false, error: AssetIdErrorReason.NOT_FOUND });
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | dto.assetIds from request x removedAssetIds from DB; both request-sized, can be large |  |
-
-### #636 · immich-app/immich@f7b8ae5da3 · `server/src/services/workflow-execution.service.ts:399`
-
-```
-397:     let type: T | undefined;
-398:     for (const targetType of Object.values(WorkflowType)) {
-399:       const isMissing = workflow.steps.some((step) => !step.types.includes(targetType));
-400:       if (!isMissing) {
-401:         type = targetType as unknown as T;
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | WorkflowType enum x workflow steps x step.types (a few each) |  |
-
-### #654 · immich-app/immich@f7b8ae5da3 · `server/src/utils/workflow.ts:36`
-
-```
-34:   for (const requested of validTypes) {
-35:     for (const pluginCompatibilityGroup of pluginCompatibility) {
-36:       if (pluginCompatibilityGroup.includes(requested)) {
-37:         return true;
-38:       }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | triggerMap types x plugin method types with implied items; small fixed enums |  |
-
-### #663 · immich-app/immich@f7b8ae5da3 · `web/src/lib/queries/notification.query.ts:25`
-
-```
-23:       queryClient.setQueryData(getNotificationsQuery().queryKey, (notifications) =>
-24:         notifications?.filter(
-25:           (item) => !notificationUpdateAllDto.ids.includes(item.id) || !notificationUpdateAllDto.readAt,
-26:         ),
-27:       ),
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | notificationUpdateAllDto.ids x cached notifications list; both data-derived |  |
-
-### #668 · immich-app/immich@f7b8ae5da3 · `web/src/lib/utils.ts:338`
-
-```
-336:     const values = ['autoLaunch=0', 'password=1', 'password=true'];
-337:     for (const value of values) {
-338:       if (location.search.includes(value)) {
-339:         return true;
-340:       }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| wrong | location.search is a string; includes is substring search |  |
-
-### #899 · zulip/zulip@36d2312680 · `web/src/add_group_members_pill.ts:46`
-
-```
-44: 
-45:     for (const member_id of direct_member_ids) {
-46:         if (!taken_user_ids.includes(member_id)) {
-47:             const user = people.get_by_user_id(member_id);
-48:             user_pill.append_user(user, pill_widget, false);
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | taken_user_ids (pill widget users) x group members; both grow with users |  |
-
-### #900 · zulip/zulip@36d2312680 · `web/src/add_group_members_pill.ts:53`
-
-```
-51: 
-52:     for (const group_id of direct_subgroup_ids) {
-53:         if (!taken_group_ids.includes(group_id)) {
-54:             const subgroup = user_groups.get_user_group_from_id(group_id);
-55:             user_group_pill.append_user_group(subgroup, pill_widget, false, true);
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | taken_group_ids (group pills, few) x a group's direct subgroups (few) |  |
-
-### #902 · zulip/zulip@36d2312680 · `web/src/billing/helpers.ts:76`
-
-```
-74: 
-75:     for (const item of $form.serializeArray()) {
-76:         if (ignored_inputs.includes(item.name)) {
-77:             continue;
-78:         }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | ignored_inputs is a fixed list of form field names |  |
-
-### #907 · zulip/zulip@36d2312680 · `web/src/compose_paste.ts:175`
-
-```
-173:     if (
-174:         !html_outer.includes("<!--StartFragment-->") ||
-175:         excel_namespaces.every((ns) => !html_outer.includes(ns))
-176:     ) {
-177:         return false;
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| wrong | html_outer is a string; includes is substring search over fixed excel namespaces |  |
-
-### #914 · zulip/zulip@36d2312680 · `web/src/emoji_picker.ts:445`
-
-```
-443:             for (const emoji_dict of emojis) {
-444:                 for (const alias of emoji_dict.aliases) {
-445:                     const match = search_terms.every((search_term) => alias.includes(search_term));
-446:                     if (match) {
-447:                         search_results.push({...emoji_dict, emoji_name: alias});
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| wrong | alias is a string; includes is substring search for search terms |  |
-
 ### #915 · zulip/zulip@36d2312680 · `web/src/filter.ts:218`
 
 ```
@@ -2877,62 +2841,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 | Proposed | Reason | Brad |
 |---|---|---|
 | small | operand_ids x users in one DM conversation; DM groups are small |  |
-
-### #916 · zulip/zulip@36d2312680 · `web/src/filter.ts:1131`
-
-```
-1129:         if (excluded_operators) {
-1130:             filter_terms = this._terms.filter(
-1131:                 (term) => !excluded_operators.includes(term.operator),
-1132:             );
-1133:         }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | excluded_operators is a short list of operator names |  |
-
-### #919 · zulip/zulip@36d2312680 · `web/src/inbox_ui.ts:1367`
-
-```
-1365:     }
-1366:     const search_words = keyword.toLowerCase().split(/\s+/);
-1367:     return search_words.every((word) => text.includes(word));
-1368: }
-1369: 
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| wrong | text is a string; includes is substring search per search word |  |
-
-### #922 · zulip/zulip@36d2312680 · `web/src/message_events.ts:789`
-
-```
-787:                     const old_topic_message_ids = old_topic_messages
-788:                         .map((msg) => msg.id)
-789:                         .filter((id) => !event.message_ids.includes(id));
-790:                     const is_old_topic_empty_locally = old_topic_message_ids.length === 0;
-791:                     const is_old_topic_empty_in_server =
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | event.message_ids (moved messages) x current message list; both grow with messages |  |
-
-### #925 · zulip/zulip@36d2312680 · `web/src/narrow_banner.ts:133`
-
-```
-131:     // Gather information about each query word
-132:     for (const query_word of query_words) {
-133:         if (realm.stop_words.includes(query_word.toLowerCase())) {
-134:             search_string_result.has_stop_word = true;
-135:             search_string_result.query_words.push({
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | few query words x realm.stop_words (fixed stop-word list); outer loop is a handful |  |
 
 ### #930 · zulip/zulip@36d2312680 · `web/src/popover_menus.ts:313`
 
@@ -2949,204 +2857,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 |---|---|---|
 | small | elementsFromPoint returns the DOM stack at a point (a few elements) |  |
 
-### #932 · zulip/zulip@36d2312680 · `web/src/portico/team.ts:182`
-
-```
-180: 
-181:         $(`#${CSS.escape(tab_name)}`).on("click", () => {
-182:             if (!loaded_tabs.includes(tab_name)) {
-183:                 const filtered_by_tab: ContributorData[] = contributors_list
-184:                     .filter((c: Contributor) =>
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| wrong | includes runs once per click inside a handler, not per element; loaded_tabs is a few tab names |  |
-
-### #933 · zulip/zulip@36d2312680 · `web/src/search_util.ts:21`
-
-```
-19:     */
-20:     const val = opts.val.toLowerCase();
-21:     return opts.search_terms.some((term) => val.includes(term));
-22: }
-23: 
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| wrong | val is a string; includes is substring search per search term |  |
-
-### #936 · zulip/zulip@36d2312680 · `web/src/settings_components.ts:2002`
-
-```
-2000:             let can_edit_settings = can_edit_settings_with_metadata_access;
-2001:             if (
-2002:                 settings_config.stream_group_permission_settings_requiring_content_access.includes(
-2003:                     setting_name,
-2004:                 )
-2005:             ) {
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | fixed settings_config list of permission setting names |  |
-
-### #937 · zulip/zulip@36d2312680 · `web/src/settings_notifications.ts:103`
-
-```
-101:                         settings_config.all_notifications(user_settings)
-102:                             .disabled_notification_settings,
-103:                     muted: muted_stream_ids.includes(stream.stream_id),
-104:                     push_notifications_disabled: !realm.realm_push_notifications_enabled,
-105:                 }),
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | muted_stream_ids x unmatched streams; both grow with channel count |  |
-
-### #938 · zulip/zulip@36d2312680 · `web/src/stream_list_sort.ts:194`
-
-```
-192: 
-193:     for (const stream_id of channels_to_check_topic_matches) {
-194:         if (matching_stream_ids.includes(stream_id)) {
-195:             continue;
-196:         }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | matching_stream_ids x all subscribed stream ids; both grow with channels |  |
-
-### #945 · zulip/zulip@36d2312680 · `web/src/user_group_pill.ts:119`
-
-```
-117: ): UserGroup[] {
-118:     const taken_group_ids = get_group_ids(pill_widget);
-119:     items = items.filter((item) => !taken_group_ids.includes(item.id));
-120:     return items;
-121: }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | taken group ids in pill widget x all user groups; size unknown, data-derived |  |
-
-### #946 · zulip/zulip@36d2312680 · `web/src/user_pill.ts:162`
-
-```
-160: ): User[] {
-161:     const taken_user_ids = get_user_ids(pill_widget);
-162:     items = items.filter((item) => !taken_user_ids.includes(item.user_id));
-163:     return items;
-164: }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | taken user ids (pills, can be large after group expansion) x realm users |  |
-
-### #1168 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/components/common/input/drag-drop-select/drag-drop-select.component.ts:37`
-
-```
-35: 
-36:   get unselectedItems(): { id: string; name: string }[] {
-37:     return this.items.filter((i) => !this.selectedItems.includes(i))
-38:   }
-39: 
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | selectedItems x items = saved-view display fields (fixed fields + custom fields) |  |
-
-### #1170 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/components/common/input/tags/tags.component.ts:212`
-
-```
-210:     if (this.suggestions && this.tags) {
-211:       return this.suggestions
-212:         .filter((id) => !this.value.includes(id))
-213:         .map((id) => this.tags.find((tag) => tag.id == id))
-214:     } else {
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | this.value (a doc's selected tag ids) x tag suggestions for one document (few) |  |
-
-### #1172 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/components/common/input/tags/tags.component.ts:233`
-
-```
-231:   onFilterDocuments() {
-232:     this.filterDocuments.emit(
-233:       this.tags.filter((t) => this.value.includes(t.id))
-234:     )
-235:   }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | tags.filter over all tags (data, can be hundreds+) x value = selected tag ids; both data-derived, size unknown |  |
-
-### #1173 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/components/common/permissions-select/permissions-select.component.ts:80`
-
-```
-78:       newInheritedPermissions.length !== this._inheritedPermissions.length ||
-79:       newInheritedPermissions.some(
-80:         (p) => !this._inheritedPermissions.includes(p)
-81:       )
-82: 
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | new vs old inherited permission codes; bounded by PermissionType x PermissionAction enums (fixed list) |  |
-
-### #1174 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/components/common/permissions-select/permissions-select.component.ts:87`
-
-```
-85:       this.permissions = this.getSelectedPermissions(
-86:         this.form.getRawValue()
-87:       ).filter((p) => !this._inheritedPermissions.includes(p))
-88:       this._inheritedPermissions = newInheritedPermissions
-89:       this.applyCheckedState()
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | selected permission codes x inherited permission codes; both bounded by PermissionType x PermissionAction enums |  |
-
-### #1175 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/components/common/permissions-select/permissions-select.component.ts:183`
-
-```
-181: 
-182:       this.onChange(
-183:         permissions.filter((p) => !this._inheritedPermissions.includes(p))
-184:       )
-185:     })
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | selected permissions x inherited permissions; bounded by the fixed permission enum product |  |
-
-### #1176 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/components/common/permissions-select/permissions-select.component.ts:225`
-
-```
-223:         )
-224:         .every((action) => {
-225:           return this._inheritedPermissions.includes(
-226:             this.permissionsService.getPermissionCode(
-227:               PermissionAction[action],
-228:               PermissionType[typeKey]
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | PermissionAction enum keys x inherited permission codes; enum-bounded |  |
-
 ### #1177 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/components/common/suggestions-dropdown/suggestions-dropdown.component.ts:154`
 
 ```
@@ -3160,76 +2870,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 | Proposed | Reason | Brad |
 |---|---|---|
 | small | ML-suggested ids x applied ids on one document; suggestion lists are a handful (unsure) |  |
-
-### #1179 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/components/document-detail/document-detail.component.ts:1110`
-
-```
-1108:         ? [SuggestionSource.ML, SuggestionSource.AI]
-1109:         : [source]
-1110:     ).filter((s) => !this.fetchedSuggestionSources().includes(s))
-1111:     if (!sources.length) return
-1112: 
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | sources has at most 2 elements (ML, AI) |  |
-
-### #1180 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/components/document-list/bulk-editor/custom-fields-bulk-edit-dialog/custom-fields-bulk-edit-dialog.component.ts:73`
-
-```
-71:     this._fieldsToAddIds = ids
-72:     this._fieldsToAdd = this.customFields.filter((field) =>
-73:       this._fieldsToAddIds.includes(field.id)
-74:     )
-75:     this.initForm()
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | all custom fields (data) x selected field ids; size unknown, data-derived (unsure: likely tens) |  |
-
-### #1183 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/services/document-list-view.service.ts:699`
-
-```
-697:         .subscribe((ids) => {
-698:           for (let id of this.selected) {
-699:             if (!ids.includes(id)) {
-700:               this.selected.delete(id)
-701:             }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | selected document ids (Set, can be thousands) x ids from listAllFilteredIds (all matching docs); both grow with data |  |
-
-### #1184 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/services/permissions.service.ts:88`
-
-```
-86:         object.permissions?.view.users.includes(this.currentUser.id) ||
-87:         object.permissions?.view.groups.filter((g) =>
-88:           this.currentUser.groups.includes(g)
-89:         ).length > 0
-90:       )
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | object's view.groups x currentUser.groups; size unknown, data-derived (unsure: usually a few groups) |  |
-
-### #1185 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/services/permissions.service.ts:97`
-
-```
-95:         object.permissions?.change.users.includes(this.currentUser.id) ||
-96:         object.permissions?.change.groups.filter((g) =>
-97:           this.currentUser.groups.includes(g)
-98:         ).length > 0
-99:       )
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | object's change.groups x currentUser.groups; size unknown, data-derived (unsure: usually a few groups) |  |
 
 ### #1186 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/services/rest/document.service.ts:166`
 
@@ -3245,76 +2885,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 |---|---|---|
 | small | excludes is a handful of fixed field names pushed by settings checks |  |
 
-### #1188 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/services/rest/saved-view.service.ts:112`
-
-```
-110:       ? sorted
-111:           .map((id) => sidebarViews.find((v) => v.id === id))
-112:           .concat(sidebarViews.filter((v) => !sorted.includes(v.id)))
-113:           .filter((v) => v)
-114:       : [...sidebarViews]
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | saved views (user data) x sorted view ids from settings; size unknown, data-derived (unsure: typically tens) |  |
-
-### #1190 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/services/rest/saved-view.service.ts:129`
-
-```
-127:       ? sorted
-128:           .map((id) => dashboardViews.find((v) => v.id === id))
-129:           .concat(dashboardViews.filter((v) => !sorted.includes(v.id)))
-130:           .filter((v) => v)
-131:       : [...dashboardViews]
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | dashboard saved views x sorted ids from settings; size unknown, data-derived (unsure: typically tens) |  |
-
-### #1191 · paperless-ngx/paperless-ngx@5f17b1a310 · `src-ui/src/app/services/websocket-status.service.ts:234`
-
-```
-232:       (messageData.groups_can_view &&
-233:         messageData.groups_can_view.some((groupId) =>
-234:           user.groups?.includes(groupId)
-235:         ))
-236:     )
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | message groups_can_view x user.groups; size unknown, data-derived (unsure: usually few groups) |  |
-
-### #1374 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/core/api/entity-data-subscription.ts:762`
-
-```
-760:         const tsKeys = this.aggTsValues.map(key => key.key);
-761:         latestValuesKeys = latestValuesKeys.filter(latestKey => latestKey.type !== EntityKeyType.TIME_SERIES
-762:           || !tsKeys.includes(latestKey.key));
-763:       }
-764:     }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | latest widget data keys x agg ts keys; both per-widget configured keys, a handful (unsure) |  |
-
-### #1375 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/core/api/entity-data-subscription.ts:1021`
-
-```
-1019:           if (isUpdate && EntityKeyType[type] === EntityKeyType.TIME_SERIES) {
-1020:             const keys: string[] = Object.keys(subscriptionData);
-1021:             const latestTsKeys = this.latestValues.filter(key => key.type === EntityKeyType.TIME_SERIES && keys.includes(key.key));
-1022:             if (latestTsKeys.length) {
-1023:               const latestTsSubsciptionData: SubscriptionData = {};
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | widget latestValues keys x keys in one subscription update; per-widget configured keys (unsure) |  |
-
 ### #1376 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/core/api/entity-data-subscription.ts:1030`
 
 ```
@@ -3328,48 +2898,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 | Proposed | Reason | Brad |
 |---|---|---|
 | small | widget aggTsValues keys x keys in one subscription update; per-widget configured keys (unsure) |  |
-
-### #1380 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/core/api/widget-subscription.ts:1180`
-
-```
-1178:       for (const datasource of datasources) {
-1179:         if (datasource.entityAliasId) {
-1180:           if (aliasIds.indexOf(datasource.entityAliasId) > -1) {
-1181:             subscriptionsChanged = true;
-1182:             break;
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | widget datasources x changed alias ids; dashboard config, a few per widget (unsure) |  |
-
-### #1381 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/core/api/widget-subscription.ts:1200`
-
-```
-1198:       for (const datasource of datasources) {
-1199:         if (datasource.filterId) {
-1200:           if (filterIds.indexOf(datasource.filterId) > -1) {
-1201:             subscriptionsChanged = true;
-1202:             break;
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | widget datasources x changed filter ids; dashboard config, a few per widget (unsure) |  |
-
-### #1393 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/core/http/entity.service.ts:932`
-
-```
-930:     let allAliasFilterTypes: Array<AliasFilterType> = Object.values(AliasFilterType);
-931:     if (!authState.edgesSupportEnabled) {
-932:       allAliasFilterTypes = allAliasFilterTypes.filter(aliasFilterType => !edgeAliasFilterTypes.includes(aliasFilterType));
-933:     }
-934:     if (!entityTypes || !entityTypes.length) {
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | AliasFilterType enum values x edgeAliasFilterTypes constant list |  |
 
 ### #1394 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/core/http/entity.service.ts:983`
 
@@ -3385,76 +2913,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 |---|---|---|
 | small | relation filter entityTypes x requested entityTypes; both drawn from EntityType enum |  |
 
-### #1395 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/core/services/menu.service.ts:84`
-
-```
-82:     if (this.currentMenuSections?.length) {
-83:       this.currentMenuSections.filter(section => section.type === 'toggle' &&
-84:         (openedMenuSections.includes(sectionPath(section)) || section.active)).forEach(
-85:         section => section.opened = true
-86:       );
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | fixed app menu sections x opened section paths |  |
-
-### #1396 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/core/services/menu.service.ts:254`
-
-```
-252:   public menuLinksByIds(ids: string[]): Observable<Array<MenuSection>> {
-253:     return this.availableMenuLinks$.pipe(
-254:       map((links) => links.filter(link => ids.includes(link.id)).sort((a, b) => {
-255:         const i1 = ids.indexOf(a.id);
-256:         const i2 = ids.indexOf(b.id);
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | fixed app menu links x requested ids |  |
-
-### #1398 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/core/services/resources.service.ts:57`
-
-```
-55:     }
-56:     for (const comp of m.standaloneComponents) {
-57:       if (!modulesWithComponents.standaloneComponents.includes(comp)) {
-58:         modulesWithComponents.standaloneComponents.push(comp);
-59:       }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | standalone components from widget modules deduped via includes on result; tens of components at most |  |
-
-### #1407 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/converter/converter-autocomplete.component.ts:207`
-
-```
-205:             let entities: Array<Converter>;
-206:             if (this.excludeEntityIds && this.excludeEntityIds.length) {
-207:               entities = data.data.filter((entity) => this.excludeEntityIds.indexOf(entity.id.id) === -1);
-208:             } else {
-209:               entities = data.data;
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | converter page (limit 50 + excludes) x excludeEntityIds; page-capped |  |
-
-### #1408 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/dashboard-page/layout/manage-dashboard-layouts-dialog.component.ts:214`
-
-```
-212: 
-213:     this.allowBreakpointIds = Object.values(this.dashboardUtils.getListBreakpoint())
-214:       .filter((item) => !this.selectedBreakpointIds.includes(item.id))
-215:       .map(item => item.id);
-216: 
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | dashboard layout breakpoints list (fixed few) x selected breakpoint ids |  |
-
 ### #1410 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/entity/entity-filter.component.ts:87`
 
 ```
@@ -3468,20 +2926,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 | Proposed | Reason | Brad |
 |---|---|---|
 | small | entityGroupTypes constant x allowedEntityTypes (EntityType enum) |  |
-
-### #1411 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/event/event-table-config.ts:113`
-
-```
-111: 
-112:     if (disabledEventTypes && disabledEventTypes.length) {
-113:       this.eventTypes = this.eventTypes.filter(type => disabledEventTypes.indexOf(type) === -1);
-114:     }
-115: 
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | EventType enum values x disabledEventTypes |  |
 
 ### #1413 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/integration/mqtt-topic-filters/mqtt-topic-filters.component.ts:74`
 
@@ -3497,20 +2941,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 |---|---|---|
 | small | MqttQos enum (3 values) x excludeQos |  |
 
-### #1421 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/profile/device/lwm2m/lwm2m-attributes-key-list.component.ts:181`
-
-```
-179:   private getFirstUnusedAttributesName(): AttributeName {
-180:     for (const attributeName of this.attributeNames) {
-181:       if (this.usedAttributesName.indexOf(attributeName) === -1) {
-182:         return attributeName;
-183:       }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | LwM2M attributeNames enum x used attribute names |  |
-
 ### #1424 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/profile/device/snmp/snmp-device-profile-communication-config.component.ts:141`
 
 ```
@@ -3525,90 +2955,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 |---|---|---|
 | small | SnmpSpecType enum values x used spec types |  |
 
-### #1426 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/rule-node/analytics/alarms-count-mapping-dialog.component.ts:171`
-
-```
-169:   private getAlarmStatusList(): Array<AlarmStatus> {
-170:     return this.alarmStatusList.filter((listItem) => {
-171:       return this.alarmsCountMappingFormGroup.get('statusList').value.indexOf(listItem) === -1;
-172:     });
-173:   }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | AlarmStatus enum list x selected statuses |  |
-
-### #1427 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/rule-node/analytics/alarms-count-mapping-dialog.component.ts:224`
-
-```
-222:   private getAlarmSeverityList(): Array<AlarmSeverity> {
-223:     return this.alarmSeverityList.filter((listItem) => {
-224:       return this.alarmsCountMappingFormGroup.get('severityList').value.indexOf(listItem) === -1;
-225:     });
-226:   }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | AlarmSeverity enum list x selected severities |  |
-
-### #1430 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/vc/auto-commit-settings.component.ts:154`
-
-```
-152:       this.autoCommitSettingsForm.get('entityTypes').value || [];
-153:     const usedEntityTypes = value.map(val => val.entityType).filter(val => val);
-154:     res = res.filter(entityType => !usedEntityTypes.includes(entityType) || entityType === currentEntityType);
-155:     return res;
-156:   }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | exportableEntityTypes constant x used entity types in form |  |
-
-### #1431 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/vc/entity-types-version-create.component.ts:262`
-
-```
-260:       this.entityTypesVersionCreateFormGroup.get('entityTypes').value || [];
-261:     const usedEntityTypes = value.map(val => val.entityType).filter(val => val);
-262:     res = res.filter(entityType => !usedEntityTypes.includes(entityType) || entityType === currentEntityType);
-263:     return res;
-264:   }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | exportableEntityTypes constant x used entity types in form |  |
-
-### #1432 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/vc/entity-types-version-load.component.ts:222`
-
-```
-220:       this.entityTypesVersionLoadFormGroup.get('entityTypes').value || [];
-221:     const usedEntityTypes = value.map(val => val.entityType).filter(val => val);
-222:     res = res.filter(entityType => !usedEntityTypes.includes(entityType) || entityType === currentEntityType);
-223:     return res;
-224:   }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | exportableEntityTypes constant x used entity types in form |  |
-
-### #1434 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/action/manage-widget-actions.component.models.ts:75`
-
-```
-73:     for (const importedAction of importedActions) {
-74:       let targetActions = targetMap[actionSourceId];
-75:       if (!allowedActionTypes.includes(importedAction.type) ||
-76:           (!actionSource.multiple && targetActions?.length)) {
-77:         result.skipped++;
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | imported widget actions x allowedActionTypes (WidgetActionType enum-sized list) |  |
-
 ### #1435 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/config/datasources.component.ts:288`
 
 ```
@@ -3622,62 +2968,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 | Proposed | Reason | Brad |
 |---|---|---|
 | small | empty datasources x widget datasources (indexOf on same widget's few datasources) |  |
-
-### #1436 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/alarm/alarms-table-widget.component.ts:602`
-
-```
-600:         title: column.title,
-601:         def: column.def,
-602:         display: this.displayedColumns.indexOf(column.def) > -1,
-603:         selectable: this.columnSelectionAvailability[column.def]
-604:       }));
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | table column defs x displayed column defs; a handful of columns |  |
-
-### #1438 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/alarm/alarms-table-widget.component.ts:1492`
-
-```
-1490:       if (this.selection.hasValue()) {
-1491:         const alarmIds = alarms.map((alarm) => alarm.id.id);
-1492:         const toRemove = this.selection.selected.filter(alarm => alarmIds.indexOf(alarm.id.id) === -1);
-1493:         this.selection.deselect(...toRemove);
-1494:         if (this.selection.isEmpty()) {
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | selected alarms x alarmIds of loaded alarms (page up to 1024 rows); both data-derived |  |
-
-### #1440 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/cards/notification-type-filter-panel.component.ts:57`
-
-```
-55:       map(value => {
-56:         this.searchText = value;
-57:         return this.notificationTypes.filter(type => !this.selectedNotificationTypes.includes(type))
-58:           .filter(type => value ? type.toUpperCase().startsWith(value.toUpperCase()) : true);
-59:       })
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | NotificationType enum list x selected notification types |  |
-
-### #1443 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/chart/time-series-chart-state.models.ts:39`
-
-```
-37:         this.rangeStates.push(state);
-38:       }
-39:       if (!ticks.includes(state.value)) {
-40:         ticks.push(state.value);
-41:         const label = utils.customTranslation(state.label, state.label);
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | chart state settings x ticks; a few user-configured states |  |
 
 ### #1444 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/chart/time-series-chart.models.ts:1284`
 
@@ -3721,62 +3011,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 |---|---|---|
 | small | existing y-axis keys x found y-axis keys; a few axes |  |
 
-### #1448 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/chart/time-series-chart.models.ts:1565`
-
-```
-1563:     const toRemove = existingYAxisKeys.filter(k => foundYAxisKeys.indexOf(k) === -1);
-1564:     for (const key of toRemove) {
-1565:       const index = latestKeys.indexOf(key);
-1566:       if (index > -1) {
-1567:         latestKeys.splice(index, 1);
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | y-axis keys to remove x widget latestKeys; few keys |  |
-
-### #1458 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/entity/entities-table-widget.component.ts:584`
-
-```
-582:       title: column.title,
-583:       def: column.def,
-584:       display: this.displayedColumns.indexOf(column.def) > -1,
-585:       selectable: this.columnSelectionAvailability[column.def]
-586:     }));
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | table column defs x displayed column defs; a handful of columns |  |
-
-### #1467 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/scada/scada-symbol.models.ts:244`
-
-```
-242:     tagsMatch = tbTagRegex.exec(svgContent);
-243:   }
-244:   return tags.filter((v, i, arr) => arr.indexOf(v) === i);
-245: };
-246: 
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| wrong | dedup filter arr.indexOf(v)===i on the same tags array, not a second collection |  |
-
-### #1471 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/settings/common/action/location-keys-table.component.ts:131`
-
-```
-129:     const usedArguments: LocationKey[] = this.keysFormArray().getRawValue().map(mapping => mapping.argument);
-130:     const currentArgument: LocationKey = keyControl.get('argument').value;
-131:     return this.availableKeys.filter(argument => argument === currentArgument || !usedArguments.includes(argument));
-132:   }
-133: 
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | LocationKey available keys (enum) x used arguments |  |
-
 ### #1472 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/settings/common/action/location-keys-table.component.ts:140`
 
 ```
@@ -3790,34 +3024,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 | Proposed | Reason | Brad |
 |---|---|---|
 | small | LocationKey available keys (enum) x used arguments |  |
-
-### #1473 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/settings/common/action/location-keys-table.component.ts:157`
-
-```
-155: 
-156:   private prepareKeysFormArray(value: LocationKeyMapping[] | undefined): FormArray {
-157:     const mappings = (value || []).filter(mapping => this.availableKeys.includes(mapping?.argument));
-158:     mandatoryLocationKeys.filter(argument => !mappings.some(mapping => mapping.argument === argument))
-159:       .forEach((argument) => mappings.splice(mandatoryLocationKeys.indexOf(argument), 0,
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | location key mappings x availableKeys (LocationKey enum) |  |
-
-### #1475 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/settings/common/action/location-keys-table.component.ts:159`
-
-```
-157:     const mappings = (value || []).filter(mapping => this.availableKeys.includes(mapping?.argument));
-158:     mandatoryLocationKeys.filter(argument => !mappings.some(mapping => mapping.argument === argument))
-159:       .forEach((argument) => mappings.splice(mandatoryLocationKeys.indexOf(argument), 0,
-160:         locationKeyMapping(argument)));
-161:     return this.fb.array(mappings.map(mapping => this.keyControl(mapping)), [this.uniqueKeyNamesValidator]);
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | mandatoryLocationKeys constant indexOf per missing mandatory key |  |
 
 ### #1476 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/settings/common/action/mobile-action-editor.component.ts:404`
 
@@ -3833,20 +3039,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 |---|---|---|
 | small | action key mappings x availableKeys (LocationKey enum) |  |
 
-### #1477 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/settings/common/chart/time-series-chart-thresholds-panel.component.ts:207`
-
-```
-205:         }
-206:       }
-207:       const toRemove = existingThresholdKeys.filter(k => foundThresholdKeys.indexOf(k) === -1);
-208:       for (const key of toRemove) {
-209:         const index = latestKeys.indexOf(key);
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | existing threshold keys x found threshold keys; a few thresholds |  |
-
 ### #1478 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/settings/common/chart/time-series-chart-thresholds-panel.component.ts:209`
 
 ```
@@ -3861,20 +3053,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 |---|---|---|
 | small | threshold keys to remove x widget latestKeys; few keys |  |
 
-### #1480 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/settings/common/dynamic-form/dynamic-form.component.ts:201`
-
-```
-199:         if (property.type !== FormPropertyType.htmlSection) {
-200:           if (property.disableOnProperty) {
-201:             if (!this.validatorTriggers.includes(property.disableOnProperty)) {
-202:               this.validatorTriggers.push(property.disableOnProperty);
-203:             }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | form properties x validatorTriggers built from them; settings-form schema, tens at most |  |
-
 ### #1486 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/pages/admin/mail-templates.component.ts:85`
 
 ```
@@ -3888,104 +3066,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 | Proposed | Reason | Brad |
 |---|---|---|
 | small | MailTemplate enum keys x settings keys |  |
-
-### #1487 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/pages/agent/dialog/agent-profile-preset-dialog.component.ts:131`
-
-```
-129: 
-130:   tileDisabled(tile: PresetTile): boolean {
-131:     return this.templatesState === 'loaded' && tile.appTypes.some(t => this.missingTypes.includes(t));
-132:   }
-133: 
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | tile appTypes x missingTypes; small app-type enum |  |
-
-### #1492 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/pages/mobile/bundes/sefl-registration/mobile-registration-fields-panel.component.ts:117`
-
-```
-115:       selectedFields.push(item.id);
-116:     });
-117:     this.allowRegistrationFields = allFields.filter(item => !selectedFields.includes(item))
-118:   }
-119: }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | SignUpFieldMap keys (fixed) x selected registration fields |  |
-
-### #1499 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/pages/scada-symbol/scada-symbol-editor.models.ts:262`
-
-```
-260:           let overlappingGroup: ScadaSymbolElement[];
-261:           for (const list of overlappingGroups) {
-262:             if (list.includes(other) || list.includes(el)) {
-263:               overlappingGroup = list;
-264:               break;
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | SCADA SVG elements (user SVG, size unknown) in O(n^2) pair loop x overlapping group lists (unsure) |  |
-
-### #1500 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/pages/scada-symbol/scada-symbol-editor.models.ts:271`
-
-```
-269:             overlappingGroups.push(overlappingGroup);
-270:           } else {
-271:             if (!overlappingGroup.includes(el)) {
-272:               overlappingGroup.push(el);
-273:             } else if (!overlappingGroup.includes(other)){
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | overlapping group membership check inside elements x elements loop; user SVG size unknown (unsure) |  |
-
-### #1501 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/pages/scada-symbol/scada-symbol-editor.models.ts:273`
-
-```
-271:             if (!overlappingGroup.includes(el)) {
-272:               overlappingGroup.push(el);
-273:             } else if (!overlappingGroup.includes(other)){
-274:               overlappingGroup.push(other);
-275:             }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | overlapping group membership check inside elements x elements loop; user SVG size unknown (unsure) |  |
-
-### #1502 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/pages/scada-symbol/scada-symbol-editor.models.ts:401`
-
-```
-399:     .filter(e => e.hasTag())
-400:     .map(e => e.tag)
-401:     .filter((v, i, a) => a.indexOf(v) === i)
-402:     .sort();
-403:     this.callbacks.tagsUpdated(this.tags);
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| wrong | dedup filter a.indexOf(v)===i on the same tags array, not a second collection |  |
-
-### #1503 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/pages/task-manager/task-manager-table-config.resolver.ts:371`
-
-```
-369:   private cancelTasks($event: Event, tasks: Job[]): void {
-370:     $event?.stopPropagation();
-371:     const workingTasks = tasks.filter(job => workingTask.includes(job.status));
-372:     let title = '';
-373:     let content = '';
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | selected jobs x workingTask constant status list |  |
 
 ### #1504 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/pages/task-manager/task-manager-table-config.resolver.ts:421`
 
@@ -4015,300 +3095,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 |---|---|---|
 | small | widget types page (pageSize 10) x excludeWidgetTypeIds; page-capped |  |
 
-### #1506 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/components/directives/component-outlet.directive.ts:83`
-
-```
-81:         if (prevCtxKeys.length === currCtxKeys.length) {
-82:           for (const propName of currCtxKeys) {
-83:             if (prevCtxKeys.indexOf(propName) === -1) {
-84:               return true;
-85:             }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | current context keys x previous context keys of a template context object |  |
-
-### #1507 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/components/directives/sring-template-outlet.directive.ts:76`
-
-```
-74:         if (prevCtxKeys.length === currCtxKeys.length) {
-75:           for (const propName of currCtxKeys) {
-76:             if (prevCtxKeys.indexOf(propName) === -1) {
-77:               return true;
-78:             }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | current context keys x previous context keys of a template context object |  |
-
-### #1508 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/components/group/entity-group-list.component.ts:287`
-
-```
-285:         }
-286:         if (this.modelValue) {
-287:           data = data.filter(group => !this.modelValue.includes(group.id.id));
-288:         }
-289:         return data;
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | entity groups page (pageSize 50) x selected group ids; page-capped |  |
-
-### #1513 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/components/mqtt-version-select.component.ts:53`
-
-```
-51:         const excludeVersions = change.currentValue;
-52:         if (excludeVersions?.length) {
-53:           this.mqttVersions = Object.values(MqttVersion).filter(v => !excludeVersions.includes(v));
-54:         } else {
-55:           this.mqttVersions = Object.values(MqttVersion);
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | MqttVersion enum x excludeVersions |  |
-
-### #1514 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/components/time/interval-options-config-panel.component.ts:92`
-
-```
-90:         ? this.aggIntervalsConfig[interval.value]
-91:         : null;
-92:       const intervalEnabled = this.allowedIntervals?.length ? this.allowedIntervals.includes(interval.value) : true;
-93:       const intervalControl = this.fb.group({
-94:         name: [this.translate.instant(interval.name, interval.translateParams)],
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | fixed interval options list x allowedIntervals |  |
-
-### #1515 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/components/widgets-bundle-select.component.ts:185`
-
-```
-183:       widgetsBundlesObservable = widgetsBundlesObservable.pipe(
-184:         map((widgetBundles) =>
-185:           widgetBundles.filter(w => !this.excludeBundleIds.includes(w.id.id)))
-186:       );
-187:     }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | all widget bundles (tenant/system data) x excludeBundleIds; size unknown, data-derived |  |
-
-### #1516 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/import-export/import-export.service.ts:1283`
-
-```
-1281:       return !Array.isArray(actions) || actions.some(action => !isObject(action)
-1282:         || !isNotEmptyStr(action.name)
-1283:         || !Object.values(WidgetActionType).includes(action.type));
-1284:     });
-1285:   }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | imported actions x Object.values(WidgetActionType) enum |  |
-
-### #1517 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/legacy/json-form-utils.ts:186`
-
-```
-184:         path.push(k);
-185:         if (options.ignore[ObjectPath.stringify(path)] !== true) {
-186:           const required = schema.required && schema.required.indexOf(k) !== -1;
-187: 
-188:           const def = defaultFormDefinition(k, schema.properties[k], {
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | JSON schema properties x schema.required; settings schema, tens at most |  |
-
-### #1518 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/legacy/json-form-utils.ts:279`
-
-```
-277:       if (schema.properties.hasOwnProperty(k)) {
-278:         if (ignore[k] !== true) {
-279:           const required = schema.required && schema.required.indexOf(k) !== -1;
-280:           const def = defaultFormDefinition(k, schema.properties[k], {
-281:             path: [k], // Path to this property in bracket notation.
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | JSON schema properties x schema.required; settings schema, tens at most |  |
-
-### #1536 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/models/entity-group.models.ts:323`
-
-```
-321:     if (typeColumns.length) {
-322:       typeColumns = typeColumns.filter((c, pos, columnsArray) =>
-323:         columnsArray.map(mapCol => mapCol.property).indexOf(c.property) === pos);
-324:       const entityKeyType = groupColumnTypeToEntityKeyType(type);
-325:       result[entityKeyType] = typeColumns;
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| wrong | dedup filter on the same typeColumns array via map().indexOf(pos), not a second collection |  |
-
-### #1537 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/models/material.models.ts:522`
-
-```
-520:   const value = materialColorPalette[key];
-521:   for (const label of Object.keys(value)) {
-522:     if (colorSpectrum.indexOf(label) > -1) {
-523:       const colorValue = value[label];
-524:       const color = tinycolor(colorValue);
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | palette labels x colorSpectrum constant (10 values); module-init only |  |
-
-### #1538 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/models/mobile-app.models.ts:181`
-
-```
-179: export const getDefaultMobileMenuItem = (): DefaultMobilePage[] => {
-180:   return deepClone(defaultMobileMenu).map(item => ({
-181:     visible: !hideDefaultMenuItems.includes(item),
-182:     type: MobilePageType.DEFAULT,
-183:     id: item
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | defaultMobileMenu constant x hideDefaultMenuItems constant (3 values) |  |
-
-### #1539 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/models/mobile-app.models.ts:199`
-
-```
-197:     if (!mergedPages.some(page => isDefaultMobileMenuItem(page) && page.id === defaultPage.id)) {
-198:       const nextDefaultPageIndex = mergedPages.findIndex(page =>
-199:         isDefaultMobileMenuItem(page) && defaultMobileMenu.indexOf(page.id) > defaultIndex
-200:       );
-201:       mergedPages.splice(nextDefaultPageIndex === -1 ? mergedPages.length : nextDefaultPageIndex, 0, {...defaultPage, visible: false});
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | merged mobile pages x defaultMobileMenu constant list |  |
-
-### #1541 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/models/time/time.models.ts:1338`
-
-```
-1336: 
-1337: export const intervalValuesToTimeIntervals = (intervalValues: Array<Interval>): Array<TimeInterval> => {
-1338:   return defaultTimeIntervals.filter(interval => intervalValues.includes(interval.value));
-1339: }
-1340: 
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | defaultTimeIntervals constant x intervalValues |  |
-
-### #1542 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/models/widget/maps/map-model.definition.ts:91`
-
-```
-89:   hasTimewindow(widget: Widget): boolean {
-90:     const settings: BaseMapSettings = widget.config.settings as BaseMapSettings;
-91:     const timeSeriesDataLayerTypes = mapDataLayerTypes.filter(t => !latestMapDataLayerTypes.includes(t));
-92:     if (timeSeriesDataLayerTypes.some(layerType => settings[layerType]?.length)) {
-93:       return true;
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | mapDataLayerTypes constant x latestMapDataLayerTypes constant |  |
-
-### #1567 · prometheus/prometheus@a83f7158e7 · `web/ui/mantine-ui/src/components/StateMultiSelect.tsx:123`
-
-```
-121:                 value={value}
-122:                 key={value}
-123:                 active={values.includes(value)}
-124:               >
-125:                 <Group gap="sm">
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | alert/rule state options (a few) x selected values |  |
-
-### #1568 · prometheus/prometheus@a83f7158e7 · `web/ui/mantine-ui/src/components/StateMultiSelect.tsx:126`
-
-```
-124:               >
-125:                 <Group gap="sm">
-126:                   {values.includes(value) ? (
-127:                     <CheckIcon size={12} color="gray" />
-128:                   ) : null}
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | alert/rule state options (a few) x selected values |  |
-
-### #1569 · prometheus/prometheus@a83f7158e7 · `web/ui/mantine-ui/src/pages/AlertsPage.tsx:132`
-
-```
-130:         ? group.rules
-131:         : kvSearch.filter(search, group.rules).map((value) => value.original)
-132:     ).filter((r) => stateFilter.length === 0 || stateFilter.includes(r.state));
-133: 
-134:     pageData.groups.push({
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | alerting rules x stateFilter (few alert states) |  |
-
-### #1570 · prometheus/prometheus@a83f7158e7 · `web/ui/mantine-ui/src/pages/RulesPage.tsx:75`
-
-```
-73:       : kvSearch.filter(search, group.rules).map((value) => value.original)
-74:     ).filter(
-75:       (r) => healthFilter.length === 0 || healthFilter.includes(r.health)
-76:     ),
-77:   }));
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | rules x healthFilter (few health values) |  |
-
-### #1571 · prometheus/prometheus@a83f7158e7 · `web/ui/mantine-ui/src/pages/service-discovery/ServiceDiscoveryPoolsList.tsx:246`
-
-```
-244:         variant="separated"
-245:         keepMounted={false}
-246:         value={allPoolNames.filter((p) => !collapsedPools.includes(p))}
-247:         onChange={(value) =>
-248:           dispatch(
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | all scrape pool names (can be hundreds+) x collapsedPools (user-collapsed, can approach all pools) |  |
-
-### #1572 · prometheus/prometheus@a83f7158e7 · `web/ui/mantine-ui/src/pages/service-discovery/ServiceDiscoveryPoolsList.tsx:249`
-
-```
-247:         onChange={(value) =>
-248:           dispatch(
-249:             setCollapsedPools(allPoolNames.filter((p) => !value.includes(p)))
-250:           )
-251:         }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | all scrape pool names x accordion open values; both scale with pool count |  |
-
 ### #1573 · prometheus/prometheus@a83f7158e7 · `web/ui/mantine-ui/src/pages/targets/ScrapePoolsList.tsx:120`
 
 ```
@@ -4323,20 +3109,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 |---|---|---|
 | small | targets x healthFilter (few health values) |  |
 
-### #1574 · prometheus/prometheus@a83f7158e7 · `web/ui/mantine-ui/src/pages/targets/ScrapePoolsList.tsx:217`
-
-```
-215:           variant="separated"
-216:           keepMounted={false}
-217:           value={allPoolNames.filter((p) => !collapsedPools.includes(p))}
-218:           onChange={(value) =>
-219:             dispatch(
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | all scrape pool names (can be hundreds+) x collapsedPools (user-collapsed, can approach all pools) |  |
-
 ### #1575 · prometheus/prometheus@a83f7158e7 · `web/ui/mantine-ui/src/pages/targets/ScrapePoolsList.tsx:220`
 
 ```
@@ -4350,62 +3122,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 | Proposed | Reason | Brad |
 |---|---|---|
 | true | all scrape pool names x accordion open values; both scale with pool count |  |
-
-### #1576 · prometheus/prometheus@a83f7158e7 · `web/ui/mantine-ui/src/promql/binOp.ts:123`
-
-```
-121:     fnv1a(
-122:       Object.keys(lset)
-123:         .filter((ln) => !names.includes(ln) && ln !== "__name__")
-124:         .map((ln) => lset[ln])
-125:     );
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | series label names x on/ignoring label list (a few names in a PromQL clause) |  |
-
-### #1662 · go-gitea/gitea@85211296dd · `tools/ci-tools.ts:153`
-
-```
-151: 
-152:   const stale = new Set([...removableLabels, ...labelsForPrTitle(env.PR_TITLE_BEFORE ?? '')]);
-153:   const toAdd = desired.filter((name) => !current.includes(name));
-154:   const toRemove = current.filter((name) => stale.has(name) && !desired.includes(name));
-155: 
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | desired PR labels (derived from title, few) x current PR labels (few) |  |
-
-### #1663 · go-gitea/gitea@85211296dd · `tools/ci-tools.ts:154`
-
-```
-152:   const stale = new Set([...removableLabels, ...labelsForPrTitle(env.PR_TITLE_BEFORE ?? '')]);
-153:   const toAdd = desired.filter((name) => !current.includes(name));
-154:   const toRemove = current.filter((name) => stale.has(name) && !desired.includes(name));
-155: 
-156:   if (toAdd.length) {
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | current PR labels (few) x desired labels (few) |  |
-
-### #1668 · go-gitea/gitea@85211296dd · `web_src/js/components/ProjectWorkflowStore.ts:169`
-
-```
-167:       const sourceTitle = source_column_id && columnTitle(source_column_id);
-168:       const targetTitle = target_column_id && columnTitle(target_column_id);
-169:       const labelNames = store.labels.filter((l) => label_ids?.includes(l.id)).map((l) => l.name);
-170:       const parts = [
-171:         issue_type === 'issue' && props.locale.issuesOnly,
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| true | repo labels (data, size unknown) x workflow filter label_ids; data-derived (unsure: label_ids likely few) |  |
 
 ### #1679 · go-gitea/gitea@85211296dd · `web_src/js/features/repo-issue-sidebar-combolist.ts:104`
 
@@ -4434,48 +3150,6 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 | Proposed | Reason | Brad |
 |---|---|---|
 | small | issue sidebar changed vs initial selections on one issue; each iteration awaits a POST (unsure) |  |
-
-### #1687 · go-gitea/gitea@85211296dd · `web_src/js/modules/diff-file.ts:116`
-
-```
-114:     .filter(Boolean)
-115:     .map((ext) => ext === urlValueNoExtension ? '' : ext)
-116:     .filter((ext) => knownExtensions.includes(ext));
-117:   return extensions.length === knownExtensions.length ? 'all' : extensions;
-118: }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | URL-selected extensions x knownExtensions in one diff; tens at most (unsure) |  |
-
-### #1702 · go-gitea/gitea@85211296dd · `web_src/js/webcomponents/overflow-menu.ts:147`
-
-```
-145:     // remove aria role from items that moved from popup to menu
-146:     for (const item of menuItems) {
-147:       if (!this.overflowItems.includes(item)) {
-148:         item.removeAttribute('role');
-149:       }
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | overflow menu DOM items x overflowed items; tens of menu entries |  |
-
-### #1723 · traefik/traefik@f1f227eda7 · `webui/src/components/middlewares/MiddlewareDetail.tsx:23`
-
-```
-21:   const propsToRemove = ['name', 'plugin', 'status', 'type', 'provider', 'error', 'usedBy', 'routers']
-22: 
-23:   return Object.keys(middleware).filter((propName) => !propsToRemove.includes(propName))
-24: }
-25: 
-```
-
-| Proposed | Reason | Brad |
-|---|---|---|
-| small | middleware object keys x fixed 8-name propsToRemove list |  |
 
 
 ## `bpm-perf-java-contains-in-loop`
@@ -4901,6 +3575,431 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 | small | configured keys x existing key list; config-sized |  |
 
 
+## `bpm-perf-java-db-call-in-loop`
+
+### #1256 · thingsboard/thingsboard@7a53801216 · `application/src/main/java/org/thingsboard/server/service/edqs/EdqsSyncService.java:154`
+
+```
+152:         UUID lastId = UUID.fromString("00000000-0000-0000-0000-000000000000");
+153:         while (true) {
+154:             var batch = entityGroupDao.findNextBatch(lastId, entityBatchSize);
+155:             if (batch.isEmpty()) {
+156:                 break;
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | keyset pagination: next batch depends on lastId of previous batch |  |
+
+### #1257 · thingsboard/thingsboard@7a53801216 · `application/src/main/java/org/thingsboard/server/service/edqs/EdqsSyncService.java:184`
+
+```
+182: 
+183:         while (true) {
+184:             List<RelationEntity> batch = relationRepository.findNextBatch(lastFromEntityId, lastFromEntityType, lastRelationTypeGroup,
+185:                     lastRelationType, lastToEntityId, lastToEntityType, entityBatchSize);
+186:             if (batch.isEmpty()) {
+187:                 break;
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | keyset pagination over relations; cursor from previous batch |  |
+
+### #1258 · thingsboard/thingsboard@7a53801216 · `application/src/main/java/org/thingsboard/server/service/edqs/EdqsSyncService.java:238`
+
+```
+236: 
+237:         while (true) {
+238:             List<AttributeKvEntity> batch = attributesDao.findNextBatch(lastEntityId, lastAttributeType, lastAttributeKey, tsBatchSize);
+239:             if (batch.isEmpty()) {
+240:                 break;
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | keyset pagination over attributes; cursor from previous batch |  |
+
+### #1260 · thingsboard/thingsboard@7a53801216 · `application/src/main/java/org/thingsboard/server/service/housekeeper/processor/EntitiesCleanupTaskProcessor.java:72`
+
+```
+70:         UUID last = null;
+71:         while (true) {
+72:             List<TbPair<UUID, UUID>> pairs = entityDao.findIdsByTenantProfileIdAndIdOffsetAndExpired(tenantProfileId, last, 128, ttl);
+73: 
+74:             if (pairs.isEmpty()) {
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | keyset pagination of expired ids, 128 per page; cursor driven |  |
+
+### #1261 · thingsboard/thingsboard@7a53801216 · `application/src/main/java/org/thingsboard/server/service/housekeeper/processor/TenantEntitiesDeletionTaskProcessor.java:34`
+
+```
+32:         UUID last = null;
+33:         while (true) {
+34:             List<UUID> entities = entityDao.findIdsByTenantIdAndIdOffset(tenantId, last, 128);
+35:             if (entities.isEmpty()) {
+36:                 break;
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | keyset pagination of tenant entity ids, 128 per page; cursor driven |  |
+
+### #1265 · thingsboard/thingsboard@7a53801216 · `application/src/main/java/org/thingsboard/server/service/install/lts/V4_3_1_4Migration.java:137`
+
+```
+135:             UUID alarmCursor = cursorAlarmId;
+136:             BackfillBatch batch = transactionTemplate.execute(status ->
+137:                     jdbcTemplate.query(BACKFILL_BATCH_SQL, this::extractBatch, entityCursor, alarmCursor, batchSize));
+138:             if (batch == null) {
+139:                 break; // window empty -> the whole table has been walked
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | keyset-paginated backfill in self-committing batches; cursor driven |  |
+
+### #1268 · thingsboard/thingsboard@7a53801216 · `application/src/main/java/org/thingsboard/server/service/install/update/ResourcesUpdater.java:240`
+
+```
+238:             E entity;
+239:             try {
+240:                 entity = dao.findById(TenantId.SYS_TENANT_ID, id.getId());
+241:             } catch (Exception e) {
+242:                 log.error("Failed to update {} images: error fetching {} by id [{}]: {}", type, type, id.getId(), StringUtils.abbreviate(e.toString(), 1000));
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | upgrade: dao.findById per entity id over all tenants' entities; ids could be fetched in batches |  |
+
+### #1269 · thingsboard/thingsboard@7a53801216 · `application/src/main/java/org/thingsboard/server/service/install/update/ResourcesUpdater.java:248`
+
+```
+246:                 boolean updated = updater.apply(entity);
+247:                 if (updated) {
+248:                     dao.save(entity.getTenantId(), entity);
+249:                     log.debug("[{}][{}] Updated {} images", entity.getTenantId(), entity.getName(), type);
+250:                     updatedCount++;
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | upgrade: dao.save per updated entity across all tenants; one write per row, batchable |  |
+
+### #1302 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/alarm/BaseAlarmService.java:409`
+
+```
+407:         List<Long> alarmCounts = new ArrayList<>();
+408:         for (AlarmFilter filter : filters) {
+409:             long count = alarmDao.findAlarmCount(tenantId, query, filter);
+410:             alarmCounts.add(count);
+411:         }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | one count query per alarm filter from the request; filters are a few widget filters |  |
+
+### #1303 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/attributes/BaseAttributesService.java:119`
+
+```
+117:         List<ListenableFuture<Long>> futures = new ArrayList<>(attributes.size());
+118:         for (AttributeKvEntry attribute : attributes) {
+119:             ListenableFuture<Long> future = Futures.transform(attributesDao.save(tenantId, entityId, scope, attribute), version -> {
+120:                 TenantId edqsTenantId = entityId.getEntityType() == EntityType.TENANT ? (TenantId) entityId : tenantId;
+121:                 edqsService.onUpdate(edqsTenantId, ObjectType.ATTRIBUTE_KV, new AttributeKv(entityId, scope, attribute, version));
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | attributesDao.save enqueues into TbSqlBlockingQueue that batches inserts; not a query per item |  |
+
+### #1308 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/entity/BaseEntityService.java:444`
+
+```
+442:                             List.of(new EntityKey(EntityKeyType.ENTITY_FIELD, ModelConstants.NAME_PROPERTY)), Collections.emptyList(), Collections.emptyList());
+443: 
+444:                     entityQueryDao.findEntityDataByQuery(tenantId, customerId, userPermissions, query).getData().forEach(entityData -> {
+445:                         EntityId entityId = entityData.getEntityId();
+446:                         Optional.ofNullable(entityData.getLatest().get(EntityKeyType.ENTITY_FIELD))
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | one batched query per entity type among requested ids; few entity types |  |
+
+### #1312 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/resource/BaseImageService.java:330`
+
+```
+328:             imageContainerDaoMap.forEach((entityType, imageContainerDao) -> {
+329:                 var entities = tenantId.isSysTenantId() ? imageContainerDao.findByImageLink(link, MAX_ENTITIES_TO_FIND) :
+330:                         imageContainerDao.findByTenantAndImageLink(tenantId, link, MAX_ENTITIES_TO_FIND);
+331:                 if (!entities.isEmpty()) {
+332:                     affectedEntities.put(entityType.name(), entities);
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | one reference lookup per image container DAO type; fixed small map |  |
+
+### #1313 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/resource/BaseResourceService.java:389`
+
+```
+387:         resourceLinkContainerDaoMap.forEach((entityType, dao) -> {
+388:             List<EntityInfo> entities = tenantId.isSysTenantId()
+389:                     ? dao.findByResource(ref, MAX_ENTITIES_TO_FIND)
+390:                     : dao.findByTenantIdAndResource(tenantId, ref, MAX_ENTITIES_TO_FIND);
+391:             if (!entities.isEmpty()) {
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | one reference lookup per resource container DAO type; fixed small map |  |
+
+### #1316 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/rule/BaseRuleChainService.java:302`
+
+```
+300: 
+301:                 RuleChainDataValidator.validateRuleNode(node);
+302:                 RuleNode savedNode = ruleNodeDao.save(tenantId, node);
+303:                 relations.add(new EntityRelation(ruleChainMetaData.getRuleChainId(), savedNode.getId(),
+304:                         EntityRelation.CONTAINS_TYPE, RelationTypeGroup.RULE_CHAIN));
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | ruleNodeDao.save per rule node of a saved chain; grows with chain size, could saveAll |  |
+
+### #1318 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/rule/BaseRuleChainService.java:353`
+
+```
+351:                     layout.remove("ruleChainNodeId");
+352:                     targetNode.setAdditionalInfo(layout);
+353:                     targetNode = ruleNodeDao.save(tenantId, targetNode);
+354: 
+355:                     EntityRelation sourceRuleChainToRuleNode = new EntityRelation();
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | save per rule-chain connection node; usually a few cross-chain links |  |
+
+### #1320 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/rule/BaseRuleChainService.java:504`
+
+```
+502:         List<RuleNode> ruleNodes = new ArrayList<>();
+503:         for (EntityRelation relation : relations) {
+504:             RuleNode ruleNode = ruleNodeDao.findById(tenantId, relation.getFrom().getId());
+505:             if (ruleNode != null) {
+506:                 ruleNodes.add(ruleNode);
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | ruleNodeDao.findById per referencing relation; findAllRuleNodeByIds exists for a batch |  |
+
+### #1321 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/rule/BaseRuleChainService.java:530`
+
+```
+528:         List<EntityRelation> relations = new ArrayList<>();
+529:         for (List<RuleNodeId> batch : Lists.partition(ruleNodeIds, RULE_NODES_BATCH_SIZE)) {
+530:             relations.addAll(relationDao.findAllByFromIds(tenantId, toUUIDs(batch), EntityType.RULE_NODE, RelationTypeGroup.RULE_NODE));
+531:         }
+532:         for (EntityRelation relation : removeDanglingRelations(tenantId, relations)) {
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | already batched: findAllByFromIds per partition of RULE_NODES_BATCH_SIZE |  |
+
+### #1323 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/rule/BaseRuleChainService.java:583`
+
+```
+581:         Map<UUID, RuleNode> ruleNodesById = new HashMap<>();
+582:         for (List<UUID> batch : Lists.partition(new ArrayList<>(ruleNodeIds), RULE_NODES_BATCH_SIZE)) {
+583:             for (RuleNode ruleNode : ruleNodeDao.findAllRuleNodeByIds(batch.stream().map(RuleNodeId::new).toList())) {
+584:                 ruleNodesById.put(ruleNode.getId().getId(), ruleNode);
+585:             }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | already batched: findAllRuleNodeByIds per partition |  |
+
+### #1324 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/secret/SecretServiceImpl.java:184`
+
+```
+182:         String placeholder = String.format("${secret:%s;type:%s}", secretInfo.getName(), secretInfo.getType());
+183:         hasSecretsEntityDaos.forEach((entityType, hasSecretsEntityDao) -> {
+184:             var entities = hasSecretsEntityDao.findByTenantIdAndSecretPlaceholder(tenantId, placeholder);
+185:             if (!entities.isEmpty()) {
+186:                 affectedEntities.put(entityType, entities);
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | one placeholder lookup per secret-holding DAO type; fixed small map |  |
+
+### #1326 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/sql/attributes/JpaAttributeDao.java:341`
+
+```
+339:         for (String key : keys) {
+340:             futuresList.add(service.submit(() -> {
+341:                 attributeKvRepository.delete(entityId.getId(), attributeScope.getId(), keyDictionaryDao.getOrSaveKeyId(key));
+342:                 return key;
+343:             }));
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | per attribute key from request, a DELETE query submitted per key; one batched delete by key list would do |  |
+
+### #1327 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/sql/attributes/JpaAttributeDao.java:359`
+
+```
+357:                             entityId.getId(), attributeScope.getId(), keyDictionaryDao.getOrSaveKeyId(key));
+358:                 } else {
+359:                     version = transactionTemplate.execute(status -> jdbcTemplate.query(removeWithVersionQuery,
+360:                             rs -> rs.next() ? rs.getObject(1, Long.class) : null, entityId.getId(), attributeScope.getId(), keyDictionaryDao.getOrSaveKeyId(key)));
+361:                 }
+362:                 return TbPair.of(key, version);
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | per attribute key, a delete-returning-version query per key; batchable with one DELETE ... RETURNING over the key list |  |
+
+### #1328 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/sql/blob/JpaBlobEntityDao.java:84`
+
+```
+82:             var endTime = startTime + partitionStepInMs;
+83:             log.info("Migrating blob entities for time period: {} - {}", startTime, endTime);
+84:             jdbcTemplate.update("CALL migrate_blob_entities(?, ?, ?)", startTime, endTime, partitionStepInMs);
+85:             startTime = endTime;
+86:         }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | while loop over time partitions calling migrate procedure per window; deliberate chunked one-off migration |  |
+
+### #1329 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/sql/citus/DefaultCitusSchemaService.java:408`
+
+```
+406:             // NULL, so it cannot be mapped to Void.class. We use execute(...) and inline the table
+407:             // name — it is a trusted internal constant from CitusTables, never user input.
+408:             jdbcTemplate.execute("SELECT create_reference_table('" + table + "')");
+409:         }
+410:     }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | loops fixed internal list of Citus reference tables, one DDL call each at schema conversion |  |
+
+### #1332 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/sql/citus/DefaultCitusSchemaService.java:542`
+
+```
+540:             log.warn("Re-adding managed foreign key {} missing after a crash during a prior run's FK re-add: {}",
+541:                     fk.name(), addStatement);
+542:             jdbcTemplate.execute(addStatement);
+543:         }
+544:     }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | loops static catalog of managed foreign keys, re-adding missing ones via DDL; fixed small set |  |
+
+### #1334 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/sql/citus/DefaultCitusSchemaService.java:633`
+
+```
+631:             log.info("Dropping distribution-incompatible unique constraint {} on {} " +
+632:                     "(enforced at application layer)", name, table);
+633:             jdbcTemplate.execute("ALTER TABLE " + table + " DROP CONSTRAINT " + name);
+634:         }
+635:     }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | loops unique constraints of one table, one ALTER TABLE DROP each; a handful of DDL statements |  |
+
+### #1337 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/sql/query/DefaultEntityQueryRepository.java:2506`
+
+```
+2504:         String sql = "select id, tenant_id, customer_id, created_time, name, type, " + labelColumn +
+2505:                 ", additional_info from " + table + " where id in (select unnest(" + idsParam + "))";
+2506:         for (Map<String, Object> row : jdbcTemplate.queryForList(sql, prefetchCtx)) {
+2507:             out.put((UUID) row.get("id"), row);
+2508:         }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | iterates rows of a single queryForList result; the query runs once, not per iteration |  |
+
+### #1341 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/timeseries/BaseTimeseriesService.java:129`
+
+```
+127:         keys.forEach(key -> Validator.validateString(key, k -> "Incorrect key " + k));
+128:         for (String key : keys) {
+129:             futures.add(timeseriesLatestDao.findLatest(tenantId, entityId, key));
+130:         }
+131:         return Futures.allAsList(futures);
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | per telemetry key, findLatest issues a cache/DB lookup per key; a multi-key latest query would batch it |  |
+
+### #1342 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/timeseries/BaseTimeseriesService.java:210`
+
+```
+208:             if (saveTs) {
+209:                 tsFutures.add(timeseriesDao.savePartition(tenantId, entityId, tsKvEntry.getTs(), tsKvEntry.getKey()));
+210:                 tsFutures.add(timeseriesDao.save(tenantId, entityId, tsKvEntry, ttl, overwriteValue));
+211:             }
+212:             if (saveLatest) {
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | per ts entry, timeseriesDao.save only enqueues into tsQueue which batches inserts; no per-row query |  |
+
+### #1343 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/user/UserServiceImpl.java:662`
+
+```
+660:     @Override
+661:     public void removeMobileSession(TenantId tenantId, String mobileToken) {
+662:         for (UserSettings userSettings : userSettingsDao.findByTypeAndPath(tenantId, UserSettingsType.MOBILE, "sessions", mobileToken)) {
+663:             ((ObjectNode) userSettings.getSettings().get("sessions")).remove(mobileToken);
+664:             userSettingsService.saveUserSettings(tenantId, userSettings);
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | loops user settings matching one mobile token (normally 0-1 rows), saving each |  |
+
+### #1353 · thingsboard/thingsboard@7a53801216 · `migrator/src/main/java/org/thingsboard/migrator/service/tenant/exporting/PostgresTenantDataExporter.java:179`
+
+```
+177:             String batchQuery = query + " LIMIT " + batchSize + " OFFSET " + offset;
+178: 
+179:             List<Map<String, Object>> rows = jdbcTemplate.queryForList(batchQuery, queryParams);
+180:             rows.forEach(rowProcessor);
+181:             batchIndex++;
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | LIMIT/OFFSET pagination loop, one query per page by design; sequential paging is inherent |  |
+
+
 ## `bpm-perf-java-find-by-key-in-loop`
 
 ### #1272 · thingsboard/thingsboard@7a53801216 · `application/src/main/java/org/thingsboard/server/service/sync/ie/importing/impl/BaseEntityImportService.java:374`
@@ -5063,6 +4162,23 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 | wrong | per-mapping filter by TBEL predicate over children, not a key join; Map can't replace it |  |
 
 
+## `bpm-perf-java-regex-compile-in-loop`
+
+### #1370 · thingsboard/thingsboard@7a53801216 · `rule-engine/rule-engine-components/src/main/java/org/thingsboard/rule/engine/pe/twilio/TbTwilioSmsNode.java:106`
+
+```
+104:                         new PhoneNumber(numberTo.trim()),
+105:                         new PhoneNumber(numberFrom.trim()),
+106:                         msg.getData().replaceAll("^\"|\"$", "").replaceAll("\\\\n", "\n")
+107:                 ).create(this.twilioRestClient);
+108:                 log.trace("[{}][{}][{}] Sms for number: {} sent successfully!", ctx.getTenantId().getId(), ctx.getSelfId().getId(), msg.getId(), numbersTo);
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | replaceAll regex on msg data per destination phone number; numbersTo is a short config list |  |
+
+
 ## `bpm-perf-java-remove-front-in-loop`
 
 ### #1252 · thingsboard/thingsboard@7a53801216 · `application/src/main/java/org/thingsboard/server/config/SwaggerConfiguration.java:1201`
@@ -5092,6 +4208,449 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 | Proposed | Reason | Brad |
 |---|---|---|
 | wrong | single add(0) per entity's list, not repeated into one growing list |  |
+
+
+## `bpm-perf-java-string-concat-in-loop`
+
+### #1253 · thingsboard/thingsboard@7a53801216 · `application/src/main/java/org/thingsboard/server/controller/NotificationController.java:574`
+
+```
+572:                     } else if (recipient instanceof User) {
+573:                         if (!title.equals(recipient.getEmail())) {
+574:                             title += " (" + recipient.getEmail() + ")";
+575:                         }
+576:                     }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | title += is a fresh per-recipient string, not accumulated across iterations; no quadratic build |  |
+
+### #1280 · thingsboard/thingsboard@7a53801216 · `common/integration/http-integrations/src/main/java/org/thingsboard/integration/http/thingpark/ThingParkIntegration.java:137`
+
+```
+135:                     String params = DEV_EUI + "=" + metadata.get(DEV_EUI) + "&" + F_PORT + "=" + metadata.get(F_PORT) + "&" + PAYLOAD + "=" + payload;
+136:                     if (metadata.containsKey(F_CNT_DN)) {
+137:                         params += "&" + F_CNT_DN + "=" + metadata.get(F_CNT_DN);
+138:                     }
+139:                     if (metadata.containsKey(CONFIRMED)) {
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | params is a fresh per-downlink string with a few fixed appends; nothing accumulates across iterations |  |
+
+### #1281 · thingsboard/thingsboard@7a53801216 · `common/integration/http-integrations/src/main/java/org/thingsboard/integration/http/thingpark/ThingParkIntegration.java:140`
+
+```
+138:                     }
+139:                     if (metadata.containsKey(CONFIRMED)) {
+140:                         params += "&" + CONFIRMED + "=" + metadata.get(CONFIRMED);
+141:                     }
+142:                     if (metadata.containsKey(FLUSH_DOWNLINK_QUEUE)) {
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | params is a fresh per-downlink string with a few fixed appends; nothing accumulates across iterations |  |
+
+### #1282 · thingsboard/thingsboard@7a53801216 · `common/integration/http-integrations/src/main/java/org/thingsboard/integration/http/thingpark/ThingParkIntegration.java:143`
+
+```
+141:                     }
+142:                     if (metadata.containsKey(FLUSH_DOWNLINK_QUEUE)) {
+143:                         params += "&" + FLUSH_DOWNLINK_QUEUE + "=" + metadata.get(FLUSH_DOWNLINK_QUEUE);
+144:                     }
+145:                     if (securityEnabled) {
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | params is a fresh per-downlink string with a few fixed appends; nothing accumulates across iterations |  |
+
+### #1283 · thingsboard/thingsboard@7a53801216 · `common/integration/http-integrations/src/main/java/org/thingsboard/integration/http/thingpark/ThingParkIntegration.java:146`
+
+```
+144:                     }
+145:                     if (securityEnabled) {
+146:                         params += "&AS_ID=" + securityAsId;
+147:                         params += "&Time=" + ISO8601.get().format(new Date());
+148:                         String token = getToken(params + securityAsKey);
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | params is a fresh per-downlink string with a few fixed appends; nothing accumulates across iterations |  |
+
+### #1284 · thingsboard/thingsboard@7a53801216 · `common/integration/http-integrations/src/main/java/org/thingsboard/integration/http/thingpark/ThingParkIntegration.java:147`
+
+```
+145:                     if (securityEnabled) {
+146:                         params += "&AS_ID=" + securityAsId;
+147:                         params += "&Time=" + ISO8601.get().format(new Date());
+148:                         String token = getToken(params + securityAsKey);
+149:                         params += "&Token=" + token;
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | params is a fresh per-downlink string with a few fixed appends; nothing accumulates across iterations |  |
+
+### #1285 · thingsboard/thingsboard@7a53801216 · `common/integration/http-integrations/src/main/java/org/thingsboard/integration/http/thingpark/ThingParkIntegration.java:149`
+
+```
+147:                         params += "&Time=" + ISO8601.get().format(new Date());
+148:                         String token = getToken(params + securityAsKey);
+149:                         params += "&Token=" + token;
+150:                     }
+151: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | params is a fresh per-downlink string with a few fixed appends; nothing accumulates across iterations |  |
+
+### #1287 · thingsboard/thingsboard@7a53801216 · `common/report/src/main/java/org/thingsboard/server/report/context/chart/TsChartDataSource.java:93`
+
+```
+91:                 } else {
+92:                     String label = key.getLabel();
+93:                     label += " " + labelSuffixForComparisonUnit(timeForComparison);
+94:                     key.setLabel(label);
+95:                 }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | label is a fresh per-data-key string with one suffix append; no accumulation across iterations |  |
+
+### #1301 · thingsboard/thingsboard@7a53801216 · `common/transport/lwm2m/src/main/java/org/thingsboard/server/transport/lwm2m/server/uplink/DefaultLwM2mUplinkMsgHandler.java:707`
+
+```
+705:         String targetIdSearch = targetIdParts[0];
+706:         for (int i = 1; i < targetIdParts.length; i++) {
+707:             targetIdSearch += "/" + targetIdParts[i];
+708:             if (supportedIds.contains(targetIdSearch)) {
+709:                 return true;
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | accumulates LwM2M path segments (3-4 parts) into targetIdSearch; tiny bounded loop |  |
+
+### #1338 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/sql/query/DefaultQueryLogComponent.java:70`
+
+```
+68: 
+69:                 if (count > 0) {
+70:                     valueArrayStr+=", ";
+71:                 }
+72: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | builds IN-list value string with += over an Iterable SQL param (can be thousands of ids) for query log |  |
+
+### #1339 · thingsboard/thingsboard@7a53801216 · `dao/src/main/java/org/thingsboard/server/dao/sql/query/DefaultQueryLogComponent.java:74`
+
+```
+72: 
+73:                 String valueForSQLQuery = getValueForSQLQuery(valueTemp);
+74:                 valueArrayStr += valueForSQLQuery;
+75:                 ++count;
+76:             }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | appends each value of an Iterable SQL param via +=; quadratic for large id lists; use StringJoiner |  |
+
+### #1344 · thingsboard/thingsboard@7a53801216 · `migrator/src/main/java/org/thingsboard/migrator/service/latest_kv/importing/PostgresLatestKvImporter.java:66`
+
+```
+64: 
+65:             if (!columnsStatement.isEmpty()) {
+66:                 columnsStatement += ",";
+67:             }
+68:             columnsStatement += column;
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | += over columns of one row (fixed schema, ~10 columns) to build INSERT |  |
+
+### #1345 · thingsboard/thingsboard@7a53801216 · `migrator/src/main/java/org/thingsboard/migrator/service/latest_kv/importing/PostgresLatestKvImporter.java:68`
+
+```
+66:                 columnsStatement += ",";
+67:             }
+68:             columnsStatement += column;
+69: 
+70:             if (!valuesStatement.isEmpty()) {
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | += over columns of one row (fixed schema, ~10 columns) to build INSERT |  |
+
+### #1346 · thingsboard/thingsboard@7a53801216 · `migrator/src/main/java/org/thingsboard/migrator/service/latest_kv/importing/PostgresLatestKvImporter.java:71`
+
+```
+69: 
+70:             if (!valuesStatement.isEmpty()) {
+71:                 valuesStatement += ",";
+72:             }
+73:             valuesStatement += "?";
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | += over columns of one row (fixed schema, ~10 columns) to build INSERT |  |
+
+### #1347 · thingsboard/thingsboard@7a53801216 · `migrator/src/main/java/org/thingsboard/migrator/service/latest_kv/importing/PostgresLatestKvImporter.java:73`
+
+```
+71:                 valuesStatement += ",";
+72:             }
+73:             valuesStatement += "?";
+74:             if (value instanceof JsonNode) {
+75:                 entry.setValue(value.toString());
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | += over columns of one row (fixed schema, ~10 columns) to build INSERT |  |
+
+### #1348 · thingsboard/thingsboard@7a53801216 · `migrator/src/main/java/org/thingsboard/migrator/service/latest_kv/importing/PostgresLatestKvImporter.java:78`
+
+```
+76:             }
+77:             String valueType = columns.get(column);
+78:             valuesStatement += "::" + valueType;
+79:         }
+80: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | += over columns of one row (fixed schema, ~10 columns) to build INSERT |  |
+
+### #1349 · thingsboard/thingsboard@7a53801216 · `migrator/src/main/java/org/thingsboard/migrator/service/tenant/exporting/PostgresTenantDataExporter.java:95`
+
+```
+93:             for (Table referencedTable : referencedTables) {
+94:                 if (referencedTable.getReference() == null) {
+95:                     query += format(" %s IN (SELECT %s.id FROM %s WHERE %s.%s = '%s') OR",
+96:                             referencingColumn, referencedTable.getName(), referencedTable.getName(),
+97:                             referencedTable.getName(), referencedTable.getTenantIdColumn(), tenantId);
+98:                 } else {
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | += over referenced tables of a fixed schema enum to build export WHERE; a few iterations |  |
+
+### #1350 · thingsboard/thingsboard@7a53801216 · `migrator/src/main/java/org/thingsboard/migrator/service/tenant/exporting/PostgresTenantDataExporter.java:103`
+
+```
+101:                     List<Table> tables = anotherReference.getValue();
+102:                     for (Table anotherReferencedTable : tables) {
+103:                         query += format(" %s IN (SELECT %s.id FROM %s INNER JOIN %s ON %s.%s = %s.id WHERE %s.%s = '%s') OR",
+104:                                 referencingColumn, referencedTable.getName(), referencedTable.getName(),
+105:                                 anotherReferencedTable.getName(), referencedTable.getName(), column, anotherReferencedTable.getName(),
+106:                                 anotherReferencedTable.getName(), anotherReferencedTable.getTenantIdColumn(), tenantId);
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | += over nested referenced tables of a fixed schema enum; a few iterations |  |
+
+### #1351 · thingsboard/thingsboard@7a53801216 · `migrator/src/main/java/org/thingsboard/migrator/service/tenant/exporting/PostgresTenantDataExporter.java:143`
+
+```
+141:                     }
+142:                     relatedQuery = format(insertAfter(relatedQuery, "SELECT", " '%s' as table_name, "), table.toString());
+143:                     relatedQuery += format("%s = '%s'", relatedTable.getReference().getKey(), row.get("id"));
+144:                     relatedQuery += " ORDER BY " + String.join(", ", relatedTable.getSortColumns());
+145:                     queryAndSave(relatedTable, relatedQuery);
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | relatedQuery is a fresh string per related table with fixed appends; no accumulation |  |
+
+### #1352 · thingsboard/thingsboard@7a53801216 · `migrator/src/main/java/org/thingsboard/migrator/service/tenant/exporting/PostgresTenantDataExporter.java:144`
+
+```
+142:                     relatedQuery = format(insertAfter(relatedQuery, "SELECT", " '%s' as table_name, "), table.toString());
+143:                     relatedQuery += format("%s = '%s'", relatedTable.getReference().getKey(), row.get("id"));
+144:                     relatedQuery += " ORDER BY " + String.join(", ", relatedTable.getSortColumns());
+145:                     queryAndSave(relatedTable, relatedQuery);
+146:                 }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | relatedQuery is a fresh string per related table with fixed appends; no accumulation |  |
+
+### #1354 · thingsboard/thingsboard@7a53801216 · `migrator/src/main/java/org/thingsboard/migrator/service/tenant/importing/PostgresTenantDataImporter.java:98`
+
+```
+96: 
+97:             if (!columnsStatement.isEmpty()) {
+98:                 columnsStatement += ",";
+99:             }
+100:             columnsStatement += column;
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | += over columns of one row (fixed table schema) to build INSERT |  |
+
+### #1355 · thingsboard/thingsboard@7a53801216 · `migrator/src/main/java/org/thingsboard/migrator/service/tenant/importing/PostgresTenantDataImporter.java:100`
+
+```
+98:                 columnsStatement += ",";
+99:             }
+100:             columnsStatement += column;
+101: 
+102:             if (!valuesStatement.isEmpty()) {
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | += over columns of one row (fixed table schema) to build INSERT |  |
+
+### #1356 · thingsboard/thingsboard@7a53801216 · `migrator/src/main/java/org/thingsboard/migrator/service/tenant/importing/PostgresTenantDataImporter.java:103`
+
+```
+101: 
+102:             if (!valuesStatement.isEmpty()) {
+103:                 valuesStatement += ",";
+104:             }
+105:             valuesStatement += "?";
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | += over columns of one row (fixed table schema) to build INSERT |  |
+
+### #1357 · thingsboard/thingsboard@7a53801216 · `migrator/src/main/java/org/thingsboard/migrator/service/tenant/importing/PostgresTenantDataImporter.java:105`
+
+```
+103:                 valuesStatement += ",";
+104:             }
+105:             valuesStatement += "?";
+106:             if (value instanceof JsonNode) {
+107:                 entry.setValue(value.toString());
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | += over columns of one row (fixed table schema) to build INSERT |  |
+
+### #1358 · thingsboard/thingsboard@7a53801216 · `migrator/src/main/java/org/thingsboard/migrator/service/tenant/importing/PostgresTenantDataImporter.java:117`
+
+```
+115:             }
+116:             String valueType = columns.get(table).get(column);
+117:             valuesStatement += "::" + valueType;
+118:         }
+119: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | += over columns of one row (fixed table schema) to build INSERT |  |
+
+
+## `bpm-perf-json-deep-clone`
+
+### #8 · excalidraw/excalidraw@b7de45e881 · `packages/common/src/utils.ts:948`
+
+```
+946: };
+947: 
+948: export const cloneJSON = <T>(obj: T): T => JSON.parse(JSON.stringify(obj));
+949: 
+950: export const updateStable = <T extends any[] | Record<string, any>>(
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | cloneJSON utility used on whole scene elements/appState (collab sync, export); large objects, structuredClone fits |  |
+
+### #81 · outline/outline@670410b236 · `app/models/base/Model.ts:65`
+
+```
+63:   ): PartialExcept<T, "id"> {
+64:     const fields = getFieldsForModelClass(this);
+65:     return JSON.parse(JSON.stringify(pick(record, ["id", ...fields])));
+66:   }
+67: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | JSON round-trip intentionally strips to plain serialisable data from MobX model; structuredClone fails on proxies |  |
+
+### #83 · outline/outline@670410b236 · `app/models/base/Model.ts:305`
+
+```
+303:    */
+304:   toPersisted = (): PartialExcept<Model, "id"> =>
+305:     JSON.parse(JSON.stringify({ ...this.toAPI(), id: this.id }));
+306: 
+307:   /**
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | toPersisted JSON round-trip deliberately serialises MobX observables to plain data; JSON semantics required |  |
+
+### #133 · outline/outline@670410b236 · `server/commands/documentCollaborativeUpdater.ts:56`
+
+```
+54:   // round-trip additionally drops undefined-valued attrs, which are absent
+55:   // from previously stored content but present on `Node.toJSON` output.
+56:   const content = JSON.parse(
+57:     JSON.stringify(
+58:       Node.fromJSON(schema, yDocToProsemirrorJSON(ydoc, "default")).toJSON()
+59:     )
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | JSON round-trip deliberately canonicalises ProseMirror JSON (drops undefined attrs); not a clone |  |
+
+### #1422 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/profile/device/lwm2m/lwm2m-device-profile-transport-configuration.component.ts:416`
+
+```
+414: 
+415:   private validateKeyNameObjects = (nameJson: object, attributeArray: string[], telemetryArray: string[]): object => {
+416:     const keyName = JSON.parse(JSON.stringify(nameJson));
+417:     const keyNameValidate = {};
+418:     const keyAttrTelemetry = attributeArray.concat(telemetryArray);
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | clones small LwM2M keyName config object once per form update; tiny UI config |  |
+
+### #1423 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/profile/device/lwm2m/lwm2m-device-profile-transport-configuration.component.ts:435`
+
+```
+433:     const observeStrategyValue = this.lwm2mDeviceProfileFormGroup.get('observeStrategy').value;
+434:     const initAttrTelAsObsStrategyValue = this.lwm2mDeviceProfileFormGroup.get('initAttrTelAsObsStrategy').value;
+435:     const observeJson: ObjectLwM2M[] = JSON.parse(JSON.stringify(val));
+436:     observeJson.forEach(obj => {
+437:       if (isDefinedAndNotNull(obj.attributes) && !isEmpty(obj.attributes)) {
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | clones small LwM2M object list once per form update; tiny UI config |  |
 
 
 ## `bpm-perf-kt-find-by-key-in-loop`
@@ -5605,6 +5164,867 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 | small | a document's doc-link custom fields x incoming field ids: a handful |  |
 
 
+## `bpm-perf-orm-call-in-loop`
+
+### #80 · outline/outline@670410b236 · `app/models/base/Model.ts:38`
+
+```
+36:     );
+37:     if (symbol) {
+38:       const annotations: Record<string | symbol, unknown> = Reflect.get(
+39:         prototype,
+40:         symbol
+41:       );
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | Reflect.get on a prototype symbol walking the prototype chain; not a DB call |  |
+
+### #150 · outline/outline@670410b236 · `server/commands/groupsSyncer.ts:80`
+
+```
+78:         updates.name = eg.name;
+79:       }
+80:       await externalGroup.update(updates, { transaction });
+81: 
+82:       // Keep the linked internal Group's name and description in sync
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | per external IdP group, findOrCreate + update queries in a loop; groups per user grow, could bulk upsert |  |
+
+### #153 · outline/outline@670410b236 · `server/commands/groupsSyncer.ts:106`
+
+```
+104:           }
+105:           if (Object.keys(groupUpdates).length > 0) {
+106:             await group.update(groupUpdates, { transaction });
+107:           }
+108:         }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | per external group, Group.findByPk + update inside loop; N+1 on group sync |  |
+
+### #156 · outline/outline@670410b236 · `server/commands/groupsSyncer.ts:121`
+
+```
+119:         createdById: user.id,
+120:       });
+121:       await externalGroup.update({ groupId: group.id }, { transaction });
+122:       externalGroup.groupId = group.id;
+123:       result.groupsCreated++;
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | per external group, create Group then update ExternalGroup; per-row writes in group sync loop |  |
+
+### #240 · outline/outline@670410b236 · `server/queues/processors/ImportsProcessor.ts:585`
+
+```
+583: 
+584:             // Update document id for attachments in document content.
+585:             await Attachment.update(
+586:               { documentId: internalId },
+587:               { where: { documentId: externalId }, silent: true, transaction }
+588:             );
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | per imported document, Attachment.update by documentId; grows with import size, batchable |  |
+
+### #342 · outline/outline@670410b236 · `server/queues/tasks/UpdateDocumentsPopularityScoreTask.ts:509`
+
+```
+507:         if (timestamp < cutoff) {
+508:           Logger.info("task", `Dropping stale working table: ${tablename}`);
+509:           await sequelize.query(`DROP TABLE IF EXISTS "${tablename}" CASCADE`);
+510:         }
+511:       }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | drops stale working tables found by prefix; a few tables per cleanup run |  |
+
+### #404 · outline/outline@670410b236 · `shared/editor/nodes/ToggleBlock.ts:608`
+
+```
+606:     // Insert from the end so earlier positions stay valid.
+607:     for (const { node, pos } of emptyBlocks.reverse()) {
+608:       tr.insert(
+609:         pos + 1 + node.content.size,
+610:         state.schema.nodes.paragraph.create({})
+611:       );
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | ProseMirror tr.insert into a transaction; not a DB call |  |
+
+### #416 · immich-app/immich@f7b8ae5da3 · `packages/cli/src/commands/asset.ts:499`
+
+```
+497:         }),
+498:       );
+499:       deletionProgress.update(assetBatch.length);
+500:     }
+501:   };
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | progress bar update() in CLI delete loop; not a DB call |  |
+
+### #437 · immich-app/immich@f7b8ae5da3 · `server/src/repositories/event.repository.ts:188`
+
+```
+186:         }
+187: 
+188:         const event = reflector.get<EventConfig>(MetadataKey.EventConfig, handler);
+189:         if (!event) {
+190:           continue;
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | Nest reflector.get metadata lookup at startup; not a DB call |  |
+
+### #453 · immich-app/immich@f7b8ae5da3 · `server/src/repositories/telemetry.repository.ts:136`
+
+```
+134: 
+135:     for (const Repository of repositories) {
+136:       const isEnabled = this.reflect.get(MetadataKey.TelemetryEnabled, Repository) ?? true;
+137:       if (!isEnabled) {
+138:         this.logger.debug(`Telemetry disabled for ${Repository.name}`);
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | Reflect metadata lookup over repository classes at setup; not a DB call |  |
+
+### #460 · immich-app/immich@f7b8ae5da3 · `server/src/services/album.service.ts:240`
+
+```
+238:         albumAssetValues.push({ albumId, assetId });
+239:       }
+240:       await this.albumRepository.update(
+241:         albumId,
+242:         {
+243:           id: albumId,
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | per album id in request: getAssetIds, findOrFail and update queries each; N+1 over albums |  |
+
+### #507 · immich-app/immich@f7b8ae5da3 · `server/src/services/media.service.ts:100`
+
+```
+98:           }
+99: 
+100:           await this.personRepository.update({ ownerId, personGroupId, faceAssetId: face.id });
+101:         }
+102: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | per person across all people: getRandomFace + update query; grows with library, batchable |  |
+
+### #528 · immich-app/immich@f7b8ae5da3 · `server/src/services/person.service.ts:176`
+
+```
+174:       }
+175: 
+176:       await this.personRepository.update({ ownerId, personGroupId, faceAssetId: assetFace.id });
+177:       jobs.push({ name: JobName.PersonGenerateThumbnail, data: { ownerId, personGroupId } });
+178:     }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | per person in changeFeaturePhoto list: getRandomFace + update per person |  |
+
+### #530 · immich-app/immich@f7b8ae5da3 · `server/src/services/person.service.ts:303`
+
+```
+301:     for (const person of dto.people) {
+302:       try {
+303:         await this.update(auth, person.id, {
+304:           isHidden: person.isHidden,
+305:           name: person.name,
+306:           birthDate: person.birthDate,
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | per person in bulk update request, full update() with access checks and queries per row |  |
+
+### #536 · immich-app/immich@f7b8ae5da3 · `server/src/services/person.service.ts:724`
+
+```
+722:           );
+723:           if (Object.keys(changes).length > 0) {
+724:             target = await this.personRepository.update({ ownerId, personGroupId: targetId, ...changes });
+725:             targets.set(ownerId, target);
+726:           }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | merge loop over a few user-chosen source persons x owners; update per merge |  |
+
+### #645 · immich-app/immich@f7b8ae5da3 · `server/src/utils/config.ts:88`
+
+```
+86:   const rawConfig = cloneDeep(defaults);
+87:   for (const property of getKeysDeep(partial)) {
+88:     set(rawConfig, property, get(partial, property));
+89:   }
+90: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | lodash set/get on config objects; not a DB call |  |
+
+### #648 · immich-app/immich@f7b8ae5da3 · `server/src/utils/preferences.ts:66`
+
+```
+64:   const partial = item?.value || {};
+65:   for (const property of getKeysDeep(partial)) {
+66:     set(preferences, property, get(partial, property));
+67:   }
+68: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | lodash set/get on preferences object; not a DB call |  |
+
+### #649 · immich-app/immich@f7b8ae5da3 · `server/src/utils/preferences.ts:76`
+
+```
+74:   const partial: DeepPartial<UserPreferences> = {};
+75:   for (const property of getKeysDeep(defaultPreferences)) {
+76:     const newValue = get(newPreferences, property);
+77:     const isEmpty = [undefined, null, ''].includes(newValue);
+78:     const defaultValue = get(defaultPreferences, property);
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | lodash get on preferences object; not a DB call |  |
+
+### #655 · immich-app/immich@f7b8ae5da3 · `web/src/lib/actions/use-actions.ts:55`
+
+```
+53:           const actionEntry = actions[i];
+54:           if (Array.isArray(actionEntry) && actionEntry.length > 1) {
+55:             returnEntry.update(actionEntry[1]);
+56:           } else {
+57:             returnEntry.update();
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | Svelte action returnEntry.update(); not a DB call |  |
+
+### #676 · immich-app/immich@f7b8ae5da3 · `web/src/lib/workers/hash-file.ts:16`
+
+```
+14:     const buffer = await slice.arrayBuffer();
+15: 
+16:     hasher.update(new Uint8Array(buffer));
+17:   }
+18: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | hasher.update on file chunks; not a DB call |  |
+
+### #678 · immich-app/immich@f7b8ae5da3 · `web/src/lib/workers/hash-file.ts:30`
+
+```
+28:     const buffer = await slice.arrayBuffer();
+29: 
+30:     hasher.update(new Uint8Array(buffer));
+31:   }
+32: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | hasher.update on file chunks; not a DB call |  |
+
+### #911 · zulip/zulip@36d2312680 · `web/src/drafts.ts:317`
+
+```
+315:     new_topic: string | undefined,
+316: ): void {
+317:     for (const [draft_id, draft] of Object.entries(draft_model.get())) {
+318:         if (draft.type !== "stream" || draft.stream_id === undefined) {
+319:             continue;
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | iterates in-memory draft_model.get() (local storage); not a DB call |  |
+
+### #923 · zulip/zulip@36d2312680 · `web/src/message_fetch.ts:839`
+
+```
+837:         // Since we backfill a lot more messages here compared to rendered message list,
+838:         // we can try populating them if we can do so locally.
+839:         for (const msg_list_data of message_list_data_cache.all()) {
+840:             if (
+841:                 msg_list_data === recent_view_messages_data ||
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | iterates in-memory message_list_data_cache.all(); not a DB call |  |
+
+### #929 · zulip/zulip@36d2312680 · `web/src/pm_conversations.ts:191`
+
+```
+189:     initialize(params: StateData["pm_conversations"]): void {
+190:         for (const conversation of params.recent_private_conversations) {
+191:             this.insert(conversation.user_ids, conversation.max_message_id);
+192:         }
+193:     }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | in-memory insert into recent DM map during client init; not a DB call |  |
+
+### #1378 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/core/api/entity-data-subscription.ts:1150`
+
+```
+1148:             let value = EntityDataSubscription.convertValue(series[1]);
+1149:             if (dataKey.postFunc) {
+1150:               value = dataKey.postFunc.execute(time, value, prevSeries[1], prevOrigSeries[0], prevOrigSeries[1]);
+1151:             }
+1152:             series = [time, value, series[2]];
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | postFunc.execute is a user JS function on widget data; not a DB call |  |
+
+### #1379 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/core/api/entity-data-subscription.ts:1235`
+
+```
+1233:     }
+1234:     for (let time = startTime; time <= endTime && (this.timeseriesTimer || this.history); time += targetFrequency) {
+1235:       const value = dataKey.func.execute(time, prevSeries[1]);
+1236:       const series: [number, any] = [time, value];
+1237:       data.push(series);
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | func.execute generates simulated data points; not a DB call |  |
+
+### #1439 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/cards/aggregated-value-card-widget.component.ts:246`
+
+```
+244:           aggValue.value = 'N/A';
+245:         }
+246:         aggValue.color.update(value);
+247:         const numeric = formatNumberValue(value, (aggValue.key.decimals || this.ctx.decimals));
+248:         if (aggValue.showArrow && isDefined(numeric)) {
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | color.update on widget value in UI; not a DB call |  |
+
+### #1460 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/entity/entities-table-widget.component.ts:1031`
+
+```
+1029:               map(compiled => {
+1030:                 if (compiled) {
+1031:                   return compiled.execute(dataTs, dataValue, 0, 0, 0);
+1032:                 } else {
+1033:                   return dataValue;
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | compiled post-processing function execute in UI; not a DB call |  |
+
+### #1509 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/components/led-light.component.ts:64`
+
+```
+62:           this.draw();
+63:         } else if (propName === 'size') {
+64:           this.update();
+65:         }
+66:       }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | component update() on Angular input changes; not a DB call |  |
+
+### #1703 · go-gitea/gitea@85211296dd · `web_src/js/webcomponents/relative-time.ts:229`
+
+```
+227:     for (const timeEl of this.elements) {
+228:       nearestDistance = Math.min(nearestDistance, getUnitFactor(timeEl));
+229:       timeEl.update();
+230:     }
+231:     this.time = Math.min(60 * 60 * 1000, nearestDistance);
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | custom element timeEl.update() re-render; not a DB call |  |
+
+
+## `bpm-perf-orm-call-in-loop-py`
+
+### #682 · saleor/saleor@1771e1cf6c · `saleor/app/tasks.py:98`
+
+```
+96:     # on database when removing many deliveries.
+97:     for app in apps.iterator(chunk_size=1000):
+98:         webhooks = Webhook.objects.filter(app_id=app.id)
+99: 
+100:         # Saleor uses batch size here to prevent timeouts on database.
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | removes apps one by one deliberately to avoid DB timeouts; filter is lazy; intentional serial batching |  |
+
+### #713 · saleor/saleor@1771e1cf6c · `saleor/core/development/random_data.py:731`
+
+```
+729:         channel = defaults.pop("channel")
+730:         defaults["channel_id"] = channel_USD.pk if channel == 1 else channel_PLN.pk
+731:         ProductVariantChannelListing.objects.update_or_create(pk=pk, defaults=defaults)
+732: 
+733: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | dev sample-data populate, update_or_create per fixture row; fixed bundled fixture, dev-only |  |
+
+### #714 · saleor/saleor@1771e1cf6c · `saleor/core/development/random_data.py:743`
+
+```
+741:         defaults["attribute_id"] = defaults.pop("attribute")
+742:         defaults["product_type_id"] = defaults.pop("product_type")
+743:         association_model.objects.update_or_create(pk=pk, defaults=defaults)
+744: 
+745: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | dev sample-data populate, update_or_create per fixture attribute assignment; fixed fixture |  |
+
+### #731 · saleor/saleor@1771e1cf6c · `saleor/core/development/random_data.py:2026`
+
+```
+2024:         )
+2025:         address.save()
+2026:         warehouse, _ = Warehouse.objects.update_or_create(
+2027:             name=shipping_zone_name,
+2028:             slug=slugify(shipping_zone_name),
+2029:             defaults={
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | dev sample-data: one warehouse update_or_create per shipping zone; a handful |  |
+
+### #742 · saleor/saleor@1771e1cf6c · `saleor/core/development/random_data.py:2223`
+
+```
+2221:         defaults = dict(page_data["fields"])
+2222:         defaults["page_type_id"] = defaults.pop("page_type")
+2223:         page, _ = Page.objects.update_or_create(pk=pk, defaults=defaults)
+2224:         yield f"Page {page.slug} created"
+2225: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | dev sample-data: update_or_create per fixture page; fixed small fixture |  |
+
+### #743 · saleor/saleor@1771e1cf6c · `saleor/core/development/random_data.py:2237`
+
+```
+2235:         defaults = dict(settings_item["fields"])
+2236: 
+2237:         SiteSettings.objects.update_or_create(pk=pk, defaults=defaults)
+2238:         yield "Site settings updated"
+2239: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | dev sample-data: site settings fixture (one row); update_or_create per item |  |
+
+### #749 · saleor/saleor@1771e1cf6c · `saleor/core/development/random_data.py:2345`
+
+```
+2343:     TaxClassCountryRate.objects.bulk_create(
+2344:         [
+2345:             TaxClassCountryRate(country=country, rate=rate)
+2346:             for country, rate in DEFAULT_COUNTRY_TAX_RATES.items()
+2347:         ],
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | model constructor inside list comprehension passed to bulk_create; already batched, no query per item |  |
+
+### #754 · saleor/saleor@1771e1cf6c · `saleor/core/schedules.py:227`
+
+```
+225:                 filter_kwargs["created_at__gte"] = cut_off_date
+226:             if (
+227:                 Checkout.objects.using(settings.DATABASE_CONNECTION_REPLICA_NAME)
+228:                 .filter(Q(email__isnull=False) | Q(user__isnull=False))
+229:                 .filter(
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | per channel with auto-completion enabled, one exists() query; channels are few config rows |  |
+
+### #763 · saleor/saleor@1771e1cf6c · `saleor/graphql/attribute/dataloaders/assigned_attributes.py:610`
+
+```
+608:             attribute_ids = [val[1] for val in values]
+609: 
+610:             assigned_attribute_values = AssignedPageAttributeValue.objects.using(
+611:                 self.database_connection_name
+612:             ).annotate(attribute_id=F("value__attribute_id"))
+613:             if limit is not None:
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | one query per distinct limit value inside a dataloader batch; already batched by design |  |
+
+### #768 · saleor/saleor@1771e1cf6c · `saleor/graphql/attribute/mutations/utils.py:19`
+
+```
+17:         return []
+18:     assigned_variant_values = models.AssignedVariantAttributeValue.objects.filter(
+19:         value_id__in=[v.id for v in values]
+20:     )
+21:     assigned_attributes = models.AssignedVariantAttribute.objects.filter(
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | list comprehension of ids inside a single filter(value_id__in=...); no per-item query |  |
+
+### #783 · saleor/saleor@1771e1cf6c · `saleor/graphql/order/bulk_mutations/draft_orders.py:199`
+
+```
+197:         """Get the instances channel ids for channel permission accessible check."""
+198:         orders = models.Order.objects.filter(
+199:             id__in=[line.order_id for line in instances]
+200:         )
+201:         return channel_models.Channel.objects.filter(
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | list comprehension of order ids inside one filter(id__in=...); no per-item query |  |
+
+### #787 · saleor/saleor@1771e1cf6c · `saleor/graphql/order/filters.py:339`
+
+```
+337:         if warehouse_value := input_data.get("warehouse"):
+338:             if fulfillment_qs is None:
+339:                 fulfillment_qs = Fulfillment.objects.using(qs.db)
+340:             fulfillment_qs = filter_fulfillments_by_warehouse_details(
+341:                 value=warehouse_value, qs=fulfillment_qs
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | builds lazy Fulfillment querysets combined into one Exists lookup; no query per iteration |  |
+
+### #795 · saleor/saleor@1771e1cf6c · `saleor/graphql/order/utils.py:320`
+
+```
+318:             continue
+319:         product_channel_listing = (
+320:             ProductChannelListing.objects.using(database_connection_name)
+321:             .filter(channel_id=channel.id, product_id=variant.product_id)
+322:             .first()
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | per order line, ProductChannelListing filter().first() query; N+1, batch by product_id__in |  |
+
+### #813 · saleor/saleor@1771e1cf6c · `saleor/graphql/shipping/mutations/shipping_method_channel_listing_update.py:103`
+
+```
+101:             if "price_amount" in add_channel.keys():
+102:                 defaults["price_amount"] = add_channel.get("price_amount")
+103:             ShippingMethodChannelListing.objects.update_or_create(
+104:                 shipping_method=shipping_method,
+105:                 channel=add_channel["channel"],
+106:                 defaults=defaults,
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | update_or_create per channel in mutation input; channels are a few |  |
+
+### #828 · saleor/saleor@1771e1cf6c · `saleor/order/tasks.py:134`
+
+```
+132:     OrderEvent.objects.bulk_create(
+133:         [
+134:             OrderEvent(
+135:                 order_id=order_id,
+136:                 type=OrderEvents.EXPIRED,
+137:             )
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | OrderEvent constructor in list comprehension for bulk_create; no per-item query |  |
+
+### #831 · saleor/saleor@1771e1cf6c · `saleor/payment/tasks.py:156`
+
+```
+154:                 TransactionEvent.objects.bulk_create(
+155:                     [event for _tr, event in transactions_with_cancel_request_events]
+156:                     + [event for _tr, event in transactions_with_charge_request_events]
+157:                 )
+158:                 # Mark transactions as not refundable to avoid multiple automatic
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | list concatenation passed to one bulk_create; no per-item query |  |
+
+### #842 · saleor/saleor@1771e1cf6c · `saleor/product/tasks.py:103`
+
+```
+101:             for variant in variants_batch
+102:         ]
+103:         ProductVariant.objects.bulk_update(variants_to_update, ["name", "updated_at"])
+104: 
+105: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | bulk_update per batch of variants; deliberately batched |  |
+
+### #987 · zulip/zulip@36d2312680 · `zerver/actions/message_flags.py:62`
+
+```
+60:             # UPDATE queries don't support LIMIT, so we have to use a subquery
+61:             # to do batching.
+62:             updated_count = UserMessage.objects.filter(id__in=query).update(
+63:                 flags=F("flags").bitor(UserMessage.flags.read),
+64:             )
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | batched UPDATE loop with LIMIT subquery per batch; intentional chunked writes under locks |  |
+
+### #996 · zulip/zulip@36d2312680 · `zerver/actions/navigation_views.py:96`
+
+```
+94:     now = timezone_now()
+95:     for audit_log_extra_data in audit_logs_extra_data:
+96:         RealmAuditLog.objects.create(
+97:             realm=user.realm,
+98:             acting_user=user,
+99:             modified_user=user,
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | creates one audit log per changed property (at most 2); tiny loop |  |
+
+### #1027 · zulip/zulip@36d2312680 · `zerver/lib/import_realm.py:1917`
+
+```
+1915:         bulk_import_model(data, DirectMessageGroup)
+1916:         for direct_message_group in DirectMessageGroup.objects.filter(recipient=None):
+1917:             recipient = Recipient.objects.get(
+1918:                 type=Recipient.DIRECT_MESSAGE_GROUP, type_id=direct_message_group.id
+1919:             )
+1920:             direct_message_group.recipient = recipient
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | realm import: Recipient.get + save per direct message group; grows with imported data, batchable |  |
+
+### #1043 · zulip/zulip@36d2312680 · `zerver/lib/migrate.py:108`
+
+```
+106:                             "ALTER TABLE {table_name} DROP CONSTRAINT {old_name}"
+107:                         ).format(table_name=Identifier(old_table), old_name=Identifier(old_name))
+108:                     cursor.execute(raw_query)
+109:                     continue
+110: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | migration renaming/dropping indexes of one table; a handful of DDL statements |  |
+
+### #1061 · zulip/zulip@36d2312680 · `zerver/lib/upload/__init__.py:676`
+
+```
+674:             emoji_bytes_io, emoji_filename, realm_emoji.author, content_type
+675:         )
+676:         realm_emoji.save(update_fields=["is_animated"])
+677: 
+678: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | per emoji reupload: HTTP fetch + upload then save; per-item network work dominates, save inherent |  |
+
+### #1140 · zulip/zulip@36d2312680 · `zilencer/management/commands/populate_db.py:161`
+
+```
+159:         RemoteZulipServer,
+160:     ]:
+161:         model.objects.all().delete()
+162:     Session.objects.all().delete()
+163:     post_delete.connect(flush_alert_word, sender=AlertWord)
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | delete() over a fixed list of ~12 models in dev populate_db |  |
+
+### #1152 · zulip/zulip@36d2312680 · `zilencer/management/commands/populate_db.py:1209`
+
+```
+1207:             # Add a few default streams
+1208:             for default_stream_name in ["design", "devel", "social", "support"]:
+1209:                 DefaultStream.objects.create(
+1210:                     realm=zulip_realm, stream=get_stream(default_stream_name, zulip_realm)
+1211:                 )
+1212: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | creates 4 fixed DefaultStream rows in dev populate_db |  |
+
+### #1160 · zulip/zulip@36d2312680 · `zilencer/views.py:1418`
+
+```
+1416:             if (
+1417:                 billing_session.on_paid_plan()
+1418:                 and not RemoteRealmAuditLog.objects.filter(
+1419:                     server=server,
+1420:                     remote_realm=remote_realm,
+1421:                     event_type=AuditLogEventType.REMOTE_REALM_LOCALLY_DELETED,
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | exists() audit-log check per locally deleted remote realm on paid plan; a few realms per server |  |
+
+### #1197 · paperless-ngx/paperless-ngx@5f17b1a310 · `src/documents/bulk_edit.py:704`
+
+```
+702:         # bulk_update and not save() to avoid post_save now
+703:         Document.objects.bulk_update(
+704:             [documents_by_id[source_id] for source_id in source_ids],
+705:             updated_fields,
+706:         )
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | list comprehension passed to one bulk_update; already batched |  |
+
+### #1218 · paperless-ngx/paperless-ngx@5f17b1a310 · `src/documents/serialisers.py:3567`
+
+```
+3565:                     )
+3566:                     action_instance.webhook = webhook
+3567:                     action_instance.save()
+3568: 
+3569:                 if assign_tags is not None:
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | save per workflow action in serializer update; actions per workflow are a few |  |
+
+### #1224 · paperless-ngx/paperless-ngx@5f17b1a310 · `src/documents/tasks.py:575`
+
+```
+573:             trigger: WorkflowTrigger
+574:             for trigger in schedule_triggers:
+575:                 documents = Document.objects.none()
+576:                 offset_td = datetime.timedelta(days=trigger.schedule_offset_days)
+577:                 threshold = now - offset_td
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | Document.objects.none() is a lazy empty queryset; no query; loop over few scheduled triggers |  |
+
+### #1226 · paperless-ngx/paperless-ngx@5f17b1a310 · `src/documents/tasks.py:590`
+
+```
+588: 
+589:                     case WorkflowTrigger.ScheduleDateField.CREATED:
+590:                         documents = Document.objects.filter(
+591:                             root_document__isnull=True,
+592:                             created__lte=threshold,
+593:                         )
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | lazy Document filter per scheduled trigger; one query per trigger is inherent, triggers are few |  |
+
+### #1235 · paperless-ngx/paperless-ngx@5f17b1a310 · `src/documents/workflows/ai.py:103`
+
+```
+101: 
+102:     for name in extract_unmatched_names(names, matched):
+103:         tag, created = Tag.objects.get_or_create(
+104:             name=name[:128],
+105:             owner=owner,
+106:         )
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | get_or_create per AI-suggested unmatched tag name; a handful of names per document |  |
+
+
 ## `bpm-perf-pop-front-in-loop-py`
 
 ### #851 · saleor/saleor@1771e1cf6c · `saleor/webhook/observability/buffers.py:151`
@@ -5648,4 +6068,1763 @@ Labels: **true** = the shape is real and both inputs grow with data; **small** =
 | Proposed | Reason | Brad |
 |---|---|---|
 | small | insert(0) only for the single primary email; emails per GitHub account a handful |  |
+
+
+## `bpm-perf-regex-compile-in-loop`
+
+### #211 · outline/outline@670410b236 · `server/models/helpers/TextHelper.ts:116`
+
+```
+114:             if (attachment) {
+115:               output = output.replace(
+116:                 new RegExp(escapeRegExp(image.src), "g"),
+117:                 attachment.redirectUrl
+118:               );
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | RegExp built from each image src; pattern depends on loop var so hoisting impossible |  |
+
+### #297 · outline/outline@670410b236 · `server/queues/tasks/ExportDocumentTreeTask.ts:186`
+
+```
+184: 
+185:       text = text.replace(
+186:         new RegExp(escapeRegExp(attachment.redirectUrl), "g"),
+187:         encodeURI(reference)
+188:       );
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | RegExp built from each attachment URL; pattern varies per iteration, not hoistable |  |
+
+### #309 · outline/outline@670410b236 · `server/queues/tasks/MarkdownAPIImportTask.ts:82`
+
+```
+80: 
+81:     const normalizedAttachmentPath = encodedPath
+82:       .replace(new RegExp(`(.*)/${Buckets.uploads}/`), `${Buckets.uploads}/`)
+83:       .replace(new RegExp(`(.*)/${Buckets.public}/`), `${Buckets.public}/`);
+84: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | RegExp with constant Buckets.uploads pattern rebuilt per attachment; loop-invariant, hoistable, grows with imports |  |
+
+### #310 · outline/outline@670410b236 · `server/queues/tasks/MarkdownAPIImportTask.ts:83`
+
+```
+81:     const normalizedAttachmentPath = encodedPath
+82:       .replace(new RegExp(`(.*)/${Buckets.uploads}/`), `${Buckets.uploads}/`)
+83:       .replace(new RegExp(`(.*)/${Buckets.public}/`), `${Buckets.public}/`);
+84: 
+85:     const attachmentDir = path.basename(path.dirname(attachment.pathInZip));
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | RegExp with constant Buckets.public pattern rebuilt per attachment; loop-invariant, hoistable |  |
+
+### #311 · outline/outline@670410b236 · `server/queues/tasks/MarkdownAPIImportTask.ts:89`
+
+```
+87: 
+88:     text = text
+89:       .replace(new RegExp(escapeRegExp(encodedPath), "g"), reference)
+90:       .replace(
+91:         new RegExp(`\\.?/?${escapeRegExp(normalizedAttachmentPath)}`, "g"),
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | RegExp from each attachment's encoded path; pattern varies per iteration, not hoistable |  |
+
+### #312 · outline/outline@670410b236 · `server/queues/tasks/MarkdownAPIImportTask.ts:91`
+
+```
+89:       .replace(new RegExp(escapeRegExp(encodedPath), "g"), reference)
+90:       .replace(
+91:         new RegExp(`\\.?/?${escapeRegExp(normalizedAttachmentPath)}`, "g"),
+92:         reference
+93:       );
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | RegExp from each attachment's normalized path; pattern varies per iteration |  |
+
+### #313 · outline/outline@670410b236 · `server/queues/tasks/MarkdownAPIImportTask.ts:102`
+
+```
+100:       const relFromAttachments = segments.slice(attachmentsIdx).join("/");
+101:       text = text.replace(
+102:         new RegExp(`\\.?/?${escapeRegExp(encodeURI(relFromAttachments))}`, "g"),
+103:         reference
+104:       );
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | RegExp from each attachment's relative path; pattern varies per iteration |  |
+
+### #314 · outline/outline@670410b236 · `server/queues/tasks/MarkdownAPIImportTask.ts:108`
+
+```
+106: 
+107:     text = text.replace(
+108:       new RegExp(`\\.?/?${escapeRegExp(genericNormalizedPath)}`, "g"),
+109:       reference
+110:     );
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | RegExp from each attachment's generic path; pattern varies per iteration |  |
+
+### #358 · outline/outline@670410b236 · `server/routes/api/documents/documents.ts:1112`
+
+```
+1110: 
+1111:             content = content.replace(
+1112:               new RegExp(escapeRegExp(attachment.redirectUrl), "g"),
+1113:               encodeURI(reference)
+1114:             );
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | RegExp from each attachment redirectUrl; pattern varies per iteration, not hoistable |  |
+
+### #359 · outline/outline@670410b236 · `server/routes/api/documents/documents.ts:1155`
+
+```
+1153: 
+1154:         content = content.replace(
+1155:           new RegExp(escapeRegExp(attachment.redirectUrl), "g"),
+1156:           location
+1157:         );
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | RegExp from each attachment redirectUrl; pattern varies per iteration, not hoistable |  |
+
+### #370 · outline/outline@670410b236 · `server/routes/api/revisions/revisions.ts:223`
+
+```
+221: 
+222:             content = content.replace(
+223:               new RegExp(escapeRegExp(attachment.redirectUrl), "g"),
+224:               encodeURI(reference)
+225:             );
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | regex built from each attachment's redirectUrl inside loop over doc attachments; pattern varies per iteration, cannot hoist |  |
+
+### #372 · outline/outline@670410b236 · `server/routes/api/revisions/revisions.ts:266`
+
+```
+264: 
+265:         content = content.replace(
+266:           new RegExp(escapeRegExp(attachment.redirectUrl), "g"),
+267:           location
+268:         );
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | regex built from each attachment's redirectUrl in zip export loop; pattern is per-attachment, cannot hoist |  |
+
+### #901 · zulip/zulip@36d2312680 · `web/src/alert_words.ts:50`
+
+```
+48:         const after_punctuation = "(?=\\s)|$|<|[\\)\\\"\\?!:.,';\\]!]";
+49: 
+50:         const regex = new RegExp(`(${before_punctuation})(${clean})(${after_punctuation})`, "ig");
+51:         updated_content = updated_content.replace(
+52:             regex,
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | regex built per alert word from the word itself; pattern differs each iteration, nothing to hoist |  |
+
+### #913 · zulip/zulip@36d2312680 · `web/src/emoji.ts:122`
+
+```
+120:     const translations: EmoticonTranslation[] = [];
+121:     for (const [emoticon, replacement_text] of Object.entries(emoticon_conversions)) {
+122:         const regex = new RegExp("(" + _.escapeRegExp(emoticon) + ")", "g");
+123: 
+124:         translations.push({
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | emoticon regexes built once at init and cached in translations list; this is the precompile, not per-message |  |
+
+### #947 · zulip/zulip@36d2312680 · `web/third/marked/lib/marked.cjs:321`
+
+```
+319:           space -= item.length;
+320:           item = !this.options.pedantic
+321:             ? item.replace(new RegExp('^ {1,' + space + '}', 'gm'), '')
+322:             : item.replace(/^ {1,4}/gm, '');
+323:         }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | marked list parsing: regex depends on per-item indent width `space`; cannot be hoisted as-is |  |
+
+### #1468 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/scada/scada-symbol.models.ts:588`
+
+```
+586:     for (const id of ids) {
+587:       const newId = id + unique_id_suffix;
+588:       svgContent = svgContent.replace(new RegExp('id="'+id+'"', 'g'), 'id="'+newId+'"');
+589:       svgContent = svgContent.replace(new RegExp('#'+id, 'g'), '#'+newId);
+590:     }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | regex built from each SVG element id to rename it; pattern is per-id, cannot hoist |  |
+
+### #1469 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/lib/scada/scada-symbol.models.ts:589`
+
+```
+587:       const newId = id + unique_id_suffix;
+588:       svgContent = svgContent.replace(new RegExp('id="'+id+'"', 'g'), 'id="'+newId+'"');
+589:       svgContent = svgContent.replace(new RegExp('#'+id, 'g'), '#'+newId);
+590:     }
+591: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | regex '#'+id built per SVG id for renaming refs; pattern varies per iteration, cannot hoist |  |
+
+### #1544 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/models/widget/maps/marker-shape.models.ts:215`
+
+```
+213:   for (const id of ids) {
+214:     const newId = id + unique_id_suffix;
+215:     svgContent = svgContent.replace(new RegExp('id="'+id+'"', 'g'), 'id="'+newId+'"');
+216:     svgContent = svgContent.replace(new RegExp('url\\(#'+id+'\\)', 'g'), 'url(#'+newId+')');
+217:   }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | marker SVG id rename: regex built from each id; per-iteration pattern, cannot hoist |  |
+
+### #1545 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/models/widget/maps/marker-shape.models.ts:216`
+
+```
+214:     const newId = id + unique_id_suffix;
+215:     svgContent = svgContent.replace(new RegExp('id="'+id+'"', 'g'), 'id="'+newId+'"');
+216:     svgContent = svgContent.replace(new RegExp('url\\(#'+id+'\\)', 'g'), 'url(#'+newId+')');
+217:   }
+218:   return SVG(svgContent).node;
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | marker SVG url(#id) regex built from each id; per-iteration pattern, cannot hoist |  |
+
+
+## `bpm-perf-string-concat-in-loop`
+
+### #16 · excalidraw/excalidraw@b7de45e881 · `packages/excalidraw/actions/actionProperties.tsx:1237`
+
+```
+1235:         ) {
+1236:           const textElement = selectedTextElements[i] as ExcalidrawTextElement;
+1237:           textLengthAccumulator += textElement?.originalText.length || 0;
+1238:           i++;
+1239:         }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | numeric += (textLengthAccumulator counts text lengths), not string concatenation |  |
+
+### #41 · excalidraw/excalidraw@b7de45e881 · `packages/excalidraw/subset/woff2/woff2-bindings.ts:461`
+
+```
+459:         let u0 = u8Array[idx++];
+460:         if (!(u0 & 128)) {
+461:           str += String.fromCharCode(u0);
+462:           continue;
+463:         }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | emscripten UTF8ArrayToString char loop only for strings <=16 bytes (longer use TextDecoder) |  |
+
+### #42 · excalidraw/excalidraw@b7de45e881 · `packages/excalidraw/subset/woff2/woff2-bindings.ts:466`
+
+```
+464:         const u1 = u8Array[idx++] & 63;
+465:         if ((u0 & 224) == 192) {
+466:           str += String.fromCharCode(((u0 & 31) << 6) | u1);
+467:           continue;
+468:         }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | same UTF8 decode fallback, only taken for <=16-byte strings; TextDecoder handles longer |  |
+
+### #49 · excalidraw/excalidraw@b7de45e881 · `packages/excalidraw/subset/woff2/woff2-bindings.ts:2766`
+
+```
+2764:                 } else {
+2765:                   str += String.fromCharCode(0);
+2766:                   str += stringSegment;
+2767:                 }
+2768:                 decodeStartPtr = currentBytePtr + 1;
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | embind std::string decode joins a few NUL-separated segments of one string |  |
+
+### #55 · outline/outline@670410b236 · `app/actions/definitions/developer.tsx:104`
+
+```
+102:   let text = "";
+103:   for (let i = 0; i < Math.floor(Math.random() * 10) + 1; i++) {
+104:     text += characters.charAt(Math.floor(Math.random() * characters.length));
+105:   }
+106:   return text;
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | dev action builds random text of 1-10 chars |  |
+
+### #60 · outline/outline@670410b236 · `app/components/CommandBar/SearchIndex.ts:159`
+
+```
+157:       out += trimmedText.slice(cursor, from);
+158:     }
+159:     out += `<b>${trimmedText.slice(from, to)}</b>`;
+160:     cursor = to;
+161:   }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | search snippet highlighting over match ranges within a bounded text window |  |
+
+### #402 · outline/outline@670410b236 · `shared/editor/marks/Code.ts:200`
+
+```
+198:       let result = len > 0 && side > 0 ? " `" : "`";
+199:       for (let i = 0; i < len; i++) {
+200:         result += "`";
+201:       }
+202:       if (len > 0 && side < 0) {
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | appends backticks equal to longest backtick run in one code mark; a few chars |  |
+
+### #921 · zulip/zulip@36d2312680 · `web/src/list_widget.ts:503`
+
+```
+501:                 // append the HTML or nothing if corrupt (null, undef, etc.).
+502:                 if (item_html) {
+503:                     html += item_html;
+504:                 }
+505:             }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | list_widget renders a slice of LOAD_COUNT items per batch into html string |  |
+
+### #931 · zulip/zulip@36d2312680 · `web/src/popover_menus_data.ts:626`
+
+```
+624:             groups.push(current_group);
+625:         }
+626:         current_group.message_count += 1;
+627:     }
+628: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | numeric += (message_count increment), not string concatenation |  |
+
+### #943 · zulip/zulip@36d2312680 · `web/src/unread.ts:368`
+
+```
+366:             );
+367:             stream_counts_by_id.set(stream_id, stream_count_info);
+368:             stream_unread_messages += stream_count_info.unmuted_count;
+369:             followed_topic_unread_messages += stream_count_info.followed_count;
+370:         }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | numeric += summing unread counts per stream, not string concatenation |  |
+
+### #964 · zulip/zulip@36d2312680 · `web/third/marked/lib/marked.cjs:801`
+
+```
+799:     if (cap = this.rules.code.exec(src)) {
+800:       src = src.substring(cap[0].length);
+801:       out += this.renderer.codespan(escape(cap[2], true));
+802:       continue;
+803:     }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | marked inline lexer output for one message; message size capped, JS ropes make += cheap |  |
+
+### #968 · zulip/zulip@36d2312680 · `web/third/marked/lib/marked.cjs:829`
+
+```
+827:     if (cap = this.rules.unicodeemoji.exec(src)) {
+828:       src = src.substring(cap[0].length);
+829:       out += this.unicodeEmoji(cap[1]);
+830:       continue;
+831:     }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | marked inline lexer output for one message's tokens; bounded message size |  |
+
+### #971 · zulip/zulip@36d2312680 · `web/third/marked/lib/marked.cjs:854`
+
+```
+852:     if (cap = this.rules.text.exec(src)) {
+853:       src = src.substring(cap[0].length);
+854:       out += this.renderer.text(escape(this.smartypants(cap[0])));
+855:       continue;
+856:     }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | marked inline text output for one message; bounded message size |  |
+
+### #973 · zulip/zulip@36d2312680 · `web/third/marked/lib/marked.cjs:1260`
+
+```
+1258:   var out = '';
+1259:   while (this.next()) {
+1260:     out += this.tok();
+1261:   }
+1262: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | marked Parser.parse joins tokens of one message; bounded message size |  |
+
+### #974 · zulip/zulip@36d2312680 · `web/third/marked/lib/marked.cjs:1307`
+
+```
+1305: 
+1306:   while (this.peek().type === 'text') {
+1307:     body += '\n' + this.next().text;
+1308:   }
+1309: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | marked parseText joins consecutive text tokens of one message |  |
+
+### #1248 · thingsboard/thingsboard@7a53801216 · `application/src/main/data/resources/js_modules/ai-summary-module.js:270`
+
+```
+268:             } else if (line.trim() === '') {
+269:                 if (currentParagraph.length > 0) {
+270:                     result += `<p>${currentParagraph.join('<br>')}</p>`;
+271:                     currentParagraph = [];
+272:                 }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | markdown-to-html of one AI summary's lines; small bounded text |  |
+
+### #1296 · thingsboard/thingsboard@7a53801216 · `common/script/script-api/src/main/resources/js/converter-helpers.js:22`
+
+```
+20:         str.charAt(idx | 0) || (map = '=', idx % 1);
+21:         // "8 - idx % 1 * 8" generates the sequence 2, 4, 6, 8
+22:         output += map.charAt(63 & block >> 8 - idx % 1 * 8)
+23:     ) {
+24:         charCode = str.charCodeAt(idx += 3/4);
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | btoa polyfill appends one char per output char over whole converter payload; join/array would avoid it |  |
+
+### #1297 · thingsboard/thingsboard@7a53801216 · `common/script/script-api/src/main/resources/js/converter-helpers.js:48`
+
+```
+46:             // and if not first of each 4 characters,
+47:             // convert the first 8 bits to one ascii character
+48:         bc++ % 4) ? output += String.fromCharCode(255 & bs >> (-2 * bc & 6)) : 0
+49:     ) {
+50:         // try to find character in table (0-63, not found => -1)
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | atob polyfill appends one char per decoded byte over whole payload string |  |
+
+### #1382 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/core/css/css.ts:55`
+
+```
+53:       } else if (ch === '/' && cssString[i + 1] === '*') {
+54:         const end = cssString.indexOf('*/', i + 2);
+55:         result += cssString.slice(start, i);
+56:         i = start = end === -1 ? cssString.length : end + 2;
+57:       } else {
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | strip CSS comments: appends segments between comments of one widget CSS string |  |
+
+### #1383 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/core/css/css.ts:192`
+
+```
+190:     for (const block of this.splitBlocks(body)) {
+191:       if ('text' in block) {
+192:         text += block.text;
+193:       } else {
+194:         rules.push(...this.parseRules(text));
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | accumulates text blocks of one CSS rule body before parsing |  |
+
+### #1384 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/core/css/css.ts:282`
+
+```
+280:       } else if (trimmedLine.startsWith('base64,')) {
+281:         if (result.length > 0) {
+282:           result[result.length - 1].value += trimmedLine;
+283:         }
+284:       } else if (trimmedLine) {
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | appends base64 continuation lines to a single CSS declaration value |  |
+
+### #1388 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/core/css/css.ts:497`
+
+```
+495:         result += `${spaces}${obj.styles}\n\n`;
+496:       } else if (obj.type !== 'keyframes' && obj.type !== 'imports') {
+497:         result += `${spaces}${obj.selector} {\n${this.getCSSOfRules(obj.rules ?? [], depth + 1)}${spaces}}\n\n`;
+498:       }
+499:     }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | generates editor CSS text over parsed rules of one widget stylesheet |  |
+
+### #1399 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/core/utils.ts:998`
+
+```
+996:   let result = '';
+997:   for ( let i = 0; i < length; i++ ) {
+998:     result += alphanumericCharacters.charAt(Math.floor(Math.random() * alphanumericCharactersLength));
+999:   }
+1000:   return result;
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | randomAlphanumeric(length) for short ids; length is small by design |  |
+
+### #1401 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/alarm-rules/cf-alarm-rule-condition.component.ts:275`
+
+```
+273:                 this.scheduleText += ', ';
+274:               }
+275:               this.scheduleText += this.translate.instant(dayOfWeekTranslations[day - 1]);
+276:             }
+277:             this.scheduleText += ' <b>' + getAlarmScheduleRangeText(utcTimestampToTimeOfDay(schedule.staticValue.startsOn),
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | joins day-of-week names (max 7) for schedule text |  |
+
+### #1420 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/profile/alarm/alarm-schedule-info.component.ts:94`
+
+```
+92:             }
+93:             this.scheduleText += this.translate.instant(dayOfWeekTranslations[item.dayOfWeek  - 1]);
+94:             this.scheduleText += ' <b>' + getAlarmScheduleRangeText(utcTimestampToTimeOfDay(item.startsOn),
+95:               utcTimestampToTimeOfDay(item.endsOn)) + '</b>';
+96:           }
+97:         }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | joins enabled schedule items, at most 7 weekdays |  |
+
+### #1433 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/modules/home/components/widget/action/manage-widget-actions.component.models.ts:70`
+
+```
+68:     const importedActions = importedMap[actionSourceId];
+69:     if (!actionSource) {
+70:       result.skipped += importedActions.length;
+71:       continue;
+72:     }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | numeric += (skipped count), not string concatenation |  |
+
+### #1521 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/models/ace/completion.models.ts:174`
+
+```
+172:           let strArg = `<tr><td class="arg-name"><code>${arg.name}`;
+173:           if (arg.optional) {
+174:             strArg += ' (optional)';
+175:           }
+176:           strArg += '</code></td><td>';
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | builds one HTML row per completion arg; few appends to a short per-arg string |  |
+
+### #1525 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/models/ace/completion.models.ts:182`
+
+```
+180:           strArg += '</td><td class="arg-description">';
+181:           if (arg.description) {
+182:             strArg += `${arg.description}`;
+183:           }
+184:           strArg += '</td></tr>';
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | builds one HTML row per completion arg; few appends to a short per-arg string |  |
+
+### #1528 · thingsboard/thingsboard@7a53801216 · `ui-ngx/src/app/shared/models/ace/tbel/worker-tbel.js:1193`
+
+```
+1191: 
+1192:         if (count >>= 1)
+1193:             string += string;
+1194:     }
+1195:     return result;
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | stringRepeat uses doubling (O(log n) concats); already the efficient algorithm |  |
+
+### #1688 · go-gitea/gitea@85211296dd · `web_src/js/modules/shortcut.ts:110`
+
+```
+108:     let keysHtml = '';
+109:     for (const keys of shortcutKeys.split(' ')) {
+110:       keysHtml += html`<kbd>${keys}</kbd> `;
+111:     }
+112:     list.append(createElementFromHTML(html`<tr><td>${htmlRaw(keysHtml)}</td><td>${label}</td></tr>`));
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | joins kbd tags for the few keys of one shortcut |  |
+
+
+## `bpm-perf-string-concat-in-loop-py`
+
+### #687 · saleor/saleor@1771e1cf6c · `saleor/asgi/gzip_compression.py:111`
+
+```
+109:                                 if key.lower() == b"vary":
+110:                                     if b"Accept-Encoding" not in value:
+111:                                         value += b", Accept-Encoding"
+112:                                         break
+113:                             start_message["headers"] = headers
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | single bytes append to Vary header value then break; not accumulating in a loop |  |
+
+### #858 · zulip/zulip@36d2312680 · `corporate/views/audit_logs.py:32`
+
+```
+30:     for role, count in human_count_raw.items():
+31:         if int(count) > 0:
+32:             human_count_string += f"{(role)}: {count}, "
+33:     return human_count_string.strip(", ")
+34: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | joins human role counts from a dict of a handful of roles |  |
+
+### #859 · zulip/zulip@36d2312680 · `corporate/views/installation_activity.py:322`
+
+```
+320:             RealmAuditLog.HOW_REALM_CREATOR_FOUND_ZULIP_OPTIONS["ai_chatbot"],
+321:         ):
+322:             row["how_realm_creator_found_zulip"] += f": {extra_context}"
+323:         elif how_found == RealmAuditLog.HOW_REALM_CREATOR_FOUND_ZULIP_OPTIONS["existing_user"]:
+324:             row["how_realm_creator_found_zulip"] = f"Organization: {extra_context}"
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | one append to a per-row field per realm; no string accumulated across iterations |  |
+
+### #861 · zulip/zulip@36d2312680 · `corporate/views/realm_activity.py:155`
+
+```
+153:             row_class += " recently_active"
+154:         if email in admin_emails:
+155:             row_class += " admin"
+156: 
+157:         row = dict(cells=cells, row_class=row_class)
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | fresh per-row row_class with at most 2 appends; nothing accumulated across loop |  |
+
+### #867 · zulip/zulip@36d2312680 · `tools/lib/html_branches.py:69`
+
+```
+67:             s = ""
+68:         else:
+69:             s += ch
+70:     if s != "":
+71:         lst.append(s)
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | char loop over a single template tag attribute string |  |
+
+### #883 · zulip/zulip@36d2312680 · `tools/upload-release:112`
+
+```
+110:     # natsorted type annotation is insufficiently generic
+111:     assert isinstance(ordered_filename, str)
+112:     contents += f"{file_hashes[ordered_filename]}  {ordered_filename}\n"
+113: bucket.put_object(
+114:     ACL="public-read",
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | one-off release script writing SHA256SUMS over release file list |  |
+
+### #1007 · zulip/zulip@36d2312680 · `zerver/data_import/mattermost.py:601`
+
+```
+599:                 has_link = True
+600:                 if content:
+601:                     content += "\n\n"
+602:                 content += attachment_markdown
+603: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | per-message content gets at most 2 appends; string not accumulated across messages |  |
+
+### #1032 · zulip/zulip@36d2312680 · `zerver/lib/markdown/api_arguments_table_generator.py:135`
+
+```
+133:                 )
+134:             elif "description" in element:
+135:                 content += ONEOF_LIST_ITEM_TEMPLATE.format(
+136:                     item=md_engine.convert(element["description"])
+137:                 )
+138:         return ONEOF_DETAILS_TEMPLATE.format(values=content)
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | concatenates rendered oneOf variants of one schema; a few elements |  |
+
+### #1036 · zulip/zulip@36d2312680 · `zerver/lib/markdown/api_arguments_table_generator.py:246`
+
+```
+244:                     OBJECT_CODE_TEMPLATE.format(value=json.dumps(enum)) for enum in enums
+245:                 ]
+246:                 additions += "Must be one of: {}. ".format(", ".join(formatted_enums))
+247: 
+248:             if "example" in object_values[value]:
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | additions is list[str]; += extends list (not string concat), at most once per field |  |
+
+### #1083 · zulip/zulip@36d2312680 · `zerver/openapi/merge_api_changelogs.py:28`
+
+```
+26:         file_path = Path(f"{dir_path}/{file_name}")
+27:         with open(file_path) as f:
+28:             changelogs += f.read().strip("\n") + "\n"
+29: 
+30:     return changelogs
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | concatenates a few unmerged changelog fragment files in a dev tool |  |
+
+### #1084 · zulip/zulip@36d2312680 · `zerver/openapi/merge_api_changelogs.py:84`
+
+```
+82:         for line in lines:
+83:             file.write(line)
+84:             changelog_markdown_string += line
+85:             if changelogs_merged:
+86:                 continue
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | accumulates every line of api_docs/changelog.md (grows each release) via +=; use join/list |  |
+
+### #1087 · zulip/zulip@36d2312680 · `zerver/views/message_fetch.py:62`
+
+```
+60:                 in_tag = False
+61:         if in_tag:
+62:             result += prefix
+63:             result += match
+64:         else:
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | highlight_string over search match locations within one message |  |
+
+### #1088 · zulip/zulip@36d2312680 · `zerver/views/message_fetch.py:63`
+
+```
+61:         if in_tag:
+62:             result += prefix
+63:             result += match
+64:         else:
+65:             result += prefix
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | highlight_string over search match locations within one message |  |
+
+### #1090 · zulip/zulip@36d2312680 · `zerver/views/message_fetch.py:66`
+
+```
+64:         else:
+65:             result += prefix
+66:             result += highlight_start
+67:             result += match
+68:             result += highlight_stop
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | highlight_string over search match locations within one message |  |
+
+### #1093 · zulip/zulip@36d2312680 · `zerver/views/streams.py:633`
+
+```
+631:     message += "\n\n"
+632:     for channel_name in subscriptions:
+633:         message += f"* #**{channel_name}**\n"
+634:     return message
+635: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | lists channels a user was subscribed to in one notification message |  |
+
+### #1095 · zulip/zulip@36d2312680 · `zerver/webhooks/ansibletower/view.py:100`
+
+```
+98:     hosts_content = ""
+99:     for host in hosts_data:
+100:         hosts_content += ANSIBLETOWER_JOB_HOST_ROW_TEMPLATE.format(
+101:             hostname=host["hostname"],
+102:             status=host["status"],
+103:         )
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | webhook message rows for hosts of one Ansible job |  |
+
+### #1096 · zulip/zulip@36d2312680 · `zerver/webhooks/bitbucket/view.py:477`
+
+```
+475:             )
+476:             message = append_punctuation(str(new.value), message) + "\n"
+477:             body += message
+478:         elif new and not old:
+479:             message = BITBUCKET_REPO_UPDATED_ADDED.format(
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | loop over fixed list of 6 repo change fields |  |
+
+### #1099 · zulip/zulip@36d2312680 · `zerver/webhooks/freshstatus/view.py:119`
+
+```
+117:     services_content = ""
+118:     for service in services_data[:FRESHSTATUS_SERVICES_LIMIT]:
+119:         services_content += FRESHSTATUS_SERVICES_ROW_TEMPLATE.format(
+120:             service_name=service.get("service_name")
+121:         )
+122: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | services rows capped at FRESHSTATUS_SERVICES_LIMIT |  |
+
+### #1110 · zulip/zulip@36d2312680 · `zerver/webhooks/grafana/view.py:138`
+
+```
+136:                 for key, value in alert["values"].items():
+137:                     value_information += "- " + key + ": " + str(value.tame(check_anything)) + "\n"
+138:                 body += MESSAGE_VALUES_TEMPLATE.format(value_information=value_information)
+139:             elif alert.get("valueString"):
+140:                 body += (
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | per-alert body built from a fixed handful of template fields; reset per alert |  |
+
+### #1116 · zulip/zulip@36d2312680 · `zerver/webhooks/grafana/view.py:166`
+
+```
+164: 
+165:             if alert.get("imageURL"):
+166:                 body += MESSAGE_IMAGE_TEMPLATE.format(
+167:                     image_url=alert["imageURL"].tame(check_string)
+168:                 )
+169: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | per-alert body built from a fixed handful of template fields; reset per alert |  |
+
+### #1117 · zulip/zulip@36d2312680 · `zerver/webhooks/grafana/view.py:170`
+
+```
+168:                 )
+169: 
+170:             body += "\n"
+171: 
+172:             check_send_webhook_message(request, user_profile, topic_name, body, status)
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | per-alert body newline append; body reset each alert |  |
+
+### #1118 · zulip/zulip@36d2312680 · `zerver/webhooks/grafana/view.py:190`
+
+```
+188:     if "evalMatches" in payload:
+189:         for match in payload["evalMatches"]:
+190:             eval_matches_text += "**{}:** {}\n".format(
+191:                 match["metric"].tame(check_string),
+192:                 match["value"].tame(check_none_or(check_union([check_int, check_float]))),
+193:             )
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | evalMatches rows in one Grafana legacy alert payload |  |
+
+### #1122 · zulip/zulip@36d2312680 · `zerver/webhooks/librato/view.py:109`
+
+```
+107:         content = ""
+108:         for attachment in self.attachments:
+109:             content += self.handle_snapshot(attachment)
+110:         return content
+111: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | snapshot lines for attachments of one Librato webhook |  |
+
+### #1124 · zulip/zulip@36d2312680 · `zerver/webhooks/lidarr/view.py:44`
+
+```
+42:     tracks_content = ""
+43:     for track in tracks_data[:LIDARR_TRACKS_LIMIT]:
+44:         tracks_content += LIDARR_TRACKS_ROW_TEMPLATE.format(track_title=track.get("title"))
+45: 
+46:     if len(tracks_data) > LIDARR_TRACKS_LIMIT:
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | track rows capped at LIDARR_TRACKS_LIMIT=20 |  |
+
+### #1126 · zulip/zulip@36d2312680 · `zerver/webhooks/newrelic/view.py:147`
+
+```
+145:                 f"- **{custom_field_name}**: *Value is not a supported data type*\n"
+146:             )
+147:             body_custom_field_detail += invalid_field_message
+148:     return body_custom_field_detail
+149: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | custom field lines of one New Relic webhook payload |  |
+
+### #1128 · zulip/zulip@36d2312680 · `zerver/webhooks/reviewboard/view.py:65`
+
+```
+63:         output = ""
+64:         for elem in list(targets)[:-1]:
+65:             output += "**{title}**, ".format(title=elem["title"].tame(check_string))
+66:         output += "and **{title}**".format(title=targets[-1]["title"].tame(check_string))
+67:         return output
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | joins review target titles in one ReviewBoard payload |  |
+
+### #1130 · zulip/zulip@36d2312680 · `zerver/webhooks/sentry/view.py:107`
+
+```
+105:                 traceback += "\n"
+106:             else:
+107:                 traceback += f"     {line}\n"
+108:     return traceback
+109: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | traceback lines of one Sentry event |  |
+
+### #1144 · zulip/zulip@36d2312680 · `zilencer/management/commands/populate_db.py:570`
+
+```
+568:                         full_name += " " + random.choice(non_ascii_names)
+569:                     else:
+570:                         full_name += " " + random.choice(mnames)
+571:                     if random.random() < 0.1:
+572:                         full_name += f" {random.choice(raw_emojis)} "
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | fresh full_name per user with <=3 appends; nothing accumulated across loop |  |
+
+### #1146 · zulip/zulip@36d2312680 · `zilencer/management/commands/populate_db.py:574`
+
+```
+572:                         full_name += f" {random.choice(raw_emojis)} "
+573:                     else:
+574:                         full_name += " " + random.choice(lnames)
+575:                 email = fname.lower().encode("ascii", "ignore").decode("ascii") + "@zulip.com"
+576:                 validate_email(email)
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | fresh full_name per user with <=3 appends; nothing accumulated across loop |  |
+
+### #1155 · zulip/zulip@36d2312680 · `zilencer/management/commands/populate_db.py:1411`
+
+```
+1409:         if has_attachment:
+1410:             locator, filename = create_attachment(message.sender)
+1411:             message.content += f"\n[{filename}]({locator})"
+1412: 
+1413:         message.is_channel_message = msg_type == MSG_TYPE_STREAM
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | single attachment link appended to each message's content; not accumulating |  |
+
+
+## `bpm-perf-sync-io-in-async`
+
+### #104 · outline/outline@670410b236 · `build.js:252`
+
+```
+250:       // The path of a removed directory maps directly to its output.
+251:       const dest = getDest(file) ?? path.join("build", file);
+252:       if (existsSync(dest)) {
+253:         rmSync(dest, { recursive: true, force: true });
+254:         isChanged = true;
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | existsSync in dev build watcher change handler; tooling, not request path |  |
+
+### #105 · outline/outline@670410b236 · `build.js:258`
+
+```
+256:     } else if (stats.isDirectory()) {
+257:       // A directory that was moved in does not emit events for its files.
+258:       for (const entry of readdirSync(file, { recursive: true })) {
+259:         isChanged = (await updateFile(path.join(file, entry))) || isChanged;
+260:       }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | readdirSync in dev build watcher for moved dir; tooling, not request path |  |
+
+### #201 · outline/outline@670410b236 · `server/models/helpers/HTMLHelper.ts:82`
+
+```
+80:     if (!initialized) {
+81:       const path = require.resolve("@css-inline/css-inline-wasm/index_bg.wasm");
+82:       await initWasm(fs.readFileSync(path));
+83:       initialized = true;
+84:     }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | readFileSync of wasm once behind initialized flag; one-time init |  |
+
+### #422 · immich-app/immich@f7b8ae5da3 · `server/src/app.common.ts:70`
+
+```
+68:   useSwagger(app, { write: configRepository.isDev() && permitSwaggerWrite });
+69: 
+70:   if (existsSync(resourcePaths.web.root)) {
+71:     // copied from https://github.com/sveltejs/kit/blob/679b5989fe62e3964b9a73b712d7b41831aa1f07/packages/adapter-node/src/handler.js#L46
+72:     // provides serving of precompressed assets and caching of immutable assets
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | existsSync at app bootstrap configuring static serving; one-time startup |  |
+
+### #446 · immich-app/immich@f7b8ae5da3 · `server/src/repositories/map.repository.ts:229`
+
+```
+227:     const { resourcePaths } = this.configRepository.getEnv();
+228:     const filePath = resourcePaths.geodata.countryInfo;
+229:     if (!existsSync(filePath)) {
+230:       throw new Error(`Geodata file ${filePath} not found`);
+231:     }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | one existsSync before streaming country file, result cached; negligible one-time check |  |
+
+### #447 · immich-app/immich@f7b8ae5da3 · `server/src/repositories/map.repository.ts:325`
+
+```
+323:     const { resourcePaths } = this.configRepository.getEnv();
+324:     const cities500 = resourcePaths.geodata.cities500;
+325:     if (!existsSync(cities500)) {
+326:       throw new Error(`Geodata file ${cities500} not found`);
+327:     }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | one existsSync before streaming cities500 in geodata import job; negligible |  |
+
+### #449 · immich-app/immich@f7b8ae5da3 · `server/src/repositories/map.repository.ts:400`
+
+```
+398: 
+399:   private async loadAdmin(filePath: string) {
+400:     if (!existsSync(filePath)) {
+401:       this.logger.error(`Geodata file ${filePath} not found`);
+402:       throw new Error(`Geodata file ${filePath} not found`);
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | one existsSync before streaming admin file in geodata import; negligible |  |
+
+### #1359 · thingsboard/thingsboard@7a53801216 · `msa/js-executor/queue/kafkaTemplate.ts:147`
+
+```
+145: 
+146:             if (isNotEmptyStr(certFilePath)) {
+147:                 kafkaConfig.ssl.cert = fs.readFileSync(certFilePath, 'utf-8');
+148:             }
+149: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | readFileSync of Kafka SSL cert during one-time client init |  |
+
+### #1360 · thingsboard/thingsboard@7a53801216 · `msa/js-executor/queue/kafkaTemplate.ts:151`
+
+```
+149: 
+150:             if (isNotEmptyStr(keyFilePath)) {
+151:                 const keyConfig: KeyObject = {pem: fs.readFileSync(keyFilePath, 'utf-8')};
+152:                 if (isNotEmptyStr(keyPassword)) {
+153:                     keyConfig.passphrase = keyPassword;
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | readFileSync of Kafka SSL key during one-time client init |  |
+
+### #1361 · thingsboard/thingsboard@7a53801216 · `msa/js-executor/queue/kafkaTemplate.ts:159`
+
+```
+157: 
+158:             if (isNotEmptyStr(caFilePath)) {
+159:                 kafkaConfig.ssl.ca = fs.readFileSync(caFilePath, 'utf-8');
+160:             }
+161:         }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | readFileSync of Kafka CA during one-time client init |  |
+
+### #1666 · go-gitea/gitea@85211296dd · `tools/generate-svg.ts:71`
+
+```
+69:     svgSymbols[svgName] = data.replace(/"/g, `'`);
+70:   }
+71:   writeFileSync(fileURLToPath(new URL(`../options/fileicon/material-icon-svgs.json`, import.meta.url)), JSON.stringify(svgSymbols, null, 2));
+72: 
+73:   const vscodeExtensionsJson = await readFile(fileURLToPath(new URL(`generate-svg-vscode-extensions.json`, import.meta.url)), 'utf8');
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | writeFileSync in offline SVG generation build script |  |
+
+### #1667 · go-gitea/gitea@85211296dd · `tools/generate-svg.ts:112`
+
+```
+110:   }
+111:   const iconRulesPretty = JSON.stringify(iconRules, null, 2);
+112:   writeFileSync(fileURLToPath(new URL(`../options/fileicon/material-icon-rules.json`, import.meta.url)), iconRulesPretty);
+113: }
+114: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | writeFileSync in offline SVG generation build script |  |
+
+
+## `bpm-perf-unbounded-gather-py`
+
+### #1137 · zulip/zulip@36d2312680 · `zilencer/lib/push_notifications.py:57`
+
+```
+55:         tuple[RemotePushDevice, aioapns.common.NotificationResult | BaseException]
+56:     ]:
+57:         results = await asyncio.gather(
+58:             *(apns_context.send_notification(request) for request in apns_requests),
+59:             return_exceptions=True,
+60:         )
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | gather over APNs requests for one bounce request's devices; aioapns pools connections |  |
+
+
+## `bpm-perf-unbounded-promise-all`
+
+### #19 · excalidraw/excalidraw@b7de45e881 · `packages/excalidraw/clipboard.ts:478`
+
+```
+476:   }
+477: 
+478:   const dataItems = (
+479:     await Promise.all(
+480:       Array.from(items || []).map(
+481:         async (item): Promise<ParsedDataTransferItem | null> => {
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | Promise.all over items of one clipboard/drag event; a few items |  |
+
+### #36 · excalidraw/excalidraw@b7de45e881 · `packages/excalidraw/components/hyperlink/helpers.ts:124`
+
+```
+122:   }
+123: 
+124:   const statuses = await Promise.all(pending.map((entry) => entry.settled));
+125: 
+126:   return statuses.includes("decoded");
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | Promise.all over a literal array of at most 2 image decodes |  |
+
+### #64 · outline/outline@670410b236 · `app/components/IconPicker/components/EmojiPanel.tsx:122`
+
+```
+120:     // Load frequent custom emojis, preserving frequency order and skipping
+121:     // any that no longer exist.
+122:     void Promise.all(
+123:       freqCustomEmojiIds.map((id) => emojis.fetch(id).catch(() => undefined))
+124:     ).then((fetched) => {
+125:       setFreqCustomEmojis(
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | fetches frequent custom emoji ids; frequent-icons list is short |  |
+
+### #70 · outline/outline@670410b236 · `app/components/Sharing/Document/SharePopover.tsx:149`
+
+```
+147:         section: UserSection,
+148:         perform: async () => {
+149:           const invited = await Promise.all(
+150:             pendingIds.map(async (idOrEmail) => {
+151:               let user, group;
+152: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | invites the handful of users/emails the user selected in share popover |  |
+
+### #116 · outline/outline@670410b236 · `plugins/gitlab/server/api/gitlab.ts:363`
+
+```
+361:     const teamIds: Array<string | null> = ctx.state.webhookTeamIds ?? [null];
+362: 
+363:     await Promise.all(
+364:       teamIds.map((teamId) =>
+365:         new GitLabWebhookTask().schedule({
+366:           payload: body,
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | schedules one GitLab webhook task per matched team; a few teams |  |
+
+### #128 · outline/outline@670410b236 · `plugins/webhooks/server/processors/WebhookProcessor.ts:51`
+
+```
+49:     }
+50: 
+51:     await Promise.all(
+52:       applicableSubscriptions.map((subscription) =>
+53:         new DeliverWebhookTask().schedule({
+54:           event,
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | schedules one delivery task per matching webhook subscription of a team |  |
+
+### #160 · outline/outline@670410b236 · `server/commands/teamPermanentDeleter.ts:85`
+
+```
+83:             `Deleting ${attachments.length} attachments…`
+84:           );
+85:           await Promise.all(
+86:             attachments.map((attachment) =>
+87:               attachment.destroy({
+88:                 transaction,
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | destroys attachments within batches of batchLimit 100 |  |
+
+### #176 · outline/outline@670410b236 · `server/mcp/tools/documents.ts:294`
+
+```
+292:             ]);
+293: 
+294:             const presented = await Promise.all(
+295:               documents.map(async (document) => {
+296:                 const doc = pathToUrl(
+297:                   user.team,
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | presents search results page; limit max 100 |  |
+
+### #178 · outline/outline@670410b236 · `server/mcp/util.ts:328`
+
+```
+326:   );
+327:   const byCollection = new Map(
+328:     await Promise.all(
+329:       readable.map(
+330:         async (collection) =>
+331:           [
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | resolves structure of distinct collections in a result page |  |
+
+### #182 · outline/outline@670410b236 · `server/models/Collection.ts:1056`
+
+```
+1054:       id: string
+1055:     ) => {
+1056:       children = await Promise.all(
+1057:         children.map(async (childDocument) => ({
+1058:           ...childDocument,
+1059:           children: await removeFromChildren(childDocument.children, id),
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | recursive in-memory tree walk; async but no I/O, nothing to bound |  |
+
+### #195 · outline/outline@670410b236 · `server/models/UserMembership.ts:231`
+
+```
+229:     });
+230: 
+231:     const rootMemberships = await Promise.all(
+232:       memberships.map((membership) =>
+233:         membership?.sourceId
+234:           ? this.findByPk(membership.sourceId, options)
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | findByPk per membership of a document (all users); N lookups unbounded, batch with one findAll |  |
+
+### #209 · outline/outline@670410b236 · `server/models/helpers/TextHelper.ts:86`
+
+```
+84: 
+85:     for (const chunk of chunks) {
+86:       await Promise.all(
+87:         chunk.map(async (image) => {
+88:           // Skip attempting to fetch images that are not valid urls
+89:           try {
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | already chunked into groups of 10 images per Promise.all |  |
+
+### #248 · outline/outline@670410b236 · `server/queues/tasks/APIImportTask.ts:180`
+
+```
+178: 
+179:     const taskOutputWithReplacements = this.shouldUploadAttachmentsPerPage()
+180:       ? await Promise.all(
+181:           taskOutput.map(async (item) => ({
+182:             ...item,
+183:             content: await this.uploadAttachments({
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | uploads attachments per item of one import page; page size bounded by API |  |
+
+### #252 · outline/outline@670410b236 · `server/queues/tasks/CleanupDemotedUserTask.ts:56`
+
+```
+54:           lock: transaction.LOCK.UPDATE,
+55:         });
+56:         await Promise.all(
+57:           apiKeys.map((apiKey) => apiKey.destroy({ transaction }))
+58:         );
+59:         Logger.info(
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | destroys the API keys of one user |  |
+
+### #293 · outline/outline@670410b236 · `server/queues/tasks/ErrorTimedOutFileOperationsTask.ts:29`
+
+```
+27:       limit,
+28:     });
+29:     await Promise.all(
+30:       fileOperations.map(async (fileOperation) => {
+31:         fileOperation.state = FileOperationState.Error;
+32:         fileOperation.error = "Timed out";
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | cron limit (default 500) of file ops stuck >12h; realistically very few |  |
+
+### #344 · outline/outline@670410b236 · `server/queues/tasks/ValidateSSOAccessTask.ts:34`
+
+```
+32:         let error;
+33:         const freshlyValidated: UserAuthentication[] = [];
+34:         const validity = await Promise.all(
+35:           userAuthentications.map(async (authentication) => {
+36:             const previouslyValidatedAt = authentication.lastValidatedAt;
+37:             try {
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | validates the few SSO authentications of one user |  |
+
+### #346 · outline/outline@670410b236 · `server/routes/api/auth/auth.ts:165`
+
+```
+163:       }),
+164:       team: presentTeam(team),
+165:       groups: await Promise.all(groups.map(presentGroup)),
+166:       groupUsers: groups.map((group) => presentGroupUser(group.groupUsers[0])),
+167:       // The collaboration token is only for the client and should not be issued
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | presents the groups of the signed-in user |  |
+
+### #353 · outline/outline@670410b236 · `server/routes/api/developer/developer.ts:55`
+
+```
+53: 
+54:     // Convert from invites to active users by marking as active
+55:     await Promise.all(
+56:       response.users.map((user) => user.updateActiveAt(ctx, true))
+57:     );
+58: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | dev-only endpoint creating test users |  |
+
+### #356 · outline/outline@670410b236 · `server/routes/api/documents/documents.ts:137`
+
+```
+135: 
+136:   const expandedIds = new Map<string, string[]>();
+137:   await Promise.all(
+138:     documentIds.map(async (documentId) => {
+139:       if ("user" in context) {
+140:         const document = await Document.findByPk(documentId, {
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | expands documentId leaves present in one search filter |  |
+
+### #373 · outline/outline@670410b236 · `server/routes/api/revisions/revisions.ts:314`
+
+```
+312:     });
+313: 
+314:     const data = await Promise.all(
+315:       revisions.map((revision) =>
+316:         presentRevision(revision, { includeContent: false })
+317:       )
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | presents one paginated page of revisions |  |
+
+### #374 · outline/outline@670410b236 · `server/routes/api/suggestions/suggestions.ts:132`
+
+```
+130:           })
+131:         ),
+132:         groups: await Promise.all(groups.map((group) => presentGroup(group))),
+133:         collections,
+134:         familiarity,
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | presents one paginated page of groups |  |
+
+### #468 · immich-app/immich@f7b8ae5da3 · `server/src/services/database-backup.service.ts:306`
+
+```
+304:       .toReversed();
+305: 
+306:     const backups = await Promise.all(
+307:       validFiles.map(async (filename) => {
+308:         const stats = await this.storageRepository.stat(path.join(backupsFolder, filename));
+309:         return { filename, filesize: stats.size, timezone };
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | stats backup files in backups folder; retention keeps a handful |  |
+
+### #476 · immich-app/immich@f7b8ae5da3 · `server/src/services/duplicate.service.ts:195`
+
+```
+193: 
+194:         if (allowedTagIds.size > 0) {
+195:           await Promise.all(
+196:             idsToKeep.map((assetId) => this.tagRepository.replaceAssetTags(assetId, [...allowedTagIds])),
+197:           );
+198: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | replaces tags for assets in one duplicate group |  |
+
+### #481 · immich-app/immich@f7b8ae5da3 · `server/src/services/integrity.service.ts:325`
+
+```
+323:     const trackedPaths = new Set(tracked.map(({ path }) => path));
+324: 
+325:     const results = await Promise.all(
+326:       items.map(async ({ reportId, path }) => {
+327:         // The path was untracked when the report was written; an asset may reference it now.
+328:         if (trackedPaths.has(path)) {
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | stat per path for a job batch of up to 10,000 reports at once; bound concurrency |  |
+
+### #488 · immich-app/immich@f7b8ae5da3 · `server/src/services/integrity.service.ts:609`
+
+```
+607:     this.logger.log(`Processing batch of ${paths.length} reports to check if they are out of date.`);
+608: 
+609:     const results = await Promise.all(
+610:       paths.map(async ({ reportId, path, checksum }) => {
+611:         if (!checksum) {
+612:           return reportId;
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | opens and hashes full files for up to 10,000 paths concurrently; fd/IO exhaustion, bound it |  |
+
+### #497 · immich-app/immich@f7b8ae5da3 · `server/src/services/library.service.ts:490`
+
+```
+488:     this.logger.debug(`Checking batch of ${assets.length} existing asset(s) in library ${job.libraryId}`);
+489: 
+490:     const stats = await Promise.all(
+491:       assets.map((asset) => this.storageRepository.stat(asset.originalPath).catch(() => null)),
+492:     );
+493: 
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | stat per asset for a library sync batch of up to 10,000 assets at once |  |
+
+### #513 · immich-app/immich@f7b8ae5da3 · `server/src/services/memory.service.ts:46`
+
+```
+44:         this.logger.log(`Creating memories for ${target.toISO()}`);
+45:         try {
+46:           await Promise.all(
+47:             users.map((owner) =>
+48:               Promise.all([
+49:                 this.createOnThisDayMemories(owner.id, target),
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| true | memory-creation queries for every user on the server concurrently; grows with users |  |
+
+### #629 · immich-app/immich@f7b8ae5da3 · `server/src/services/transcoding.service.ts:380`
+
+```
+378:     const cutoff = Date.now() - HLS_INACTIVITY_TIMEOUT_MS;
+379:     const inactiveSessions = this.sessions.values().filter((s) => s.lastActivityTime.getTime() < cutoff);
+380:     return Promise.all(
+381:       inactiveSessions.map(async (session) => {
+382:         try {
+383:           this.websocketRepository.serverSend('HlsSessionEnd', { sessionId: session.id });
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | sweeps inactive HLS sessions; a few at a time |  |
+
+### #646 · immich-app/immich@f7b8ae5da3 · `server/src/utils/maintenance.ts:35`
+
+```
+33: ): Promise<MaintenanceDetectInstallResponseDto> {
+34:   return {
+35:     storage: await Promise.all(
+36:       Object.values(StorageFolder).map(async (folder) => {
+37:         const path = StorageCore.getBaseFolder(folder);
+38:         const files = await storageRepository.readdir(path);
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| wrong | Promise.all over the fixed StorageFolder enum values |  |
+
+### #653 · immich-app/immich@f7b8ae5da3 · `server/src/utils/tasks.ts:11`
+
+```
+9: 
+10:   async all() {
+11:     await Promise.all(this.tasks.map((item) => item()));
+12:   }
+13: }
+```
+
+| Proposed | Reason | Brad |
+|---|---|---|
+| small | Tasks helper; only use (metadata.service) pushes a few tasks |  |
 

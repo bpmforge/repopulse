@@ -4,8 +4,11 @@ Follows [docs/work/HAND_CHECK_W21-20.md](../../work/HAND_CHECK_W21-20.md) (main 
 
 ## Status
 
-- **W21-20 complexity rules: 396 hits, all with a proposed label.** Waiting for Brad's marks in SHEET.md / sheet.csv. Proposed result: 5 of 13 rules clear the bar (≥5 true, ≥80% precision); `includes-in-loop` misses at 77%, 8 rules have fewer than 5 true hits. These are proposals; the recount uses Brad's column only.
-- **The original 27 perf rules: 1327 hits, not yet on the sheet.** The brief scopes them in, but at that volume Brad is choosing between marking every hit and marking a seeded random sample of 30 per large rule (asked 2026-10-26). Counts below.
+**Marking set chosen by Brad (option B, 2026-10-26):** every hit for a rule with 30 hits or fewer; a seeded random sample of 30 for a larger rule ([sample.json](sample.json): seed 20261026, the method is recorded there). 542 rows across 31 rules, all with a proposed label, in [SHEET.md](SHEET.md) / [sheet.csv](sheet.csv). The bar is judged on those rows from Brad's column only. [proposals-all.csv](proposals-all.csv) keeps Claude's label for every W21-20 hit, sampled or not.
+
+Proposed (Claude's reading, not the verdict): **6 rules clear the bar**: `copy-on-append`, `find-by-key-in-loop` (JS/TS), `includes-in-loop`, `go-nested-range-join`, `java-contains-in-loop`, `membership-in-list-in-loop-py`. None of the original 27 rules does: `await-in-loop` 50%, `orm-call-in-loop` 29%, `java-db-call-in-loop` 35%, `unbounded-promise-all` 56%, and the rest have fewer than 5 true hits in their rows.
+
+**Sample versus full count, `includes-in-loop`.** Its sample of 30 has 5 true and 0 wrong (100%, passes). Across all 200 of its hits the proposed labels are 48 true and 14 wrong (77%, would not pass): the sample happened to miss every misfire. Under option B the sample decides; the full count is shown so the decision is made knowingly. `find-by-key-in-loop`'s sample (5 true, 0 wrong) agrees with its full count (8 true, 0 wrong).
 
 ## Repositories (default branch at run time)
 
@@ -39,25 +42,11 @@ Follows [docs/work/HAND_CHECK_W21-20.md](../../work/HAND_CHECK_W21-20.md) (main 
 
 The perf scanner excludes `**/*.test.*` but not Go's `*_test.go` or Python's `test_*.py` / `*_test.py`, so in a real install those test files get performance findings. Not fixed here (out of this brief's scope); worth a ticket.
 
-## Original perf rules (pending Brad's choice)
+## What the original rules get wrong (from the labelling passes)
 
-| Rule | Hits |
-|---|--:|
-| `bpm-perf-await-in-loop` | 412 |
-| `bpm-perf-orm-call-in-loop-py` | 304 |
-| `bpm-perf-string-concat-in-loop` | 144 |
-| `bpm-perf-unbounded-promise-all` | 125 |
-| `bpm-perf-string-concat-in-loop-py` | 101 |
-| `bpm-perf-orm-call-in-loop` | 61 |
-| `bpm-perf-java-db-call-in-loop` | 44 |
-| `bpm-perf-go-string-concat-in-loop` | 38 |
-| `bpm-perf-java-string-concat-in-loop` | 25 |
-| `bpm-perf-regex-compile-in-loop` | 19 |
-| `bpm-perf-go-defer-in-loop` | 15 |
-| `bpm-perf-sync-io-in-async` | 12 |
-| `bpm-perf-go-db-call-in-loop` | 8 |
-| `bpm-perf-go-regex-compile-in-loop` | 7 |
-| `bpm-perf-json-deep-clone` | 6 |
-| `bpm-perf-await-in-loop-py` | 4 |
-| `bpm-perf-unbounded-gather-py` | 1 |
-| `bpm-perf-java-regex-compile-in-loop` | 1 |
+- `orm-call-in-loop` (JS): most misfires are `.update()` / `.get()` that are not database calls (Reflect, lodash, hashers, UI widgets, caches). Matching a method NAME is not enough on real code.
+- `await-in-loop`, `java-db-call-in-loop`: deliberate sequential work, mostly cursor/keyset pagination and batched deletes with pauses.
+- `regex-compile-in-loop` (JS/Go): the pattern is built from the loop variable, so there is nothing to hoist.
+- `go-defer-in-loop`: the defer runs once because the iteration returns or breaks.
+- `sync-io-in-async`: startup, init, build and dev-tool code, never a request path.
+- String concatenation (JS/Py/Java/Go): a string created fresh each iteration with two or three appends, or a number `+=`.
