@@ -92,6 +92,10 @@ describe('path exclusion', () => {
     // and then it is not catching the handler either.
     expect(isExcluded('src/routes/login.ts')).toBe(false);
     expect(isExcluded('apps/api/src/handler.ts')).toBe(false);
+    // Production files whose names merely contain "test" stay in.
+    expect(isExcluded('pkg/attestation/attest.go')).toBe(false);
+    expect(isExcluded('app/latest_prices.py')).toBe(false);
+    expect(isExcluded('app/contest.py')).toBe(false);
     for (const file of [
       'src/routes/login.test.ts',
       'packages/x/src/thing.spec.js',
@@ -100,6 +104,12 @@ describe('path exclusion', () => {
       'scripts/seed.mjs',
       'packages/security/fixtures/code-health/triggering/logging.js',
       'vitest.config.ts',
+      'internal/router/routes_test.go',
+      'pkg/parser/testdata/big.go',
+      'app/tests_unit/test_orders.py',
+      'app/orders_test.py',
+      'app/conftest.py',
+      'web/src/__tests__/list.ts',
     ]) {
       expect(isExcluded(file), file).toBe(true);
     }
