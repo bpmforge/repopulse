@@ -373,6 +373,18 @@ already O(1)), find-by-key comprehensions / `next(…)` per outer element, and
 host (three projects, every hit read): 9 hits, 5 that grow with data, 4 over small lists,
 0 wrong; `acc + [x]` has no hit there and rests on its fixture pair.
 
+**Java/Kotlin and Go (`perf.complexity.java.v1.yaml`, `perf.complexity.go.v1.yaml`, slice 4):**
+`List.contains/indexOf` in a loop (Java typed metavariables: only a declared List, never a
+Set), stream filter by an outer value, `ArrayList.remove(0)/add(0, …)` in a loop; Kotlin
+`find/firstOrNull/filter/any` by an outer value and `removeAt(0)/add(0, …)` (not
+`removeFirst`, which is the `ArrayDeque` fix); Go nested `range` joins, `slices.Contains/
+Index` per outer element, and prepend-by-append. Measured on public application code
+downloaded for the purpose with the owner's approval (spring-petclinic and commons-lang:
+680 .java; nowinandroid: 310 .kt; node_exporter: 205 .go; tests excluded; every hit read):
+Java 1 hit (small list), Kotlin 0, Go 4 (2 growing: routes × network links; 2 small),
+0 wrong. Thin evidence for the JVM rules: they are quiet on well-kept code, and their
+precision where the shapes do occur rests on the fixture pairs.
+
 **Ranking by "on a request path" was measured and not built.** Walking this repository's
 import graph forward from every file `looksLikeEntryPoint` marks reaches 833 of 851 files
 (97.9%): the signal is true of nearly everything and ranks nothing. From the API route files
@@ -390,9 +402,8 @@ cases (a join by scan, a linear search over sorted data, and their clean look-al
 performance specialist stays on v2 until a live model eval shows v3 does at least as well.
 
 Lifecycle `candidate` (shadow) like the rest of the pack: promotion follows §8.2 on
-customer evidence. Next in this pack: Java/Kotlin (typed metavariables make
-`(List $L).contains` exact; needs a real-application corpus), Go; and a
-live eval of `performance.v3` against v2 before switching the specialist.
+customer evidence. Next: a live eval of `performance.v3` against v2 before switching
+the specialist.
 
 ## 10. Tool adapter registry (FR-CH-10) — what else we support
 
