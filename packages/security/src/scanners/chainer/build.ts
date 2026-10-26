@@ -111,10 +111,19 @@ function edges(findings: readonly ChainableFinding[]): Map<number, { to: number;
   return out;
 }
 
+/** Enough to show every distinct attack route a reader will act on. */
+export const DEFAULT_MAX_CHAINS = 200;
+
 export interface BuildOptions {
   /** Longest path to report. Depth is a readability limit, not a safety one. */
   maxDepth?: number;
-  /** Cap on reported chains, newest-worst first. */
+  /**
+   * Cap on reported chains, worst first. Applied DURING the walk, not after:
+   * the number of paths grows with the product of findings per stage (60
+   * findings over 6 stages measured 1,000,000 chains in 2.4 s), so enumerating
+   * everything and then slicing is the expensive part. Defaults to
+   * DEFAULT_MAX_CHAINS.
+   */
   maxChains?: number;
 }
 
@@ -131,6 +140,7 @@ export function buildChains(
   opts: BuildOptions = {},
 ): Chain[] {
   const maxDepth = opts.maxDepth ?? 6;
+  const maxChains = opts.maxChains ?? DEFAULT_MAX_CHAINS;
   const graph = edges(findings);
   const byId = new Map(findings.map((f) => [f.id, f]));
 
@@ -140,12 +150,23 @@ export function buildChains(
   // Entry points first; if every node has an incoming edge (a pure cycle),
   // fall back to all nodes so a real path is not lost to graph shape.
   const entries = findings.filter((f) => !hasIncoming.has(f.id));
-  const roots = entries.length > 0 ? entries : findings;
+  // Most severe findings first (roots and each node's next steps), so that
+  // when the cap stops the walk, what was collected started from the worst
+  // findings rather than from whichever came first in the query. A chain's
+  // severity follows its worst member, so this favours severe chains; it does
+  // not guarantee the exact top-N, which would need the full enumeration.
+  const bySeverity = (a: ChainableFinding, b: ChainableFinding): number =>
+    b.severity - a.severity || a.id - b.id;
+  const roots = [...(entries.length > 0 ? entries : findings)].sort(bySeverity);
+  for (const list of graph.values()) {
+    list.sort((a, b) => bySeverity(byId.get(a.to)!, byId.get(b.to)!));
+  }
 
   const chains: Chain[] = [];
   const seen = new Set<string>();
 
   const walk = (path: ChainableFinding[], links: string[]): void => {
+    if (chains.length >= maxChains) return;
     const next = graph.get(path[path.length - 1]!.id) ?? [];
     const onward = next.filter((edge) => !path.some((step) => step.id === edge.to));
 
@@ -171,10 +192,13 @@ export function buildChains(
     }
   };
 
-  for (const root of roots) walk([root], []);
+  for (const root of roots) {
+    if (chains.length >= maxChains) break;
+    walk([root], []);
+  }
 
   chains.sort((a, b) => b.severity - a.severity || a.chainId.localeCompare(b.chainId));
-  return opts.maxChains ? chains.slice(0, opts.maxChains) : chains;
+  return chains;
 }
 
 /** The path in one line — this is the chain finding's evidence. */

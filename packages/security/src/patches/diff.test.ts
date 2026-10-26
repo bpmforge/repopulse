@@ -122,6 +122,25 @@ describe('parseUnifiedDiff — shape gate', () => {
   });
 });
 
+describe('applyPatch on a very long file', () => {
+  it('patches a 300,000-line file (push(...slice) threw RangeError past ~125k lines)', () => {
+    const lines = Array.from({ length: 300_000 }, (_, i) => `line ${i}`);
+    const parsed = parseUnifiedDiff(
+      [
+        `--- a/${FILE}`,
+        `+++ b/${FILE}`,
+        '@@ -250000,1 +250000,1 @@',
+        '-line 249999',
+        '+changed',
+      ].join('\n'),
+    );
+    const after = applyPatch(lines.join('\n') + '\n', parsed).after.split('\n');
+    expect(after).toHaveLength(300_001);
+    expect(after[249_999]).toBe('changed');
+    expect(after[299_999]).toBe('line 299999');
+  });
+});
+
 describe('validateAndApply', () => {
   it('applies a correct diff and returns a canonical diff with real line numbers', () => {
     const applied = validateAndApply({ modelText: GOOD, file: FILE, source: SOURCE });

@@ -60,3 +60,22 @@ describe('computeHotspots (METRICS.md §1 M2 — reproduces worked example E1 ex
     expect(computeHotspots(botOnly, E1_AS_OF)).toEqual([]);
   });
 });
+
+describe('computeHotspots at monorepo scale', () => {
+  it('handles more files than a spread can pass as arguments (~125k)', () => {
+    // Math.max(0, ...grossByPath.values()) threw RangeError (call stack) here.
+    const touches: ChurnFileTouch[] = Array.from({ length: 150_000 }, (_, i) => ({
+      sha: `sha-${i}`,
+      authorLogin: 'alice',
+      parentShaCount: 1,
+      superseded: false,
+      path: `src/f${i}.ts`,
+      additions: 1 + (i % 7),
+      deletions: 0,
+      touchedAt: '2026-07-05T00:00:00Z',
+    }));
+    const out = computeHotspots(touches, new Date(E1_AS_OF));
+    expect(out).toHaveLength(150_000);
+    expect(Math.max(...out.slice(0, 10).map((h) => h.normChurn))).toBeLessThanOrEqual(1);
+  });
+});

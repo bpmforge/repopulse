@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildChains,
   chainIdOf,
+  DEFAULT_MAX_CHAINS,
   chainSeverity,
   isVocabularyTerm,
   type ChainableFinding,
@@ -150,5 +151,58 @@ describe('longer paths', () => {
       finding({ id: 4, severity: 4, preconditions: ['rce'] }),
     ]);
     expect(chains[0]?.severity).toBeGreaterThan(chains[chains.length - 1]!.severity);
+  });
+});
+
+describe('many findings per stage (the walk is capped, not the result)', () => {
+  const TERMS = [
+    'network-access',
+    'sql-injection',
+    'data-read',
+    'auth-bypass',
+    'admin',
+    'rce',
+    'data-write',
+  ];
+  // k findings per stage; every finding in a stage leads to every finding in
+  // the next, so the number of paths is k^stages.
+  const layered = (k: number, stages: number, severityOf = (_s: number, _j: number) => 3) => {
+    const out: ChainableFinding[] = [];
+    let id = 1;
+    for (let s = 0; s < stages; s++) {
+      for (let j = 0; j < k; j++) {
+        out.push(
+          finding({
+            id: id++,
+            severity: severityOf(s, j),
+            preconditions: s === 0 ? [] : [TERMS[s]!],
+            yields: [TERMS[s + 1]!],
+          }),
+        );
+      }
+    }
+    return out;
+  };
+
+  it('stops at DEFAULT_MAX_CHAINS instead of enumerating a million paths', () => {
+    // 10 per stage over 6 stages is 10^6 paths: measured 2.4 s and 1,000,000
+    // chains before the cap moved inside the walk.
+    const started = performance.now();
+    const chains = buildChains(layered(10, 6));
+    expect(chains).toHaveLength(DEFAULT_MAX_CHAINS);
+    expect(performance.now() - started).toBeLessThan(500);
+  });
+
+  it('returns exactly what it returned before when the total is under the cap', () => {
+    const all = buildChains(layered(3, 4), { maxChains: Number.POSITIVE_INFINITY });
+    expect(all).toHaveLength(81);
+    expect(buildChains(layered(3, 4)).map((c) => c.chainId)).toEqual(all.map((c) => c.chainId));
+  });
+
+  it('walks from the most severe finding first, so a tight cap keeps the severe chain', () => {
+    // One severity-5 entry among severity-1 entries listed BEFORE it.
+    const findings = layered(4, 3, (s, j) => (s === 0 && j === 3 ? 5 : 1));
+    const [only] = buildChains(findings, { maxChains: 1 });
+    expect(only?.severity).toBe(5);
   });
 });

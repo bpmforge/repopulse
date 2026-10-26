@@ -244,13 +244,41 @@ function attributeFindings(
   totals: GovernanceTotals,
 ): void {
   const prNumberById = new Map(inputs.prs.map((p) => [p.id, p.number]));
-  const touchesByPath = new Map<string, ChurnFileTouch[]>();
+  // Per file, touches as [time, sha] sorted by time (stable, so equal times
+  // keep input order), parsed once. Each finding then finds its touch by binary
+  // search, O(log T), instead of scanning and re-parsing every touch of its
+  // file: hot files have the most touches AND the most findings.
+  const touchesByPath = new Map<string, { at: number; sha: string }[]>();
   for (const t of inputs.touches) {
     if (!commitCohort.has(t.sha)) continue; // merges carry no cohort
+    const entry = { at: new Date(t.touchedAt).getTime(), sha: t.sha };
     const bucket = touchesByPath.get(t.path);
-    if (bucket) bucket.push(t);
-    else touchesByPath.set(t.path, [t]);
+    if (bucket) bucket.push(entry);
+    else touchesByPath.set(t.path, [entry]);
   }
+  for (const bucket of touchesByPath.values()) bucket.sort((a, b) => a.at - b.at);
+  /** First index whose time is > at (n when none is). */
+  const upperBound = (list: readonly { at: number }[], at: number): number => {
+    let lo = 0;
+    let hi = list.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      if (list[mid]!.at <= at) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo;
+  };
+  /** First index whose time is >= at. */
+  const lowerBound = (list: readonly { at: number }[], at: number): number => {
+    let lo = 0;
+    let hi = list.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      if (list[mid]!.at < at) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo;
+  };
 
   for (const f of inputs.findings) {
     let cohort: Authorship | undefined;
@@ -258,12 +286,11 @@ function attributeFindings(
     if (prNumber !== undefined) cohort = prVerdicts.get(prNumber)?.authorship;
     if (cohort === undefined && f.file !== null) {
       const seen = new Date(f.firstSeenAt).getTime();
-      let latest: ChurnFileTouch | undefined;
-      for (const t of touchesByPath.get(f.file) ?? []) {
-        const at = new Date(t.touchedAt).getTime();
-        if (at <= seen && (!latest || at > new Date(latest.touchedAt).getTime())) latest = t;
-      }
-      if (latest) cohort = commitCohort.get(latest.sha);
+      const list = touchesByPath.get(f.file) ?? [];
+      const last = upperBound(list, seen) - 1;
+      // The latest touch at or before the finding; among touches at that same
+      // instant, the first in input order (what the linear scan picked).
+      if (last >= 0) cohort = commitCohort.get(list[lowerBound(list, list[last]!.at)]!.sha);
     }
     if (cohort === 'ai' || cohort === 'human') totals[cohort].findings++;
     else totals.unattributedFindings++;
