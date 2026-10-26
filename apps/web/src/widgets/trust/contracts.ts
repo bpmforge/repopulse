@@ -17,10 +17,25 @@ export interface BenchmarkRuleScore {
   engine: 'yaml' | 'fast-lane' | 'adapter' | null;
 }
 
+/** One starter-set rule's benchmark evidence (packages/security/src/rules/starter-set.ts). */
+export interface StarterSetEvidence {
+  ruleId: string;
+  tp: number;
+  fp: number;
+  precision: number;
+  suites: { suite: string; trees?: string[]; tp: number; fp: number }[];
+}
+
 export interface RulePrecision {
   ruleId: string;
   lifecycle: RuleLifecycle;
-  lifecycleSource: 'registry' | 'shipped default' | 'observed shadow findings' | 'rulepack';
+  lifecycleSource:
+    'registry' | 'shipped default' | 'observed shadow findings' | 'rulepack' | 'starter set';
+  /**
+   * W21-04: live because the rule is in the starter set (precision measured on
+   * independent benchmarks). Absent from an API older than W21-04.
+   */
+  starter?: { reason: string; evidence: StarterSetEvidence } | null;
   findings: number;
   triage: { triaged: number; falsePositives: number; precision: number | null };
   benchmark: BenchmarkRuleScore | null;

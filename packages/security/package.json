@@ -14,7 +14,8 @@
     "bench:prepare-owasp": "node --import tsx src/benchmark/prepare-owasp.ts",
     "bench:prepare-juliet": "node --import tsx src/benchmark/prepare-juliet.ts",
     "ecosystems": "node --import tsx src/ecosystems/cli.ts",
-    "reach:generate": "node --import tsx src/validation/generate-reach-pack.ts"
+    "reach:generate": "node --import tsx src/validation/generate-reach-pack.ts",
+    "starter-set": "node --import tsx src/rules/starter-set-cli.ts"
   },
   "dependencies": {
     "@repopulse/analysis": "workspace:*",

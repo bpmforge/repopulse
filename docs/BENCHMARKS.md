@@ -310,11 +310,86 @@ rules have exactly one; the report shows the shortfall per rule). So all 87 meas
 stay `candidate`, their numbers shown next to the gate. Writing `active` rows into a registry, or
 shipping them as defaults, to put a number to work would bypass the gate; that is a decision, not a side
 effect of a benchmark. What the shadow runs on real workspaces will produce is the missing half.
+*Superseded in part on 2026-10-26 by an owner decision (W21-04, next section): the gate is unchanged,
+but a rule with at least 5 true positives at 80% precision or better on independent evidence now ships
+live. Two of these adapter rules qualify on this repository's real files (`DL3018`, `DL4006`).*
 
 **Not yet run.** checkov's allowlist has 60 checks and 38 have a labelled case; the other 22 are listed in
 the report as *not yet run*, which is not the same as zero. hadolint, shellcheck and actionlint have no
 fixed list (every code the tool can raise at error or warning level), so everything outside the table is
 not yet run.
+
+## Starter set: benchmark-proven rules live by default (W21-04)
+
+**Decision (owner, 2026-10-26, "Starter set live").** A rule whose precision measured on public,
+independent benchmarks is 80% or better starts live on a new install. Every other rule stays in shadow
+and promotes by the existing gate (20 findings, 30 days, under 20% false positives from the workspace's
+own triage, `rules/lifecycle.ts`), which does not change. This revises the W18-48 position above, which
+ruled out any shipped-default promotion.
+
+**The bar,** checked per rule on the committed `report.json`:
+
+- precision TP ÷ (TP + FP) of at least **80%**, and at least **5 true positives**, so one lucky hit does
+  not qualify;
+- counted only on **independent evidence**: `owasp-benchmark`, `juliet-java` and `juice-shop` in full, and
+  the `iac-adapters` suite's **`real` tree only** (this repository's own Dockerfiles and scripts, every
+  finding judged; the rules are the tools' authors', not ours). The `triggering` tree of that suite, and
+  `rule-fixtures`, `changes` and `sampleco`, were written alongside our rules and do not count.
+
+**Who qualifies (measured 2026-10-16, commit e49421c): 12 rules.** Nine Java SAST rules on OWASP
+Benchmark and Juliet, one JavaScript/TypeScript rule on Juice Shop, and two hadolint (Dockerfile) rules
+on real files. TP / FP per suite:
+
+| Rule | Evidence (TP/FP) | TP | FP | Precision |
+|---|---|--:|--:|--:|
+| `bpm-inj-cmd-java` | juliet-java 13/0; owasp-benchmark 64/17 | 77 | 17 | 81.9% |
+| `bpm-inj-ldap-java` | juliet-java 13/0; owasp-benchmark 24/7 | 37 | 7 | 84.1% |
+| `bpm-inj-redirect-java` | juliet-java 16/0 | 16 | 0 | 100.0% |
+| `bpm-inj-sql-java` | juliet-java 15/0; owasp-benchmark 215/54 | 230 | 54 | 81.0% |
+| `bpm-inj-xpath-java` | juliet-java 12/0; owasp-benchmark 14/3 | 26 | 3 | 89.7% |
+| `bpm-java-cookie-insecure` | owasp-benchmark 36/0 | 36 | 0 | 100.0% |
+| `bpm-java-weak-cipher` | juliet-java 34/0; owasp-benchmark 130/0 | 164 | 0 | 100.0% |
+| `bpm-java-weak-hash` | juliet-java 51/0; owasp-benchmark 89/0 | 140 | 0 | 100.0% |
+| `bpm-java-weak-random` | owasp-benchmark 218/0 | 218 | 0 | 100.0% |
+| `bpm-js-sql-string-concat` | juice-shop 6/0 | 6 | 0 | 100.0% |
+| `tool.hadolint.DL3018` | iac-adapters (real) 9/0 | 9 | 0 | 100.0% |
+| `tool.hadolint.DL4006` | iac-adapters (real) 7/0 | 7 | 0 | 100.0% |
+
+`bpm-js-sql-string-concat` predates the lifecycle and was already live; it is listed so its live state
+carries its evidence. The other eleven were shadow candidates. The 100% rows are narrow benchmark
+categories (see "How to read the strong rows honestly" above); the bar says the rule was right when it
+fired on code nobody here wrote, not that it finds everything.
+
+**Close, and still shadow** (enough true positives, too many false positives): `bpm-inj-trust-java` 78.3%
+(72/20), `bpm-inj-path-java` 76.6% (144/44), `bpm-inj-xss-java` 75.3% (183/60),
+`bpm-java-sql-string-concat` 30.9% (54/121), `bpm-java-command-concat` 22.4% (46/159).
+
+**Not eligible at all, and why.** The fast-lane **secrets** rules have no independent sample of five
+(the most is `generic-secret-assignment`, 1 TP on Juice Shop). The **anti-slop, logging, code-health and
+performance** rules have no independent benchmark: everything they are measured on is our own corpus. Other
+adapter rules have at most 3 true positives. All of these stay shadow and promote by the gate.
+
+**How live-ness is decided** (in this order, per workspace):
+
+1. **A registry row for the rule** wins: an admin's "Move to shadow" (W20-21, FND-53), a promotion or a
+   retirement. Restore deletes the override and the rule is live again by the starter set.
+2. For an adapter rule, **a tool row an admin acted on** (`tool.hadolint` promoted, retired, or returned
+   to shadow; any status but candidate, or a row with `updated_by` set) wins too. The candidate tool row
+   the code-health scan seeds by itself (W20-08) is not a decision and does not hold a starter rule back.
+3. **The starter set**: live (`experimental: false` is stated, so findings stored in shadow before this
+   change count again from the next scan of the repository).
+4. Otherwise the shipped default, as before (the YAML `lifecycle` line; adapters are candidates).
+
+Settings → Rules → Rule precision and the finding panel show a starter rule as "✓ active", with the stage
+reason **"live via starter set (benchmark evidence)"** and its TP/FP per suite on hover; an admin sees
+"Move to shadow" beside it.
+
+**The manifest and its test.** `packages/security/src/rules/starter-set.data.ts` is generated from
+`docs/benchmarks/report.json` (`pnpm --filter @repopulse/security starter-set`; `--check` exits 1 when
+stale). `starter-set.test.ts` fails when the manifest differs from what the report gives, when an
+entry's per-suite numbers differ from a recount of the report's outcomes, or when an entry falls below
+the bar. After a new benchmark run, regenerate it in the same commit: a rule that drops below the bar
+leaves the starter set and goes back to shadow on the next scan.
 
 ## Regression gate (W19-06)
 

@@ -1,6 +1,13 @@
-import { and, eq, isNotNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { read, security, type Database } from '@repopulse/shared';
-import { fpRate } from '@repopulse/security';
+import {
+  STARTER_SET_REASON,
+  fpRate,
+  starterRuleIds,
+  starterSetEntry,
+  toolRowIsAdminChoice,
+  type StarterSetEntry,
+} from '@repopulse/security';
 import { BENCHMARK_PRECISION } from './benchmark-precision.data.js';
 
 // Per-rule precision, from the two places it is actually measured (W18-22).
@@ -163,7 +170,14 @@ export interface RulePrecision {
   ruleId: string;
   lifecycle: RuleLifecycle;
   /** Why the lifecycle reads as it does: a registry row, or the shipped default. */
-  lifecycleSource: 'registry' | 'shipped default' | 'observed shadow findings' | 'rulepack';
+  lifecycleSource:
+    'registry' | 'shipped default' | 'observed shadow findings' | 'rulepack' | 'starter set';
+  /**
+   * W21-04: set when the rule is live because it is in the starter set (its
+   * precision measured on independent benchmarks), with that evidence and the
+   * stage reason to show. null when anything else decides, an admin's row first.
+   */
+  starter: { reason: string; evidence: StarterSetEntry } | null;
   findings: number;
   triage: TriagePrecision;
   /** null = this rule is not in the benchmark corpus at all. */
@@ -183,33 +197,56 @@ export interface RulePrecisionReport {
   rules: RulePrecision[];
 }
 
+const REGISTRY_STATES = new Set(['proposed', 'candidate', 'active', 'deprecated']);
+
+interface RegistryRow {
+  status: string;
+  updatedBy: number | null;
+}
+
 function lifecycleFor(
   ruleId: string,
-  registry: Map<string, string>,
+  registry: Map<string, RegistryRow>,
   sawExperimental: boolean,
-): Pick<RulePrecision, 'lifecycle' | 'lifecycleSource'> {
-  const status = registry.get(ruleId);
-  if (
-    status === 'proposed' ||
-    status === 'candidate' ||
-    status === 'active' ||
-    status === 'deprecated'
-  ) {
-    return { lifecycle: status, lifecycleSource: 'registry' };
+): Pick<RulePrecision, 'lifecycle' | 'lifecycleSource' | 'starter'> {
+  const status = registry.get(ruleId)?.status;
+  if (status !== undefined && REGISTRY_STATES.has(status)) {
+    return { lifecycle: status as RuleLifecycle, lifecycleSource: 'registry', starter: null };
+  }
+  // W21-04: the starter set, unless an admin decided for the whole tool
+  // (`tool.hadolint`); the row the scan seeds itself is not a decision. Same
+  // order the code-health scan applies (adapterShadowState).
+  const starter = starterSetEntry(ruleId);
+  if (starter) {
+    const tool = /^tool\.[^.]+\./.test(ruleId)
+      ? registry.get(ruleId.split('.').slice(0, 2).join('.'))
+      : undefined;
+    if (tool && REGISTRY_STATES.has(tool.status) && toolRowIsAdminChoice(tool)) {
+      return {
+        lifecycle: tool.status as RuleLifecycle,
+        lifecycleSource: 'registry',
+        starter: null,
+      };
+    }
+    return {
+      lifecycle: 'active',
+      lifecycleSource: 'starter set',
+      starter: { reason: STARTER_SET_REASON, evidence: starter },
+    };
   }
   if (SHIPPED_SHADOW_RULES.includes(ruleId)) {
-    return { lifecycle: 'candidate', lifecycleSource: 'shipped default' };
+    return { lifecycle: 'candidate', lifecycleSource: 'shipped default', starter: null };
   }
   if (sawExperimental)
-    return { lifecycle: 'candidate', lifecycleSource: 'observed shadow findings' };
-  return { lifecycle: 'pack', lifecycleSource: 'rulepack' };
+    return { lifecycle: 'candidate', lifecycleSource: 'observed shadow findings', starter: null };
+  return { lifecycle: 'pack', lifecycleSource: 'rulepack', starter: null };
 }
 
 /**
  * Every rule this workspace can say something about, with both measurements.
  *
  * The rule set is the union of: rules that raised a finding here, rules in the
- * registry, the shipped shadow rules, and rules the benchmark scored. A rule
+ * registry, the shipped shadow rules, the starter set, and rules the benchmark scored. A rule
  * that is in none of those has nothing to show and is left out rather than
  * listed with blanks. Workspace-scoped in every query (Law 5).
  */
@@ -243,16 +280,30 @@ export async function rulePrecision(
     .select({
       ruleId: security.ruleRegistry.ruleId,
       status: security.ruleRegistry.status,
+      updatedBy: security.ruleRegistry.updatedBy,
       source: sql<string | null>`${security.ruleRegistry.provenance} ->> 'source'`,
     })
     .from(security.ruleRegistry)
     .where(
       and(
         eq(security.ruleRegistry.workspaceId, workspaceId),
-        ...(opts.ruleId === undefined ? [] : [eq(security.ruleRegistry.ruleId, opts.ruleId)]),
+        // One rule asked for: its own row, and its tool's row for an adapter
+        // rule, which can decide for it (W21-04).
+        ...(opts.ruleId === undefined
+          ? []
+          : [
+              inArray(security.ruleRegistry.ruleId, [
+                opts.ruleId,
+                ...(/^tool\.[^.]+\./.test(opts.ruleId)
+                  ? [opts.ruleId.split('.').slice(0, 2).join('.')]
+                  : []),
+              ]),
+            ]),
       ),
     );
-  const registry = new Map(registryRows.map((r) => [r.ruleId, r.status]));
+  const registry = new Map(
+    registryRows.map((r) => [r.ruleId, { status: r.status, updatedBy: r.updatedBy }]),
+  );
   const overrides = new Set(
     registryRows.filter((r) => r.source === 'pack_override').map((r) => r.ruleId),
   );
@@ -266,6 +317,7 @@ export async function rulePrecision(
             ...byRule.keys(),
             ...registry.keys(),
             ...SHIPPED_SHADOW_RULES,
+            ...starterRuleIds(),
             ...Object.keys(summary.rules),
           ]),
         ].sort();

@@ -215,6 +215,13 @@ stateDiagram-v2
   dispositions like any finding.
 - **promotion gate** (admin action, data-informed): ≥20 findings over ≥30 days with
   FP rate < 20% (workspace-tunable). The workbench shows the evidence; a human promotes.
+- **starter set** (W21-04, owner decision 2026-10-26): a rule with at least 5 true positives
+  at 80% precision or better on independent benchmarks (OWASP Benchmark, Juliet, Juice Shop,
+  real files for the tool adapters; never our own fixtures) ships live instead of as a
+  candidate, with the stage reason "live via starter set (benchmark evidence)". A registry
+  row, which only an admin creates for a shipped rule, still wins (an admin can move it to
+  shadow). The promotion gate above is unchanged for every other rule. Manifest, bar and the
+  12 rules: docs/BENCHMARKS.md, "Starter set".
 - **demotion**: any active rule whose trailing FP rate exceeds 50% is auto-flagged
   `demotion_candidate` and surfaces on the workbench — admin confirms deprecation.
   Deprecated rules keep their historical findings (audit) but never run again.
@@ -394,7 +401,8 @@ benchmark's adapters lane (docs/BENCHMARKS.md, "Tool adapters"): on our labelled
 repository's own files, 115 true positives, 7 false positives, 2 misses over 87 rules. The false positives
 are on real code (hadolint DL3013 and DL3025), which the synthetic fixtures had scored 100%. No rule has
 the 20 labelled findings, let alone the 30 days and workspace triage the promotion gate (§8.2) needs, so
-every adapter rule stays a shadow candidate with its numbers shown. Two product gaps surfaced: actionlint
+every adapter rule stays a shadow candidate with its numbers shown. (W21-04 later put hadolint `DL3018`
+and `DL4006` in the starter set on their real-file numbers, §8.2.) Two product gaps surfaced: actionlint
 cannot resolve a local reusable workflow in a `.git`-less snapshot (the `workflow-call` check is silent),
 and checkov's cost on a very large tree is unbounded by anything but the budget.
 

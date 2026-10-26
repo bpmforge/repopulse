@@ -170,7 +170,7 @@ export function parseOpengrepOutput(args: ParseArgs): ParseResult {
       message: result.extra.message.trim(),
       yields: Array.isArray(metadata.yields) ? metadata.yields.map(String) : [],
       cwe: typeof metadata.cwe === 'string' ? metadata.cwe : null,
-      shippedStatus: shippedStatusOf(result.extra.metadata),
+      shippedStatus: shippedStatusOf(result.extra.metadata, ruleId),
     };
   });
 

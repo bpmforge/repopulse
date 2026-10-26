@@ -298,6 +298,70 @@ describeIfDb('trust surfaces over the database (W18-22)', () => {
       expect(by('bpm-bench-only').lifecycle).toBe('pack');
     });
 
+    it('reads a starter-set rule as live with its evidence, until an admin decides (W21-04)', async () => {
+      // Stored in shadow before the starter set existed: still read as live.
+      await addFinding({ ruleId: 'bpm-inj-sql-java', experimental: true });
+      await addFinding({ ruleId: 'bpm-java-weak-hash', experimental: true });
+      // Missed the bar (75% on OWASP): stays in shadow.
+      await addFinding({ ruleId: 'bpm-inj-xss-java', experimental: true });
+      await db.insert(security.ruleRegistry).values([
+        {
+          workspaceId,
+          ruleId: 'bpm-java-weak-hash',
+          status: 'candidate',
+          provenance: { source: 'pack_override', reason: 'noisy in this codebase' },
+        },
+        // Seeded by the code-health scan: not a decision.
+        {
+          workspaceId,
+          ruleId: 'tool.hadolint',
+          status: 'candidate',
+          provenance: { source: 'adapter:hadolint' },
+        },
+      ]);
+      const report = await rulePrecision(db, workspaceId, { summary: SUMMARY });
+      const by = (id: string) => report.rules.find((r) => r.ruleId === id)!;
+      expect(by('bpm-inj-sql-java')).toMatchObject({
+        lifecycle: 'active',
+        lifecycleSource: 'starter set',
+        starter: {
+          reason: 'live via starter set (benchmark evidence)',
+          evidence: { ruleId: 'bpm-inj-sql-java' },
+        },
+      });
+      expect(by('bpm-inj-sql-java').starter!.evidence.precision).toBeGreaterThanOrEqual(0.8);
+      expect(by('bpm-java-weak-hash')).toMatchObject({
+        lifecycle: 'candidate',
+        lifecycleSource: 'registry',
+        starter: null,
+        override: true,
+      });
+      expect(by('bpm-inj-xss-java')).toMatchObject({
+        lifecycle: 'candidate',
+        lifecycleSource: 'observed shadow findings',
+        starter: null,
+      });
+      expect(by('tool.hadolint.DL3018')).toMatchObject({
+        lifecycle: 'active',
+        lifecycleSource: 'starter set',
+      });
+
+      // An admin retiring the whole tool decides for its starter rules too,
+      // also when one rule is asked for (the finding drawer).
+      await db
+        .update(security.ruleRegistry)
+        .set({ status: 'deprecated' })
+        .where(eq(security.ruleRegistry.ruleId, 'tool.hadolint'));
+      const [dl3018] = (
+        await rulePrecision(db, workspaceId, { ruleId: 'tool.hadolint.DL3018', summary: SUMMARY })
+      ).rules;
+      expect(dl3018).toMatchObject({
+        lifecycle: 'deprecated',
+        lifecycleSource: 'registry',
+        starter: null,
+      });
+    });
+
     it('never reads another workspace’s dispositions (Law 5)', async () => {
       await addFinding({
         ruleId: 'bpm-tenant',

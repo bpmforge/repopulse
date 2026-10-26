@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { eq } from 'drizzle-orm';
+import { and, eq, like } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { core, createDb, security, type Database } from '@repopulse/shared';
 import { adapterShadowState, adapterToIncoming } from '../run.js';
@@ -84,6 +84,103 @@ describeIfDb('tool-adapter shadow mode (W18-26)', () => {
       'tool.hadolint.DL3008',
     ]);
     expect(kept.map((f) => experimental.get(f))).toEqual([false, false, true]);
+  });
+
+  // W21-04: tool.hadolint.DL3018 is in the starter set (measured on real files);
+  // DL3008 is not. Each case starts from an empty registry for hadolint.
+  describe('the starter set (W21-04)', () => {
+    const clear = () =>
+      db
+        .delete(security.ruleRegistry)
+        .where(
+          and(
+            eq(security.ruleRegistry.workspaceId, workspaceId),
+            like(security.ruleRegistry.ruleId, 'tool.hadolint%'),
+          ),
+        );
+    let adminId = 0;
+
+    beforeAll(async () => {
+      const [user] = await db
+        .insert(core.users)
+        .values({
+          authProvider: 'local',
+          authSubject: `w21-04-admin-${Date.now()}`,
+          login: 'w21-04-admin',
+        })
+        .returning();
+      adminId = user!.id;
+    });
+
+    afterAll(async () => {
+      await clear();
+      await db.delete(core.users).where(eq(core.users.id, adminId));
+    });
+
+    const states = async () => {
+      const findings = [finding('tool.hadolint.DL3018'), finding('tool.hadolint.DL3008')];
+      const { kept, experimental } = await adapterShadowState(db, workspaceId, findings);
+      return kept.map((f) => [f.ruleId, experimental.get(f)]);
+    };
+
+    it('is live with no row, and with only the tool row the scan seeds itself', async () => {
+      await clear();
+      expect(await states()).toEqual([
+        ['tool.hadolint.DL3018', false],
+        ['tool.hadolint.DL3008', true],
+      ]);
+      await db.insert(security.ruleRegistry).values({
+        workspaceId,
+        ruleId: 'tool.hadolint',
+        status: 'candidate',
+        provenance,
+        shadowStartedAt: new Date(),
+      });
+      expect(await states()).toEqual([
+        ['tool.hadolint.DL3018', false],
+        ['tool.hadolint.DL3008', true],
+      ]);
+    });
+
+    it('an admin moving the rule to shadow wins', async () => {
+      await clear();
+      await db.insert(security.ruleRegistry).values({
+        workspaceId,
+        ruleId: 'tool.hadolint.DL3018',
+        status: 'candidate',
+        provenance: { ...provenance, source: 'pack_override' },
+        updatedBy: adminId,
+      });
+      expect(await states()).toEqual([
+        ['tool.hadolint.DL3018', true],
+        ['tool.hadolint.DL3008', true],
+      ]);
+    });
+
+    it('an admin’s decision on the whole tool wins too', async () => {
+      await clear();
+      await db.insert(security.ruleRegistry).values({
+        workspaceId,
+        ruleId: 'tool.hadolint',
+        status: 'deprecated',
+        provenance,
+        updatedBy: adminId,
+      });
+      expect(await states()).toEqual([]);
+      await clear();
+      // Retired, then returned to shadow by an admin: their name is on it.
+      await db.insert(security.ruleRegistry).values({
+        workspaceId,
+        ruleId: 'tool.hadolint',
+        status: 'candidate',
+        provenance,
+        updatedBy: adminId,
+      });
+      expect(await states()).toEqual([
+        ['tool.hadolint.DL3018', true],
+        ['tool.hadolint.DL3008', true],
+      ]);
+    });
   });
 
   it('is workspace-scoped: another workspace’s promotion does not leak in', async () => {
