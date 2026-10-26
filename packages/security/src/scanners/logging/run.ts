@@ -74,6 +74,15 @@ export type PackRunner = (args: SemgrepRunArgs) => Promise<SemgrepRunResult>;
 export const DEFAULT_EXCLUDED_GLOBS = [
   '**/*.test.*',
   '**/*.spec.*',
+  // Go and Python name their tests by suffix or prefix, not by a `.test.`
+  // segment, so the two globs above never saw them (found by the W21-20
+  // hand-check, where Go and Python test files were drawing perf findings).
+  '**/*_test.go',
+  '**/testdata/**',
+  '**/test_*.py',
+  '**/*_test.py',
+  '**/conftest.py',
+  '**/__tests__/**',
   '**/test/**',
   '**/tests/**',
   '**/e2e/**',
