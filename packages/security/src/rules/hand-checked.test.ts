@@ -5,6 +5,7 @@ import {
   HAND_CHECKED_BAR,
   HAND_CHECKED_HELD,
   HAND_CHECKED_REASON,
+  HAND_CHECKED_SHEETS,
   deriveHandChecked,
   handCheckedEntry,
   isHandCheckedRule,
@@ -13,27 +14,38 @@ import {
 } from './hand-checked.js';
 import { effectiveStatus, shippedStatusOf } from './shadow.js';
 
-// The hand-checked manifest must say exactly what the marked sheet says (W21-20).
+// The hand-checked manifest must say exactly what the marked sheets say (W21-20).
 //
 // A performance rule goes live on every new install because of an entry here,
 // so an entry the sheet does not support is a rule live on evidence nobody gave.
 // After the sheet changes: pnpm --filter @repopulse/security hand-checked
 
-const SHEET_URL = new URL('../../../../docs/benchmarks/perf-hand-check/sheet.csv', import.meta.url);
-const SHEET = readFileSync(SHEET_URL, 'utf8');
+const ROOT = new URL('../../../../', import.meta.url);
+const SHEETS = HAND_CHECKED_SHEETS.map((s) => readFileSync(new URL(s, ROOT), 'utf8'));
+const [SHEET, LANGS] = SHEETS as [string, string];
 const PERF_PACKS = new URL('../../rulepacks/code-health/perf/', import.meta.url);
 
-/** Recount one rule from the sheet's `brad` column, independently of deriveHandChecked. */
+/** Every sheet's rows as objects, keyed by hit; a hit on two sheets is one hit. */
+function hits(): Map<string, Record<string, string>> {
+  const out = new Map<string, Record<string, string>>();
+  for (const csv of SHEETS) {
+    const [header, ...rows] = parseSheetCsv(csv).filter((r) => r.length > 1);
+    for (const r of rows) {
+      const row = Object.fromEntries(header!.map((h, i) => [h, r[i]!]));
+      out.set([row.rule, row.repo, row.file, row.line].join(' '), row);
+    }
+  }
+  return out;
+}
+
+/** Recount one rule from the sheets' `brad` column, independently of deriveHandChecked. */
 function recount(ruleId: string) {
-  const [header, ...rows] = parseSheetCsv(SHEET).filter((r) => r.length > 1);
-  const rule = header!.indexOf('rule');
-  const brad = header!.indexOf('brad');
   const out = { tp: 0, fp: 0, small: 0 };
-  for (const r of rows) {
-    if (r[rule] !== ruleId) continue;
-    if (r[brad] === 'true') out.tp += 1;
-    if (r[brad] === 'wrong') out.fp += 1;
-    if (r[brad] === 'small') out.small += 1;
+  for (const r of hits().values()) {
+    if (r.rule !== ruleId) continue;
+    if (r.brad === 'true') out.tp += 1;
+    if (r.brad === 'wrong') out.fp += 1;
+    if (r.brad === 'small') out.small += 1;
   }
   return out;
 }
@@ -51,14 +63,25 @@ function rewriteColumn(csv: string, column: string, to: (value: string) => strin
 }
 
 describe('hand-checked manifest (W21-20)', () => {
-  it('matches the marked sheet, docs/benchmarks/perf-hand-check/sheet.csv', () => {
-    expect(HAND_CHECKED_MANIFEST).toEqual(deriveHandChecked(SHEET));
+  it('matches the marked sheets, in HAND_CHECKED_SHEETS order', () => {
+    expect(HAND_CHECKED_MANIFEST).toEqual(deriveHandChecked(...SHEETS));
+    expect(HAND_CHECKED_MANIFEST.sources).toEqual(HAND_CHECKED_SHEETS);
   });
 
-  it('counts every row of the sheet, and every row is marked', () => {
-    const rows = parseSheetCsv(SHEET).filter((r) => r.length > 1).length - 1;
-    expect(HAND_CHECKED_MANIFEST.marked).toBe(rows);
-    expect(HAND_CHECKED_MANIFEST.marked).toBeGreaterThan(0);
+  it('counts every distinct hit once, and every one is marked', () => {
+    const rows = SHEETS.reduce(
+      (n, s) => n + parseSheetCsv(s).filter((r) => r.length > 1).length - 1,
+      0,
+    );
+    expect(HAND_CHECKED_MANIFEST.marked).toBe(hits().size);
+    // The Rust/Swift/Kotlin corpus re-scanned mihon: its 7 Kotlin hits are on both sheets.
+    expect(rows - HAND_CHECKED_MANIFEST.marked).toBe(7);
+    expect(deriveHandChecked(SHEET, LANGS, LANGS)).toEqual(HAND_CHECKED_MANIFEST);
+  });
+
+  it('refuses two sheets that mark the same hit differently', () => {
+    const flipped = rewriteColumn(LANGS, 'brad', (v) => (v === 'true' ? 'wrong' : v));
+    expect(() => deriveHandChecked(SHEET, flipped)).toThrow(/marked both "true" and "wrong"/);
   });
 
   it('every live entry clears the bar on its own numbers; every other one misses it or is held', () => {
@@ -96,12 +119,12 @@ describe('hand-checked manifest (W21-20)', () => {
   });
 
   it("reads Brad's column only: Claude's proposals change nothing, his marks change the result", () => {
+    const all = (column: string, to: () => string) =>
+      deriveHandChecked(...SHEETS.map((s) => rewriteColumn(s, column, to)));
     // Every proposal flipped to "wrong": the manifest must not move.
-    expect(deriveHandChecked(rewriteColumn(SHEET, 'proposed', () => 'wrong'))).toEqual(
-      HAND_CHECKED_MANIFEST,
-    );
+    expect(all('proposed', () => 'wrong')).toEqual(HAND_CHECKED_MANIFEST);
     // Every mark flipped to "wrong": nothing may stay live.
-    expect(deriveHandChecked(rewriteColumn(SHEET, 'brad', () => 'wrong')).rules).toEqual([]);
+    expect(all('brad', () => 'wrong').rules).toEqual([]);
   });
 
   it('refuses a sheet with an unmarked row, because a half-marked sheet is not a verdict', () => {
@@ -111,7 +134,7 @@ describe('hand-checked manifest (W21-20)', () => {
       first = false;
       return '';
     });
-    expect(() => deriveHandChecked(half)).toThrow(/unmarked/);
+    expect(() => deriveHandChecked(half, LANGS)).toThrow(/unmarked/);
   });
 
   it('only ever names performance rules that exist in a perf pack', () => {

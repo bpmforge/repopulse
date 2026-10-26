@@ -408,7 +408,7 @@ or fewer, a seeded random sample of 30 otherwise (seed 20261026) — **542 rows 
 proposed a label for every row; **Brad marked them** ("accept the proposals", 2026-10-26 14:16 UTC). Sheet,
 sample, method and per-repo totals: `docs/benchmarks/perf-hand-check/`.
 
-**Live by hand-check: 5 rules**, all from the W21-20 algorithmic set; a sixth cleared the bar on its sample and is held (below) (true / wrong / small, and the
+**Live by hand-check: 6 rules.** Five from the W21-20 algorithmic set (a sixth there cleared the bar on its sample and is held, below), and one from the Rust/Swift/Kotlin sheet (true / wrong / small, and the
 repositories with a true or wrong mark):
 
 | Rule | True | Wrong | Small | Precision | Evidence (true/wrong) |
@@ -418,6 +418,7 @@ repositories with a true or wrong mark):
 | `bpm-perf-go-nested-range-join` | 6 | 0 | 15 | 100% | go-gitea/gitea 5/0; traefik/traefik 1/0 |
 | `bpm-perf-java-contains-in-loop` | 7 | 0 | 23 | 100% | thingsboard/thingsboard 7/0 |
 | `bpm-perf-membership-in-list-in-loop-py` | 15 | 0 | 13 | 100% | saleor/saleor 7/0; zulip/zulip 8/0 |
+| `bpm-perf-sw-find-in-loop` | 6 | 0 | 23 | 100% | home-assistant/iOS 2/0; wikimedia/wikipedia-ios 4/0 (every hit marked, not a sample) |
 
 **Held in shadow: `bpm-perf-includes-in-loop`.** It passed on its sample of 30 (5 true, 0 wrong; outline
 2/0, excalidraw 2/0, prometheus 1/0), but across all 200 of its hits the proposed labels give 48 true and 14
@@ -488,7 +489,9 @@ from the start: `for` loops over items rather than `loop`/`while` pagination, a 
 constant patterns only, and Kotlin's string-concat and DB rules now carry the same fixes as Java's. Each
 needs its own marked sample before it can go live. That sample is drawn: 92 hits on 9 public repositories,
 proposed labels and per-line links in `docs/benchmarks/perf-hand-check-langs/`, awaiting Brad's marks. On the
-proposals no rule reaches the bar (`sw-find-in-loop` is closest at 6 true, 0 wrong).
+marks (Brad accepted the proposals, 2026-10-26) `sw-find-in-loop` clears the bar, 6 true and 0 wrong, and
+is live; no other rule there does. Both sheets feed one manifest, and a hit on both (mihon's 7 Kotlin hits,
+scanned twice) counts once.
 
 ## Regression gate (W19-06)
 

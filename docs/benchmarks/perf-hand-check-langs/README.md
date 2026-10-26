@@ -1,8 +1,8 @@
 # Performance hand-check: Rust, Swift, Kotlin (2026-10-26)
 
-The W21-20 hand-check had no Rust or Swift repository and one Kotlin repository with 7 hits, so the performance rules for these languages had never been measured on real code. This sheet does that for the rules as they ship after this change. Brad marks it; nothing here changes what is live until he does.
+The W21-20 hand-check had no Rust or Swift repository and one Kotlin repository with 7 hits, so the performance rules for these languages had never been measured on real code. This sheet does that for the rules as they ship. **Marked 2026-10-26: Brad accepted the proposals**, so the `brad` column equals `proposed`.
 
-**Marking:** fill the `brad` column with `true`, `wrong` or `small` (the same meaning as `../perf-hand-check/SHEET.md`). Each row has a GitHub link to the exact line at the scanned commit. `proposed` and `reason` are Claude's reading of each hit in context.
+**Marking (for re-checks):** fill the `brad` column with `true`, `wrong` or `small` (the same meaning as `../perf-hand-check/SHEET.md`). Each row has a GitHub link to the exact line at the scanned commit. `proposed` and `reason` are Claude's reading of each hit in context.
 
 ## Corpus
 
@@ -22,7 +22,7 @@ Shallow clones at these commits, deleted after the scan (public source, measurem
 
 Method: semgrep 1.176 with `perf.rust.v1`, `perf.swift.v1` and the Kotlin rules of `perf.java.v1` / `perf.complexity.java.v1`; the product's own exclusions (`DEFAULT_EXCLUDED_GLOBS`, which this change extends with the Rust, Swift and Kotlin test conventions) plus vendored and generated paths. Semgrep's Swift parser partly fails on a share of modern Swift files (407 partial-parse errors on home-assistant/iOS): rules still run on what parses, so Swift coverage is a floor.
 
-## Proposed (92 hits)
+## Marked (92 hits)
 
 | Rule | true | wrong | small |
 |---|---|---|---|
@@ -37,7 +37,7 @@ Method: semgrep 1.176 with `perf.rust.v1`, `perf.swift.v1` and the Kotlin rules 
 | kt-regex-compile-in-loop | 2 | 0 | 0 |
 | kt-db-call-in-loop | 0 | 0 | 2 |
 
-No rule would reach the live bar (5 true at 80%) on this corpus: the rules mostly find the right SHAPE on lists that are small by design (servers, categories, CLI one-offs). `sw-find-in-loop` is closest (6 true, 0 wrong). The new Kotlin rules (`kt-blocking-in-suspend`, `kt-formatter-in-loop`) and the Swift regex and formatter rules had no hits at all here: they are untested on real code, not proven clean.
+**`sw-find-in-loop` clears the live bar (5 true at 80%) and ships live by hand-check**: 6 true, 0 wrong. (An earlier draft of this page said no rule reached the bar; 6 true is over the minimum of 5, so that was wrong.) No other rule does: the rest mostly find the right SHAPE on lists that are small by design (servers, categories, CLI one-offs). This sheet feeds the same manifest as `../perf-hand-check/sheet.csv` (`HAND_CHECKED_SHEETS` in `packages/security/src/rules/hand-checked.ts`); the 7 mihon Kotlin hits that appear on both count once. The new Kotlin rules (`kt-blocking-in-suspend`, `kt-formatter-in-loop`) and the Swift regex and formatter rules had no hits at all here: they are untested on real code, not proven clean.
 
 ## Fixed before the sheet was drawn
 
