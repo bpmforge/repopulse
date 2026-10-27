@@ -483,14 +483,17 @@ live) are in `docs/benchmarks/perf-hand-check/README.md`, "Misfires fixed".
 (algorithmic complexity: joins by scan, linear search over sorted data, sorting inside loops, repeated
 computation, copy-on-append; every finding states `Grows with: <input>. O(…) → O(…) by <fix>`). It was
 switched on a live run on this Mac (`qwen/qwen3.8-27b`, LM Studio, seed 7, temperature 0.1, concurrency 1)
-over the 8 labelled performance cases, v2 then v3 under identical settings:
+over the 8 labelled performance cases, v2 and v3 alternating under identical settings, three runs each:
 
-| Checklist | TP | FP | FN | Precision | Recall | Errored |
-|---|--:|--:|--:|--:|--:|--:|
-| v2 | 4 | 1 | 0 | 80% | 100% | 0 |
-| v3 | 4 | 1 | 0 | 80% | 100% | 0 |
+| Checklist | Run 1 | Run 2 | Run 3 | Precision | Recall | Errored |
+|---|---|---|---|--:|--:|--:|
+| v2 | 4 TP / 1 FP / 0 FN | 4 / 1 / 0 | 4 / 1 / 0 | 80% | 100% | 0 |
+| v3 | 4 TP / 1 FP / 0 FN | 4 / 1 / 0 | 4 / 1 / 0 | 80% | 100% | 0 |
 
-A tie on the score, and the bar was "at least as good as v2". v3's false alarm is on `perf-clean-batched`
+A stable tie, and the bar was "at least as good as v2". The full all-roles re-run in `docs/MODEL_EVAL.md`
+(concurrency 2) gave v3 4 / 2 / 0, the only run with a second false alarm; in that same run test coverage,
+whose checklist did not change, went from 67% to 33% against 2026-10-18, so single runs move by about one
+false alarm and the controlled repeats are what the switch rests on. v3's false alarm is on `perf-clean-batched`
 (an unbounded `Promise.all` over the batch's customers, labelled clean); 4 of its 5 findings carry the
 O(…) → O(…) statement, and the sync-I/O one states the growth input without a complexity arrow. Caveats:
 eight AI-written cases are an indicative floor, not an accuracy estimate; the first v2 attempt lost 4 cases to
