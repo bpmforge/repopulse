@@ -326,6 +326,7 @@ export class GiteaProvider implements ForgeProvider {
       family: 'commits',
       cost: 1,
       getHeaders: this.getHeaders,
+      cache: false,
     });
     return resolveTarball({
       commitSha: sha,

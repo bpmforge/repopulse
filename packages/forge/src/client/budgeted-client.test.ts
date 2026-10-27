@@ -203,6 +203,61 @@ describeIfLiveInfra('BudgetedClient (FR-FORGE-3/4, NFR-12)', () => {
     });
   });
 
+  // 2026-10-27 walkthrough: a Gitea archive (200 + Last-Modified, binary body)
+  // was cached as {} and the next fetch of it came back 304 with no bytes.
+  describe('cache: false (source archives)', () => {
+    let fixture: SeededFixture;
+
+    beforeAll(async () => {
+      fixture = await seedWorkspaceAndConnection(db, {
+        workspaceSlug: 'w1-05-nocache-test',
+        forgeUserId: 'w1-05-nocache-test-user',
+      });
+    });
+
+    afterAll(async () => {
+      await cleanupFixture(db, fixture);
+    });
+
+    it('sends no conditional headers and returns the bytes every time', async () => {
+      const seen: Record<string, string>[] = [];
+      const bytes = new Uint8Array([31, 139, 8, 0]);
+      const executor: RequestExecutor = async (req) => {
+        seen.push(req.headers);
+        if (req.headers['If-Modified-Since'] || req.headers['If-None-Match']) {
+          return { status: 304, headers: {}, body: null };
+        }
+        return {
+          status: 200,
+          headers: { 'last-modified': 'Tue, 27 Oct 2026 20:25:15 GMT' },
+          body: bytes,
+        };
+      };
+      const client = new BudgetedClient({
+        connectionId: fixture.connectionId,
+        workspaceId: fixture.workspaceId,
+        db,
+        executor,
+        allowlist: ALLOWLIST,
+      });
+      const req = {
+        method: 'GET' as const,
+        url: 'https://api.github.com/repos/acme/app/archive/abc.tar.gz',
+        family: 'commits' as const,
+        cache: false,
+      };
+      for (let i = 0; i < 2; i++) {
+        const res = await client.request({ lane: 'backfill' }, req);
+        expect(res.status).toBe(200);
+        expect(res.body).toBe(bytes);
+      }
+      for (const h of seen) {
+        expect(h['If-Modified-Since']).toBeUndefined();
+        expect(h['If-None-Match']).toBeUndefined();
+      }
+    });
+  });
+
   // §3 retry policy + NFR-12 instrumentation.
   describe('retry policy + instrumentation (AC4)', () => {
     let fixture: SeededFixture;
