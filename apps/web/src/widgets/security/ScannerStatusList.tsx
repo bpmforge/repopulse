@@ -141,7 +141,14 @@ const RERUN_STATES: readonly ScannerState[] = [
 ];
 
 export function ScannerStatusList({ scanners, manage = null }: Props) {
-  const problems = scanners.filter((s) => (STATE_ORDER[s.state] ?? 9) <= 4).length;
+  // "Ran, but nothing was scanned" is not a fault (2026-10-27 walkthrough):
+  // no commits in the sweep window, no SBOM yet, or a GitHub-only import on a
+  // Gitea repository. Counting it as "needs attention" put three benign rows
+  // beside one real one, so it is said separately — still listed early, still
+  // with its reason and a Re-run link.
+  const problems = scanners.filter((s) => (STATE_ORDER[s.state] ?? 9) <= 3).length;
+  const idle = scanners.filter((s) => s.state === 'nothing_scanned').length;
+  const idleText = idle > 0 ? ` ${idle} had nothing to scan this time.` : '';
   return (
     // W21-01: at phone width the six columns ran 103px past the page; the
     // table scrolls inside its own region instead.
@@ -152,8 +159,8 @@ export function ScannerStatusList({ scanners, manage = null }: Props) {
           data-testid="scanner-status-caption"
         >
           {problems > 0
-            ? `${problems} of ${scanners.length} scanners need attention; they are listed first.`
-            : `${scanners.length} scanners.`}
+            ? `${problems} of ${scanners.length} scanners need attention; they are listed first.${idleText}`
+            : `${scanners.length} scanners.${idleText}`}
         </caption>
         <thead>
           <tr className="text-left text-xs text-fg-muted">

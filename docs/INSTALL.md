@@ -194,7 +194,7 @@ Everything is in `deploy/.env`, and every variable is documented in
 Wrong or missing configuration fails at startup with a message naming each
 variable; the API will not half-boot.
 
-Three things are worth knowing on day one:
+Four things are worth knowing on day one:
 
 - **Back up `TOKEN_ENC_KEY` separately from your database dump.** It decrypts
   the forge credentials stored in Postgres. A dump without the key is unusable;
@@ -206,6 +206,9 @@ Three things are worth knowing on day one:
 - **Remove `ADMIN_PASSWORD` after your first sign-in.** The bootstrap never
   overwrites a password that has been changed, so the line is inert, but a
   live credential in a file is a live credential.
+- **A sign-in ends after 15 minutes without activity, and after 12 hours in
+  any case.** `SESSION_IDLE_MINUTES` and `SESSION_MAX_HOURS` change that; run
+  `./deploy/up.sh` afterwards.
 
 ## Sign in
 
