@@ -67,6 +67,44 @@ export interface SemgrepFinding {
  * either — the rule saw a shape, not an exploit. Reserving the top of the scale
  * is what keeps it meaningful when a verified secret or a KEV CVE arrives.
  */
+const TITLE_MAX = 120;
+
+/**
+ * The first sentence of a rule message, as a list-row title; the rule id when
+ * the message is empty.
+ *
+ * A sentence ends at a full stop followed by whitespace, except after e.g.,
+ * i.e., etc., vs. and cf. Not at ! or ?: those are code in our messages
+ * (Ruby's `permit!`, Rust's `println!`), and the next sentence often starts
+ * with a lower-case identifier ("…a socket stream. readObject runs…"), so no
+ * capital is required after the stop. A first sentence over TITLE_MAX ends at
+ * its first em dash or colon, or else is clipped at a word.
+ */
+export function titleFromMessage(message: string, ruleId: string): string {
+  const text = message.replace(/\s+/g, ' ').trim();
+  if (text === '') return ruleId;
+  let sentence = text;
+  for (const m of text.matchAll(/\.(?=\s)/g)) {
+    const before = text.slice(0, m.index).split(' ').at(-1) ?? '';
+    if (/^(e\.g|i\.e|etc|vs|cf)$/i.test(before)) continue;
+    sentence = text.slice(0, m.index + 1);
+    break;
+  }
+  // A long opening sentence usually names the problem before an em dash or a
+  // colon and explains it after; the clause before it is the title.
+  if (sentence.length > TITLE_MAX) {
+    const breaks = [sentence.indexOf(' — '), sentence.indexOf(': ')].filter(
+      (i) => i > 30 && i <= TITLE_MAX,
+    );
+    if (breaks.length > 0) return `${sentence.slice(0, Math.min(...breaks))}.`;
+  }
+  if (sentence.length > TITLE_MAX) {
+    const cut = sentence.lastIndexOf(' ', TITLE_MAX - 1);
+    sentence = `${sentence.slice(0, cut > 40 ? cut : TITLE_MAX - 1)}…`;
+  }
+  return sentence;
+}
+
 export function severityOf(level: string): number {
   switch (level.toUpperCase()) {
     case 'ERROR':
@@ -163,10 +201,13 @@ export function parseOpengrepOutput(args: ParseArgs): ParseResult {
       lineStart: result.start.line,
       lineEnd: result.end.line,
       severity: severityOf(result.extra.severity),
-      // The rule id is the title, not the message: the message is a paragraph
-      // of advice and makes a poor list row, and the id is what a reader
-      // searches for when two findings look the same.
-      title: ruleId,
+      // The message's FIRST SENTENCE is the title. The whole message is a
+      // paragraph of advice and makes a poor list row; the bare id made every
+      // performance, logging and rule-pack finding read like
+      // "bpm-perf-sw-find-in-loop" (812 rows on the 2026-10-27 walkthrough).
+      // Our messages open with a sentence that names the problem ("A Core
+      // Data fetch inside a loop."), and the id still has its own column.
+      title: titleFromMessage(result.extra.message, ruleId),
       message: result.extra.message.trim(),
       yields: Array.isArray(metadata.yields) ? metadata.yields.map(String) : [],
       cwe: typeof metadata.cwe === 'string' ? metadata.cwe : null,
