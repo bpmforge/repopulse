@@ -185,7 +185,7 @@ export class BudgetedClient {
     });
     const url = new URL(req.url);
     const endpointKey = computeEndpointKey(req.method, url.pathname + url.search, req.params);
-    const cached = req.cache === false ? undefined : await this.etagCache.lookup(endpointKey);
+    const cached = req.cache === false ? null : await this.etagCache.lookup(endpointKey);
 
     const isWrite = req.method !== 'GET';
     const cost = req.cost ?? (isWrite ? this.writeCost : 1);
