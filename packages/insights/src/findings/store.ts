@@ -354,6 +354,9 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
         // W20-08 (FND-57): the reason follows the latest scan, as the context
         // does — a reachability tier that moved should say so.
         rationale: finding.rationale,
+        // So does the title (2026-10-27): rows stored under a rule id as the
+        // title read as a sentence after the next scan, not only new ones.
+        title: finding.title,
         // W20-21 (FND-28): the fixed versions follow the latest scan too, so an
         // advisory that gains a fix says so without a new row. Merged into the
         // payload rather than replacing it: the chainer's terms live there.
