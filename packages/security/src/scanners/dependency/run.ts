@@ -395,6 +395,18 @@ export async function runDependencyScan(deps: DependencyRunDeps): Promise<Depend
 
       const findingsPriced = await priceStoredFindings(deps, mapped.priced);
 
+      await closeRun(deps.db, runId, 'succeeded', mapped.findings.length, null, {
+        ...tools.toolVersions,
+        ...(reachability.toolVersion ? { govulncheck: reachability.toolVersion } : {}),
+        ...(symbols.toolVersion ? { opengrep: symbols.toolVersion } : {}),
+      });
+
+      // The scan is done once its findings are stored; the second opinion
+      // runs AFTER the run is closed. Before, the run stayed 'running' while a
+      // local model checked CVEs one by one — 20 minutes for six on a 27B
+      // model (2026-10-27 walkthrough) — and "Run scans now" stayed locked the
+      // whole time. Verdicts land on the stored findings either way; a worker
+      // that dies mid-verify leaves them "not independently verified".
       if (deps.verifyCves && verifyCandidates && verifyCandidates.length > 0) {
         try {
           cveVerify = await deps.verifyCves({
@@ -406,12 +418,6 @@ export async function runDependencyScan(deps: DependencyRunDeps): Promise<Depend
           cveVerify = { asked: 0, confirmed: 0, contradicted: 0, error: safeErrorText(err) };
         }
       }
-
-      await closeRun(deps.db, runId, 'succeeded', mapped.findings.length, null, {
-        ...tools.toolVersions,
-        ...(reachability.toolVersion ? { govulncheck: reachability.toolVersion } : {}),
-        ...(symbols.toolVersion ? { opengrep: symbols.toolVersion } : {}),
-      });
 
       return {
         status: 'succeeded' as const,
