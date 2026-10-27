@@ -214,6 +214,33 @@ describeIfReady('dependency scan (W8-06)', () => {
     );
   }, 300_000);
 
+  // 2026-10-27 walkthrough: the run stayed 'running' while a local model
+  // verified CVEs for 20 minutes, locking "Run scans now".
+  it('closes the run before the second opinion starts', async () => {
+    let statusWhenVerifyStarted: string | undefined;
+    const result = await runDependencyScan({
+      db,
+      provider: fakeProvider([]),
+      workspaceId,
+      repoId,
+      repo: 'acme/deps',
+      commitSha: `${SHA}-verify`,
+      image: scanImage as string,
+      vulnDb,
+      trigger: 'manual',
+      verifyCves: async ({ scanRunId }) => {
+        const [run] = await db
+          .select()
+          .from(security.scanRuns)
+          .where(eq(security.scanRuns.id, scanRunId));
+        statusWhenVerifyStarted = run?.status;
+        return { asked: 1, confirmed: 1, contradicted: 0 };
+      },
+    });
+    expect(result.status, result.error ?? '').toBe('succeeded');
+    expect(statusWhenVerifyStarted).toBe('succeeded');
+  });
+
   it('re-running the same commit creates NO new rows', async () => {
     // The store's contract. A dependency list that grows every night is one
     // people stop reading — and it would move the health score without anyone
