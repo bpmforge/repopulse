@@ -128,6 +128,26 @@ function hostOf(url: string | undefined): string | undefined {
   }
 }
 
+// SC-12 at connect time too. The worker's budgeted client refuses a base URL
+// that is not https (or is an IP, or localhost) on EVERY sync call, while the
+// discovery client here does not check — so an http:// Gitea connected, listed
+// its repositories, and then every backfill failed in the background with a
+// blank "Last error" (2026-10-27 walkthrough). Same rule, same escape hatch.
+const UNSAFE_BASE_URL_TITLE = 'RepoPulse cannot connect to this address';
+function unsafeBaseUrlReason(baseUrl: string | undefined): string | undefined {
+  if (!baseUrl) return undefined;
+  try {
+    validateBaseUrl(baseUrl, {
+      allowlist: [new URL(baseUrl).hostname],
+      ...(process.env.FORGE_ALLOW_INSECURE_LOOPBACK === '1' ? { allowInsecureLoopback: true } : {}),
+    });
+    return undefined;
+  } catch (err) {
+    if (!(err instanceof ForgeSsrfError)) throw err;
+    return `${baseUrl}: ${err.message}. RepoPulse only connects to a forge over https, by host name — not plain http, an IP address or localhost. If your forge uses a certificate from your own CA, add the CA instead (INSTALL.md → "A forge with an internal-CA certificate"); for a connection saved with such an address, remove it and connect again.`;
+  }
+}
+
 /** Same audit envelope every admin action writes (W12-09). */
 function auditContext(request: FastifyRequest, workspaceId: number) {
   return { ip: request.ip, ua: request.headers['user-agent'] ?? null, workspaceId };
@@ -376,31 +396,8 @@ export default async function connectionsRoutes(
         );
       }
 
-      // SC-12 at connect time too. The worker's budgeted client refuses a
-      // base URL that is not https (or is an IP, or localhost) on EVERY sync
-      // call, while this route's discovery client does not check — so an
-      // http:// Gitea connected, listed its repositories, and then every
-      // backfill failed in the background with a blank "Last error"
-      // (2026-10-27 walkthrough). Same rule, same escape hatch as the worker.
-      if (baseUrl) {
-        try {
-          validateBaseUrl(baseUrl, {
-            allowlist: [new URL(baseUrl).hostname],
-            ...(process.env.FORGE_ALLOW_INSECURE_LOOPBACK === '1'
-              ? { allowInsecureLoopback: true }
-              : {}),
-          });
-        } catch (err) {
-          if (!(err instanceof ForgeSsrfError)) throw err;
-          return fail(
-            request,
-            reply,
-            400,
-            'RepoPulse cannot connect to this address',
-            `${baseUrl}: ${err.message}. RepoPulse only connects to a forge over https, by host name — not plain http, an IP address or localhost. If your forge uses a certificate from your own CA, add the CA instead (INSTALL.md → "A forge with an internal-CA certificate").`,
-          );
-        }
-      }
+      const unsafe = unsafeBaseUrlReason(baseUrl);
+      if (unsafe) return fail(request, reply, 400, UNSAFE_BASE_URL_TITLE, unsafe);
 
       let auth: GitHubAuth;
       try {
@@ -738,6 +735,8 @@ export default async function connectionsRoutes(
 
       const kind = row.provider as ForgeKind;
       const baseUrl = resolveConnectionBaseUrl(kind, row.baseUrl, opts.forgeBaseUrl);
+      const unsafe = unsafeBaseUrlReason(baseUrl);
+      if (unsafe) return fail(request, reply, 400, UNSAFE_BASE_URL_TITLE, unsafe);
       let forge: ForgeProvider;
       try {
         forge = buildProvider(

@@ -66,6 +66,8 @@ describe('deploy/up.sh behaviour (W17-04)', () => {
       providerRc?: number;
       /** W17-28: what `image exists <name>` answers. Default: present. */
       imagesPresent?: boolean;
+      /** What `compose version` prints — podman-compose is told apart by it. */
+      providerVersion?: string;
     },
   ): string {
     const bin = path.join(dir, 'bin');
@@ -84,7 +86,7 @@ lookup() { grep -m1 "^$1=" "$TABLE" 2>/dev/null | cut -d= -f2; }
 if [ "$1" = "compose" ]; then
   shift
   if [ "$1" = "version" ]; then
-    echo "stub compose 1.0"
+    echo "${opts.providerVersion ?? 'stub compose 1.0'}"
     exit ${opts.providerRc ?? 0}
   fi
   # any 'compose ... up -d ...'; the arguments are kept for W20-16's overlay test.
@@ -342,6 +344,29 @@ exit 1
     for (const c of ups) expect(c).toContain('-f compose.yaml -f compose.claude-cli.yaml');
     // The flag itself never reaches compose.
     expect(calls.join('\n')).not.toContain('--with-claude-cli');
+  });
+
+  // 2026-10-27 walkthrough: podman-compose 1.6 left api and worker running
+  // with their old environment after deploy/.env gained NODE_EXTRA_CA_CERTS.
+  it('recreates containers under podman-compose so a deploy/.env change applies', async () => {
+    stubRuntime('podman', { services: allHealthy, providerVersion: 'podman-compose version 1.6.0' });
+    expect((await runUp({})).code).toBe(0);
+    const calls = readFileSync(path.join(dir, 'compose-args.txt'), 'utf8').trim().split('\n');
+    const up = calls.find((c) => c.includes(' up -d'))!;
+    expect(up).toContain('--force-recreate');
+  });
+
+  it('leaves recreation to docker compose, and to an explicit --no-recreate', async () => {
+    stubRuntime('podman', { services: allHealthy, providerVersion: 'Docker Compose version v2.29.1' });
+    expect((await runUp({})).code).toBe(0);
+    stubRuntime('podman', { services: allHealthy, providerVersion: 'podman-compose version 1.6.0' });
+    expect((await runUp({}, { args: ['--no-recreate'] })).code).toBe(0);
+    const ups = readFileSync(path.join(dir, 'compose-args.txt'), 'utf8')
+      .trim()
+      .split('\n')
+      .filter((c) => c.includes(' up -d'));
+    expect(ups).toHaveLength(2);
+    for (const c of ups) expect(c).not.toContain('--force-recreate');
   });
 
   it('refuses a COMPOSE_EXTRA_FILES entry that is not in deploy/', async () => {

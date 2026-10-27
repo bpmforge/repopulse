@@ -638,6 +638,25 @@ describeIfLiveInfra('connections routes (W2-01, FR-INGEST-1, FR-AUTH-5)', () => 
   });
 
   // UX_TODO INS-08: re-key in place.
+  it('PATCH refuses to re-key a connection saved with an http address before the check', async () => {
+    const cookie = await loginAs(app, ADMIN);
+    const connId = await newConnection(cookie, { provider: 'gitea', base_url: 'https://gitea.internal.example' });
+    await db
+      .update(core.forgeConnections)
+      .set({ baseUrl: 'http://gitea:3000' })
+      .where(eq(core.forgeConnections.id, connId));
+    providerBuilds.length = 0;
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/connections/${connId}`,
+      cookies: { repopulse_sid: cookie },
+      payload: { credential: ['ghp', 'rekeyHttpRow', 'WXYZ'].join('_') },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().detail).toContain('remove it and connect again');
+    expect(providerBuilds).toEqual([]);
+  });
+
   it('PATCH replaces the credential in place; a bad one leaves the old token working', async () => {
     const cookie = await loginAs(app, ADMIN);
     const connId = await newConnection(cookie);
