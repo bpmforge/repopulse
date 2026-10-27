@@ -27,6 +27,7 @@ describeIfLiveInfra('drill-down + /me API (W4-01, FR-API-5, FR-AUTH-6)', () => {
   let app: FastifyInstance;
   const db: Database = createDb(databaseUrl as string);
   let repoId: number;
+  let connId: number;
   // A repository nothing has ever measured (W17-18): no snapshots AND no
   // pushed_at, so not even the activity sub-score survives. Its health is
   // UNKNOWN, which is not the same fact as "scored 0".
@@ -121,6 +122,7 @@ describeIfLiveInfra('drill-down + /me API (W4-01, FR-API-5, FR-AUTH-6)', () => {
         createdBy: connUser!.id,
       })
       .returning();
+    connId = conn!.id;
     const [repo] = await db
       .insert(core.repos)
       .values({
@@ -230,8 +232,11 @@ describeIfLiveInfra('drill-down + /me API (W4-01, FR-API-5, FR-AUTH-6)', () => {
       await db.delete(facts.prReviews).where(eq(facts.prReviews.workspaceId, ws.id));
       await db.delete(facts.pullRequests).where(eq(facts.pullRequests.workspaceId, ws.id));
       await db.delete(core.identities).where(eq(core.identities.workspaceId, ws.id));
-      await db.delete(core.repos).where(eq(core.repos.workspaceId, ws.id));
-      await db.delete(core.forgeConnections).where(eq(core.forgeConnections.workspaceId, ws.id));
+      // Only this suite's connection and its repos: the 'default' workspace is
+      // shared with suites running concurrently, and deleting every repo in it
+      // failed on another suite's metric_snapshots row.
+      await db.delete(core.repos).where(eq(core.repos.connectionId, connId));
+      await db.delete(core.forgeConnections).where(eq(core.forgeConnections.id, connId));
     }
     for (const u of [FIXTURE, 'w4-01-conn']) {
       const [row] = await db.select().from(core.users).where(eq(core.users.forgeUserId, u));
