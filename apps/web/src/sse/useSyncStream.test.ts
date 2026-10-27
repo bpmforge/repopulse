@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { QueryClient } from '@tanstack/react-query';
 import {
   createSyncStream,
   isDirtyQuery,
+  pushFirstInsightToast,
   type EventSourceLike,
   type SyncStreamCallbacks,
 } from './useSyncStream.js';
@@ -263,5 +265,50 @@ describe('isDirtyQuery', () => {
     expect(isDirtyQuery(['/repos/{id}', { id: 3 }, {}], { repoIds: [3], org: false })).toBe(true);
     expect(isDirtyQuery(['/repos/{id}', { id: 4 }, {}], { repoIds: [3], org: false })).toBe(false);
     expect(isDirtyQuery(['/admin/members', {}, {}], { repoIds: [3], org: true })).toBe(false);
+  });
+});
+
+// 2026-10-27 walkthrough: tracking six repositories from Settings toasted
+// "Last 30 days ready for Repo 3" — a just-tracked repo is in no cache yet.
+describe('pushFirstInsightToast', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('names the repository from the cache without a request', async () => {
+    const qc = new QueryClient();
+    qc.setQueryData(['/repos', {}, { window: '30d' }], { items: [{ id: 3, org: 'acme', name: 'api' }] });
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+    const push = vi.fn();
+    await pushFirstInsightToast(qc, 3, push);
+    expect(push.mock.calls[0]![0][0].message).toBe('Last 30 days ready for acme/api — take a look');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('fetches /repos once when the repository is not cached yet', async () => {
+    const qc = new QueryClient();
+    const fetchSpy = vi.fn(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ items: [{ id: 3, org: 'walkadmin', name: 'mastodon-ios' }] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    );
+    vi.stubGlobal('fetch', fetchSpy);
+    const push = vi.fn();
+    await pushFirstInsightToast(qc, 3, push);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(String((fetchSpy.mock.calls[0] as unknown[])[0])).toContain('/repos');
+    expect(push.mock.calls[0]![0][0].message).toBe(
+      'Last 30 days ready for walkadmin/mastodon-ios — take a look',
+    );
+  });
+
+  it('still toasts, by id, when that request fails', async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('offline'))));
+    const push = vi.fn();
+    await pushFirstInsightToast(qc, 3, push);
+    expect(push.mock.calls[0]![0][0].message).toBe('Last 30 days ready for Repo 3 — take a look');
   });
 });

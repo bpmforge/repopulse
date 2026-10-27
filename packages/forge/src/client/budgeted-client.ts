@@ -43,6 +43,15 @@ export interface ForgeRequest {
   getHeaders?: () => Record<string, string> | Promise<Record<string, string>>;
   /** Request body for writes/GraphQL — forwarded to the executor (W1-06). */
   body?: unknown;
+  /**
+   * false: no conditional headers and nothing stored. For source archives:
+   * the cache's jsonb column cannot hold bytes (a Uint8Array serialises to
+   * `{}`), so a Gitea archive — 200 with Last-Modified — was stored empty and
+   * the next scanner's conditional request got a 304 and no archive
+   * (2026-10-27 walkthrough: dependency_cve failed "archive request returned
+   * 304"). Default true.
+   */
+  cache?: boolean;
 }
 
 export interface ForgeResponse extends ForgeHttpResponse {
@@ -176,7 +185,7 @@ export class BudgetedClient {
     });
     const url = new URL(req.url);
     const endpointKey = computeEndpointKey(req.method, url.pathname + url.search, req.params);
-    const cached = await this.etagCache.lookup(endpointKey);
+    const cached = req.cache === false ? null : await this.etagCache.lookup(endpointKey);
 
     const isWrite = req.method !== 'GET';
     const cost = req.cost ?? (isWrite ? this.writeCost : 1);
@@ -285,7 +294,7 @@ export class BudgetedClient {
         continue;
       }
 
-      if (res.status >= 200 && res.status < 300) {
+      if (res.status >= 200 && res.status < 300 && req.cache !== false) {
         const etag = res.headers.etag ?? res.headers.ETag;
         const lastModified = res.headers['last-modified'] ?? res.headers['Last-Modified'];
         if (etag || lastModified) {

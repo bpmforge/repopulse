@@ -6,6 +6,8 @@ import {
   type SseConnection,
   type Toast,
 } from '../components/store/uiStore.js';
+import { apiFetch, buildUrl } from '../api/client.js';
+import { queryKeyFor } from '../api/useApiQuery.js';
 
 // SSE client (DASHBOARD §6, NFR-10). ONE EventSource to /api/v1/events, mounted
 // in __root. Policy:
@@ -324,6 +326,10 @@ function invalidateQueries(queryClient: QueryClient, dirty: { repoIds: number[];
  * because a slightly worse message beats a missing moment.
  */
 function repoNameFromCache(queryClient: QueryClient, repoId: number): string {
+  return cachedRepoName(queryClient, repoId) ?? `Repo ${repoId}`;
+}
+
+function cachedRepoName(queryClient: QueryClient, repoId: number): string | undefined {
   const queries = queryClient.getQueriesData<{ items?: { id: number; name: string }[] }>({
     predicate: (query) => (query.queryKey as [string?])[0] === '/org/health-tiles',
   });
@@ -341,7 +347,41 @@ function repoNameFromCache(queryClient: QueryClient, repoId: number): string {
     const match = data?.items?.find((r) => Number(r.id) === repoId);
     if (match) return match.org ? `${match.org}/${match.name}` : match.name;
   }
-  return `Repo ${repoId}`;
+  return undefined;
+}
+
+/**
+ * The "last 30 days ready" toast, named. A repository tracked a minute ago is
+ * in neither cache — the admin is still on Settings — so tracking six at once
+ * produced "ready for Repo 3" six times (2026-10-27 walkthrough). Then, and
+ * only then, ask our own API for the list once; the forge is never called.
+ */
+export function pushFirstInsightToast(
+  queryClient: QueryClient,
+  repoId: number,
+  push: (toasts: Toast[]) => void,
+): Promise<void> {
+  const send = () =>
+    push([
+      {
+        id: `first-insight-${repoId}`,
+        tone: 'ok',
+        message: `Last 30 days ready for ${repoNameFromCache(queryClient, repoId)} — take a look`,
+        // W20-17 (UX_TODO INS-34): "take a look" now has somewhere to go.
+        action: { label: 'Open repository', to: `/repos/${repoId}` },
+      },
+    ]);
+  if (cachedRepoName(queryClient, repoId)) {
+    send();
+    return Promise.resolve();
+  }
+  return queryClient
+    .fetchQuery({
+      queryKey: queryKeyFor({ endpoint: '/repos' }),
+      queryFn: () => apiFetch(buildUrl('/repos')),
+      staleTime: 0,
+    })
+    .then(send, send);
 }
 
 /** Mount the single app-wide sync stream (called once, in __root). */
@@ -362,15 +402,7 @@ export function useSyncStream(createEventSource?: EventSourceFactory): void {
       onRepoProgress: (repoId, progress) => useUiStore.getState().setRepoProgress(repoId, progress),
       onRepoDone: (repoId) => useUiStore.getState().clearRepoProgress(repoId),
       onFirstInsight: (repoId) =>
-        useUiStore.getState().pushToasts([
-          {
-            id: `first-insight-${repoId}`,
-            tone: 'ok',
-            message: `Last 30 days ready for ${repoNameFromCache(queryClient, repoId)} — take a look`,
-            // W20-17 (UX_TODO INS-34): "take a look" now has somewhere to go.
-            action: { label: 'Open repository', to: `/repos/${repoId}` },
-          },
-        ]),
+        void pushFirstInsightToast(queryClient, repoId, (t) => useUiStore.getState().pushToasts(t)),
       onToasts: (toasts) => useUiStore.getState().pushToasts(toasts),
       invalidate: (dirty) => invalidateQueries(queryClient, dirty),
       repoName: (repoId) => repoNameFromCache(queryClient, repoId),

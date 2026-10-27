@@ -118,8 +118,11 @@ To check only the key against a running project, without restoring:
 2. Take a backup: `./deploy/backup.sh` in the old directory.
 3. Copy `deploy/.env` from the old directory into the new one.
    Also carry over what lives **inside** the old directory unless you set an
-   absolute path for it: `deploy/scan-rules` (or your `SCAN_RULES_DIR`) — the
-   vulnerability database and rulepacks; `deploy/ca` (or `EXTRA_CA_DIR`) —
+   absolute path for it: the downloaded vulnerability data in
+   `deploy/scan-rules` (or your `SCAN_RULES_DIR`) — its `vuln-db`, `malicious`
+   and `package-index` folders, **not** `rulepacks` or `rulepacks.sha256`,
+   which the new bundle ships newer and `install.sh` checks against its
+   checksum; `deploy/ca` (or `EXTRA_CA_DIR`) —
    your internal-CA PEM, without which TLS to a self-hosted forge fails; and
    your backups. Then point the cron lines at the new directory. Setting
    `SCAN_RULES_DIR` and `EXTRA_CA_DIR` to absolute paths outside any bundle

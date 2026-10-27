@@ -543,6 +543,25 @@ describeIfLiveInfra('connections routes (W2-01, FR-INGEST-1, FR-AUTH-5)', () => 
     smokeBehavior = () => Promise.resolve(REPOS);
   });
 
+  // 2026-10-27 walkthrough: the worker refuses a non-https base URL on every
+  // sync call, so connect must refuse it too instead of listing the repos.
+  for (const baseUrl of ['http://gitea:3000', 'https://10.0.0.5', 'https://localhost:3000']) {
+    it(`refuses ${baseUrl} before calling the forge, saying what is accepted`, async () => {
+      const cookie = await loginAs(app, ADMIN);
+      providerBuilds.length = 0;
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/connections',
+        cookies: { repopulse_sid: cookie },
+        payload: { provider: 'gitea', auth_kind: 'pat', credential: TOKEN, base_url: baseUrl },
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().title).toBe('RepoPulse cannot connect to this address');
+      expect(res.json().detail).toContain('only connects to a forge over https');
+      expect(providerBuilds).toEqual([]);
+    });
+  }
+
   // UX_TODO INS-52 + INS-10: every page, with the tracked ones marked.
   it('available-repos pages through every repo and marks the tracked ones', async () => {
     const cookie = await loginAs(app, ADMIN);
@@ -619,6 +638,25 @@ describeIfLiveInfra('connections routes (W2-01, FR-INGEST-1, FR-AUTH-5)', () => 
   });
 
   // UX_TODO INS-08: re-key in place.
+  it('PATCH refuses to re-key a connection saved with an http address before the check', async () => {
+    const cookie = await loginAs(app, ADMIN);
+    const connId = await newConnection(cookie, { provider: 'gitea', base_url: 'https://gitea.internal.example' });
+    await db
+      .update(core.forgeConnections)
+      .set({ baseUrl: 'http://gitea:3000' })
+      .where(eq(core.forgeConnections.id, connId));
+    providerBuilds.length = 0;
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/connections/${connId}`,
+      cookies: { repopulse_sid: cookie },
+      payload: { credential: ['ghp', 'rekeyHttpRow', 'WXYZ'].join('_') },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().detail).toContain('remove it and connect again');
+    expect(providerBuilds).toEqual([]);
+  });
+
   it('PATCH replaces the credential in place; a bad one leaves the old token working', async () => {
     const cookie = await loginAs(app, ADMIN);
     const connId = await newConnection(cookie);

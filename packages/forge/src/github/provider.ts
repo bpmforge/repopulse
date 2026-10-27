@@ -418,6 +418,7 @@ export class GitHubProvider implements ForgeProvider {
       family: 'contents',
       cost: 1,
       getHeaders: this.getHeaders,
+      cache: false,
     });
     return resolveTarball({
       commitSha: sha,

@@ -317,6 +317,20 @@ fi
 # the compose wrapper still cannot be trusted on its own — the run that left the
 # worker dead exited 0 — so the verification below remains the real gate, but a
 # non-zero compose now prints what compose actually said.
+# podman-compose does not recreate a running container when deploy/.env
+# changes; docker compose does (it hashes the resolved config). Measured with
+# podman-compose 1.6.0 on 2026-10-27: after INSTALL.md's internal-CA step
+# (append NODE_EXTRA_CA_CERTS, run up.sh) only `migrate` ran again, api and
+# worker kept their old environment, and the forge TLS error never cleared.
+# Every "edit deploy/.env, then up.sh" instruction depends on this. Volumes
+# are untouched by a recreate.
+if [ "$RT" = podman ] && printf '%s' "$provider_err" | grep -qi 'podman-compose'; then
+  case " $* " in
+    *" --force-recreate "* | *" --no-recreate "*) ;;
+    *) set -- "$@" --force-recreate ;;
+  esac
+fi
+
 set +e
 compose_out="$("${COMPOSE[@]}" -p "$REPOPULSE_PROJECT" "${COMPOSE_FILES[@]}" up -d "$@" 2>&1)"
 compose_rc=$?
