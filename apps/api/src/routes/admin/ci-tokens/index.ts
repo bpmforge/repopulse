@@ -6,7 +6,7 @@ import { sendProblem } from '../../../lib/problem.js';
 import { actorLoginFor } from '../../../lib/actor.js';
 import { mintCiToken } from '../../../lib/ci-token.js';
 
-// Admin → CI tokens (W18-18, D16 "CI pull").
+// Settings → CI tokens (W18-18, D16 "CI pull").
 //
 // ADMIN-ONLY AND AUDITED like every other credential surface (llm-providers,
 // connections): a CI token reads findings from outside the product, unattended,

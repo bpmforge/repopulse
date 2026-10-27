@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { WidgetFrame } from '../../../components/index.js';
 import { linesOf, type AiAuthorshipPatterns, type StoredSettings } from './contracts.js';
 
-// Admin → Settings → AI authorship patterns (W18-20).
+// Settings → Scoring → AI authorship patterns (W18-20).
 //
 // The list the AI-code governance report classifies with. Saved as ONE
 // object: the API's PATCH merges top-level keys, so saving one list on its own

@@ -16,7 +16,7 @@ import { AiAuthorshipPatternsPanel } from './AiAuthorshipPatterns.js';
 import { LicensePolicyPanel } from './LicensePolicy.js';
 import { DebtTargetsPanel } from './DebtTargets.js';
 
-// Admin → Settings (W4-09, UX_SPEC §4.i). The knobs that decide what every
+// Settings → Scoring (W4-09, UX_SPEC §4.i). The knobs that decide what every
 // other number on every other screen means: health-score weights, which logins
 // count as bots, when a PR is stale.
 //
@@ -373,7 +373,7 @@ export function Settings() {
       {/* WHERE EACH OF THESE ACTUALLY LIVES (W16-57).
           This was three disabled inputs under the heading "Analysis (lands
           with the analysis wave)", every one captioned "lands with analysis
-          wave". The wave landed: LM Studio hosts moved to Admin → Models —
+          wave". The wave landed: LM Studio hosts moved to Settings → Models —
           which is two tabs away, needs no restart, and was used to configure a
           model minutes before this screen said the feature was pending — and
           the concurrency cap is an environment variable with a default. The
@@ -389,7 +389,7 @@ export function Settings() {
           <li>
             <span className="text-fg">Models and endpoints</span> —{' '}
             <Link to="/admin/models" className="text-accent hover:underline">
-              Admin → Models
+              Settings → Models
             </Link>
             . Add a local or hosted OpenAI-compatible endpoint, test it, and see what answered.
           </li>

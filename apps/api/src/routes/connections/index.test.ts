@@ -75,6 +75,20 @@ function fakeProvider(
       pageBehavior ? pageBehavior(cursor) : smokeBehavior().then((items) => ({ items })),
     registerWebhook,
     deleteWebhooks,
+    // A public repository the token can read but does not list as its own.
+    getRepo: (_ctx: unknown, fullName: string) =>
+      fullName === 'oss/outline'
+        ? Promise.resolve({
+            externalId: '777',
+            name: 'outline',
+            fullName: 'oss/outline',
+            defaultBranch: 'main',
+            isPrivate: false,
+            isArchived: false,
+            pushedAt: '2026-10-01T00:00:00Z',
+            htmlUrl: '',
+          } satisfies ForgeRepo)
+        : Promise.reject(new ForgeHttpError(404, 'repo', 'Not Found')),
     capabilities: { webhookScheme: kind === 'gitlab' ? 'gitlab-token' : 'hub-signature' },
   } as unknown as ForgeProvider;
 }
@@ -270,6 +284,55 @@ describeIfLiveInfra('connections routes (W2-01, FR-INGEST-1, FR-AUTH-5)', () => 
     expect(repos).toHaveLength(2);
     expect(repos.every((r) => r.syncStatus === 'pending_backfill')).toBe(true);
     expect(res.json().webhook_failed).toEqual([]);
+  });
+
+  // 2026-10-27 walkthrough: try RepoPulse on a public project first.
+  it('tracks a public repository by owner/name that the token does not list', async () => {
+    const cookie = await loginAs(app, ADMIN);
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/v1/connections',
+      cookies: { repopulse_sid: cookie },
+      payload: { auth_kind: 'pat', credential: TOKEN },
+    });
+    const connId = created.json().id as number;
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/connections/${connId}/repos`,
+      cookies: { repopulse_sid: cookie },
+      payload: { repo_full_names: ['oss/outline'] },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().repo_ids).toHaveLength(1);
+    const repos = await db.select().from(core.repos).where(eq(core.repos.connectionId, connId));
+    expect(repos.map((r) => `${r.org}/${r.name}`)).toEqual(['oss/outline']);
+    expect(repos[0]!.syncStatus).toBe('pending_backfill');
+  });
+
+  it('says plainly when a named repository cannot be read', async () => {
+    const cookie = await loginAs(app, ADMIN);
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/v1/connections',
+      cookies: { repopulse_sid: cookie },
+      payload: { auth_kind: 'pat', credential: TOKEN },
+    });
+    const connId = created.json().id as number;
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/connections/${connId}/repos`,
+      cookies: { repopulse_sid: cookie },
+      payload: { repo_full_names: ['nobody/missing'] },
+    });
+    expect(res.statusCode).toBe(404);
+    expect(JSON.stringify(res.json())).toMatch(/nobody\/missing/);
+    const bad = await app.inject({
+      method: 'POST',
+      url: `/api/v1/connections/${connId}/repos`,
+      cookies: { repopulse_sid: cookie },
+      payload: { repo_full_names: ['not a repo'] },
+    });
+    expect(bad.statusCode).toBe(400);
   });
 
   // INS-29: a refused webhook is named in the response, not only on the row.

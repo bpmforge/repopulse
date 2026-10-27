@@ -122,7 +122,7 @@ export function AskSecondOpinion({
             : ''}
           .{' '}
           <Link to="/admin/models" className="underline underline-offset-2">
-            Add a model in Admin → Models
+            Add a model in Settings → Models
           </Link>
           .
         </p>

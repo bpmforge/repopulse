@@ -4,7 +4,7 @@ import { ErrorNote, WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import { summarizeRole, type EgressLink, type EgressProvider } from './egress.js';
 
-// Admin → Models → Routing (W19-02).
+// Settings → Models → Routing (W19-02).
 //
 // Which connection and model serves which ROLE, as an ordered fallback chain,
 // plus the local-only switch. A plain settings section: the guided wizard is

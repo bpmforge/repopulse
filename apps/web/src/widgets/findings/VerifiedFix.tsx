@@ -66,7 +66,7 @@ function DrafterNote({ drafter }: { drafter: Drafter | undefined }) {
     return (
       <p className="mt-1 text-xs text-fg-muted" data-testid="verified-fix-drafter">
         No model is set up to draft fixes, so a request will fail and say so. An admin adds one in
-        Admin → Models.
+        Settings → Models.
       </p>
     );
   }
@@ -121,7 +121,7 @@ function lineClass(line: string): string {
  * try could ever work.
  */
 export const FAILED_PATCH_WORDS: Record<string, string> = {
-  no_gateway: 'no model is set up to draft fixes. Ask an admin to add one in Admin → Models.',
+  no_gateway: 'no model is set up to draft fixes. Ask an admin to add one in Settings → Models.',
   model_busy: 'the model was busy or down. Try again in a few minutes.',
   no_connection:
     'this repository has no working forge connection, so its file could not be read. Ask an admin to check it.',

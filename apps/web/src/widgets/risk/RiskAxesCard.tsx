@@ -37,7 +37,7 @@ export function RiskAxesCard({ repoId, repos }: { repoId?: string; repos?: strin
   const state = frameState({ isLoading, isError, isEmpty: axes.length === 0 });
   // The next step follows from WHY nothing is measured (DSH-72): no
   // repositories at all is a connection question; repositories that nothing
-  // has examined is a scanner question. "Admin → Connections" was the answer
+  // has examined is a scanner question. "Settings → Connections" was the answer
   // to both, and wrong for the common one.
   const noRepos = data?.repos_in_scope === 0;
 

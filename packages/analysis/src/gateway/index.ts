@@ -326,7 +326,7 @@ export function createAnalysisGateway(deps: GatewayDeps): AnalysisGateway {
       // model nobody chose for it.
       if (chain.length === 0) {
         throw new Error(
-          `Role "${role}" is routed to specific connections but none of them is usable (disabled, deleted or misconfigured) — fix it in Admin → Models → Routing.`,
+          `Role "${role}" is routed to specific connections but none of them is usable (disabled, deleted or misconfigured) — fix it in Settings → Models → Routing.`,
         );
       }
 

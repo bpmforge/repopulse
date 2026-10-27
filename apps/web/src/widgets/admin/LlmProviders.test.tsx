@@ -117,7 +117,7 @@ beforeEach(() => {
 
 afterEach(() => vi.unstubAllGlobals());
 
-describe('Admin → Models (W16-07)', () => {
+describe('Settings → Models (W16-07)', () => {
   it('says why an unsupported provider is unavailable, before the form is filled', async () => {
     renderScreen();
     // Wait for the KINDS response, not just the form: the select renders empty

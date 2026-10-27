@@ -12,10 +12,10 @@ import {
   type StoredRoute,
 } from '../../../lib/llm-routing.js';
 
-// Admin → Models → Routing (W19-02).
+// Settings → Models → Routing (W19-02).
 //
 // WHICH connection and model serves WHICH role, as an ordered chain, plus the
-// local-only switch. Admin-only and audited for the same reason Admin → Models
+// local-only switch. Admin-only and audited for the same reason Settings → Models
 // is: this decides where diffs go. A change takes effect within about a minute
 // (the worker's gateway cache), with no restart.
 
@@ -133,7 +133,7 @@ export default async function llmRoutingRoutes(
             reply,
             400,
             `Role "${role}" names connection "${p.name}", which is disabled`,
-            'Enable it in Admin → Models first.',
+            'Enable it in Settings → Models first.',
           );
         }
         const model =

@@ -462,6 +462,6 @@ if [ -n "$admin_email" ]; then
 else
   echo "  1. Sign in with your configured single sign-on."
 fi
-echo "  2. Open Admin → Setup and work down the checklist."
-echo "  3. Connect a forge (Admin → Connections) and choose repositories."
+echo "  2. Open Settings → Setup and work down the checklist."
+echo "  3. Connect a forge (Settings → Connections) and choose repositories."
 echo "  4. Watch the first sync in Settings → Sync."

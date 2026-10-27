@@ -2,7 +2,7 @@ import { Fragment } from 'react';
 import { WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 
-// Admin → Models → quality per model (W19-05).
+// Settings → Models → quality per model (W19-05).
 //
 // What each model measured on the labelled fixtures, per role, with the engine
 // and date of the run. Anything unmeasured says "not yet run" — an empty cell

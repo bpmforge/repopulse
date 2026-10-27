@@ -985,7 +985,7 @@ export default async function aiPassRoutes(
             ? 'That connection cannot be asked for a second opinion here.' +
                 (why ? ` Not available: ${why}.` : '')
             : `A second opinion needs a model other than ${row.v.model}.` +
-                (why ? ` Not available: ${why}.` : ' Add one in Admin → Models.'),
+                (why ? ` Not available: ${why}.` : ' Add one in Settings → Models.'),
         );
       }
 

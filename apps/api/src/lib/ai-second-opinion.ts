@@ -73,7 +73,7 @@ export async function secondOpinionOptions(
         provider_name: p.name,
         model: p.model,
         reason:
-          'it is off your network, and this repository is not opted in to Tier 3 (Admin → Analysis)',
+          'it is off your network, and this repository is not opted in to Tier 3 (Settings → Analysis)',
       });
       continue;
     }

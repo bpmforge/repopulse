@@ -278,7 +278,7 @@ export function aiPassProcessor(deps: AiPassDeps) {
       if (!wg) {
         return fail(
           'no_gateway',
-          'No model is configured for this workspace, so there was nothing to run the pass on. Add one in Admin → Models.',
+          'No model is configured for this workspace, so there was nothing to run the pass on. Add one in Settings → Models.',
         );
       }
 
@@ -880,7 +880,7 @@ async function secondOpinionStep(a: {
   if (!wg) {
     return a.fail(
       'no_connection',
-      'The chosen model connection could not be used (it did not resolve). See Admin → Models.',
+      'The chosen model connection could not be used (it did not resolve). See Settings → Models.',
     );
   }
 

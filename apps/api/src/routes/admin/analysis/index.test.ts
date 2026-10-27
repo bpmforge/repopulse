@@ -7,7 +7,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import analysisAdminRoutes from './index.js';
 import errorEnvelopePlugin from '../../../plugins/error-envelope.js';
 
-// W20-06 (UX_TODO AI-86). The reassurance line at the top of Admin → Analysis
+// W20-06 (UX_TODO AI-86). The reassurance line at the top of Settings → Analysis
 // must say what leaves the network by WHERE each endpoint is (the egress audit's
 // rule), not by the allow_public_host flag, and must name what is off-network.
 
@@ -15,7 +15,7 @@ const databaseUrl = process.env.DATABASE_URL;
 const describeIfLiveInfra = databaseUrl ? describe : describe.skip;
 const WS_SLUG = 'w20-06-analysis';
 
-describeIfLiveInfra('Admin → Analysis gateway line (W20-06)', () => {
+describeIfLiveInfra('Settings → Analysis gateway line (W20-06)', () => {
   let app: FastifyInstance;
   const db = createDb(databaseUrl as string);
   let workspaceId = 0;

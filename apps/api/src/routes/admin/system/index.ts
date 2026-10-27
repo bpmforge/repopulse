@@ -472,14 +472,14 @@ export default async function systemRoutes(
         reason:
           providers.length === 0
             ? envHosts.length > 0
-              ? `Using LMSTUDIO_BASE_URLS / LMSTUDIO_MODEL from .env (${envHosts.length} host${envHosts.length === 1 ? '' : 's'}, model ${envHosts[0]!.modelSlot}). This route is deprecated and is not shown in Models: add the model in Admin → Models (which then replaces it), or remove both lines from .env and restart the worker to turn AI off.`
+              ? `Using LMSTUDIO_BASE_URLS / LMSTUDIO_MODEL from .env (${envHosts.length} host${envHosts.length === 1 ? '' : 's'}, model ${envHosts[0]!.modelSlot}). This route is deprecated and is not shown in Models: add the model in Settings → Models (which then replaces it), or remove both lines from .env and restart the worker to turn AI off.`
               : 'No model configured. This is OPTIONAL — delivery metrics, hotspots and deterministic scanners all work without one. Only AI code review is unavailable.'
             : enabled.length === 0
               ? `${providers.length} configured, none enabled. AI review will not run.`
               : cliGone
                 ? `The worker cannot find the Claude Code CLI (${workerCli.reason ?? 'not found'}), so ${cliConns.map((c) => c.name).join(', ')} will fail. If the stack was restarted without the CLI overlay, start it again with it (deploy/up.sh --with-claude-cli).`
                 : failing.length > 0
-                  ? `${failing.map((p) => p.name).join(', ')}: the last call failed (${(failing[0]!.lastError ?? 'no detail').slice(0, 160)}). Test it in Admin → Models; the model may be down, still loading or out of memory.`
+                  ? `${failing.map((p) => p.name).join(', ')}: the last call failed (${(failing[0]!.lastError ?? 'no detail').slice(0, 160)}). Test it in Settings → Models; the model may be down, still loading or out of memory.`
                   : `${enabled.length} of ${providers.length} enabled (${[...new Set(enabled.map((p) => p.kind))].join(', ')}).${newestSuccess === 0 ? ' No call has succeeded yet.' : ''}`,
         // The newest successful real call across the enabled connections.
         lastSuccessAt: newestSuccess === 0 ? null : new Date(newestSuccess).toISOString(),

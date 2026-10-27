@@ -19,7 +19,7 @@ describe('stall fragments (W17-41)', () => {
     expect(budget).toContain('backfill job commits gave up: forge rate-limit budget exhausted');
   });
 
-  it('caps a long cause so one error cannot swamp the Admin → Sync column', () => {
+  it('caps a long cause so one error cannot swamp the Settings → Sync column', () => {
     const text = stallErrorText(QUEUE.enrich, 'prDetail', new Error('x'.repeat(5000)));
     expect(text.length).toBeLessThan(400);
   });

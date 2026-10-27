@@ -10,7 +10,7 @@ import { errorToast, type Toast } from '../../components/store/uiStore.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import { ErrorDetails } from './ErrorDetails.js';
 
-// Admin → Sync → Dead-letter queue (W4-20, NFR-11).
+// Settings → Sync → Dead-letter queue (W4-20, NFR-11).
 //
 // W12-05 made the DLQ a deliberate SINK: exhausted jobs are copied there and
 // nothing consumes them, precisely so a human can look. This panel is the

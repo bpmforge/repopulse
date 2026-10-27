@@ -276,6 +276,19 @@ describeIfLiveInfra('GET /me/inbox (W20-10)', () => {
     );
   });
 
+  it('/me/context counts the succeeded scans and the models behind the onboarding steps', async () => {
+    // The findings above each come from a succeeded scan run in this workspace.
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/me/context',
+      cookies: { repopulse_sid: cookie },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.succeeded_scan_count).toBeGreaterThan(0);
+    expect(typeof body.model_count).toBe('number');
+  });
+
   it('is for signed-in users only', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/v1/me/inbox' });
     expect(res.statusCode).toBe(401);

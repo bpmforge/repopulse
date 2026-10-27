@@ -1,4 +1,4 @@
-// Admin → Settings contracts (W4-09).
+// Settings → Scoring contracts (W4-09).
 // Source of truth: apps/api/src/routes/admin/workspace/index.ts.
 
 export interface HealthWeights {

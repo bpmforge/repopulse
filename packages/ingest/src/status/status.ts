@@ -14,7 +14,7 @@ export interface SyncStatus {
   repoId: string;
   /**
    * `org/name` (W16-05, F11). The status object carried only the numeric id, so
-   * Admin → Sync listed repositories as 25152 / 25153 / 25154 — an internal
+   * Settings → Sync listed repositories as 25152 / 25153 / 25154 — an internal
    * identifier shown to a person, on the one screen where they are trying to
    * work out which repository is stuck.
    */

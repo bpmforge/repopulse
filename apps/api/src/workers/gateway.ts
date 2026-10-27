@@ -260,7 +260,7 @@ export async function buildWorkerGateway(
   } else if (hosts.length === 0 && !(await hasProviderRows(db, workspaceId))) {
     // W20-21 (UX_TODO AI-78): the deprecated environment route only while the
     // workspace has NO connection rows at all. A workspace whose connections
-    // are all disabled, or unusable, has made a choice in Admin → Models, and
+    // are all disabled, or unusable, has made a choice in Settings → Models, and
     // falling back to .env quietly overruled it.
     hosts = hostsFromEnv(env);
     source = 'env';
@@ -276,7 +276,7 @@ export async function buildWorkerGateway(
   // THE PRODUCTION EGRESS WRITER (W17-11).
   //
   // egress_audit had a reader and no writer: the only thing that ever wrote one
-  // was createT3Client, whose only caller was its own test. So Admin → Analysis
+  // was createT3Client, whose only caller was its own test. So Settings → Analysis
   // reported an empty table on an install that had been sending diffs to a
   // configured PUBLIC provider all along.
   //
@@ -403,7 +403,7 @@ export interface GatewayResolverOptions {
    * Not zero, because building one decrypts a credential and resolves every
    * provider row, and a weekly pass over forty repos would do that forty times.
    * Not infinite either: D-LLM-1's premise is that you configure your model in
-   * Admin → Models, and a cache with no expiry would mean an admin who adds a
+   * Settings → Models, and a cache with no expiry would mean an admin who adds a
    * provider has to restart the worker before anything uses it — which is the
    * file-editing-and-restarting the whole feature exists to remove.
    */
@@ -413,9 +413,9 @@ export interface GatewayResolverOptions {
    * purpose.
    *
    * The W17-30 journey found the case: the worker boots, caches "no provider"
-   * for the default workspace, the operator adds a model in Admin → Models
+   * for the default workspace, the operator adds a model in Settings → Models
    * and runs a scan — and for the rest of the minute the row reads "No model
-   * is configured … add one in Admin → Models", which they just did. A built
+   * is configured … add one in Settings → Models", which they just did. A built
    * gateway is expensive to rebuild (a decrypt, every row resolved); a null is
    * one SELECT, so it can be re-asked within seconds while a sweep over forty
    * repos still shares the answer.
@@ -464,7 +464,7 @@ export function createGatewayResolver(
 export async function reportGatewayHealth(built: WorkerGateway | null): Promise<string> {
   if (!built) {
     return (
-      `analysis gateway: NOT CONFIGURED — add a model in Admin → Models ` +
+      `analysis gateway: NOT CONFIGURED — add a model in Settings → Models ` +
       `(${missingGatewayConfig()}); scheduled judgement passes will skip and say so`
     );
   }

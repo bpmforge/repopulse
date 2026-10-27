@@ -48,7 +48,7 @@ const INITIATOR = 'second-model-verify';
 export const AI_OFF_REASON =
   'AI analysis is switched off for this workspace, so no second opinion was asked for.';
 export const CAP_REASON =
-  "This month's AI call cap is used up, so no second opinion was asked for. It resets on the 1st, or an admin can raise it in Admin → AI.";
+  "This month's AI call cap is used up, so no second opinion was asked for. It resets on the 1st, or an admin can raise it in Settings → Analysis.";
 
 export interface SecondModelVerifier {
   verify: SecondModelVerify;
@@ -163,7 +163,7 @@ export function createSecondModelVerifier(opts: SecondModelOptions): SecondModel
     const gateway = await pinnedGateway(host);
     if (!gateway) {
       return refuse(
-        `The second AI connection (${host.name ?? 'unnamed'}) could not be used, so no second opinion was asked for. See Admin → Models.`,
+        `The second AI connection (${host.name ?? 'unnamed'}) could not be used, so no second opinion was asked for. See Settings → Models.`,
       );
     }
 
@@ -241,7 +241,7 @@ export function createSecondModelVerifier(opts: SecondModelOptions): SecondModel
       const gateway = await pinnedGateway(chosen.host);
       if (!gateway) {
         return {
-          refused: `The AI connection (${chosen.host.name ?? 'unnamed'}) could not be used. See Admin → Models.`,
+          refused: `The AI connection (${chosen.host.name ?? 'unnamed'}) could not be used. See Settings → Models.`,
         };
       }
       return { gateway, host: chosen.host, remaining };

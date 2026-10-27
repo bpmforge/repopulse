@@ -490,7 +490,7 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
     const runId = await newRun();
     const r = await aiPassProcessor(deps({ gatewayFor: async () => null }).d)(job(runId));
     expect(r).toMatchObject({ status: 'failed', code: 'no_gateway' });
-    expect((await runOf(runId)).reason).toMatch(/Add one in Admin → Models/);
+    expect((await runOf(runId)).reason).toMatch(/Add one in Settings → Models/);
   });
 
   it('records a named reason when the sources cannot be loaded', async () => {

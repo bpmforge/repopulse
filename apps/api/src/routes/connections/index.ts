@@ -580,7 +580,34 @@ export default async function connectionsRoutes(
         }
         throw err;
       }
-      const candidates = listed.items.map((r) => {
+      // Repositories named by owner/name that the listing does not include:
+      // readable by this token (a public project), but not the token's own.
+      const listedNames = new Set(listed.items.map((r) => r.fullName.toLowerCase()));
+      const byName: typeof listed.items = [];
+      for (const fullName of request.body.repo_full_names ?? []) {
+        if (listedNames.has(fullName.toLowerCase())) {
+          byName.push(listed.items.find((r) => r.fullName.toLowerCase() === fullName.toLowerCase())!);
+          continue;
+        }
+        try {
+          byName.push(await forge.getRepo(CTX, fullName));
+        } catch (err) {
+          if (err instanceof ForgeHttpError) {
+            return fail(
+              request,
+              reply,
+              404,
+              `${fullName} was not found`,
+              `The forge did not return ${fullName} for this token. Check the spelling (owner/name), and that the repository is public or the token can read it.`,
+            );
+          }
+          throw err;
+        }
+      }
+      const candidates = [
+        ...listed.items,
+        ...byName.filter((r) => !listedNames.has(r.fullName.toLowerCase())),
+      ].map((r) => {
         const { org, name } = splitRepoFullName(r.fullName, r.name);
         return {
           forgeRepoId: r.externalId,
@@ -619,7 +646,14 @@ export default async function connectionsRoutes(
           connectionId: request.params.id,
           candidates,
           selection: {
-            ...(request.body.repo_forge_ids ? { forgeRepoIds: request.body.repo_forge_ids } : {}),
+            ...(request.body.repo_forge_ids || byName.length > 0
+              ? {
+                  forgeRepoIds: [
+                    ...(request.body.repo_forge_ids ?? []),
+                    ...byName.map((r) => r.externalId),
+                  ],
+                }
+              : {}),
             ...(request.body.all_with_auto_add ? { allAutoAdd: true } : {}),
           },
         },

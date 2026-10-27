@@ -57,6 +57,11 @@ export function matchesFilter(repo: { org: string; name: string }, filter: strin
 export function RepoPicker({ connectionId, connectionsKey, sourceLabel, autoFocus }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState('');
+  // A public repository the token can read but does not list as its own, by
+  // owner/name: how a team tries RepoPulse on a project it knows before its own
+  // code (2026-10-27 walkthrough). It gets no webhook, so it updates nightly.
+  const [byName, setByName] = useState('');
+  const [trackedByName, setTrackedByName] = useState<string[]>([]);
   const rootRef = useRef<HTMLDivElement>(null);
 
   const descriptor = {
@@ -66,7 +71,7 @@ export function RepoPicker({ connectionId, connectionsKey, sourceLabel, autoFocu
   const { data, isLoading, isError, error, refetch } = useApiQuery<AvailableRepos>(descriptor);
 
   const select = useApiMutation<
-    { repo_forge_ids: string[] } | { all_with_auto_add: true },
+    { repo_forge_ids: string[] } | { all_with_auto_add: true } | { repo_full_names: string[] },
     { repo_ids: number[]; webhook_failed?: string[] }
   >(
     { endpoint: '/connections/{id}/repos', path: { id: connectionId } },
@@ -86,7 +91,9 @@ export function RepoPicker({ connectionId, connectionsKey, sourceLabel, autoFocu
   const untracked = items.filter((r) => !r.tracked);
   const trackedCount = items.length - untracked.length;
   const shown = items.filter((r) => matchesFilter(r, filter));
-  const failed = select.data?.webhook_failed ?? [];
+  const named = new Set(trackedByName.map((n) => n.toLowerCase()));
+  const failed = (select.data?.webhook_failed ?? []).filter((n) => !named.has(n.toLowerCase()));
+  const byNameValid = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(byName.trim());
 
   return (
     // The focus target wraps the frame, so it exists in the loading, empty and
@@ -255,6 +262,73 @@ export function RepoPicker({ connectionId, connectionsKey, sourceLabel, autoFocu
           </div>
         </div>
       </WidgetFrame>
+      {!isLoading && !isError && (
+        <div className="mt-2 flex flex-col gap-1">
+          <form
+            className="flex w-full flex-wrap items-center gap-2 text-xs text-fg-muted"
+            data-testid="repo-by-name"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!byNameValid || select.isPending) return;
+              const name = byName.trim();
+              select.mutate(
+                { repo_full_names: [name] },
+                {
+                  onSuccess: () => {
+                    setTrackedByName([name]);
+                    setByName('');
+                  },
+                },
+              );
+            }}
+          >
+            <label className="flex flex-wrap items-center gap-2">
+              Or track a public repository by name
+              <input
+                value={byName}
+                onChange={(e) => setByName(e.target.value)}
+                placeholder="owner/name"
+                aria-describedby="repo-by-name-hint"
+                className="rounded-sm border border-border bg-surface-2 px-2 py-1 font-mono text-sm text-fg"
+                data-testid="repo-by-name-input"
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={!byNameValid || select.isPending}
+              className="rounded-md border border-border px-3 py-1 text-sm hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              data-testid="repo-by-name-submit"
+            >
+              Track
+            </button>
+            <span id="repo-by-name-hint">
+              For trying RepoPulse on an open-source project you know. It is read with this token
+              and updates nightly.
+            </span>
+          </form>
+          {/* With nothing listed the frame shows its empty state, so a by-name
+              error has to be said here. */}
+          {select.isError && items.length === 0 && (
+            <span className="text-xs text-crit" role="alert" data-testid="repo-by-name-error">
+              {select.error.message}
+              {errorDetailOf(select.error) ? ` — ${errorDetailOf(select.error)}` : ''}
+            </span>
+          )}
+          {trackedByName.length > 0 && select.isSuccess && (
+            <p
+              className="text-xs text-fg-muted"
+              role="status"
+              data-testid="repo-select-by-name-note"
+            >
+              {trackedByName[0]} is tracked. It is not yours, so the forge sends no live updates: it
+              updates on the nightly sync.{' '}
+              <Link to="/admin/sync" className="text-accent underline-offset-2 hover:underline">
+                Watch progress in Sync →
+              </Link>
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

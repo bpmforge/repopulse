@@ -6,7 +6,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { createQueryClient } from '../../api/queryClient.js';
 import { AnalysisPolicy } from './AnalysisPolicy.js';
 
-// W20-06 (UX_TODO AI-09, AI-10, AI-71, AI-72, AI-86). Admin → Analysis must say
+// W20-06 (UX_TODO AI-09, AI-10, AI-71, AI-72, AI-86). Settings → Analysis must say
 // what is true: which models leave the network (by name), that Tier 2 is not
 // "always local", that the old Tier-2 "auto" box did nothing, and that a Tier-3
 // opt-in records a choice and sends nothing - after asking.
@@ -86,7 +86,7 @@ const renderIt = () =>
 const patches = () =>
   requests.filter((r) => r.init?.method === 'PATCH').map((r) => JSON.parse(String(r.init?.body)));
 
-describe('Admin → Analysis (W20-06)', () => {
+describe('Settings → Analysis (W20-06)', () => {
   it('AI-86: names every off-network model instead of "one of which"', async () => {
     renderIt();
     const line = await screen.findByTestId('gateway-configured');
@@ -100,7 +100,7 @@ describe('Admin → Analysis (W20-06)', () => {
     renderIt();
     const note = await screen.findByTestId('analysis-tiers-note');
     expect(note).not.toHaveTextContent(/nothing leaves your network/);
-    expect(note).toHaveTextContent(/Tier 2 uses the models in Admin → Models/);
+    expect(note).toHaveTextContent(/Tier 2 uses the models in Settings → Models/);
     expect(screen.getByRole('link', { name: 'Routing' })).toHaveAttribute('href', '/admin/models');
     expect(screen.queryByText('Tier 2 (local)')).toBeNull();
   });
@@ -155,7 +155,7 @@ describe('Admin → Analysis (W20-06)', () => {
   });
 });
 
-describe('Admin → Analysis egress audit (W20-11)', () => {
+describe('Settings → Analysis egress audit (W20-11)', () => {
   const row = (over: Record<string, unknown> = {}) => ({
     id: 1,
     repo_id: 5,

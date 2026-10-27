@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { Settings } from '../../widgets/admin/settings/Settings.js';
 import { LastChanged } from '../../widgets/admin/AuditLog.js';
 
-// Admin → Settings (W4-09).
+// Settings → Scoring (W4-09).
 export const Route = createFileRoute('/admin/settings')({
   component: SettingsPage,
 });

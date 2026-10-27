@@ -138,18 +138,18 @@ describe('AiGovernanceDetail (W18-29)', () => {
   });
 
   // W20-18 (UX_TODO AI-48; decision 2026-10-20): RepoPulse's own AI use is the
-  // AI spend table on Admin → Analysis, linked from here, not a separate page.
+  // AI spend table on Settings → Analysis, linked from here, not a separate page.
   it('points at AI spend for RepoPulse’s own AI use, as a link for admins only', () => {
     const { unmount } = renderWith(response(), '90d', 'admin');
     expect(screen.getByTestId('governance-own-ai-use')).toHaveTextContent(
-      /estimated spend per month and model.*Admin → Analysis/s,
+      /estimated spend per month and model.*Settings → Analysis/s,
     );
     expect(screen.getByTestId('governance-ai-spend-link')).toBeInTheDocument();
     unmount();
     renderWith(response());
     expect(screen.queryByTestId('governance-ai-spend-link')).toBeNull();
     expect(screen.getByTestId('governance-own-ai-use')).toHaveTextContent(
-      'An admin can see it under Admin → Analysis.',
+      'An admin can see it under Settings → Analysis.',
     );
   });
 });

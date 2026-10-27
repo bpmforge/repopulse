@@ -266,7 +266,7 @@ export default async function patchRoutes(
             reply,
             409,
             'Tier-3 is not enabled for this repository',
-            'Sending source to a cloud model needs the repository opt-in (Admin → Analysis). Draft with the local model instead.',
+            'Sending source to a cloud model needs the repository opt-in (Settings → Analysis). Draft with the local model instead.',
           );
         }
       }

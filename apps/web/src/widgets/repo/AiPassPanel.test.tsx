@@ -152,7 +152,7 @@ describe('AiPassPanel', () => {
       run({
         id: 1,
         status: 'failed',
-        reason: 'No model is configured. Add one in Admin → Models.',
+        reason: 'No model is configured. Add one in Settings → Models.',
         specialists: null,
         triage_funnel: null,
       }),
@@ -162,7 +162,7 @@ describe('AiPassPanel', () => {
     expect(screen.getByTestId('ai-pass-start')).toHaveProperty('disabled', true);
     expect(screen.getByTestId('ai-pass-start').textContent).toBe('A pass is running');
     expect(screen.getByTestId('ai-pass-1').textContent).toMatch(/failed/);
-    expect(screen.getByTestId('ai-pass-1').textContent).toMatch(/Add one in Admin → Models/);
+    expect(screen.getByTestId('ai-pass-1').textContent).toMatch(/Add one in Settings → Models/);
   });
 
   it('starts a pass on a pull request by number, and only with a real number', () => {

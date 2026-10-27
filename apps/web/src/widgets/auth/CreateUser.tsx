@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeyFor } from '../../api/useApiQuery.js';
 import { createLocalUser, type CreatedUser } from './contracts.js';
 
-// Admin → create a local account (W15-04, D14).
+// Settings → create a local account (W15-04, D14).
 //
 // There is no signup route and there must never be one (see local.ts): on a LAN
 // or a cloud box, an open registration form hands the install to whoever finds

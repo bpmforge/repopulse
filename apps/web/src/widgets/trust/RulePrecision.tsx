@@ -4,7 +4,7 @@ import { ErrorNote } from '../../components/index.js';
 import { useApiMutation, useApiQuery } from '../../api/useApiQuery.js';
 import { RuleFindingsLink } from '../rules/RuleFindingsLink.js';
 import {
-  benchmarkText,
+  evidenceText,
   isPrecisionReport,
   LIFECYCLE_LABEL,
   triageText,
@@ -176,7 +176,7 @@ export function RulePrecisionTable() {
                   <th scope="col" className="pr-2">
                     Your triage
                   </th>
-                  <th scope="col">Benchmark</th>
+                  <th scope="col">Evidence</th>
                   {isAdmin && (
                     <th scope="col" className="pl-2">
                       In this workspace
@@ -211,7 +211,7 @@ export function RulePrecisionTable() {
                     </td>
                     <td className="py-2">
                       <PrecisionValue
-                        text={benchmarkText(rule.benchmark, report.benchmark)}
+                        text={evidenceText(rule, report.benchmark)}
                         testId={`precision-bench-${rule.ruleId}`}
                       />
                     </td>
@@ -269,7 +269,7 @@ export function RulePrecisionSummary({ ruleId }: { ruleId: string }) {
           <dt className="text-xs text-fg-muted">Benchmark</dt>
           <dd>
             <PrecisionValue
-              text={benchmarkText(rule.benchmark, report.benchmark)}
+              text={evidenceText(rule, report.benchmark)}
               testId="finding-rule-bench"
             />
           </dd>

@@ -8,7 +8,7 @@ import {
   type DebtTargets,
 } from './contracts.js';
 
-// Admin → Settings → Debt signal targets (W20-24, UX_TODO DSH-31; decision
+// Settings → Scoring → Debt signal targets (W20-24, UX_TODO DSH-31; decision
 // 2026-10-21: per-workspace targets, none by default).
 //
 // Every debt signal is lower-is-better, so a target is a ceiling. A blank box

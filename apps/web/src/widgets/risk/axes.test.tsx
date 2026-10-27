@@ -89,7 +89,7 @@ describe('risk axes card', () => {
     expect(summary).toHaveTextContent(/neither a good score nor a zero/);
 
     // DSH-72: repositories exist, nothing examined them — the step is a scan,
-    // not "go to Admin → Connections".
+    // not "go to Settings → Connections".
     const next = screen.getByTestId('axis-unmeasured-next');
     expect(next).toHaveTextContent(/Run a scan/);
     expect(next).not.toHaveTextContent(/Connections/);
