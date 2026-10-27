@@ -52,9 +52,17 @@ export function countLines(source: string): LineBreakdown & { totalLines: number
     totalLines: 0,
   };
 
+  const lines = source.split('\n');
+  const skip = licenceHeaderEnd(lines);
   let inBlockComment = false;
-  for (const raw of source.split('\n')) {
+  for (const [i, raw] of lines.entries()) {
     counts.totalLines += 1;
+    // A licence header is neither logic nor overhead: it is the same 15 lines
+    // on every file of a project, put there by policy. Counted as comment,
+    // a 4-line Kotlin file in an Apache-licensed project scored 0.00 and
+    // nowinandroid got 100 "low logic density" findings, nearly all of them
+    // small idiomatic files (2026-10-27 walkthrough).
+    if (i < skip) continue;
     const line = raw.trim();
 
     if (inBlockComment) {
@@ -100,6 +108,30 @@ export function countLines(source: string): LineBreakdown & { totalLines: number
   }
 
   return counts;
+}
+
+const LICENCE_WORDS = /copyright|licen[cs]e|spdx-license-identifier/i;
+
+/**
+ * Index of the first line after a leading licence/copyright comment, or 0 when
+ * the file does not open with one. Only a comment block AT THE TOP that names
+ * a copyright or licence is skipped; a file's own explanatory comments still
+ * count as overhead, which is what this measure is about.
+ */
+export function licenceHeaderEnd(lines: readonly string[]): number {
+  let i = 0;
+  while (i < lines.length && lines[i]!.trim() === '') i++;
+  const start = i;
+  const first = lines[start]?.trim() ?? '';
+  if (first.startsWith('/*')) {
+    while (i < lines.length && !lines[i]!.includes('*/')) i++;
+    i++; // past the closing line
+  } else if (first.startsWith('//')) {
+    while (i < lines.length && lines[i]!.trim().startsWith('//')) i++;
+  } else {
+    return 0;
+  }
+  return LICENCE_WORDS.test(lines.slice(start, i).join('\n')) ? i : 0;
 }
 
 export function computeLdr(source: string): LdrResult {

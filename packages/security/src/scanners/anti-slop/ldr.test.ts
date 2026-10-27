@@ -23,6 +23,25 @@ describe('the LDR boundary', () => {
     expect(ldr.ratio).toBeCloseTo(0.2, 5);
   });
 
+  // 2026-10-27 walkthrough: nowinandroid's Apache header made every small
+  // file "0.00 logic density".
+  it('does not count a leading licence header, and does count other comments', () => {
+    const header = ['/*', ' * Copyright 2024 The Android Open Source Project', ' *', ' * Licensed under the Apache License, Version 2.0', ' */'];
+    const body = ['package com.example.ui', '', 'import kotlinx.datetime.TimeZone', '', 'val LocalTimeZone = compositionLocalOf { TimeZone.currentSystemDefault() }'];
+    const licensed = computeLdr([...header, ...body].join('\n'));
+    expect(licensed.comment).toBe(0);
+    expect(licensed.ratio).toBeGreaterThanOrEqual(LDR_FLOOR);
+
+    const explained = computeLdr(
+      [...header.map((l) => l.replace(/Copyright.*|Licensed.*/, 'Explains the module at length.')), ...body].join('\n'),
+    );
+    expect(explained.comment).toBe(5);
+    expect(explained.ratio).toBeLessThan(LDR_FLOOR);
+
+    const slashHeader = computeLdr(['// SPDX-License-Identifier: MIT', ...body].join('\n'));
+    expect(slashHeader.comment).toBe(0);
+  });
+
   it('fires BELOW the floor and not at or above it', () => {
     // 0.29 and 0.31 either side of 0.3, built from real line counts rather
     // than asserted arithmetic: 29 logic / 71 overhead is 0.29 exactly.
