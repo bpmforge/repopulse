@@ -7,6 +7,7 @@ import { formatEnvProblems, validateEnv } from './routes/setup/env-registry.js';
 import { listenHost } from './lib/listen-host.js';
 import { parseTrustProxy } from './lib/trust-proxy.js';
 import { outboundProxyNotice } from './lib/outbound-proxy.js';
+import { sessionLifetime } from './lib/session-lifetime.js';
 
 // W11-02, acceptance 4: wrong or missing config fails HERE, with a message
 // naming every variable at fault — not a stack trace, and not a half-booted
@@ -59,8 +60,7 @@ const app = buildApp({
   db: createDb(databaseUrl),
   redisUrl,
   sessionSecret,
-  idleTimeoutMs: 15 * 60 * 1000,
-  absoluteLifetimeMs: 12 * 60 * 60 * 1000,
+  ...sessionLifetime(process.env),
   cookieSecure: process.env.NODE_ENV === 'production',
   trustProxy,
   ...(githubClientId && githubClientSecret

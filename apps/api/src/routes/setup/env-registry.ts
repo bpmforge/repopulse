@@ -607,6 +607,26 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     default: '1200000 (20 minutes)',
   },
   {
+    name: 'SESSION_IDLE_MINUTES',
+    scope: 'api',
+    required: false,
+    purpose:
+      'Minutes without activity before a sign-in ends (FR-AUTH-2). Every request renews it. Whole number, 5 to 1440.',
+    ifWrong:
+      'Too short and people are signed out while reading a long page; too long and an unattended browser stays signed in. A value outside 5–1440 is ignored and the default used.',
+    default: '15',
+  },
+  {
+    name: 'SESSION_MAX_HOURS',
+    scope: 'api',
+    required: false,
+    purpose:
+      'Hours after which a sign-in ends even if it is in use (FR-AUTH-2). Whole number, 1 to 720.',
+    ifWrong:
+      'Too long and a stolen session cookie stays useful for that long. A value outside 1–720 is ignored and the default used.',
+    default: '12',
+  },
+  {
     name: 'LMSTUDIO_QUEUE_TIMEOUT_MS',
     scope: 'worker',
     required: false,
