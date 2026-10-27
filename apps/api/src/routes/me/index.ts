@@ -794,12 +794,17 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
   app.post('/me/inbox/seen', async (request, reply) => {
     const userId = request.session.get('userId');
     if (userId === undefined) return fail(request, reply, 401, 'No active session');
-    const at = new Date().toISOString();
-    // jsonb merge in SQL, so a concurrent PATCH /me/prefs cannot be lost.
-    await db
+    // jsonb merge in SQL, so a concurrent PATCH /me/prefs cannot be lost. The
+    // time is the DATABASE's: GET /me/inbox compares it with first_seen_at,
+    // which Postgres stamps, and an API clock ahead of the database's hid the
+    // findings recorded just after "seen" (podman VM drift; separate hosts).
+    const [row] = await db
       .update(core.users)
-      .set({ prefs: sql`${core.users.prefs} || ${JSON.stringify({ inboxSeenAt: at })}::jsonb` })
-      .where(eq(core.users.id, userId));
-    return reply.send({ seen_at: at });
+      .set({
+        prefs: sql`${core.users.prefs} || jsonb_build_object('inboxSeenAt', to_char(now() at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))`,
+      })
+      .where(eq(core.users.id, userId))
+      .returning({ at: sql<string>`${core.users.prefs}->>'inboxSeenAt'` });
+    return reply.send({ seen_at: row?.at ?? null });
   });
 }
