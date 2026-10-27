@@ -89,7 +89,7 @@ const NOTHING_SCANNED: Record<string, string> = {
     'No LLM client is a dependency of this repository, so the OWASP LLM checklist does not apply.',
   disabled: 'This scanner is switched off for this repository, so nothing looked.',
   no_gateway:
-    'No model is configured for this workspace, so the judgement half could not run — add one in Admin → Models.',
+    'No model is configured for this workspace, so the judgement half could not run — add one in Settings → Models.',
   no_snapshot: 'The source archive could not be read, so there was no tree to scan.',
   no_clusters:
     'No cluster of dismissals large enough to draft a rule from — the pass ran and found no pattern.',

@@ -22,7 +22,7 @@ import {
   type RepoSyncStatus,
 } from './contracts.js';
 
-// Admin → Sync (UX_SPEC §4.i, FR-INGEST-8). The warehouse-backed fallback the
+// Settings → Sync (UX_SPEC §4.i, FR-INGEST-8). The warehouse-backed fallback the
 // SSE stream degrades to: if the stream is down this page still tells the
 // operator what is happening, which is the whole point of having both.
 

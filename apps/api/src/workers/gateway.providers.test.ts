@@ -120,7 +120,7 @@ describeIfLiveInfra('each workspace analyses on its own providers (W16-19)', () 
   it('caches per workspace, and lets the cache expire', async () => {
     // Building one decrypts a credential and resolves every row, and a weekly
     // pass over forty repos would do it forty times. Expiring matters just as
-    // much: D-LLM-1's premise is that you add a model in Admin → Models, and a
+    // much: D-LLM-1's premise is that you add a model in Settings → Models, and a
     // cache with no expiry would mean restarting the worker before it counts.
     let clock = 1_000;
     const gateways = createGatewayResolver(db, NO_ENV, KEY, {
@@ -149,10 +149,10 @@ describeIfLiveInfra('each workspace analyses on its own providers (W16-19)', () 
     expect(await gateways.for(withoutProvider)).toBeNull();
   });
 
-  it('forgets the NULL within seconds, so a model added in Admin → Models counts (W17-30)', async () => {
+  it('forgets the NULL within seconds, so a model added in Settings → Models counts (W17-30)', async () => {
     // The journey hit this: worker boots → caches "no provider" for the
     // workspace → operator adds a model and presses Run scan inside the same
-    // minute → "No model is configured … add one in Admin → Models". The null
+    // minute → "No model is configured … add one in Settings → Models". The null
     // must expire well before a built gateway does; a null is one SELECT.
     let clock = 1_000;
     const gateways = createGatewayResolver(db, NO_ENV, KEY, {

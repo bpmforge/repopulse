@@ -90,16 +90,16 @@ export function failureFix(
     ) : (
       <span>Ask an admin to {label.charAt(0).toLowerCase() + label.slice(1)}.</span>
     );
-  if (code === 'no_gateway') return admin('/admin/models', 'Set up a model in Admin → Models');
+  if (code === 'no_gateway') return admin('/admin/models', 'Set up a model in Settings → Models');
   if (code === 'specialists_unusable') {
     return admin(
       '/admin/models',
-      'Compare models in Admin → Models → Quality per model',
+      'Compare models in Settings → Models → Quality per model',
       'quality-per-model',
     );
   }
   if (code === 'no_connection' || code === 'no_snapshot') {
-    return admin('/admin/sync', 'Check the forge connection in Admin → Sync');
+    return admin('/admin/sync', 'Check the forge connection in Settings → Sync');
   }
   if (code === 'no_head_sha') return <span>Wait for the first sync of this repository.</span>;
   if (code === 'too_large' || code === 'no_files' || code === 'bad_range' || code === 'not_found') {
@@ -107,11 +107,11 @@ export function failureFix(
   }
   // A local-only refusal arrives as a plain error carrying its own sentence.
   if (/local[- ]only/i.test(run.reason ?? '')) {
-    return admin('/admin/models', 'Change the routing in Admin → Models → Routing');
+    return admin('/admin/models', 'Change the routing in Settings → Models → Routing');
   }
   return admin(
     '/admin/models',
-    'Test the model in Admin → Models (it may be down, still loading or out of memory)',
+    'Test the model in Settings → Models (it may be down, still loading or out of memory)',
   );
 }
 
@@ -405,7 +405,7 @@ export function PassDestinations({ repoId }: { repoId: string }) {
   if (isError || !egress) {
     return (
       <p className="text-xs text-fg-muted" data-testid="ai-pass-egress-unknown">
-        Where the code would be sent could not be loaded. Check Admin → Models → Routing before
+        Where the code would be sent could not be loaded. Check Settings → Models → Routing before
         starting.
       </p>
     );

@@ -124,7 +124,7 @@ export interface FindingAi {
 /** "AI is switched off for this workspace (by alice)": one sentence for every AI screen. */
 export function pausedLine(p: AiPause | undefined, what: string): string | null {
   if (!p?.paused) return null;
-  return `AI analysis is switched off for this workspace${p.paused_by ? ` by ${p.paused_by}` : ''}, so ${what}. An admin can switch it back on in Admin → Analysis.`;
+  return `AI analysis is switched off for this workspace${p.paused_by ? ` by ${p.paused_by}` : ''}, so ${what}. An admin can switch it back on in Settings → Analysis.`;
 }
 
 export const VERDICT_SENTENCE: Record<AiVerdict, string> = {

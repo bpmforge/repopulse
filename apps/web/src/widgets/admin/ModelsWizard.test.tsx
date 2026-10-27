@@ -569,6 +569,26 @@ describe('presets in a container install', () => {
   });
 });
 
+describe('the preset note after a successful test (2026-10-27 walkthrough)', () => {
+  it('"Start the local server" goes away once the test reached it', async () => {
+    const original = KINDS.presets[0]!.note;
+    KINDS.presets[0]!.note = 'Start the local server in LM Studio and load a model.';
+    try {
+      renderIt();
+      await userEvent.click(await screen.findByTestId('wizard-where-local'));
+      await userEvent.click(screen.getByTestId('wizard-next-0'));
+      await userEvent.click(await screen.findByTestId('wizard-preset-lmstudio'));
+      expect(screen.getByTestId('wizard-preset-note')).toBeInTheDocument();
+      await userEvent.type(screen.getByTestId('wizard-model'), 'm');
+      await userEvent.click(screen.getByTestId('wizard-test'));
+      expect(await screen.findByTestId('wizard-test-result')).toHaveTextContent('Reached it.');
+      expect(screen.queryByTestId('wizard-preset-note')).toBeNull();
+    } finally {
+      KINDS.presets[0]!.note = original;
+    }
+  });
+});
+
 describe('W20-11 friction fixes', () => {
   // UX_TODO AI-18: Save was greyed out until a test passed, with no way past a
   // flaky test; now an untested save asks first.

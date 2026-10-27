@@ -19,7 +19,7 @@
 // the evidence that a model's answer reaches the screen.
 //
 // BEHAVIOUR IS SELECTED BY THE MODEL ID the product sends, because that is the
-// one field an operator controls from Admin → Models without touching the
+// one field an operator controls from Settings → Models without touching the
 // container:
 //
 //   fixture-model   answers immediately with a valid findings payload

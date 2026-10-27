@@ -100,7 +100,7 @@ export function ScheduledPasses({ repoId, isAdmin }: { repoId: string; isAdmin: 
   const off = pausedLine(data.ai_paused, 'no scheduled pass runs');
   // W20-11 (UX_TODO AI-37): why Enable is greyed out, in words, tied to the button.
   const enableBlockers = [
-    ...(egress.destinations.length === 0 ? ['set up a model first, in Admin → Models'] : []),
+    ...(egress.destinations.length === 0 ? ['set up a model first, in Settings → Models'] : []),
     ...(scopeOk ? [] : ['enter at least one path']),
     ...(windowOk ? [] : ['choose a run window whose start and end differ']),
     ...(ack || egress.destinations.length === 0
@@ -191,7 +191,7 @@ export function ScheduledPasses({ repoId, isAdmin }: { repoId: string; isAdmin: 
         count toward it but are never blocked by it. At most {data.limits.passes_per_day} passes a
         day, each limited to 30 calls. What hosted calls cost is estimated under{' '}
         <Link to="/admin/analysis" className="text-accent hover:underline">
-          Admin → Analysis → AI spend
+          Settings → Analysis → AI spend
         </Link>
         .
       </p>

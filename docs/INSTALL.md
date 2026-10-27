@@ -459,6 +459,12 @@ untracks anything. To stop tracking one repository, use **Pause** on it in
 **Settings → Sync**: it makes no forge calls and keeps its history. Removing a
 connection deletes the webhooks it registered on the forge first.
 
+**Or track a public repository by name** (`owner/name`, under the list) tracks
+a repository the token can read but does not list as its own, such as an
+open-source project you know, to try RepoPulse on before your own code. It
+backfills and scans like any other. The forge sends no webhook for a
+repository you do not administer, so it updates on the nightly sync.
+
 ### Webhooks
 
 Webhook deliveries are how RepoPulse notices a push without polling. Until

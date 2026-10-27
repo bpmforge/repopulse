@@ -29,7 +29,7 @@ Assumption to confirm: "AT test" is read as the bpm-opencode-experts specialist-
 | W19-05 | Model eval harness and published table | Run the specialists over labelled fixtures (OWASP/Juliet slices, slop and performance fixtures) per model; publish a per-model table in the admin UI and docs; not-yet-run shown as such |
 | W19-06 | Mechanical upgrade track | Versioned rulepack update channel, advisory data refresh schedule, nightly benchmark regression gate, and a loop where clusters of AI-judged false positives become human-reviewed rule-tweak proposals |
 | W19-08 | Claude Max plan option | Opt-in Claude Code CLI backend the customer installs and signs in to themselves, off by default, behind an accept-responsibility switch with an audit row (Brad, 2026-10-17); depends on W19-01 |
-| W19-07 | Settings experience | Admin → Models wizard: pick local, proxy or hosted, test, assign roles, see the eval table and what leaves the container |
+| W19-07 | Settings experience | Settings → Models wizard: pick local, proxy or hosted, test, assign roles, see the eval table and what leaves the container |
 
 ## Recommendation and order
 
@@ -83,7 +83,7 @@ Each is `yes` / `no` / `unknown`; `unknown` is never collapsed into `no`. Probes
 run **sequentially**: against a real LM Studio, four requests arriving together
 while the model loaded came back as HTTP 500s that read as "unsupported".
 Stored on the connection (`llm_providers.capabilities`, `probed_at`, migration
-0039), returned by the list route, shown in Admin → Models. Creating with
+0039), returned by the list route, shown in Settings → Models. Creating with
 `probe: true` is refused (422, one sentence each) only for what makes a pass
 impossible — no streaming, or a context window under 8192 tokens; missing JSON
 mode or tool use is recorded, not fatal.
@@ -99,7 +99,7 @@ A pass is routed by `meta.role` when it names one, otherwise by its
 (one row per link, ordered by `position`, optional per-link model override,
 cascade on connection delete) and `llm_routing_policy` (`local_only`).
 `GET/PUT /admin/llm-routing` (admin, audited as `llm_routing.updated`) replaces
-the whole configuration in one transaction; Admin → Models shows it as a
+the whole configuration in one transaction; Settings → Models shows it as a
 "Routing" section. Changes reach the worker within the gateway cache TTL
 (about a minute), no restart.
 
@@ -274,7 +274,7 @@ counted separately as a format failure, because that is a property of the model.
 **Published table.** `docs/MODEL_EVAL.md` renders from the committed results
 (`results.generated.ts`); a test fails if they disagree. The same results are
 served by `GET /admin/model-eval`, joined to this workspace's configured models
-(workspace-scoped), and shown in Admin → Models: precision/recall per role, the
+(workspace-scoped), and shown in Settings → Models: precision/recall per role, the
 engine and date of the run, "not yet run" for any unmeasured cell, a configured
 model with no result listed as not yet run, and "incomplete" for a run that hit
 provider errors.
@@ -352,7 +352,7 @@ feeds this pass automatically - it takes judgements as input.
 
 ## W19-07 as built (2026-10-18)
 
-**The wizard** (Admin → Models → "Set up a model", `ModelsWizard.tsx`): where it
+**The wizard** (Settings → Models → "Set up a model", `ModelsWizard.tsx`): where it
 runs (local / a gateway you run / a vendor with your key), connect and test
 (presets, address, model, key, the probing Test), choose roles, and a review. It
 is a path through the same APIs as the full forms below it, which stay for
@@ -556,7 +556,7 @@ on a real model, not how good the answers are (that is the W19-05 table).
 **Not built.** *Diff mode* (a pull request's files from the warehouse): the pass reads
 a repository snapshot only. *Verified patches from triage:* the pass supplies no rule
 runners, so a patch a model offers is dropped and recorded as `not_attempted`; verified
-patches remain their own flow (Admin → Verified patches, W18-19). *Scheduling:* the pass
+patches remain their own flow (Settings → Verified fixes, W18-19). *Scheduling:* the pass
 is started by an admin; no cron starts one. *Dependency findings:* they have a
 reachability tier but no stored code context, so they are not triaged here. V5's
 dependency-CVE proposals were never persisted anywhere; they still are not.

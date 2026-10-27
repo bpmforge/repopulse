@@ -24,7 +24,7 @@ vi.mock('../../api/useApiQuery.js', () => ({
   queryKeyFor: () => [],
 }));
 
-// The cap line links to Admin → Analysis → AI spend (W20-16, AI-08).
+// The cap line links to Settings → Analysis → AI spend (W20-16, AI-08).
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ to, children, ...rest }: { to: string; children: ReactNode }) => (
     <a href={to} {...rest}>

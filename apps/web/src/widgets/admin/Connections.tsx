@@ -16,7 +16,7 @@ import type { ConnectionList, ConnectionSummary } from './contracts.js';
 import { RepoPicker } from './RepoPicker.js';
 import { tokenExpiryText, tokenOwnerText } from './forge-token.js';
 
-// Admin → Connections (UX_SPEC §4.i). This is the screen docs/INSTALL.md sends
+// Settings → Connections (UX_SPEC §4.i). This is the screen docs/INSTALL.md sends
 // operators to, and the only way to connect an organization.
 
 const LIST = { endpoint: '/connections' } as const;

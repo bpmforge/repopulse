@@ -12,9 +12,12 @@ import type { MeContext, UserPrefs } from '../org/contracts.js';
 //
 // Steps are LINKS. A step shows as done only where the data says so (W20-17,
 // UX_TODO INS-39): connected (repositories exist), the first sync landed (a
-// repository is live) and roles assigned (anyone besides you is a member). The
-// review step has no fact behind it and never ticks. Dismissed, it comes back
-// from Settings → Setup ("Show the setup checklist again").
+// repository is live), a security / code-health scan has completed, a model is
+// configured, and roles assigned (anyone besides you is a member). The scan and
+// model steps came from the 2026-10-27 walkthrough: people install RepoPulse to
+// find security, performance and AI-slop problems, and the list never said how.
+// The review step has no fact behind it and never ticks. Dismissed, it comes
+// back from Settings → Setup ("Show the setup checklist again").
 
 const ME = { endpoint: '/me/context' } as const;
 
@@ -46,6 +49,16 @@ export function OnboardingChecklist({ hasRepos }: Props) {
           label: 'Watch the first sync land',
           to: '/admin/sync',
           done: (me.live_repo_count ?? 0) > 0,
+        },
+        {
+          label: 'Run the first security and code-health scan',
+          to: '/repos',
+          done: (me.succeeded_scan_count ?? 0) > 0,
+        },
+        {
+          label: 'Add a model for AI review (optional)',
+          to: '/admin/models',
+          done: (me.model_count ?? 0) > 0,
         },
         { label: 'Review the bot list and stale-PR window', to: '/admin/settings' },
         {

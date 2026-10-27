@@ -54,9 +54,11 @@ const AVAILABLE = {
 };
 
 const posts: unknown[] = [];
+let available: unknown = AVAILABLE;
 
 beforeEach(() => {
   posts.length = 0;
+  available = AVAILABLE;
   vi.stubGlobal(
     'fetch',
     vi.fn((_input: unknown, init?: RequestInit) => {
@@ -64,7 +66,7 @@ beforeEach(() => {
       const body =
         (init?.method ?? 'GET') === 'POST'
           ? { repo_ids: [10, 11], webhook_failed: ['acme/beta'] }
-          : AVAILABLE;
+          : available;
       return Promise.resolve(
         new Response(JSON.stringify(body), {
           status: 200,
@@ -153,5 +155,29 @@ describe('RepoPicker (W20-14)', () => {
     expect(screen.getByTestId('repo-select-webhook-failed')).toHaveTextContent('acme/beta');
     expect(screen.getByTestId('repo-select-result')).toHaveTextContent('2 repositories');
     expect(screen.getByTestId('repo-option-2')).not.toBeChecked();
+  });
+});
+
+describe('RepoPicker: a public repository by name (2026-10-27 walkthrough)', () => {
+  it('posts owner/name and says it updates nightly', async () => {
+    const user = userEvent.setup();
+    renderPicker();
+    const input = await screen.findByTestId('repo-by-name-input');
+    expect(screen.getByTestId('repo-by-name-submit')).toBeDisabled();
+    await user.type(input, 'not a repo');
+    expect(screen.getByTestId('repo-by-name-submit')).toBeDisabled();
+    await user.clear(input);
+    await user.type(input, 'outline/outline');
+    await user.click(screen.getByTestId('repo-by-name-submit'));
+    await waitFor(() => expect(posts).toEqual([{ repo_full_names: ['outline/outline'] }]));
+    expect(await screen.findByTestId('repo-select-by-name-note')).toHaveTextContent(
+      'outline/outline is tracked. It is not yours, so the forge sends no live updates',
+    );
+  });
+
+  it('is offered even when the token lists no repositories of its own', async () => {
+    available = { items: [], total: 0, truncated: false };
+    renderPicker();
+    expect(await screen.findByTestId('repo-by-name-input')).toBeInTheDocument();
   });
 });

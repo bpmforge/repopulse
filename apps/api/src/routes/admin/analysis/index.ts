@@ -6,7 +6,7 @@ import { sendProblem } from '../../../lib/problem.js';
 import { describeEndpoint } from '../../../lib/llm-routing.js';
 import { hostsFromEnv } from '../../../workers/gateway.js';
 
-// Admin → Analysis (W7-08, UX_SPEC §4.i).
+// Settings → Analysis (W7-08, UX_SPEC §4.i).
 //
 // The consequential control here is the per-repo Tier-3 opt-in: turning it on
 // means this repository's diffs may be sent to a third party. Admin-only, and
@@ -390,10 +390,10 @@ export default async function analysisAdminRoutes(
         usable.length > 0
           ? null
           : envHosts.length > 0
-            ? `Using LMSTUDIO_BASE_URLS / LMSTUDIO_MODEL from .env (model ${envHosts[0]!.modelSlot}), a deprecated route. Add the model in Admin → Models to replace it, or remove both lines from .env and restart the worker to turn AI off.`
+            ? `Using LMSTUDIO_BASE_URLS / LMSTUDIO_MODEL from .env (model ${envHosts[0]!.modelSlot}), a deprecated route. Add the model in Settings → Models to replace it, or remove both lines from .env and restart the worker to turn AI off.`
             : providers.length > 0
               ? 'Every configured model is disabled, so scheduled passes will skip and say so.'
-              : 'No model is configured, so scheduled passes will skip and say so. Add one in Admin → Models.',
+              : 'No model is configured, so scheduled passes will skip and say so. Add one in Settings → Models.',
     };
 
     // W20-16 (UX_TODO AI-08): spend per month and model, from the same

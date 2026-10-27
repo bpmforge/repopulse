@@ -35,7 +35,7 @@ const renderIt = () =>
     </QueryClientProvider>,
   );
 
-describe('Admin → Models → quality per model (W19-05)', () => {
+describe('Settings → Models → quality per model (W19-05)', () => {
   it('says not yet run for a configured model nobody has measured', async () => {
     body = {
       roles: ROLES,

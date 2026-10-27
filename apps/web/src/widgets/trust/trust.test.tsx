@@ -7,6 +7,7 @@ import { CoverageMap } from './CoverageMap.js';
 import { RulePrecisionSummary, RulePrecisionTable } from './RulePrecision.js';
 import {
   benchmarkText,
+  evidenceText,
   triageText,
   type CoverageMapPayload,
   type RulePrecisionReport,
@@ -128,6 +129,38 @@ describe('precision text', () => {
       value: '80%',
       small: false,
     });
+  });
+});
+
+describe('evidenceText (2026-10-27 walkthrough)', () => {
+  it('shows a hand-checked rule\'s marks, not "not measured yet"', () => {
+    const t = evidenceText(
+      {
+        lifecycleSource: 'hand-checked',
+        benchmark: null,
+        starter: {
+          reason: 'live via hand-checked evidence',
+          evidence: {
+            ruleId: 'bpm-perf-x',
+            tp: 6,
+            fp: 0,
+            precision: 1,
+            suites: [
+              { suite: 'a/b', tp: 2, fp: 0 },
+              { suite: 'c/d', tp: 4, fp: 0 },
+            ],
+          },
+        },
+      },
+      SOURCE,
+    );
+    expect(t).toMatchObject({ value: '100%', measured: true, small: true });
+    expect(t.basis).toBe('6 of 6 marked real by hand on 2 public repositories · W21-20 hand-check');
+  });
+
+  it('falls back to the benchmark for every other rule', () => {
+    const t = evidenceText({ lifecycleSource: 'rulepack', benchmark: null, starter: null }, SOURCE);
+    expect(t).toMatchObject({ value: 'not measured yet', measured: false });
   });
 });
 

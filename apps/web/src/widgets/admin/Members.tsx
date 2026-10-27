@@ -10,7 +10,7 @@ import { errorToast, type Toast } from '../../components/store/uiStore.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import type { MeContext } from '../org/contracts.js';
 
-// Admin → Members (W4-20, FR-AUTH-4). Replaces the empty state that pointed at
+// Settings → Members (W4-20, FR-AUTH-4). Replaces the empty state that pointed at
 // this ticket: roles were always enforced, they just could not be managed from
 // anywhere.
 

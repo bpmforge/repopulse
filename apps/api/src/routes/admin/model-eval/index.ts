@@ -6,7 +6,7 @@ import { MODEL_EVAL_RESULTS } from '@repopulse/security';
 import { requireAdmin } from '../../../lib/rbac.js';
 import { sendProblem } from '../../../lib/problem.js';
 
-// Admin → Models → per-model quality (W19-05).
+// Settings → Models → per-model quality (W19-05).
 //
 // The committed evaluation results (packages/security/src/eval), joined to this
 // workspace's configured models so the table answers "how good is the model I

@@ -224,6 +224,30 @@ export function benchmarkText(
   };
 }
 
+/**
+ * A rule's evidence column. A rule live by hand-check (W21-20) is measured by
+ * the marks on real repositories, not by the benchmark corpus it is absent
+ * from, so it shows those marks; "not measured yet" next to "live via
+ * hand-checked evidence" read as a contradiction (2026-10-27 walkthrough).
+ */
+export function evidenceText(
+  rule: Pick<RulePrecision, 'lifecycleSource' | 'starter' | 'benchmark'>,
+  source: RulePrecisionReport['benchmark'],
+): PrecisionText {
+  const e = rule.lifecycleSource === 'hand-checked' ? rule.starter?.evidence : undefined;
+  if (e) {
+    const marked = e.tp + e.fp;
+    const repos = e.suites.length;
+    return {
+      value: pct(e.precision),
+      basis: `${e.tp} of ${marked} marked real by hand on ${repos} public ${repos === 1 ? 'repository' : 'repositories'} · W21-20 hand-check`,
+      measured: true,
+      small: marked < SMALL_SAMPLE,
+    };
+  }
+  return benchmarkText(rule.benchmark, source);
+}
+
 /** Defensive read: a payload missing its sections is treated as unavailable. */
 export function isCoverageMap(value: unknown): value is CoverageMapPayload {
   const v = value as Partial<CoverageMapPayload> | null | undefined;

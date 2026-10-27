@@ -153,7 +153,7 @@ export async function runPatchDraft(deps: PatchDraftDeps): Promise<PatchDraftRes
     return finish({
       status: 'failed',
       code: 'no_gateway',
-      reason: 'No model is configured for this workspace — add one in Admin → Models.',
+      reason: 'No model is configured for this workspace — add one in Settings → Models.',
     });
   }
   if (!deps.forge) {

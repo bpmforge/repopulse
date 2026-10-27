@@ -254,7 +254,7 @@ export function AiGovernanceDetail({ window, search }: Props) {
         )}
       </section>
       {/* W20-18 (UX_TODO AI-48; decision 2026-10-20): oversight of RepoPulse's
-          OWN AI use lives on Admin → Analysis (AI spend, egress audit, the AI
+          OWN AI use lives on Settings → Analysis (AI spend, egress audit, the AI
           switch and every schedule), not on a separate governance page. This
           page compares code; that one accounts for the product's model calls. */}
       <section
@@ -265,8 +265,8 @@ export function AiGovernanceDetail({ window, search }: Props) {
         <p className="text-xs text-fg-muted">
           This page compares AI-written and human code in your repositories. What RepoPulse itself
           sends to models (calls, tokens and estimated spend per month and model, every request that
-          left your network, the workspace-wide AI switch and every scheduled AI pass) is on Admin →
-          Analysis.
+          left your network, the workspace-wide AI switch and every scheduled AI pass) is on
+          Settings → Analysis.
         </p>
         {me?.role === 'admin' ? (
           <Link
@@ -278,7 +278,7 @@ export function AiGovernanceDetail({ window, search }: Props) {
             See AI spend and the egress audit →
           </Link>
         ) : (
-          <p className="text-xs text-fg-muted">An admin can see it under Admin → Analysis.</p>
+          <p className="text-xs text-fg-muted">An admin can see it under Settings → Analysis.</p>
         )}
       </section>
     </div>

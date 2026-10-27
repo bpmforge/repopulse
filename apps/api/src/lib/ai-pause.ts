@@ -50,7 +50,7 @@ export async function isAiPaused(db: Database, workspaceId: number): Promise<boo
 /** The sentence every refusal and every screen uses. */
 export function pausedSentence(state: AiPauseState, what: string): string {
   const who = state.paused_by ? ` by ${state.paused_by}` : '';
-  return `AI analysis is switched off for this workspace${who}, so ${what}. An admin can switch it back on in Admin → Analysis.`;
+  return `AI analysis is switched off for this workspace${who}, so ${what}. An admin can switch it back on in Settings → Analysis.`;
 }
 
 /**

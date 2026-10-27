@@ -99,6 +99,6 @@ describe('what the operator is told at boot', () => {
     // The env vars were the only way to configure this until W16-07, so the
     // old message named them and nothing else. Naming the screen is the whole
     // difference between a person fixing it and a person filing a bug.
-    expect(await reportGatewayHealth(null)).toContain('Admin → Models');
+    expect(await reportGatewayHealth(null)).toContain('Settings → Models');
   });
 });

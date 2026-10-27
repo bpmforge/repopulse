@@ -7,7 +7,7 @@ import { localDateTime } from '../findings/aiContracts.js';
 import { AiSpend, type Spend } from './AiSpend.js';
 import { AiControls } from './AiControls.js';
 
-// Admin → Analysis (W7-08, UX_SPEC §4.i).
+// Settings → Analysis (W7-08, UX_SPEC §4.i).
 //
 // W20-06 (UX_TODO AI-09, AI-10, AI-71, AI-72, AI-86): this page used to promise
 // things the product does not do. "Tier 2 runs on your own LAN" stopped being
@@ -141,7 +141,7 @@ function RepoRow({ repo }: { repo: RepoPolicy }) {
                 egress audit below before it is made. There is no spending cap for it yet.
               </p>
               <p data-testid={`tier3-confirm-second-opinion-${repo.id}`}>
-                <strong>What it allows today:</strong> an admin may ask a hosted model in Admin →
+                <strong>What it allows today:</strong> an admin may ask a hosted model in Settings →
                 Models, off your network, for a second opinion on an AI suggestion in this
                 repository. That sends the finding, its rule and the stored lines of code around it
                 (not the whole file), is recorded in the egress audit, and counts toward the daily
@@ -302,7 +302,7 @@ export function AnalysisPolicy() {
         {/* W20-06 (UX_TODO AI-09): Tier 2 can be a hosted vendor since W19-01,
             so "nothing leaves your network" is not ours to promise here. */}
         <p className="mt-2 text-xs text-fg-muted" data-testid="analysis-tiers-note">
-          Tier 2 uses the models in Admin → Models, for every repository; see{' '}
+          Tier 2 uses the models in Settings → Models, for every repository; see{' '}
           <Link to="/admin/models" className="text-fg underline underline-offset-2">
             Routing
           </Link>{' '}

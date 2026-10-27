@@ -101,7 +101,7 @@ function renderScreen() {
   );
 }
 
-describe('Admin → Models → Routing (W19-02)', () => {
+describe('Settings → Models → Routing (W19-02)', () => {
   it('lists every role, shows existing chains, and offers only enabled connections', async () => {
     renderScreen();
     const row = await screen.findByTestId('routing-row-security');

@@ -12,7 +12,7 @@ import {
   type EgressProvider,
 } from './egress.js';
 
-// Admin → Models → "Set up a model" (W19-07).
+// Settings → Models → "Set up a model" (W19-07).
 //
 // Four steps that take a person from "I have a model somewhere" to "I know what
 // leaves my network, per role": where it runs, connect and TEST it, choose
@@ -461,7 +461,9 @@ export function ModelsWizard() {
                 ))}
               </div>
             ) : null}
-            {where === 'local' && presetNote ? (
+            {/* Hidden once a test reached the server: "Start the local server" next
+                to "Reached it" contradicted it (2026-10-27 walkthrough). */}
+            {where === 'local' && presetNote && !testedOk ? (
               <p className="text-xs text-fg" data-testid="wizard-preset-note">
                 <strong>Still to do:</strong> {presetNote}
                 {baseUrl.includes(MACHINE_IP)

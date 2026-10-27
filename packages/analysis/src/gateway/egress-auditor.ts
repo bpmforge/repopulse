@@ -3,7 +3,7 @@ import { isOnNetworkHost } from '../config/hosts.js';
 
 // The egress auditor (W17-11).
 //
-// WHAT WAS WRONG. `egress_audit` had a reader (Admin → Analysis) and NO
+// WHAT WAS WRONG. `egress_audit` had a reader (Settings → Analysis) and NO
 // PRODUCTION WRITER: the only thing that ever built a client capable of writing
 // one was `createT3Client`, and the only caller of that was its own test. So the
 // screen reporting "what has left this network" was reporting an empty table on

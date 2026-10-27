@@ -74,7 +74,7 @@ export async function markRepoStalled(
       .where(and(eq(core.repos.id, repoId), inArray(core.repos.syncStatus, IN_FLIGHT)))
       .for('update');
     if (!repo) return false;
-    // First, because Admin → Sync truncates the line: the reason the repo is
+    // First, because Settings → Sync truncates the line: the reason the repo is
     // in `error` must be what shows, ahead of any per-entity refusal.
     const kept = withoutStallFragments(repo.lastError);
     await tx

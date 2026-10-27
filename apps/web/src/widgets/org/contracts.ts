@@ -280,6 +280,9 @@ export interface MeContext {
   /** W20-17 (UX_TODO INS-39): repositories already live, and workspace members. */
   live_repo_count?: number;
   member_count?: number;
+  /** Completed security / code-health scans, and configured models (onboarding). */
+  succeeded_scan_count?: number;
+  model_count?: number;
   /** W20-17 (UX_TODO ADM-21): up to five admin logins, sent to members only. */
   admin_logins?: string[];
   identity_id: number | null;

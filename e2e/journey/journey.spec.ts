@@ -293,7 +293,7 @@ async function removeProvider(id: number): Promise<void> {
   await expect(page.getByTestId(`provider-row-${id}`)).toHaveCount(0);
 }
 
-test('7. Admin → Models: the fixture model answers the real client', async () => {
+test('7. Settings → Models: the fixture model answers the real client', async () => {
   const id = await addProvider('fixture-model');
   await shot(page, 'models-fixture-model-saved');
   record({ step: 7, providerId: id });
@@ -511,7 +511,7 @@ test('11. DRILL model timeout: a hanging model is reported within the run, then 
   expect(row.error, JSON.stringify(row)).toBeNull();
   expect(['ok', 'all_rejected'], JSON.stringify(row)).toContain(row.state);
   expect(row.open_findings).toBeGreaterThanOrEqual(1);
-  // addProvider left the page on Admin → Models; go to the security screen.
+  // addProvider left the page on Settings → Models; go to the security screen.
   await page.goto(`/repos/${repoId}/security`);
   await expect(page.getByTestId('scanner-row-owasp_web')).toHaveAttribute('data-state', row.state);
   await expect(page.getByTestId('scanner-row-owasp_web')).not.toHaveAttribute(

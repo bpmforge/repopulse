@@ -8,7 +8,7 @@ import {
   type StoredSettings,
 } from './contracts.js';
 
-// Admin → Settings → License policy (W20-08, UX_TODO FND-18).
+// Settings → Scoring → License policy (W20-08, UX_TODO FND-18).
 //
 // The license register has applied a workspace policy since W18-39, and there
 // was no way to set one: the key was missing from the settings schema. Saved

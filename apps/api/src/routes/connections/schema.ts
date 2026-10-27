@@ -168,10 +168,25 @@ export const selectReposBodySchema = z
   .object({
     repo_forge_ids: z.array(z.string()).optional(),
     all_with_auto_add: z.boolean().optional(),
+    /**
+     * `owner/name` of repositories the token can READ but does not list as its
+     * own, such as a public open-source project to try RepoPulse on first. Each
+     * is looked up on the forge; it backfills and scans like any other, and
+     * gets no webhook (the forge refuses one on a repository you do not admin),
+     * so it updates on the scheduled sync.
+     */
+    repo_full_names: z
+      .array(z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/, 'owner/name'))
+      .max(20)
+      .optional(),
   })
-  .refine((b) => b.all_with_auto_add === true || (b.repo_forge_ids?.length ?? 0) > 0, {
-    message: 'provide repo_forge_ids or all_with_auto_add',
-  });
+  .refine(
+    (b) =>
+      b.all_with_auto_add === true ||
+      (b.repo_forge_ids?.length ?? 0) > 0 ||
+      (b.repo_full_names?.length ?? 0) > 0,
+    { message: 'provide repo_forge_ids, repo_full_names or all_with_auto_add' },
+  );
 
 export const selectReposResponseSchema = z.object({
   repo_ids: z.array(z.number()),

@@ -18,7 +18,7 @@ import {
 } from '../../../lib/claude-cli-acceptance.js';
 import { readWorkerHeartbeats } from '../../../workers/heartbeat.js';
 
-// Admin → Models → the customer-supplied Claude Code CLI option (W19-08).
+// Settings → Models → the customer-supplied Claude Code CLI option (W19-08).
 //
 // OFF BY DEFAULT. An admin reads the statement and accepts THIS VERSION of it;
 // the acceptance is a row (who, when, version, hash) and an audit event. The

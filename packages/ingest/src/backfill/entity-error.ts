@@ -8,7 +8,7 @@ import type { DbOrTx, Tx } from './db.js';
 //
 // A permanent refusal (a token without read:issue gets 403) is recorded in two
 // places: sync_cursors.last_error is the per-entity truth, and repos.last_error
-// carries the same text so the existing Admin → Sync column shows it. The repo
+// carries the same text so the existing Settings → Sync column shows it. The repo
 // line may already hold something else — the webhook-registration failure
 // connect.ts writes — so this module edits only its own fragment of it.
 

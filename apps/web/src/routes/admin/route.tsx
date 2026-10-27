@@ -6,7 +6,7 @@ import type { MeContext } from '../../widgets/org/contracts.js';
 
 // Admin (UX_SPEC §4.i). Tabs are routes, like the repo screen.
 //
-// The API enforces admin-only access on its own (requireAdmin → 403); this
+// The API enforces admin-only access on its own (requireSettings → 403); this
 // check is presentation, not security. It exists so a member sees the
 // ask-an-admin copy instead of a wall of failed requests — the 403 page copy
 // FR-AUTH-4 calls for.

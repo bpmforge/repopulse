@@ -377,7 +377,7 @@ function resolveClaudeCli(config: ProviderConfig, spec: ProviderSpec): T2Host {
   if (config.cliAccepted !== true) {
     throw new ProviderConfigError(
       config.name,
-      'the Claude Code CLI option is off: an admin must read and accept the responsibility statement in Admin → Models first',
+      'the Claude Code CLI option is off: an admin must read and accept the responsibility statement in Settings → Models first',
     );
   }
   if (config.apiKey) {

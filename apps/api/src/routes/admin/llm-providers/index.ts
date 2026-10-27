@@ -27,7 +27,7 @@ import { describeEndpoint } from '../../../lib/llm-routing.js';
 import { sendProblem } from '../../../lib/problem.js';
 import { hostsFromEnv } from '../../../workers/gateway.js';
 
-// Admin → Models (W16-07, D-LLM-1).
+// Settings → Models (W16-07, D-LLM-1).
 //
 // The configuration surface the product did not have. Before this, every LLM
 // setting was an environment variable, so "point RepoPulse at my own model"
@@ -35,7 +35,7 @@ import { hostsFromEnv } from '../../../workers/gateway.js';
 // standalone product whose premise is that you bring your own model, that was
 // the largest gap the end-user review found (F5).
 //
-// ADMIN-ONLY AND AUDITED, for the same reason Admin → Analysis is: a provider
+// ADMIN-ONLY AND AUDITED, for the same reason Settings → Analysis is: a provider
 // row decides where this workspace's DIFFS are sent. Adding one that names a
 // public endpoint is a data-egress decision, not a preference, so it is
 // recorded with an author the way a Tier-3 opt-in is.
@@ -296,7 +296,7 @@ export default async function llmProviderRoutes(
           reply,
           403,
           'The Claude Code CLI option is off',
-          'An admin must read and accept the responsibility statement first (Admin → Models).',
+          'An admin must read and accept the responsibility statement first (Settings → Models).',
         );
       }
       if (apiKey) {

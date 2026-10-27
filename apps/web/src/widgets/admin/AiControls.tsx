@@ -4,7 +4,7 @@ import { ErrorNote, WidgetFrame, frameState } from '../../components/index.js';
 import { useApiMutation, useApiQuery, queryKeyFor } from '../../api/useApiQuery.js';
 import { localDateTime, windowLabel, type AiPause } from '../findings/aiContracts.js';
 
-// Admin → Analysis: switch AI off for the whole workspace, and every scheduled
+// Settings → Analysis: switch AI off for the whole workspace, and every scheduled
 // pass in one list (W20-18, UX_TODO AI-77).
 //
 // Schedules could only be read and changed one repository at a time, and there

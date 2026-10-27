@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ErrorNote, WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 
-// Admin → Models (W16-07, D-LLM-1).
+// Settings → Models (W16-07, D-LLM-1).
 //
 // The screen the product did not have. Every LLM setting used to be an
 // environment variable, so pointing RepoPulse at your own model meant editing a

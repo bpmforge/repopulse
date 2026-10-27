@@ -142,6 +142,22 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
       .select({ n: sql<number>`count(*)::int` })
       .from(core.workspaceMembers)
       .where(eq(core.workspaceMembers.workspaceId, request.workspace.id));
+    // The scanner and model steps: a customer installs this to find security,
+    // performance and AI-slop problems, and the checklist said nothing about
+    // either (2026-10-27 walkthrough). Workspace-filtered (Law 5).
+    const [scans] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(security.scanRuns)
+      .where(
+        and(
+          eq(security.scanRuns.workspaceId, request.workspace.id),
+          eq(security.scanRuns.status, 'succeeded'),
+        ),
+      );
+    const [models] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(core.llmProviders)
+      .where(eq(core.llmProviders.workspaceId, request.workspace.id));
     return reply.send({
       workspace: {
         id: request.workspace.id,
@@ -158,6 +174,8 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
       repo_count: tracked?.n ?? 0,
       live_repo_count: tracked?.live ?? 0,
       member_count: members?.n ?? 0,
+      succeeded_scan_count: scans?.n ?? 0,
+      model_count: models?.n ?? 0,
       // W20-17 (UX_TODO ADM-21): "ask an admin" now says who. Members only;
       // an admin has Settings → Members. Workspace-filtered (Law 5).
       admin_logins:

@@ -12,7 +12,7 @@ import { startableScannerKeys } from '../../lib/startable-scanners.js';
 //
 // Everything this product does was scheduled and nothing could be started. The
 // Security and Code Health tabs listed scanners that had "never run" with no
-// button to run one, and Admin → Sync reported progress with no way to ask for
+// button to run one, and Settings → Sync reported progress with no way to ask for
 // any. For someone who installed RepoPulse ten minutes ago and wants to see it
 // work, "wait until Sunday 02:41" is the wrong answer — and it is also how a
 // first run looks identical to a broken install.
