@@ -665,8 +665,38 @@ describeIfLiveInfra('connections routes (W2-01, FR-INGEST-1, FR-AUTH-5)', () => 
       payload: { credential: ['ghp', 'rekeyHttpRow', 'WXYZ'].join('_') },
     });
     expect(res.statusCode).toBe(400);
-    expect(res.json().detail).toContain('remove it and connect again');
+    expect(res.json().detail).toContain('enter its https address when you replace the token');
     expect(providerBuilds).toEqual([]);
+  });
+
+  it('PATCH with base_url corrects the address in place, checked like a new one', async () => {
+    const cookie = await loginAs(app, ADMIN);
+    const connId = await newConnection(cookie, { provider: 'gitea', base_url: 'https://gitea.internal.example' });
+    await db
+      .update(core.forgeConnections)
+      .set({ baseUrl: 'http://gitea:3000' })
+      .where(eq(core.forgeConnections.id, connId));
+    const patch = (base_url: string) =>
+      app.inject({
+        method: 'PATCH',
+        url: `/api/v1/connections/${connId}`,
+        cookies: { repopulse_sid: cookie },
+        payload: { credential: ['ghp', 'rekeyNewAddress', 'WXYZ'].join('_'), base_url },
+      });
+
+    const refused = await patch('http://gitea.internal.example');
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json().title).toBe('RepoPulse cannot connect to this address');
+
+    providerBuilds.length = 0;
+    const ok = await patch('https://gitea:3000');
+    expect(ok.statusCode).toBe(200);
+    expect(providerBuilds).toEqual([{ kind: 'gitea', baseUrl: 'https://gitea:3000' }]);
+    const [row] = await db
+      .select()
+      .from(core.forgeConnections)
+      .where(eq(core.forgeConnections.id, connId));
+    expect(row!.baseUrl).toBe('https://gitea:3000');
   });
 
   it('PATCH replaces the credential in place; a bad one leaves the old token working', async () => {

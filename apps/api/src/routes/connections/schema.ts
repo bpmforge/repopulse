@@ -130,6 +130,12 @@ export const availableReposResponseSchema = z.object({
 /** PATCH /connections/{id} — replace the credential (W20-07, UX_TODO INS-08). */
 export const replaceCredentialBodySchema = z.object({
   credential: z.string().min(1),
+  /**
+   * A corrected instance address, checked like a new connection's (2026-10-27
+   * walkthrough: a connection saved with the wrong address could only be
+   * removed and re-created, which tracked every repository twice).
+   */
+  base_url: z.string().url().optional(),
 });
 
 export const replaceCredentialResponseSchema = z.object({

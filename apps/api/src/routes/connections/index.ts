@@ -144,7 +144,7 @@ function unsafeBaseUrlReason(baseUrl: string | undefined): string | undefined {
     return undefined;
   } catch (err) {
     if (!(err instanceof ForgeSsrfError)) throw err;
-    return `${baseUrl}: ${err.message}. RepoPulse only connects to a forge over https, by host name — not plain http, an IP address or localhost. If your forge uses a certificate from your own CA, add the CA instead (INSTALL.md → "A forge with an internal-CA certificate"); for a connection saved with such an address, remove it and connect again.`;
+    return `${baseUrl}: ${err.message}. RepoPulse only connects to a forge over https, by host name — not plain http, an IP address or localhost. If your forge uses a certificate from your own CA, add the CA instead (INSTALL.md → "A forge with an internal-CA certificate"); for a connection saved with such an address, enter its https address when you replace the token.`;
   }
 }
 
@@ -731,10 +731,10 @@ export default async function connectionsRoutes(
       if (!ctx) return fail(request, reply, 401, 'No active session');
       const row = await loadConnection(request.params.id, ctx.workspaceId);
       if (!row) return fail(request, reply, 404, 'Not Found');
-      const { credential } = request.body;
+      const { credential, base_url } = request.body;
 
       const kind = row.provider as ForgeKind;
-      const baseUrl = resolveConnectionBaseUrl(kind, row.baseUrl, opts.forgeBaseUrl);
+      const baseUrl = resolveConnectionBaseUrl(kind, base_url ?? row.baseUrl, opts.forgeBaseUrl);
       const unsafe = unsafeBaseUrlReason(baseUrl);
       if (unsafe) return fail(request, reply, 400, UNSAFE_BASE_URL_TITLE, unsafe);
       let forge: ForgeProvider;
@@ -756,7 +756,12 @@ export default async function connectionsRoutes(
             host: hostOf(baseUrl),
             readTokenInfo: tokenReader(forge, row.authKind),
           },
-          { workspaceId: ctx.workspaceId, connectionId: row.id, credential },
+          {
+            workspaceId: ctx.workspaceId,
+            connectionId: row.id,
+            credential,
+            ...(base_url && baseUrl ? { baseUrl } : {}),
+          },
         );
         if (!found) return fail(request, reply, 404, 'Not Found');
       } catch (err) {
@@ -781,6 +786,9 @@ export default async function connectionsRoutes(
         connectionId: row.id,
         // The fingerprint, never the credential (FR-AUTH-5).
         fingerprint,
+        ...(base_url && base_url !== row.baseUrl
+          ? { previousHost: hostOf(row.baseUrl ?? undefined), host: hostOf(baseUrl) }
+          : {}),
       });
       return reply.send({ id: row.id, status: 'active', fingerprint });
     },

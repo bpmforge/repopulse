@@ -383,7 +383,13 @@ function ConnectionActions({
 }) {
   const [mode, setMode] = useState<'idle' | 'rekey' | 'remove'>('idle');
   const [token, setToken] = useState('');
-  const rekey = useApiMutation<{ credential: string }, { id: number; fingerprint: string }>(
+  // 2026-10-27 walkthrough: a wrong address could only be fixed by removing
+  // the connection and connecting again, which tracked every repository twice.
+  const [address, setAddress] = useState(row.base_url ?? '');
+  const rekey = useApiMutation<
+    { credential: string; base_url?: string },
+    { id: number; fingerprint: string }
+  >(
     { endpoint: '/connections/{id}', path: { id: row.id }, method: 'PATCH' },
     { invalidate: [queryKeyFor(LIST)] },
   );
@@ -437,8 +443,12 @@ function ConnectionActions({
         onSubmit={(e) => {
           e.preventDefault();
           if (!token.trim()) return;
+          const newAddress = address.trim();
           rekey.mutate(
-            { credential: token.trim() },
+            {
+              credential: token.trim(),
+              ...(newAddress && newAddress !== (row.base_url ?? '') ? { base_url: newAddress } : {}),
+            },
             {
               onSuccess: () => {
                 // Cleared at once, like the create form: a token left in a
@@ -451,6 +461,22 @@ function ConnectionActions({
           );
         }}
       >
+        {row.base_url !== null ? (
+          <>
+            <label className="text-xs text-fg-muted" htmlFor={`rekey-address-${row.id}`}>
+              Instance address — change it here if it was wrong; the repositories stay as they are
+            </label>
+            <input
+              id={`rekey-address-${row.id}`}
+              type="url"
+              autoComplete="off"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              className="panel px-2 py-1 text-sm"
+              data-testid={`connection-rekey-address-${row.id}`}
+            />
+          </>
+        ) : null}
         <label className="text-xs text-fg-muted" htmlFor={`rekey-${row.id}`}>
           New token for this {row.provider} connection — checked against the forge before it
           replaces the old one

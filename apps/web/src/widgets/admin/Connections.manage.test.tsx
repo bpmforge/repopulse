@@ -153,7 +153,30 @@ describe('managing a connection (W20-07, INS-08)', () => {
         body: { credential: rotated },
       }),
     );
+    // Address untouched: not sent, so a plain token swap never moves anything.
+    expect(calls.find((c) => c.method === 'PATCH')?.body).toEqual({ credential: rotated });
     await waitFor(() => expect(screen.queryByTestId('connection-rekey-form-5')).toBeNull());
+  });
+
+  // 2026-10-27 walkthrough: a wrong address could only be fixed by removing
+  // and re-adding the connection, which tracked every repository twice.
+  it('sends a corrected address with the token, and only when it changed', async () => {
+    const user = userEvent.setup();
+    renderConnections();
+    await user.click(await screen.findByTestId('connection-rekey-5'));
+    const address = screen.getByTestId('connection-rekey-address-5');
+    expect(address).toHaveValue('https://git.example.com');
+    await user.clear(address);
+    await user.type(address, 'https://git.corp.example');
+    const token = ['gitea', 'moved', 'value'].join('-');
+    await user.type(screen.getByTestId('connection-rekey-input-5'), token);
+    await user.click(screen.getByTestId('connection-rekey-do-5'));
+    await waitFor(() =>
+      expect(calls.find((c) => c.method === 'PATCH')?.body).toEqual({
+        credential: token,
+        base_url: 'https://git.corp.example',
+      }),
+    );
   });
 
   it('says what happens to the tracked repos before removing', async () => {
