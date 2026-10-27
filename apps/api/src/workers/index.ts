@@ -15,6 +15,7 @@ import {
   enrichProcessor,
   reconcileProcessor,
   snapshotProcessor,
+  enqueueRepriceAfterScan,
 } from './processors.js';
 import { startWorkerHealthServer } from './health.js';
 import { startWorkerHeartbeat, type WorkerCliStatus } from './heartbeat.js';
@@ -387,6 +388,14 @@ async function main(): Promise<void> {
       // W8-01. Own lane, own workers (NFR-15).
       [QUEUE.securityScan]: scanProcessor({
         db,
+        // 2026-10-27: price what the scan wrote within a minute, not overnight.
+        afterScan: async ({ workspaceId, repoId }) => {
+          try {
+            await enqueueRepriceAfterScan(snapshotQueue, { workspaceId, repoId });
+          } catch (err) {
+            log.warn({ err, repoId }, '[worker] reprice after scan not queued');
+          }
+        },
         // W21-02. One PR head, every enabled pattern scanner, one archive.
         prRunner: async ({ workspaceId, repoId, commitSha, prNumber }) => {
           if (prNumber === undefined) return { skipped: 'no_pr' };

@@ -694,9 +694,50 @@ async function processReconcileSweep(deps: ProcessorDeps) {
 }
 
 /** Metric snapshots — the numbers every screen reads. */
+/**
+ * Price a repository's findings soon after a scan (2026-10-27 walkthrough).
+ *
+ * Pricing ran only in the snapshot job — after ingestion, then nightly — so
+ * every finding a scan wrote stayed unpriced until the next night. On a fresh
+ * install that was 65 priced of ~22,600 open, and "Risk (highest first)" ordered
+ * almost nothing. One delayed job per repository per ten minutes: a "Run scans
+ * now" fans out ~19 scanners, and they collapse into one reprice that runs a
+ * minute after the first of them finishes. Hotspots and the import graph are
+ * read from the last snapshot, as the nightly reprice reads them.
+ */
+export const REPRICE_AFTER_SCAN_DELAY_MS = 60_000;
+export async function enqueueRepriceAfterScan(
+  snapshotQueue: Pick<Queue, 'add'>,
+  data: { workspaceId: number; repoId: number },
+  now = Date.now(),
+): Promise<void> {
+  const bucket = Math.floor(now / (10 * 60_000));
+  await snapshotQueue.add(
+    'reprice',
+    { workspaceId: data.workspaceId, repoId: data.repoId, repriceOnly: true },
+    { jobId: `reprice-${data.repoId}-${bucket}`, delay: REPRICE_AFTER_SCAN_DELAY_MS },
+  );
+}
+
 export function snapshotProcessor(deps: ProcessorDeps) {
   return async (job: Job) => {
-    const data = job.data as { workspaceId: number; repoId: number };
+    const data = job.data as { workspaceId: number; repoId: number; repriceOnly?: boolean };
+    if (data.repriceOnly) {
+      const repriced = await repriceFindings({
+        db: deps.db,
+        workspaceId: data.workspaceId,
+        repoId: data.repoId,
+        hotspots: await hotspotPercentiles(deps.db, data.workspaceId, data.repoId),
+        ruleFpRates: await ruleFpRatesFor(deps.db, data.workspaceId),
+      });
+      const findingsMetric = await writeFindingsMetric(deps.db, data.workspaceId, data.repoId);
+      return {
+        written: 0,
+        repriced: repriced.priced,
+        bandChanges: repriced.bandChanges.length,
+        findingsSummarised: findingsMetric.dims.openCount,
+      };
+    }
     // W4-09. This used to pass a literal `botGlobs: []`, which is NOT "use the
     // defaults": isBotLogin does `globs.some(...)`, so an empty list means
     // nothing is a bot and METRICS.md §0's shared exclusion rule had never held
