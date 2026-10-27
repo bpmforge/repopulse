@@ -13,7 +13,9 @@ import {
 } from '@repopulse/ingest';
 import {
   ForgeHttpError,
+  ForgeSsrfError,
   splitRepoFullName,
+  validateBaseUrl,
   type CallCtx,
   type ForgeCursor,
   type ForgeProvider,
@@ -372,6 +374,32 @@ export default async function connectionsRoutes(
           'Enter your Gitea address',
           'Gitea is self-hosted, so there is no default instance to connect to. Enter its address in Instance URL, e.g. https://git.example.com (or set FORGE_BASE_URL as the server-wide default).',
         );
+      }
+
+      // SC-12 at connect time too. The worker's budgeted client refuses a
+      // base URL that is not https (or is an IP, or localhost) on EVERY sync
+      // call, while this route's discovery client does not check — so an
+      // http:// Gitea connected, listed its repositories, and then every
+      // backfill failed in the background with a blank "Last error"
+      // (2026-10-27 walkthrough). Same rule, same escape hatch as the worker.
+      if (baseUrl) {
+        try {
+          validateBaseUrl(baseUrl, {
+            allowlist: [new URL(baseUrl).hostname],
+            ...(process.env.FORGE_ALLOW_INSECURE_LOOPBACK === '1'
+              ? { allowInsecureLoopback: true }
+              : {}),
+          });
+        } catch (err) {
+          if (!(err instanceof ForgeSsrfError)) throw err;
+          return fail(
+            request,
+            reply,
+            400,
+            'RepoPulse cannot connect to this address',
+            `${baseUrl}: ${err.message}. RepoPulse only connects to a forge over https, by host name — not plain http, an IP address or localhost. If your forge uses a certificate from your own CA, add the CA instead (INSTALL.md → "A forge with an internal-CA certificate").`,
+          );
+        }
       }
 
       let auth: GitHubAuth;

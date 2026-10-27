@@ -80,6 +80,9 @@ export default defineConfig({
             E2E_API_PORT: String(PORTS.e2eApi),
             E2E_FAKE_FORGE_PORT: FAKE_FORGE_PORT,
             ...(REAL_FORGE ? { SMOKE_FORGE_BASE_URL: 'https://api.github.com' } : {}),
+            // The connect route applies the worker's SC-12 check, so the API
+            // needs the same loopback hatch to accept the http fake forge.
+            ...(REAL_FORGE ? {} : { FORGE_ALLOW_INSECURE_LOOPBACK: '1' }),
           },
           reuseExistingServer: false,
           timeout: 60_000,
