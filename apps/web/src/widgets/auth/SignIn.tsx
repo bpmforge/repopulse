@@ -228,7 +228,7 @@ export function SignIn({ expired }: SignInProps) {
             ? // W20-04 (UX_TODO X-02): this screen now opens OVER the app, which
               // stays mounted, so what was typed is still there — but the write
               // that hit the expired session was refused and is not retried.
-              'Your session ended. Sign in again to carry on — the page behind this stays as you left it, but the last change you made was not saved; make it again.'
+              'Your session ended — a sign-in ends after a stretch without activity (15 minutes by default) or after a fixed number of hours (12 by default). Sign in again to carry on — the page behind this stays as you left it, but the last change you made was not saved; make it again.'
             : 'Sign in to see your organization’s delivery, code health, and risk.'}
         </p>
 

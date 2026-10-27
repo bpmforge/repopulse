@@ -37,6 +37,8 @@ every variable at fault. The API will not half-boot.
 | Variable | Required | Default | Purpose | If it is wrong |
 | --- | --- | --- | --- | --- |
 | `SESSION_SECRET` 🔒 | yes | — | Signs session cookies. | Changing it logs every user out. A short or shared value makes sessions forgeable. |
+| `SESSION_IDLE_MINUTES` | no | `15` | Minutes without activity before a sign-in ends; every request renews it (FR-AUTH-2). Whole number, 5–1440. | Too short signs people out while they read; too long keeps an unattended browser signed in. Out of range is ignored (default used). |
+| `SESSION_MAX_HOURS` | no | `12` | Hours after which a sign-in ends even while in use (FR-AUTH-2). Whole number, 1–720. | Too long keeps a stolen session cookie useful. Out of range is ignored (default used). |
 | `TOKEN_ENC_KEY` 🔒 | yes | — | AES-256-GCM key encrypting forge tokens at rest (Law 9). | Boot fails unless it is 32 bytes of hex. LOSING IT makes every stored forge credential undecryptable — they must be re-entered. |
 | `NEW_TOKEN_ENC_KEY` 🔒 | no | — | The replacement key, for `pnpm rotate:token-key` (deploy/rotate-token-key.sh in a packaged install) only. It re-seals every stored credential from TOKEN_ENC_KEY to this key; then this value becomes TOKEN_ENC_KEY. | The rotation refuses to start unless it is 32 bytes of hex. Lost after a rotation and before .env was updated: every stored credential is sealed under a key nobody has, and must be re-entered. |
 | `API_BASE_URL` | yes | — | Where the API is reachable. Builds the OAuth callback URL. | OAuth fails after the forge redirects back, because the callback it was told about does not match this. |

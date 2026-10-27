@@ -138,6 +138,8 @@ describe('SignIn (W15-04)', () => {
   it('says "your session ended" only when there was one', async () => {
     renderSignIn({}, <SignIn expired />);
     expect(await screen.findByTestId('signin')).toHaveTextContent(/session ended/i);
+    // 2026-10-27 walkthrough: it said the session ended, never why.
+    expect(screen.getByTestId('signin')).toHaveTextContent(/without activity \(15 minutes by default\)/);
   });
 
   it('every input has a label, which is what makes the form usable at all', async () => {
