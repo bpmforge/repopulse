@@ -142,6 +142,14 @@ export interface ScanProcessorDeps {
    * one per scanner, and never throws for a scanner's failure.
    */
   prRunner?: (data: ScanJobData) => Promise<unknown>;
+  /**
+   * After any job that scanned a repository (2026-10-27): the worker queues a
+   * reprice so new findings carry a risk score today, not after the nightly
+   * snapshot. Not called for the sweep fan-outs, which scan nothing themselves.
+   * The hook catches and logs its own failures: a queue hiccup must not fail a
+   * scan whose findings are already stored.
+   */
+  afterScan?: (data: ScanJobData) => Promise<void>;
 }
 
 /**
@@ -241,6 +249,16 @@ async function runSweep(
 }
 
 export function scanProcessor(deps: ScanProcessorDeps) {
+  const scan = scanJob(deps);
+  return async function process(job: Job<ScanJobData>): Promise<void> {
+    await scan(job);
+    const mode = job.data.mode;
+    if (mode === 'weekly_sweep' || mode === 'history_sweep') return;
+    await deps.afterScan?.(job.data);
+  };
+}
+
+function scanJob(deps: ScanProcessorDeps) {
   return async function process(job: Job<ScanJobData>): Promise<void> {
     const data = job.data;
 
