@@ -273,7 +273,8 @@ function RepoList() {
                 .slice(0, 5)
                 .join(', ')}
               . Each one&apos;s activity is counted twice in organization numbers; an admin can
-              pause the copy you do not want in Settings → Sync.
+              remove the copy you do not want in Settings → Sync. Pausing it is not enough: a
+              paused copy&apos;s history still counts.
             </p>
           )}
 

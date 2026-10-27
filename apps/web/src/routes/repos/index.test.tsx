@@ -254,5 +254,10 @@ describe('repositories across forges (W20-15, UX_TODO X-16)', () => {
     expect(screen.getByTestId('repo-list-duplicates')).toHaveTextContent(
       /more than one connection: acme\/api\. .*counted twice/,
     );
+    // 2026-10-27 walkthrough: the old advice was "pause the copy", but a paused
+    // copy's history still counts — only Sync → Remove takes it out.
+    expect(screen.getByTestId('repo-list-duplicates')).toHaveTextContent(
+      /remove the copy .*Pausing it is not enough/,
+    );
   });
 });
