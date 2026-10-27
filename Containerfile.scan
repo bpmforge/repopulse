@@ -367,9 +367,17 @@ RUN chmod 0444 /opt/scan-tools/sbom-normalise.mjs
 # config, and pointing it at the SNAPSHOT would let a repository decide what our
 # scanner reports — a repo could silence us by committing a setting. So the
 # config is ours, it lives in the image, and it is unwritable at scan time.
+#
+# Biome's RECOMMENDED rules of the two defect groups, not every rule in them.
+# `"correctness":"on"` turned on rules that need project context a snapshot
+# scan does not have — test-runner globals, browser-vs-Node, a tsconfig — and
+# Biome's own opinion rules. On outline (2026-10-27 walkthrough) that was
+# 20,110 findings, 18,176 of them noUndeclaredVariables on Jest's `it` and
+# `expect`; the recommended set gives 613, all defect-shaped (verified against
+# Biome 2.5.9 in this image).
 RUN set -eux; \
     mkdir -p /opt/biome; \
-    printf '%s' '{"linter":{"enabled":true,"rules":{"recommended":false,"correctness":"on","suspicious":"on"}}}' \
+    printf '%s' '{"linter":{"enabled":true,"rules":{"recommended":false,"correctness":{"recommended":true},"suspicious":{"recommended":true}}}}' \
       > /opt/biome/biome.json; \
     chmod 0444 /opt/biome/biome.json
 
