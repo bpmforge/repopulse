@@ -295,4 +295,36 @@ describe('coverage order (W20-13, FND-31)', () => {
       '1 of 4 scanners need attention',
     );
   });
+
+  // 2026-10-27 walkthrough: "4 of 19 need attention" where three were benign
+  // "nothing to scan" rows (GitHub-only import on Gitea, no commits in range).
+  it('does not count "nothing was scanned" as needing attention, and says it apart', () => {
+    render(
+      <ScannerStatusList
+        scanners={[
+          scanner({ key: 'a', display_name: 'Alpha', state: 'ok' }),
+          scanner({ key: 'b', display_name: 'Beta', state: 'nothing_scanned', error: 'No commits in range' }),
+          scanner({ key: 'c', display_name: 'Gamma', state: 'error', error: 'boom' }),
+          scanner({ key: 'd', display_name: 'Delta', state: 'nothing_scanned', error: 'not supported on Gitea' }),
+        ]}
+      />,
+    );
+    expect(screen.getByTestId('scanner-status-caption')).toHaveTextContent(
+      '1 of 4 scanners need attention; they are listed first. 2 had nothing to scan this time.',
+    );
+  });
+
+  it('says so when nothing is wrong but some scanners had nothing to scan', () => {
+    render(
+      <ScannerStatusList
+        scanners={[
+          scanner({ key: 'a', display_name: 'Alpha', state: 'ok' }),
+          scanner({ key: 'b', display_name: 'Beta', state: 'nothing_scanned', error: 'No SBOM yet' }),
+        ]}
+      />,
+    );
+    expect(screen.getByTestId('scanner-status-caption')).toHaveTextContent(
+      '2 scanners. 1 had nothing to scan this time.',
+    );
+  });
 });
