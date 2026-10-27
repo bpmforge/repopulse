@@ -607,6 +607,16 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     default: '1200000 (20 minutes)',
   },
   {
+    name: 'LMSTUDIO_QUEUE_TIMEOUT_MS',
+    scope: 'worker',
+    required: false,
+    purpose:
+      'How long a Tier-2 call may wait for its turn on a model host that other scans are using. The request timeout starts only once the call is sent.',
+    ifWrong:
+      'Too low and scans that overlap fail with "busy with other analysis" instead of waiting their turn. Too high and a scan waits a long time behind others at "running".',
+    default: '3600000 (60 minutes)',
+  },
+  {
     name: 'API_PROXY_TARGET',
     scope: 'web',
     required: false,
