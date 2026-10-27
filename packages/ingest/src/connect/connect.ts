@@ -278,6 +278,8 @@ export interface ReplaceCredentialParams {
   workspaceId: number;
   connectionId: number;
   credential: string;
+  /** A corrected instance address, already validated by the caller. */
+  baseUrl?: string;
 }
 
 /**
@@ -321,6 +323,7 @@ export async function replaceConnectionCredential(
       tokenExpiresAt: null,
       tokenCheckedAt: null,
       ...token,
+      ...(params.baseUrl ? { baseUrl: params.baseUrl } : {}),
     })
     .where(
       and(
