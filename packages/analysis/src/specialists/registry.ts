@@ -51,9 +51,9 @@ export const SPECIALISTS: readonly Specialist[] = Object.freeze([
     dimension: 'performance',
     role: 'performance',
     label: 'Performance',
-    checklistVersion: 'v2',
+    checklistVersion: 'v3',
     wave: 2,
-    source: 'ANALYSIS_TIERS.md §4; W9 v2',
+    source: 'ANALYSIS_TIERS.md §4; W9 v2; W21-20 v3 (algorithmic complexity, live eval 2026-10-26)',
   },
   {
     id: 'code_health',

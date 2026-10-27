@@ -84,7 +84,9 @@ describe('performance.v3', () => {
     expect(digest(prompt.text)).toMatchInlineSnapshot(`"7970a59008596b10"`);
   });
 
-  it('is NOT what the specialist runs yet: v2 until a live eval says otherwise', () => {
-    expect(specialistById('performance').checklistVersion).toBe('v2');
+  it('is what the specialist runs: the live eval (2026-10-26) showed v3 at least as good as v2', () => {
+    // qwen/qwen3.8-27b, seed 7, the 8 performance cases: v2 and v3 both 4 TP / 1 FP / 0 FN.
+    // v3 adds the growth + complexity statement on every finding but one.
+    expect(specialistById('performance').checklistVersion).toBe('v3');
   });
 });

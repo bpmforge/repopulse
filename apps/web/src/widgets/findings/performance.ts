@@ -35,7 +35,7 @@ export interface RepoCapabilities {
 
 /** The scanner key the deterministic perf pack files its runs under. */
 export const PERF_SCANNER_ID = 'performance';
-/** The grouped Tier-2/3 capability; its checklist includes performance.v2. */
+/** The grouped Tier-2/3 capability; its checklist includes performance.v3. */
 export const AI_REVIEW_ID = 'ai_review';
 
 /** The dimension every performance finding, from either producer, carries. */

@@ -479,6 +479,27 @@ hits on the same corpus. The table and the honesty note (re-scoring against old 
 live) are in `docs/benchmarks/perf-hand-check/README.md`, "Misfires fixed".
 
 
+**AI performance checklist v3 is live (2026-10-26).** The performance specialist now runs `performance.v3`
+(algorithmic complexity: joins by scan, linear search over sorted data, sorting inside loops, repeated
+computation, copy-on-append; every finding states `Grows with: <input>. O(…) → O(…) by <fix>`). It was
+switched on a live run on this Mac (`qwen/qwen3.8-27b`, LM Studio, seed 7, temperature 0.1, concurrency 1)
+over the 8 labelled performance cases, v2 and v3 alternating under identical settings, three runs each:
+
+| Checklist | Run 1 | Run 2 | Run 3 | Precision | Recall | Errored |
+|---|---|---|---|--:|--:|--:|
+| v2 | 4 TP / 1 FP / 0 FN | 4 / 1 / 0 | 4 / 1 / 0 | 80% | 100% | 0 |
+| v3 | 4 TP / 1 FP / 0 FN | 4 / 1 / 0 | 4 / 1 / 0 | 80% | 100% | 0 |
+
+A stable tie, and the bar was "at least as good as v2". The full all-roles re-run in `docs/MODEL_EVAL.md`
+(concurrency 2) gave v3 4 / 2 / 0, the only run with a second false alarm; in that same run test coverage,
+whose checklist did not change, went from 67% to 33% against 2026-10-18, so single runs move by about one
+false alarm and the controlled repeats are what the switch rests on. v3's false alarm is on `perf-clean-batched`
+(an unbounded `Promise.all` over the batch's customers, labelled clean); 4 of its 5 findings carry the
+O(…) → O(…) statement, and the sync-I/O one states the growth input without a complexity arrow. Caveats:
+eight AI-written cases are an indicative floor, not an accuracy estimate; the first v2 attempt lost 4 cases to
+LM Studio unloading the model while another workload shared it, and was discarded rather than scored; and
+`docs/MODEL_EVAL.md` keeps its last full run (2026-10-18, performance v2) until all roles are re-run.
+
 **Rust, Swift and Kotlin (2026-10-26).** None of the hand-check repositories was Rust or Swift, and the one
 Kotlin repository had 7 hits, so no performance rule in those languages has been measured on real code.
 Coverage added, all in shadow: Rust 3 → 7 rules (sqlx query per item, blocking std calls in async code,
