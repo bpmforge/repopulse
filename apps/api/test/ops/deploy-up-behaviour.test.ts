@@ -10,6 +10,20 @@ const run = promisify(execFile);
 const repoRoot = new URL('../../../../', import.meta.url).pathname;
 const upSh = path.join(repoRoot, 'deploy/up.sh');
 
+// up.sh reads its configuration from the shell first and deploy/.env second
+// (`env_value`). The suite loads the repo-root .env into process.env
+// (vitest.config.ts imports dotenv/config), so in a developer's checkout their
+// own ADMIN_EMAIL or PUBLIC_BASE_URL reached the script and overrode the
+// fixture's deploy/.env: the SSO warning case failed there and passed in a
+// clean clone. Every key up.sh reads that way is dropped from the inherited
+// environment; a case that wants one passes it explicitly.
+const UP_CONFIG_KEYS = [...readFileSync(upSh, 'utf8').matchAll(/env_value ([A-Z][A-Z0-9_]*)/g)].map(
+  (m) => m[1]!,
+);
+const inheritedEnv = Object.fromEntries(
+  Object.entries(process.env).filter(([k]) => !UP_CONFIG_KEYS.includes(k)),
+);
+
 /**
  * deploy/up.sh behaviour (W17-04).
  *
@@ -172,7 +186,7 @@ exit 1
         [path.join(deployDir, 'up.sh'), ...(opts.args ?? [])],
         {
           env: {
-            ...process.env,
+            ...inheritedEnv,
             PATH: `${opts.bin ?? path.join(dir, 'bin')}:${runtimeFreeSystemPath()}`,
             REPOPULSE_UP_TIMEOUT: '2',
             ...env,

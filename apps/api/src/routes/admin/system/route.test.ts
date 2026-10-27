@@ -251,7 +251,21 @@ describeIfLiveInfra('GET /admin/system (W17-07)', () => {
   it('an empty install reads as needing setup, NOT as broken', async () => {
     // The judgement that matters most. A fresh install has no model and,
     // usually, no scans — and it is working perfectly.
-    const { body } = await getAs('w17-07-admin');
+    //
+    // A fresh install also has no deprecated LMSTUDIO_* fallback. The suite
+    // loads the repo-root .env (dotenv/config), and a developer's .env may set
+    // one, which is correctly reported as degraded; it is held out here so the
+    // case tests a fresh install wherever it runs.
+    const saved = { url: process.env.LMSTUDIO_BASE_URLS, model: process.env.LMSTUDIO_MODEL };
+    delete process.env.LMSTUDIO_BASE_URLS;
+    delete process.env.LMSTUDIO_MODEL;
+    let body: SystemStatusResponse;
+    try {
+      ({ body } = await getAs('w17-07-admin'));
+    } finally {
+      if (saved.url !== undefined) process.env.LMSTUDIO_BASE_URLS = saved.url;
+      if (saved.model !== undefined) process.env.LMSTUDIO_MODEL = saved.model;
+    }
     const models = body.components.find((c) => c.id === 'models');
 
     // The invariant: an unconfigured OPTIONAL model is never reported as
