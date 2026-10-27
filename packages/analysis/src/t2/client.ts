@@ -1,4 +1,5 @@
 import type { CompleteOpts, CompleteResult } from '../gateway/types.js';
+import { type HostSlots, SHARED_HOST_SLOTS } from './host-slots.js';
 import { requestHeadersFor, type HostAuth } from '../config/hosts.js';
 
 // Tier-2 LM Studio client (W6-01, ANALYSIS_TIERS.md §2, FR-ANALYSIS-2/NFR-8/C2).
@@ -98,6 +99,12 @@ export interface T2Config {
    * failure with a different number on it.
    */
   requestTimeoutMs: number;
+  /**
+   * How long a call may wait for its turn on a host that other analysis in
+   * this process is using (see host-slots.ts). The request timeout above
+   * starts only once the call is sent.
+   */
+  queueTimeoutMs: number;
 }
 
 export const T2_DEFAULTS: Omit<T2Config, 'hosts'> = {
@@ -113,6 +120,8 @@ export const T2_DEFAULTS: Omit<T2Config, 'hosts'> = {
   // stalled stream is reported the same day it stalls. Overridable per
   // deployment because "a slow model" is a property of someone's hardware.
   requestTimeoutMs: Number(process.env.LMSTUDIO_REQUEST_TIMEOUT_MS ?? 20 * 60 * 1000),
+  // 60 minutes: three 20-minute calls ahead of you is a busy host, not a hung one.
+  queueTimeoutMs: Number(process.env.LMSTUDIO_QUEUE_TIMEOUT_MS ?? 60 * 60 * 1000),
 };
 
 export interface T2Deps {
@@ -120,6 +129,8 @@ export interface T2Deps {
   fetchImpl?: typeof fetch;
   /** Injectable so backoff tests do not actually wait 80 seconds. */
   sleep?: (ms: number) => Promise<void>;
+  /** Per-host call slots; defaults to the process-wide table (host-slots.ts). */
+  slots?: HostSlots;
 }
 
 interface ChatResponse {
@@ -324,11 +335,20 @@ export class T2Client {
    */
   async track<T>(host: T2Host, fn: () => Promise<T>): Promise<T> {
     this.inFlight.set(host.baseUrl, (this.inFlight.get(host.baseUrl) ?? 0) + 1);
+    let release: (() => void) | undefined;
     try {
+      release = await this.acquireSlot(host);
       return await fn();
     } finally {
+      release?.();
       this.inFlight.set(host.baseUrl, Math.max(0, (this.inFlight.get(host.baseUrl) ?? 1) - 1));
     }
+  }
+
+  /** Waits for this host's turn across every client in the process. */
+  private acquireSlot(host: T2Host): Promise<() => void> {
+    const slots = this.deps.slots ?? SHARED_HOST_SLOTS;
+    return slots.acquire(host.baseUrl, this.config.concurrencyCap, this.config.queueTimeoutMs);
   }
 
   /** True when this host is under the concurrency cap (used by routing chains). */
@@ -450,8 +470,10 @@ export class T2Client {
     const started = Date.now();
     const load = this.inFlight.get(host.baseUrl) ?? 0;
     this.inFlight.set(host.baseUrl, load + 1);
+    let release: (() => void) | undefined;
 
     try {
+      release = await this.acquireSlot(host);
       for (let attempt = 0; attempt < this.config.crashRetry.attempts; attempt++) {
         // Cold or previously-errored host gets a warm-up FIRST. Retrying a
         // crashed model without reloading it just crashes again.
@@ -489,6 +511,7 @@ export class T2Client {
       }
       throw new Error('unreachable');
     } finally {
+      release?.();
       const now = this.inFlight.get(host.baseUrl) ?? 1;
       this.inFlight.set(host.baseUrl, Math.max(0, now - 1));
     }
