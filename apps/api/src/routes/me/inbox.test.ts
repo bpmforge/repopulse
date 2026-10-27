@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { createServer, type Server } from 'node:http';
 import { eq, inArray } from 'drizzle-orm';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { core, createDb, read, security, type Database } from '@repopulse/shared';
 import { buildApp } from '../../app.js';
 import { loginAs } from '../../testing/login.js';
@@ -245,6 +245,35 @@ describeIfLiveInfra('GET /me/inbox (W20-10)', () => {
     await finding(workspaceId, repoId, { severity: 4, title: 'w20-10 newer high' });
     const later = (await inbox()).json();
     expect(later.findings.map((f: { title: string }) => f.title)).toContain('w20-10 newer high');
+  });
+
+  it("a Node clock ahead of the database's does not hide a newer finding", async () => {
+    // The inbox compares findings.first_seen_at (stamped by Postgres) with the
+    // user's inboxSeenAt. When the API took inboxSeenAt from its own clock, a
+    // database clock behind it by more than the gap between "seen" and the next
+    // finding hid that finding: the test above flaked whenever the podman VM's
+    // clock lagged the host by over 5 ms, and in a deployment the API and the
+    // database are separate machines. The API's clock is 30 s fast here (inside
+    // this app's 60 s idle timeout, which also reads the clock).
+    vi.useFakeTimers({ toFake: ['Date'], shouldAdvanceTime: true });
+    vi.setSystemTime(Date.now() + 30_000);
+    try {
+      const seen = await app.inject({
+        method: 'POST',
+        url: '/api/v1/me/inbox/seen',
+        headers: CSRF,
+        cookies: { repopulse_sid: cookie },
+      });
+      expect(seen.statusCode).toBe(200);
+    } finally {
+      vi.useRealTimers();
+    }
+    await new Promise((r) => setTimeout(r, 5));
+    await finding(workspaceId, repoId, { severity: 4, title: 'w20-10 newer than a fast clock' });
+    const later = (await inbox()).json();
+    expect(later.findings.map((f: { title: string }) => f.title)).toContain(
+      'w20-10 newer than a fast clock',
+    );
   });
 
   it('is for signed-in users only', async () => {
