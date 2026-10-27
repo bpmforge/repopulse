@@ -227,8 +227,17 @@ grep -q '^    build:' "$STAGE/deploy/compose.yaml" &&
 # compose.claude-cli.yaml (W20-16, UX_TODO AI-74): the optional CLI overlay
 # INSTALL.md documents; up.sh --with-claude-cli keeps it on every start. It has
 # no build: stanza, so it ships as is.
-for f in .env.example configure.sh configure.mjs up.sh backup.sh restore.sh rotate-token-key.sh uninstall.sh scan-db-sync.sh smoke-report-pdf.sh compose.claude-cli.yaml; do
+# build-*-index.py: scan-db-sync.sh mounts them into its containers from its
+# own directory. Missing, the sync fails on every customer host and the
+# malicious-package and package-name (slopsquat) indexes stay empty.
+for f in .env.example configure.sh configure.mjs up.sh backup.sh restore.sh rotate-token-key.sh uninstall.sh scan-db-sync.sh build-malicious-index.py build-package-index.py smoke-report-pdf.sh compose.claude-cli.yaml; do
   cp "deploy/$f" "$STAGE/deploy/$f"
+done
+# Every "$SCRIPT_DIR/<file>" a shipped script reads must ship beside it; the
+# list above is maintained by hand and already missed two.
+for ref in $(grep -ho '\$SCRIPT_DIR/[A-Za-z0-9_][A-Za-z0-9_.-]*\.[a-z]*' "$STAGE"/deploy/*.sh | sort -u); do
+  f="${ref#\$SCRIPT_DIR/}"
+  [ -e "$STAGE/deploy/$f" ] || die "bug: a shipped script uses deploy/$f, which the bundle does not include — add it to the list above."
 done
 cp deploy/scan-rules/README.md "$STAGE/deploy/scan-rules/README.md"
 # The in-house rulepacks, twice: as the SOURCE scan-db-sync.sh installs from
