@@ -375,6 +375,40 @@ CSRF middleware removed, a rate limit removed or raised. Code: `src/scanners/sen
   `rule_registry` row says `active`; `deprecated` stops it).
 - **Languages.** JS/TS and Python. Java, Go and Rust rules are a follow-up once those packs land.
 
+### 3.3a Third-party rule files (W22-07, 2026-10-28)
+
+The licence rule in §3.3 bars *Semgrep's registry* rules, not every rule someone else
+wrote. Rules published under MIT or Apache-2.0 may ship, verbatim, with their licence
+beside them. `scripts/import-third-party-rules.mjs` copies them at a pinned commit into
+`packages/security/rulepacks/third-party/<source>/` and writes `LEDGER.json` (file,
+licence, rule ids, SHA-256). Admission is deny-by-default and per file: GitLab's
+sast-rules mixes MIT, Apache-2.0 (gosec-derived), GPL-2.0 (flawfinder-derived `c/`), LGPL,
+Commons Clause and EE folders, and only the first two are taken.
+
+| Source | Commit | Licence | Files / rules | Languages |
+|---|---|---|---|---|
+| 0xdea/semgrep-rules | e0121ac | MIT | 49 / 49 | C, C++ (memory safety) |
+| elttam/semgrep-rules (`rules-audit/`) | 2442685 | MIT | 62 / 78 | Java, Go, C#, JS, Python, Kotlin, C, generic |
+| gitlab-org/security-products/sast-rules | 705c083 | MIT, Apache-2.0 | 270 / 270 | Java, Scala, Python, C#, Go, JS/TS |
+
+**How they run.** The scanner reads the ledger, never the directory, and mounts the pack
+at `/rules-tp` beside ours, only for a full security run that did not narrow its pack.
+Every imported rule ships **shadow** (`rules/shadow.ts` via `rules/third-party.ts`)
+whatever its file says, and earns `active` the way ours do. `SCAN_THIRD_PARTY_RULES`
+is `off` until the pack has been validated on the live engine (`opengrep --validate`
+plus a scan of the walkthrough repos with hit counts per rule); a rule the engine
+rejected would otherwise turn every full scan's sweep narrow. Tests
+(`rules/third-party.test.ts`) hold the ledger to its word: allowlisted licences only,
+files unmodified since import, nothing on disk that is not listed, a LICENSE per
+source, no id colliding with ours.
+
+**Not imported, and why** (project file review-2026-10-27/THIRD_PARTY_RULES.md):
+opengrep/opengrep-rules (Commons Clause over LGPL, Semgrep as licensor), Trail of Bits
+(AGPL-3.0), Bearer (Elastic License 2.0), Decurity and parsiya (CC BY-NC-SA), GitLab
+`c/` (GPL-2.0) and `rules/lgpl*` (LGPL / Commons Clause, pending the owner's call on
+LGPL rule files). gitleaks (MIT, 222 secrets rules) is TOML for its own engine and is a
+separate slice.
+
 ## 4. Scheduling & triggers (FR-SEC-9)
 
 | Trigger | Scanners (enabled repos) | Queue / idempotency key |

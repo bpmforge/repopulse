@@ -3,6 +3,7 @@ import { security, type Database } from '@repopulse/shared';
 import { RULE_STATUSES, type RuleStatus } from './schema.js';
 import { isHandCheckedRule } from './hand-checked.js';
 import { isStarterRule } from './starter-set.js';
+import { isThirdPartyRule } from './third-party.js';
 
 // Shadow mode for rules that ship in a PACK FILE (W18-13, CODE_HEALTH_SUITE.md
 // §8.2).
@@ -40,6 +41,8 @@ function shipsLiveByEvidence(ruleId: string): boolean {
  */
 export function shippedStatusOf(metadata: Record<string, unknown>, ruleId?: string): ShippedStatus {
   if (ruleId !== undefined && shipsLiveByEvidence(ruleId)) return 'active';
+  // W22-07: third-party rules are shadow whatever their file says.
+  if (ruleId !== undefined && isThirdPartyRule(ruleId)) return 'candidate';
   return metadata['lifecycle'] === 'candidate' ? 'candidate' : 'active';
 }
 
