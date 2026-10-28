@@ -11674,7 +11674,7 @@
       },
     {
       "id": "W22-01",
-      "title": "Code index: symbols, references and fact rules per snapshot",
+      "title": "Code index on Lodestone: symbols, references and fact rules per snapshot",
       "phase": 22,
       "module": "security",
       "stories": [],
@@ -11689,6 +11689,7 @@
       ],
       "depends_on": [],
       "acceptance": [
+        "Built on Lodestone (bpmforge/lodestone), not a second indexer: it runs in the scan-runner on the snapshot and exports symbols, spans, hashes and edges to Postgres (no code bodies); Lodestone gains Kotlin and Swift, tree-sitter refs and imports for the 8 call-only grammars (so crossFileGraphReliable can be true for them), and receiver/import-qualified call resolution where the grammar gives it; each measured on gin, axum, nowinandroid and mastodon-ios",
         "Each scan snapshot builds a tree-sitter symbol table (definitions, references, call edges) for JS/TS, Python, Java, Kotlin, Go, Rust, Swift, C/C++, stored as names, line spans, hashes and edges only (no code bodies), workspace-scoped and replaced per commit",
         "Opengrep fact rules record routes, auth middleware/guards, sanitizers and sinks per file, with RED/GREEN fixtures",
         "Measured index size and build time on the six walkthrough repos recorded in the design doc",
@@ -11697,7 +11698,8 @@
       "points": 8,
       "status": "todo",
       "notes": [
-        "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md."
+        "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md.",
+        "2026-10-28: owner asked to use and extend our own CPU tools. Lodestone fix/packet-neighbors a174b02 already fixed regex-tier calls for 8 grammars and markdown callers (measured on gin). Licence: CLOSE_THE_LOOP decision 5."
       ]
     },
     {
@@ -11717,13 +11719,15 @@
         "W22-01"
       ],
       "acceptance": [
+        "The packer extends Lodestone evidencePacket (enclosing chunk, callers, callees, crossFileGraphReliable) rather than replacing it, and passes the reliability flag to the model",
         "Triage prompts carry the enclosing function, callee definitions, up to N callers, the route and middleware chain and, where Opengrep reports one, the dataflow trace, packed to the model's probed context window",
         "Before/after triage accuracy on the labelled eval set is recorded; the packer never sends more than the window allows and says what it left out"
       ],
       "points": 5,
       "status": "todo",
       "notes": [
-        "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md."
+        "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md.",
+        "2026-10-28: builds on Lodestone evidencePacket; see CLOSE_THE_LOOP.md \"Build on what we own\"."
       ]
     },
     {
@@ -11865,6 +11869,7 @@
       ],
       "depends_on": [],
       "acceptance": [
+        "bpm-rulepacks (232 Opengrep rules, ours) imported under the same bar: graded hit by hit on the walkthrough repos, shadow first; first look on gin was 7 hits, 0 real",
         "0xdea (C/C++), GitLab sast-rules MIT/Apache folders, elttam (Java) and gitleaks rules imported pinned by commit, each file's licence recorded in a ledger the build checks; GPL/AGPL/Commons Clause/non-commercial files refused by test",
         "LGPL rule files bundled unmodified as separately licensed packs only if the owner chooses decision 3",
         "All imported rules start shadow; hits on the walkthrough repos are counted per rule"
@@ -11872,7 +11877,8 @@
       "points": 5,
       "status": "todo",
       "notes": [
-        "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md."
+        "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md.",
+        "2026-10-28: bpm-rulepacks folded in; licence per CLOSE_THE_LOOP decision 5."
       ]
     },
     {
