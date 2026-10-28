@@ -11695,8 +11695,9 @@
         "Tenancy tests cover every new table"
       ],
       "points": 8,
-      "status": "in_progress",
+      "status": "todo",
       "notes": [
+        "2026-10-28: held. The owner already built this as bpmforge/lodestone (tree-sitter symbol graph, BM25F, vectors, evidence packets); waiting on his licence call before wiring it in rather than writing a second index.",
         "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md."
       ]
     },
@@ -11870,8 +11871,9 @@
         "All imported rules start shadow; hits on the walkthrough repos are counted per rule"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
+        "Slice 1 (2026-10-28): 0xdea, elttam rules-audit and GitLab sast-rules MIT/Apache folders imported verbatim with LEDGER.json (381 files, 397 rules); scanner mounts them at /rules-tp behind SCAN_THIRD_PARTY_RULES (off) until validated on the live engine; every imported rule ships shadow. Also fixes quoted rule ids in readRulepack and adds swift/scala to the PR-scan file filter.",
         "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md."
       ]
     },

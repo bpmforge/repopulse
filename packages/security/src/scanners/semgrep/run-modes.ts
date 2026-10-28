@@ -208,7 +208,7 @@ export async function runSemgrepFull(
 // by extension, so a file here with no rules costs a parse and nothing more —
 // but a language missing here means its rules never run on a PR at all.
 const SCANNABLE =
-  /\.(js|jsx|ts|tsx|mjs|cjs|c|cc|cpp|cxx|h|hh|hpp|hxx|go|py|rs|java|kt|kts|cs|php|rb)$/;
+  /\.(js|jsx|ts|tsx|mjs|cjs|c|cc|cpp|cxx|h|hh|hpp|hxx|go|py|rs|java|kt|kts|cs|php|rb|swift|scala)$/;
 
 /**
  * INCREMENTAL mode: the files a PR touched, fetched one by one.

@@ -448,6 +448,16 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     default: 'localhost/repopulse/scan:dev',
   },
   {
+    name: 'SCAN_THIRD_PARTY_RULES',
+    scope: 'worker',
+    required: false,
+    purpose:
+      "Whether the full security scan also runs the imported MIT/Apache third-party rule files listed in rulepacks/third-party/LEDGER.json (W22-07). Their findings land in shadow until a rule earns its place. 'on' runs them; off until they have been checked on a live engine.",
+    ifWrong:
+      "Left 'off', those rules never run and their checks are missing. Turned on before the pack has been checked against the installed Opengrep, a rule the engine rejects can stop a full scan from closing fixed findings.",
+    default: 'off',
+  },
+  {
     name: 'SCAN_RUNNER_URL',
     scope: 'worker',
     required: false,

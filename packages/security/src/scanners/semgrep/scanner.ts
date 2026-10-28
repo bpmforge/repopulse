@@ -8,6 +8,11 @@ import { runInSandbox, stderrTail } from '../../../sandbox/run.js';
 import { rulepackMountDir } from '../../../sandbox/tooling.js';
 import type { ScanBudget } from '../../framework/types.js';
 import { parseOpengrepOutput, type SemgrepFinding } from './output.js';
+import {
+  THIRD_PARTY_MOUNT_PATH,
+  THIRD_PARTY_RULEPACK_DIR,
+  readThirdPartyPack,
+} from '../../rules/third-party.js';
 
 // The semgrep scanner (W8-07, SECURITY_SUITE.md §3.3, FR-SEC-6).
 //
@@ -76,7 +81,8 @@ export function readRulepack(
   const ruleIds: string[] = [];
   for (const file of files) {
     for (const line of readFileSync(path.join(dir, file), 'utf8').split('\n')) {
-      const match = /^\s*-?\s*id:\s*(\S+)\s*$/.exec(line);
+      // Quoted ids are legal YAML (`id: "java_rule-X"`); the quotes are not the id.
+      const match = /^\s*-?\s*id:\s*["']?([^"'\s]+)["']?\s*$/.exec(line);
       if (match?.[1]) ruleIds.push(match[1]);
     }
   }
@@ -102,6 +108,11 @@ export interface SemgrepRunArgs {
   rulepackFiles?: (file: string) => boolean;
   /** Repo-configured pack reference, validated against the licence rule. */
   configRef?: string;
+  /**
+   * W22-07: whether a default security run also runs the third-party pack.
+   * Absent = SCAN_THIRD_PARTY_RULES, off until the pack is checked live.
+   */
+  thirdParty?: boolean;
   runtime?: string;
 }
 
@@ -165,6 +176,15 @@ export async function runSemgrepScan(args: SemgrepRunArgs): Promise<SemgrepRunRe
   );
   const image = args.image ?? DEFAULT_SCAN_IMAGE;
   const started = Date.now();
+  // The third-party pack rides along with OUR security pack only, and only
+  // when nothing narrowed it: a perf or slop run, or a single-file selection,
+  // asked for something specific.
+  const thirdParty =
+    path.resolve(args.rulepackDir ?? SEMGREP_RULEPACK_DIR) === SEMGREP_RULEPACK_DIR &&
+    args.rulepackFiles === undefined &&
+    (args.thirdParty ?? process.env['SCAN_THIRD_PARTY_RULES'] === 'on')
+      ? readThirdPartyPack(rulepackMountDir(THIRD_PARTY_RULEPACK_DIR))
+      : null;
 
   // An empty selection is refused rather than run: with no `--config` the
   // engine falls back to its own defaults, which is a pack we did not write
@@ -185,7 +205,10 @@ export async function runSemgrepScan(args: SemgrepRunArgs): Promise<SemgrepRunRe
     image,
     snapshotDir: args.targetDir,
     ...(args.runtime ? { runtime: args.runtime } : {}),
-    extraMounts: [{ hostPath: rulepack.dir, containerPath: RULES_MOUNT_PATH }],
+    extraMounts: [
+      { hostPath: rulepack.dir, containerPath: RULES_MOUNT_PATH },
+      ...(thirdParty ? [{ hostPath: thirdParty.dir, containerPath: THIRD_PARTY_MOUNT_PATH }] : []),
+    ],
     writablePaths: OPENGREP_WRITABLE_PATHS,
     budget: args.budget,
     // Opengrep speaks its own JSON, so the sandbox hands the bytes back and
@@ -205,13 +228,15 @@ export async function runSemgrepScan(args: SemgrepRunArgs): Promise<SemgrepRunRe
       // Every pack file by name. `--config /rules` would also work today and
       // would silently pick up anything a future mount put there.
       ...rulepack.files.flatMap((f) => ['--config', `${RULES_MOUNT_PATH}/${f}`]),
+      ...(thirdParty?.files ?? []).flatMap((f) => ['--config', `${THIRD_PARTY_MOUNT_PATH}/${f}`]),
       SCAN_MOUNT_PATH,
     ],
   });
 
-  const toolVersions = {
+  const toolVersions: Record<string, string> = {
     opengrep: imageToolVersion(image, args.runtime ?? 'podman'),
     rulepack: rulepack.version,
+    ...(thirdParty ? { thirdParty: thirdParty.version } : {}),
   };
 
   if (result.status !== 'succeeded' && result.rawStdout === undefined) {
@@ -227,7 +252,7 @@ export async function runSemgrepScan(args: SemgrepRunArgs): Promise<SemgrepRunRe
 
   const parsed = parseOpengrepOutput({
     stdout: result.rawStdout ?? '',
-    knownRuleIds: rulepack.ruleIds,
+    knownRuleIds: [...rulepack.ruleIds, ...(thirdParty?.ruleIds ?? [])],
     rootDir: SCAN_MOUNT_PATH,
   });
 

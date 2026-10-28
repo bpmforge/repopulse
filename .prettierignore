@@ -14,3 +14,5 @@ PLAYBOOK.md
 README.md
 **/*.gen.ts
 packages/shared/drizzle/
+# Verbatim upstream copies (W22-07): formatting them would break the ledger hashes.
+packages/security/rulepacks/third-party/
