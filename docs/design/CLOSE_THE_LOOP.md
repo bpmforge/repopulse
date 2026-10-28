@@ -67,8 +67,9 @@ bar for rules with no public benchmark); every model call goes through the gatew
 
 5. **Licences of our own CPU tools.** *Decided by the owner 2026-10-28 ("Lodestone MIT,
    open the rules"):* Lodestone is MIT (bpmforge/lodestone#7), so an open-source RepoPulse
-   can depend on it; the bpm-rulepacks rules are opened inside RepoPulse under Apache-2.0
-   and imported through the W22-07 ledger like any other pack.
+   can depend on it; the bpm-rulepacks rules go MIT (bpm-rulepacks#45) and are imported
+   through the W22-07 ledger like any other pack (the importer's grant moves from
+   Apache-2.0 to MIT once #45 merges). Both repos stay private until release day (W22-13).
 
 ## Tickets
 
