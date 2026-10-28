@@ -29,6 +29,8 @@ import type { FileRuleRunner, RuleHit, RuleRunInput, RuleRunOutput } from './ver
 // WHAT IS NOT HERE, deliberately:
 //   - Model judgement findings (slop.judgment, the OWASP checklists): not
 //     deterministic, so "it no longer fires" would be a second model's opinion.
+//     (Anti-slop PATTERN findings, bpm-ch-*, are here: a model picks which to
+//     raise, but the re-check is the Opengrep rule itself.)
 //   - secrets: a leaked secret is fixed by rotating it, not by a diff; a patch
 //     that deletes the literal leaves it in history and on someone's laptop.
 //   - code_health_tools (lizard/jscpd): duplication is a cross-file measure and
@@ -195,6 +197,22 @@ export function productionRunners(opts: { image?: string } = {}): FileRuleRunner
         dimension: 'performance',
         packDir: PERF_PACK_DIR,
         keep: (id) => id.startsWith('bpm-perf-'),
+        excludedGlobs: DEFAULT_EXCLUDED_GLOBS,
+      },
+      opts.image,
+    ),
+    // The anti-slop PATTERN rules (bpm-ch-*), 2026-10-28. A model helps judge
+    // which of these candidates to raise, but the pattern itself is an
+    // Opengrep rule: the patched file is re-scanned with it exactly as the
+    // logging pack's bpm-log-* rules are, and "the pattern no longer matches"
+    // is a deterministic verdict, not the model's opinion.
+    packRunner(
+      {
+        key: 'anti_slop_pack',
+        scannerKey: ANTI_SLOP_SCANNER_KEY,
+        dimension: 'slop',
+        packDir: CODE_HEALTH_PACK_DIR,
+        keep: (id) => id.startsWith('bpm-ch-'),
         excludedGlobs: DEFAULT_EXCLUDED_GLOBS,
       },
       opts.image,

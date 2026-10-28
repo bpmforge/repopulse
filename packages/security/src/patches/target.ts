@@ -34,7 +34,12 @@ export function isRerunnable(scannerKey: string | null, ruleId: string | null): 
   if (scannerKey === SEMGREP_SCANNER_KEY) return true;
   if (scannerKey === LOGGING_SCANNER_KEY) return ruleId.startsWith('bpm-log-');
   if (scannerKey === PERF_SCANNER_KEY) return ruleId.startsWith('bpm-perf-');
-  if (scannerKey === ANTI_SLOP_SCANNER_KEY) return SLOP_DETERMINISTIC.has(ruleId);
+  // bpm-ch-*: a model chooses which pattern hits to raise, but the pattern is an
+  // Opengrep rule the anti_slop_pack runner re-runs (2026-10-28) — the same
+  // standing logging's bpm-log-* rules have.
+  if (scannerKey === ANTI_SLOP_SCANNER_KEY) {
+    return SLOP_DETERMINISTIC.has(ruleId) || ruleId.startsWith('bpm-ch-');
+  }
   return false;
 }
 
