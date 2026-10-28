@@ -1,0 +1,36 @@
+rules:
+  - id: bpm-framework-django-raw-sql-injection
+    languages: [python]
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - pattern: request.GET.$X
+      - pattern: request.POST.$X
+      - pattern: request.GET.get(...)
+      - pattern: request.POST.get(...)
+      - pattern: request.body
+    pattern-sinks:
+      - pattern: $MANAGER.raw($SINK)
+      - pattern: $QUERYSET.extra($SINK)
+      - pattern: $QUERYSET.extra(where=$SINK)
+    message: >
+      Request input reaches Model.objects.raw() or QuerySet.extra() with no
+      parameterization between source and sink (Django framework knowledge,
+      CWE-89: SQL Injection). Both APIs accept a SQL fragment that Django
+      inserts into the query verbatim; only the separate params/select_params
+      argument is escaped. If the SQL text itself is built from request data
+      (f-string, .format(), string concatenation), this is direct SQL
+      injection. Move the variable value into the params tuple/list — never
+      interpolate it into the SQL string — or use the parameterized ORM
+      query builder instead of raw()/extra().
+    # Primary source: Django docs (QuerySet.raw, QuerySet.extra — "SQL
+    # injection protection") + OWASP SQL Injection Prevention Cheat Sheet.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [89]
+      owasp: "A03:2021"
+      framework: django
+      confidence: medium
+      concept: sql_database
+      since: "0.1.0"

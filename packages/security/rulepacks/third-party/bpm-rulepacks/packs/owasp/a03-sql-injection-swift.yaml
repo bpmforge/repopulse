@@ -1,0 +1,32 @@
+rules:
+  - id: bpm-owasp-a03-sql-injection-swift
+    languages: [swift]
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - pattern: $COMPONENTS.queryItems
+      - pattern: $TEXTFIELD.text
+    pattern-sinks:
+      - patterns:
+          - pattern: sqlite3_exec($DB, $SINK, $CB, $ARG, $ERR)
+          - focus-metavariable: $SINK
+      - patterns:
+          - pattern: '$DB.executeQuery($SINK, withArgumentsIn: $ARGS)'
+          - focus-metavariable: $SINK
+    message: >
+      Untrusted input (a URL query item or a text field) reaches a raw
+      sqlite3_exec() call or an FMDB executeQuery() query-string argument
+      (OWASP A03:2021, CWE-89: SQL Injection). String-interpolating
+      attacker-controlled text into a SQL statement lets it alter the
+      query's structure to read or modify data outside the intended scope.
+      Use a parameterized query — sqlite3_prepare_v2 + sqlite3_bind_* for
+      raw SQLite, or FMDB's `?` placeholders with `withArgumentsIn:` — and
+      never build the SQL string itself from tainted input.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [89]
+      owasp: "A03:2021"
+      confidence: high
+      concept: sql_database
+      since: "0.1.0"

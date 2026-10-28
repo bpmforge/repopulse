@@ -1,0 +1,23 @@
+rules:
+  - id: bpm-slop-fallback-hides-failure-php
+    languages: [php]
+    severity: WARNING
+    message: >
+      catch returns a null/empty fallback (ANTI_SLOP R-10) — the caller
+      cannot distinguish "no data" from "the call failed." Monitoring
+      misses the failure. Return a typed error result or rethrow; never
+      return a value that looks like success.
+    pattern-either:
+      - pattern: |
+          try { ... } catch ($EXC $ERR) { return null; }
+      - pattern: |
+          try { ... } catch ($EXC $ERR) { return []; }
+      - pattern: |
+          try { ... } catch ($EXC $ERR) { return ''; }
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-10"
+      cwe: [390]
+      confidence: high
+      concept: logging_audit
+      since: "0.1.0"

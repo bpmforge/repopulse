@@ -1,0 +1,25 @@
+rules:
+  - id: bpm-framework-drizzle-execute-string-concat
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      db.execute() is called with a plain (untagged) template literal instead
+      of Drizzle's `sql` tagged template (Drizzle ORM framework knowledge,
+      CWE-89: SQL Injection). A bare template literal interpolates values as
+      plain string concatenation with no parameterization — any
+      attacker-controlled segment is executed as literal SQL. Build the query
+      with the `sql` tag (`` db.execute(sql`... ${value} ...`) ``), which
+      binds interpolated values as parameters instead of splicing them into
+      the query text.
+    pattern: |
+      $DB.execute(`...${$X}...`)
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [89]
+      owasp: "A03:2021"
+      framework: drizzle
+      confidence: high
+      concept: sql_database
+      since: "0.1.0"
+

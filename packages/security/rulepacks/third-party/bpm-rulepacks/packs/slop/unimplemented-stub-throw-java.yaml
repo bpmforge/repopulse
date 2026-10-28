@@ -1,0 +1,42 @@
+rules:
+  - id: bpm-slop-unimplemented-stub-throw-java
+    languages: [java]
+    severity: WARNING
+    message: >
+      UnsupportedOperationException thrown from a method with no real
+      implementation (ANTI_SLOP R-27: Unimplemented Stubs as Features).
+      Callers — including other AI-generated code that sees this method in
+      context — get a runtime error or treat the stub as a real
+      implementation. Stubs are only acceptable on an explicit TODO branch
+      called out in the PR description; never export or ship a stub as a
+      completed feature.
+    pattern: new UnsupportedOperationException(...)
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-27"
+      cwe: [1078]
+      confidence: high
+      concept: code_quality
+      since: "0.1.0"
+
+  - id: bpm-slop-unimplemented-stub-throw-runtimeexception-java
+    languages: [java]
+    severity: WARNING
+    message: >
+      RuntimeException carrying a "not implemented" message masquerades as a
+      completed method body (ANTI_SLOP R-27: Unimplemented Stubs as
+      Features). Same failure mode as the UnsupportedOperationException
+      variant — implement the method or mark it as an explicit TODO branch
+      in the PR description, never ship it as done.
+    patterns:
+      - pattern: new RuntimeException($MSG)
+      - metavariable-regex:
+          metavariable: $MSG
+          regex: (?i)"(.*(not.?implemented|unimplemented|todo.*implement).*)"
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-27"
+      cwe: [1078]
+      confidence: high
+      concept: code_quality
+      since: "0.1.0"

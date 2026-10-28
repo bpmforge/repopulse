@@ -1,0 +1,55 @@
+rules:
+  - id: bpm-slop-fallback-hides-failure
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      catch returns an empty/null fallback (ANTI_SLOP R-10) — the caller
+      cannot distinguish "no data" from "fetch failed." Monitoring misses the
+      failure. Return a typed error result or throw; never return a value
+      that looks like success.
+    pattern-either:
+      - pattern: try { ... } catch { return [] }
+      - pattern: try { ... } catch ($ERR) { return [] }
+      - pattern: try { ... } catch { return "" }
+      - pattern: try { ... } catch ($ERR) { return "" }
+      - pattern: try { ... } catch { return null }
+      - pattern: try { ... } catch ($ERR) { return null }
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-10"
+      cwe: [390]
+      confidence: high
+      concept: logging_audit
+      since: "0.1.0"
+
+  - id: bpm-slop-fallback-hides-failure-swift
+    languages: [swift]
+    severity: WARNING
+    message: >
+      catch returns an empty/nil fallback, or a `try?` result is masked with
+      `?? $DEFAULT` (ANTI_SLOP R-10) — the caller cannot distinguish "no
+      data" from "the throwing call failed." Monitoring misses the failure.
+      Return a typed error result or rethrow; never default a swallowed
+      error to a value that looks like success.
+    pattern-either:
+      - pattern: |
+          do { ... } catch { return [] }
+      - pattern: |
+          do { ... } catch let $ERR { return [] }
+      - pattern: |
+          do { ... } catch { return "" }
+      - pattern: |
+          do { ... } catch let $ERR { return "" }
+      - pattern: |
+          do { ... } catch { return nil }
+      - pattern: |
+          do { ... } catch let $ERR { return nil }
+      - pattern: (try? $EXPR) ?? $DEFAULT
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-10"
+      cwe: [390]
+      confidence: high
+      concept: logging_audit
+      since: "0.1.0"
+

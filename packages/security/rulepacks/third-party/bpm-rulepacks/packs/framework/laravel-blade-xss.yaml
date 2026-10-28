@@ -1,0 +1,39 @@
+rules:
+  - id: bpm-framework-laravel-blade-xss
+    languages: [generic]
+    severity: ERROR
+    pattern-regex: '\{!!\s*\$[A-Za-z_][A-Za-z0-9_]*((->|::)[A-Za-z_][A-Za-z0-9_]*(\([^)]*\))?)*\s*!!\}'
+    message: >
+      A Blade template outputs a variable with the unescaped `{!! !!}`
+      directive instead of the auto-escaping `{{ }}` directive (Laravel
+      Blade templating framework knowledge, OWASP A03:2021: Injection,
+      CWE-79: Cross-Site Scripting). `{{ $var }}` runs the value through
+      `htmlspecialchars()` automatically; `{!! $var !!}` prints it
+      verbatim. If the value contains any request-derived or user-supplied
+      content, an attacker can inject a `<script>` tag or event-handler
+      attribute that runs in the victim's browser. Use `{{ $var }}` unless
+      the value is trusted, pre-sanitized HTML (e.g. rendered Markdown run
+      through an HTML-purifier) — and even then, purify explicitly at the
+      point of output rather than trusting the source.
+    # Primary source: Laravel docs (Blade Templates "Displaying Data" §,
+    # which documents `{{ }}` as auto-escaped via PHP's htmlspecialchars
+    # and `{!! !!}` as explicitly unescaped) + CWE-79.
+    #
+    # NOTE (W1-51): real Blade files use the `.blade.php` double extension.
+    # This repo's fixture discovery regex (scripts/test-rules.mjs,
+    # `^(.+)\.(vuln|ok)\.[^.]+$`) requires a single, dot-free extension
+    # segment after `.vuln`/`.ok`, so `slug.vuln.blade.php` is NOT
+    # discoverable. Verified opengrep's `generic` language + pattern-regex
+    # scans content regardless of extension (with
+    # --scan-unknown-extensions), so fixtures here use the discoverable
+    # `.blade` extension (no `.php` suffix) to exercise the same directive
+    # text a real `.blade.php` file would contain.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [79]
+      owasp: "A03:2021"
+      framework: laravel
+      confidence: medium
+      concept: input_validation
+      since: "0.1.0"

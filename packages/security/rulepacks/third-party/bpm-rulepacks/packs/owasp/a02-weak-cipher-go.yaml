@@ -1,0 +1,29 @@
+rules:
+  - id: bpm-owasp-a02-weak-cipher-go
+    languages: [go]
+    severity: WARNING
+    message: >
+      crypto/des (DES or Triple DES) is used as a block cipher, or a block
+      cipher of any strength is wrapped in ECB mode (OWASP A02:2021,
+      CWE-327: Use of a Broken or Risky Cryptographic Algorithm). DES's
+      56-bit key is brute-forceable and Triple DES is deprecated by NIST
+      for new use. ECB mode encrypts each block independently, so identical
+      plaintext blocks produce identical ciphertext blocks, leaking
+      structure regardless of key strength — Go's stdlib deliberately
+      omits an ECB mode constructor, so this shape only appears via a
+      third-party helper (e.g. github.com/aead/ecb) or a hand-rolled loop
+      over block.Encrypt(). Use crypto/aes with cipher.NewGCM for
+      authenticated encryption instead.
+    pattern-either:
+      - pattern: des.NewCipher(...)
+      - pattern: des.NewTripleDESCipher(...)
+      - pattern: $PKG.NewECBEncrypter(...)
+      - pattern: $PKG.NewECBDecrypter(...)
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [327]
+      owasp: "A02:2021"
+      confidence: high
+      concept: cryptography
+      since: "0.1.0"

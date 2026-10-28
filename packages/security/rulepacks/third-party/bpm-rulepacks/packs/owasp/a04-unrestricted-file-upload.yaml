@@ -1,0 +1,23 @@
+rules:
+  - id: bpm-owasp-a04-unrestricted-file-upload
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      multer() is configured with no fileFilter or limits, so the upload endpoint
+      accepts any file type and any size (OWASP A04:2021, CWE-434: Unrestricted
+      Upload of File with Dangerous Type — an insecure-design gap, not just a
+      missing validator). Add `fileFilter` to allowlist MIME types/extensions and
+      `limits.fileSize` to cap size.
+    patterns:
+      - pattern: 'multer({ ..., dest: $DIR, ... })'
+      - pattern-not: 'multer({ ..., fileFilter: $FF, ... })'
+      - pattern-not: 'multer({ ..., limits: $LIM, ... })'
+    metadata:
+      license: proprietary
+      provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A04"
+      cwe: [434]
+      owasp: "A04:2021"
+      confidence: medium
+      concept: file_upload_path
+      since: "0.1.0"
+

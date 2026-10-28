@@ -1,0 +1,25 @@
+rules:
+  - id: bpm-owasp-a09-webconfig-trace-enabled
+    languages: [xml]
+    severity: WARNING
+    message: >
+      `<trace enabled="true">` is set in web.config (OWASP A09:2021:
+      Security Logging and Monitoring Failures, CWE-215: Insertion of
+      Sensitive Information Into Debugging Code). ASP.NET tracing records
+      full request/response details — session and application state,
+      cookies, form values, server variables — and, unless `localOnly` is
+      also true, serves them to any remote client via `trace.axd` with no
+      authentication by default. Set `enabled="false"` in every deployed
+      web.config, or at minimum `localOnly="true"` plus access-controlled
+      `trace.axd` if page-level tracing is genuinely needed.
+    pattern-either:
+      - pattern: <trace enabled="true" ... />
+      - pattern: <trace enabled="true" ...></trace>
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [215]
+      owasp: "A09:2021"
+      confidence: high
+      concept: logging_audit
+      since: "0.1.0"

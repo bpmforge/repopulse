@@ -1,0 +1,38 @@
+rules:
+  - id: bpm-framework-aspnet-disable-antiforgery
+    languages: [csharp]
+    severity: WARNING
+    pattern: |
+      [IgnoreAntiforgeryToken]
+      public $RET $METHOD(...)
+      {
+        ...
+      }
+    message: >
+      An action method is decorated with [IgnoreAntiforgeryToken],
+      explicitly opting a state-changing endpoint out of ASP.NET Core's
+      automatic antiforgery-token validation (ASP.NET Core MVC framework
+      knowledge, CWE-352: Cross-Site Request Forgery). With
+      [AutoValidateAntiforgeryToken] applied globally (the framework's
+      recommended default for MVC controllers), this attribute is the
+      one clean escape hatch that removes CSRF protection from just this
+      action — every POST/PUT/DELETE/PATCH request it accepts becomes a
+      candidate for a cross-site forged request unless something else
+      authenticates each request independently of cookies. Confirm the
+      action is a token- or header-authenticated API that never relies
+      on cookie auth; otherwise remove the attribute and let the global
+      antiforgery filter apply, or add an explicit
+      [ValidateAntiForgeryToken] instead.
+    # Primary source: ASP.NET Core docs (Anti-request forgery §, which
+    # documents [IgnoreAntiforgeryToken] as the explicit per-action
+    # opt-out from [AutoValidateAntiforgeryToken]) + OWASP CSRF
+    # Prevention Cheat Sheet + CWE-352.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [352]
+      owasp: "A01:2021"
+      framework: aspnet
+      confidence: high
+      concept: session_management
+      since: "0.1.0"

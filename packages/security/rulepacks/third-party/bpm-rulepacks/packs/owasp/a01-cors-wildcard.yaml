@@ -1,0 +1,20 @@
+rules:
+  - id: bpm-owasp-a01-cors-wildcard
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      CORS origin is set to a wildcard ("*"). This lets any site read authenticated
+      responses cross-origin (OWASP A01:2021, CWE-942). Restrict to an explicit
+      allowlist of trusted origins.
+    pattern-either:
+      - pattern: 'cors({ origin: "*" })'
+      - pattern: $RES.setHeader("Access-Control-Allow-Origin", "*")
+      - pattern: $RES.header("Access-Control-Allow-Origin", "*")
+    metadata:
+      license: proprietary
+      provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A01"
+      cwe: [942]
+      owasp: "A01:2021"
+      confidence: high
+      concept: http_headers_cors
+      since: "0.1.0"

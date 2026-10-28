@@ -1,0 +1,33 @@
+rules:
+  - id: bpm-slop-empty-catch
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      Empty catch block swallows the error (ANTI_SLOP R-01). Handle it, log it with
+      context, or rethrow — a silent catch hides failures the audit must surface.
+    pattern: |
+      try { ... } catch ($ERR) { }
+    metadata:
+      license: public-teaser
+      provenance: ported:bpm-opencode-experts/ANTI_SLOP_RULES R-01
+      cwe: [390]
+      confidence: high
+      concept: logging_audit
+      since: "0.1.0"
+
+  - id: bpm-slop-empty-catch-swift
+    languages: [swift]
+    severity: WARNING
+    message: >
+      Empty catch block swallows the error (ANTI_SLOP R-01). Handle it, log it with
+      context, or rethrow — a silent catch hides failures the audit must surface.
+    pattern: |
+      do { ... } catch { }
+    metadata:
+      license: public-teaser
+      provenance: ported:bpm-opencode-experts/ANTI_SLOP_RULES R-01
+      cwe: [390]
+      confidence: high
+      concept: logging_audit
+      since: "0.1.0"
+

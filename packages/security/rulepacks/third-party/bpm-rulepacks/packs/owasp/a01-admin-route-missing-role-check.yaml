@@ -1,0 +1,133 @@
+rules:
+  - id: bpm-owasp-a01-admin-route-missing-role-check
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      An Express route in an admin-scoped file/directory is gated only by a
+      generic authentication middleware — no role/permission check appears
+      anywhere in the route registration (OWASP A01:2021, CWE-862: Missing
+      Authorization). Authentication proves who the caller is; it says nothing
+      about whether they are allowed to reach an admin-only capability. Any
+      authenticated user, not just admins, can hit this handler. Compare the
+      authenticated user's role/permission against what the route requires
+      (`if (req.user.role !== "admin") return res.status(403)...`, or a
+      dedicated `requireRole("admin")` / `requireAdmin` middleware) before the
+      handler runs.
+    paths:
+      include:
+        # File-path heuristic: the discriminator isn't "no role check" (most
+        # routes legitimately have none) — it's "no role check IN A FILE OR
+        # DIRECTORY THAT IS ITSELF ADMIN-SCOPED". A router mounted at /admin,
+        # or a controller living under an admin/ directory, or a file plainly
+        # named for admin duty, is exactly the place a missing role check
+        # turns "authenticated" into "authorized" by accident. Ordinary routes
+        # outside this scope are never considered, which is what keeps this
+        # rule from firing on the other 90%+ of routes that need no role gate.
+        - '**/admin/**'
+        - '**/*admin*'
+        - '**/*Admin*'
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $ROUTER.$METHOD($PATH, $...MW, ($REQ, $RES) => { ... })
+          - pattern: |
+              $ROUTER.$METHOD($PATH, $...MW, function ($REQ, $RES) { ... })
+      - metavariable-regex:
+          metavariable: $METHOD
+          regex: '^(get|post|put|patch|delete|all)$'
+      # --- three independent suppressions, each scoped to avoid the
+      # $ROUTER-name landmine documented in (3) below. Any one being true
+      # means "this route is not the defect" and the finding is dropped.
+      #
+      # 1. A role/permission CALL anywhere in the handler: requireRole(...),
+      #    isAdmin(...), hasPermission(...), checkAcl(...). <... $CHECK(...) ...>
+      #    is opengrep's deep-expression operator — it finds the call no
+      #    matter how deeply it's nested (inside an `if`, an `await`, a
+      #    ternary), which a plain statement ellipsis does NOT: `await
+      #    isSuperAdmin(id)` sits inside a `const x = ...` declaration, not as
+      #    a bare call statement, and a naive `... $CHECK(...); ...` pattern
+      #    never matched it. Verified against ThreatForge's real admin API
+      #    (server/src/api/admin/*.ts, Fastify, `isSuperAdmin`/`isAdmin`
+      #    calls) — 0 findings across all 9 files, and only once this was
+      #    deep, not shallow.
+      - pattern-not:
+          patterns:
+            - pattern-either:
+                - pattern: |
+                    $ROUTER.$METHOD($PATH, $...MW, ($REQ, $RES) => {
+                      ...
+                      <... $CHECK(...) ...>
+                      ...
+                    })
+                - pattern: |
+                    $ROUTER.$METHOD($PATH, $...MW, function ($REQ, $RES) {
+                      ...
+                      <... $CHECK(...) ...>
+                      ...
+                    })
+            - metavariable-regex:
+                metavariable: $CHECK
+                regex: '(?i)(role|permission|permit|authoriz|rbac|acl|admin)'
+      # 2. A role/permission PROPERTY READ anywhere in the handler:
+      #    req.user.role, session.isAdmin, authUser.permissions. Needed
+      #    separately from (1) because `if (req.user.role !== "admin")` is a
+      #    member-expression comparison, not a call — this is the SampleCo
+      #    D9 fix shape itself (see the .ok fixture).
+      - pattern-not:
+          patterns:
+            - pattern-either:
+                - pattern: |
+                    $ROUTER.$METHOD($PATH, $...MW, ($REQ, $RES) => {
+                      ...
+                      <... $OBJ.$PROP ...>
+                      ...
+                    })
+                - pattern: |
+                    $ROUTER.$METHOD($PATH, $...MW, function ($REQ, $RES) {
+                      ...
+                      <... $OBJ.$PROP ...>
+                      ...
+                    })
+            - metavariable-regex:
+                metavariable: $PROP
+                regex: '(?i)(role|permission|permit|authoriz|rbac|acl|admin)'
+      # 3. A middleware in the chain is itself role/admin-shaped
+      #    (requireAdmin, requireRole("admin"), hasPermission). $...MW is an
+      #    ellipsis-metavariable: it captures ONLY the middleware argument
+      #    list between $PATH and the handler, deliberately excluding
+      #    $ROUTER's own text. That exclusion is load-bearing, not
+      #    stylistic: an earlier draft of this rule ran the same keyword
+      #    regex over the ENTIRE matched snippet (receiver included), and
+      #    `adminRouter.delete("/users/:id", ensureLoggedIn, ...)` — the
+      #    exact D9 defect shape, just with a differently-named router and
+      #    no role check at all — silently stopped firing, because the
+      #    receiver identifier `adminRouter` itself contains "admin" and
+      #    satisfied the suppression regex. Caught by the overfit lens
+      #    (fresh variant, different names) before shipping; fixed by moving
+      #    the keyword check onto $...MW/$CHECK/$PROP captures instead of
+      #    the whole-match text.
+      - metavariable-regex:
+          metavariable: $...MW
+          regex: '^(?!.*(?i:role|permission|permit|authoriz|rbac|acl|admin)).*$'
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [862]
+      owasp: "A01:2021"
+      framework: express
+      confidence: low
+      concept: authorization
+      since: "0.1.0"
+      # Absence-based rule: confidence pinned to `low` rather than the medium/
+      # high used elsewhere in this pack. "No role check" is only meaningful
+      # in exactly the admin-scoped-file boundary the `paths.include` filter
+      # encodes, and even there it is a per-ROUTE judgment: a genuinely
+      # public sub-route (health check, login) living inside an admin-named
+      # router has no role check by design and this rule cannot tell that
+      # apart from a real miss — it WILL flag it. Measured on a constructed
+      # example during the FP sweep; see the D9 iteration report before
+      # trusting this at scale. Zero false positives were found across
+      # shipwright/repopulse/quarry (no admin-named code at all) and across
+      # ThreatForge's real admin API (9 files, all inline-authorized) — the
+      # rule's remaining known failure mode is the public-sub-route case
+      # above, not receiver/keyword text matching.

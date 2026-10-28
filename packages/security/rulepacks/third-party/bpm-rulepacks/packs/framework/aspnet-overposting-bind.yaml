@@ -1,0 +1,43 @@
+rules:
+  - id: bpm-framework-aspnet-overposting-bind
+    languages: [csharp]
+    severity: ERROR
+    patterns:
+      - pattern: |
+          public $RET $METHOD([Bind($FIELDS)] $TYPE $PARAM)
+          {
+            ...
+          }
+      - metavariable-regex:
+          metavariable: $FIELDS
+          regex: '(?i)"[^"]*(isadmin|is_admin|\brole\b|issuperuser|is_super|accountbalance|account_balance|ispaid|is_paid|iselevated)[^"]*"'
+    message: >
+      An MVC action's [Bind] allow-list attribute includes a privilege-
+      or finance-sensitive field name (IsAdmin/Role/AccountBalance-shaped)
+      alongside the ordinary form fields it's meant to expose (ASP.NET
+      Core MVC model-binding framework knowledge, this is the classic
+      "overposting" scenario Microsoft's own docs warn about, OWASP
+      A04:2021: Insecure Design, CWE-915: Improperly Controlled
+      Modification of Dynamically-Determined Object Attributes). [Bind]
+      is meant to be a strict allow-list of the fields a client is
+      trusted to set on the model; including a privilege or balance
+      field there means any POST body can set it directly, bypassing
+      whatever authorization normally gates that change. Remove the
+      sensitive field from the [Bind] list; set it explicitly,
+      server-side, after the trusted portion of the model has been
+      bound — never let it arrive on the wire as a bindable property.
+      Prefer a dedicated input/view model over [Bind] on the domain
+      entity itself wherever possible.
+    # Primary source: Microsoft Learn "ASP.NET Core: Tutorial - Add a
+    # New Field" (Overposting §, which documents [Bind] as the
+    # recommended allow-list defense and warns against including
+    # sensitive properties in it) + CWE-915.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [915]
+      owasp: "A04:2021"
+      framework: aspnet
+      confidence: medium
+      concept: authorization
+      since: "0.1.0"

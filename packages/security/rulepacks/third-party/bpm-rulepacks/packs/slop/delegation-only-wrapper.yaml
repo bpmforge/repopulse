@@ -1,0 +1,50 @@
+rules:
+  - id: bpm-slop-delegation-only-wrapper
+    languages: [javascript, typescript]
+    severity: INFO
+    message: >
+      delegation-only wrapper class (ANTI_SLOP R-06) adds a type and file for
+      zero behavior — it forwards to the dependency with no transformation,
+      validation, caching, or error mapping. Inline the dependency call at the
+      call site, or add real logic to justify the wrapper.
+    pattern: |
+      class $CLASS {
+        constructor($ARGS) {}
+        $METHOD() {
+          return this.$DEP.$METHOD();
+        }
+      }
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-06"
+      cwe: [710]
+      confidence: medium
+      concept: code_quality
+      since: "0.1.0"
+
+  - id: bpm-slop-delegation-only-wrapper-swift
+    languages: [swift]
+    severity: INFO
+    message: >
+      delegation-only wrapper method (ANTI_SLOP R-06) adds a type and file
+      for zero behavior — it forwards to the dependency with no
+      transformation, validation, caching, or error mapping. Inline the
+      dependency call at the call site, or add real logic to justify the
+      wrapper.
+    pattern-either:
+      - pattern: |
+          func $METHOD() -> $RET {
+            return self.$DEP.$METHOD()
+          }
+      - pattern: |
+          func $METHOD() {
+            self.$DEP.$METHOD()
+          }
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-06"
+      cwe: [710]
+      confidence: medium
+      concept: code_quality
+      since: "0.1.0"
+

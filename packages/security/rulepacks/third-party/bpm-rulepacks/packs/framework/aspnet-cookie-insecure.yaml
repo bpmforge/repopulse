@@ -1,0 +1,33 @@
+rules:
+  - id: bpm-framework-aspnet-cookie-insecure
+    languages: [csharp]
+    severity: ERROR
+    pattern-either:
+      - pattern: new CookieOptions { ..., Secure = false, ... }
+      - pattern: new CookieOptions { ..., HttpOnly = false, ... }
+    message: >
+      A CookieOptions initializer explicitly sets Secure = false or
+      HttpOnly = false (ASP.NET Core cookie framework knowledge,
+      CWE-614: Sensitive Cookie in HTTPS Session Without 'Secure'
+      Attribute / CWE-1004: Sensitive Cookie Without 'HttpOnly' Flag).
+      Secure = false lets the browser send this cookie over plain HTTP,
+      exposing it to a network attacker; HttpOnly = false lets
+      client-side JavaScript read the cookie's value, exposing it to
+      theft via any XSS on the page. Both defeat a core cookie defense
+      that ASP.NET Core otherwise applies safely by default. Set
+      Secure = true and HttpOnly = true (and an explicit SameSite) on
+      every authentication/session cookie; only relax them for a cookie
+      that is neither auth- nor session-bearing and has a documented
+      reason to be script-readable or sent over HTTP.
+    # Primary source: ASP.NET Core docs (CookieOptions class reference,
+    # Secure/HttpOnly properties) + OWASP Session Management Cheat
+    # Sheet + CWE-614/CWE-1004.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [614, 1004]
+      owasp: "A05:2021"
+      framework: aspnet
+      confidence: high
+      concept: session_management
+      since: "0.1.0"

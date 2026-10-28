@@ -1,0 +1,24 @@
+rules:
+  - id: bpm-owasp-a07-webconfig-cleartext-connectionstring
+    languages: [xml]
+    severity: ERROR
+    message: >
+      A `<connectionStrings>` entry in web.config embeds a cleartext
+      Password/Pwd value (OWASP A07:2021: Identification and
+      Authentication Failures, CWE-798: Use of Hard-coded Credentials).
+      web.config is frequently readable by low-privileged accounts,
+      backed up unencrypted, or checked into source control — any of
+      which leaks the live database credential. Use
+      `<connectionStrings configSource="...">` pointing at a file
+      encrypted with `aspnet_regiis -pef`, integrated-security/managed
+      identity where the target supports it, or a secrets manager, and
+      rotate the exposed credential.
+    pattern-regex: (?i)(password|pwd)\s*=\s*[^;"']{6,}
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [798]
+      owasp: "A07:2021"
+      confidence: medium
+      concept: secrets_config
+      since: "0.1.0"

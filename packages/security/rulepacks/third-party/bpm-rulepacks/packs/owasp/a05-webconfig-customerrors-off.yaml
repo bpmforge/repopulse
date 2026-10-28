@@ -1,0 +1,23 @@
+rules:
+  - id: bpm-owasp-a05-webconfig-customerrors-off
+    languages: [xml]
+    severity: WARNING
+    message: >
+      `<customErrors mode="Off">` is set in web.config (OWASP A05:2021:
+      Security Misconfiguration, CWE-209: Generation of Error Message
+      Containing Sensitive Information). With custom errors off, ASP.NET
+      renders the default unhandled-exception page — full stack trace,
+      source file paths, and framework/version details — to any client
+      that triggers an error. Set `mode="On"` (or `"RemoteOnly"` for local
+      debugging only) with a `defaultRedirect` to a generic error page.
+    pattern-either:
+      - pattern: <customErrors mode="Off" ... />
+      - pattern: <customErrors mode="Off" ...></customErrors>
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [209]
+      owasp: "A05:2021"
+      confidence: high
+      concept: logging_audit
+      since: "0.1.0"

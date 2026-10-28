@@ -1,0 +1,50 @@
+rules:
+  - id: bpm-owasp-a03-path-traversal-rust
+    languages: [rust]
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - pattern: $REQ.query_string()
+      - pattern: $REQ.match_info().get($X)
+    pattern-sanitizers:
+      - patterns:
+          - pattern: $RESOLVED
+          - pattern-inside: |
+              let $RESOLVED = fs::canonicalize($CAND)?;
+              ...
+              if !$RESOLVED.starts_with($PREFIX) { ... }
+              ...
+      - patterns:
+          - pattern: $RESOLVED
+          - pattern-inside: |
+              let $RESOLVED = $CAND.canonicalize()?;
+              ...
+              if !$RESOLVED.starts_with($PREFIX) { ... }
+              ...
+    pattern-sinks:
+      - pattern: File::open($SINK)
+      - pattern: fs::File::open($SINK)
+      - pattern: fs::read($SINK)
+      - pattern: fs::read_to_string($SINK)
+      - pattern: fs::write($SINK, ...)
+    message: >
+      Unsanitized HTTP request input reaches a std::fs filesystem call
+      (File::open, fs::read, fs::read_to_string, fs::write) as the path
+      argument (OWASP A03:2021, CWE-22: Path Traversal). An attacker can
+      supply "../" sequences to escape the intended directory and read or
+      write files elsewhere on disk. Canonicalize the joined path
+      (`Path::canonicalize`) and verify it still has the intended base
+      directory as a prefix before using it in any filesystem call. Both
+      steps must be present — canonicalizing without the prefix check (or
+      vice versa) still leaves this rule flagging the call, by design. Only
+      the checked, canonicalized variable itself is treated as safe; a
+      second, unchecked request-derived path used later in the same
+      function still fires.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [22]
+      owasp: "A03:2021"
+      confidence: high
+      concept: file_upload_path
+      since: "0.1.0"

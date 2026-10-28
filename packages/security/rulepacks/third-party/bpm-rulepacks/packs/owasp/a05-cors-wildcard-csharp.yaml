@@ -1,0 +1,21 @@
+rules:
+  - id: bpm-owasp-a05-cors-wildcard-csharp
+    languages: [csharp]
+    severity: WARNING
+    message: >
+      An ASP.NET Core CORS policy calls `.AllowAnyOrigin()`, permitting every
+      origin to make cross-origin requests to this API (OWASP A05:2021,
+      CWE-942: Overly Permissive Cross-domain Whitelist). Combined with
+      `.AllowAnyMethod()`/`.AllowAnyHeader()` this lets any site read
+      responses (including authenticated ones, if credentials are ever
+      layered on later) cross-origin. Replace with `.WithOrigins("https://
+      trusted.example.com")` and an explicit, minimal allowlist.
+    pattern: $BUILDER.AllowAnyOrigin()
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [942]
+      owasp: "A05:2021"
+      confidence: high
+      concept: http_headers_cors
+      since: "0.1.0"

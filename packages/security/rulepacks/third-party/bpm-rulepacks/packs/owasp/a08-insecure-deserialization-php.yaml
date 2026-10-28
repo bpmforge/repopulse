@@ -1,0 +1,32 @@
+rules:
+  - id: bpm-owasp-a08-insecure-deserialization-php
+    languages: [php]
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - pattern: $_GET
+      - pattern: $_POST
+      - pattern: $_REQUEST
+      - pattern: $_COOKIE
+    pattern-sinks:
+      - pattern: unserialize($SINK)
+    message: >
+      Unsanitized $_GET/$_POST/$_REQUEST/$_COOKIE input reaches
+      unserialize() (OWASP A08:2021, CWE-502: Deserialization of
+      Untrusted Data). A crafted serialized payload can instantiate
+      arbitrary objects and trigger their __wakeup()/__destruct() magic
+      methods (a PHP Object Injection gadget chain), leading to
+      SQL injection, file deletion, or remote code execution depending
+      on classes autoloaded in the application. Never unserialize()
+      request-derived data; use json_decode() for a data-only format, or
+      pass `['allowed_classes' => false]` as a last resort if a legacy
+      caller genuinely needs unserialize() and the input is at least
+      integrity-checked (e.g. HMAC-signed) first.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [502]
+      owasp: "A08:2021"
+      confidence: high
+      concept: deserialization
+      since: "0.1.0"

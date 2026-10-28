@@ -1,0 +1,26 @@
+rules:
+  - id: bpm-owasp-a08-insecure-deserialization-vbnet
+    languages: [vb]
+    severity: WARNING
+    message: >
+      A deserializer capable of reconstructing arbitrary CLR types is
+      instantiated (OWASP A08:2021, CWE-502: Deserialization of Untrusted
+      Data). BinaryFormatter and LosFormatter can invoke arbitrary
+      constructors/property setters (including gadget chains that execute
+      code) while resolving a serialized payload's type graph, and
+      Microsoft has stated BinaryFormatter "is dangerous and can't be made
+      secure" — do not use it on any payload an attacker could influence.
+      Use System.Text.Json.JsonSerializer or DataContractSerializer with a
+      fixed, known type (never a resolver that allows arbitrary type
+      names).
+    pattern-either:
+      - pattern: New BinaryFormatter()
+      - pattern: New LosFormatter()
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [502]
+      owasp: "A08:2021"
+      confidence: high
+      concept: deserialization
+      since: "0.1.0"

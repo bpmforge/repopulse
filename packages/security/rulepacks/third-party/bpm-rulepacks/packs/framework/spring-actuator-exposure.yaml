@@ -1,0 +1,32 @@
+rules:
+  - id: bpm-framework-spring-actuator-exposure
+    languages: [generic]
+    severity: WARNING
+    message: >
+      `management.endpoints.web.exposure.include` is set to `*` in Spring
+      Boot Actuator configuration (Spring Boot framework knowledge,
+      CWE-16: Configuration, CWE-200: Exposure of Sensitive Information).
+      This publishes every Actuator endpoint over HTTP, including ones
+      that leak internals or allow control-plane actions if left at their
+      default un-authenticated access level — `/env` (config values and
+      secrets pulled from environment variables), `/heapdump` (a full JVM
+      heap dump, often containing live credentials and session tokens),
+      `/beans` and `/mappings` (full application wiring, an attacker's
+      reconnaissance map), and `/shutdown` (remote denial of service) if
+      it happens to be enabled. Set an explicit allow-list of the
+      endpoints actually needed (e.g.
+      `management.endpoints.web.exposure.include=health,info`) and put
+      every management endpoint behind its own authenticated Spring
+      Security rule.
+    # Primary source: Spring Boot Actuator docs ("Exposing Endpoints") +
+    # OWASP Top 10 A05:2021 Security Misconfiguration.
+    pattern-regex: (?m)^\s*management\.endpoints\.web\.exposure\.include\s*[:=]\s*['"]?\*
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [16, 200]
+      owasp: "A05:2021"
+      framework: spring
+      confidence: high
+      concept: infra_iac
+      since: "0.1.0"

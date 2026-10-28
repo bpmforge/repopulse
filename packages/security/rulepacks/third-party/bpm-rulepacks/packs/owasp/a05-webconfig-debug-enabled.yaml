@@ -1,0 +1,24 @@
+rules:
+  - id: bpm-owasp-a05-webconfig-debug-enabled
+    languages: [xml]
+    severity: WARNING
+    message: >
+      `<compilation debug="true">` is set in web.config (OWASP A05:2021:
+      Security Misconfiguration, CWE-489: Active Debug Code). Debug
+      compilation disables batch-compilation optimizations, extends
+      request timeouts, and — most importantly — causes unhandled
+      exceptions to render full stack traces (file paths, method names,
+      framework versions) to any client. Set `debug="false"` in every
+      deployed (non-development) web.config; never rely on a build
+      pipeline to strip it.
+    pattern-either:
+      - pattern: <compilation debug="true" ... />
+      - pattern: <compilation debug="true" ...></compilation>
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [489]
+      owasp: "A05:2021"
+      confidence: high
+      concept: logging_audit
+      since: "0.1.0"

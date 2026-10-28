@@ -1,0 +1,60 @@
+rules:
+  - id: bpm-framework-gin-sql-injection
+    languages: [go]
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - patterns:
+          - pattern: $C.Query($X)
+          # Exclude db/conn/tx-like receivers: sql.DB.Query(...) and
+          # gin.Context.Query(...) share the exact same single-arg-call
+          # shape, so an unconstrained $C would self-match db.Query(sql)
+          # at the sink line itself (a trivial zero-distance "taint
+          # reaches itself" false positive on already-safe code).
+          - metavariable-regex:
+              metavariable: $C
+              regex: '^(?!.*(db|Db|DB|conn|Conn|tx|Tx|database|Database)).*$'
+      - pattern: $C.Param($X)
+      - pattern: $C.PostForm($X)
+    pattern-propagators:
+      - pattern: fmt.Sprintf($FMT, ...)
+        from: $FMT
+        to: $FMT
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $DB.Query($SINK)
+              - pattern: $DB.QueryContext($CTX, $SINK)
+              - pattern: $DB.QueryRow($SINK)
+              - pattern: $DB.QueryRowContext($CTX, $SINK)
+              - pattern: $DB.Exec($SINK)
+              - pattern: $DB.ExecContext($CTX, $SINK)
+          # Disambiguate a database handle from a Gin *gin.Context — both
+          # expose a same-named `Query(...)` method, so an unconstrained
+          # $DB would self-match on the source call itself (c.Query("id")
+          # structurally satisfies $DB.Query($SINK) too, firing on request
+          # param extraction alone before it ever reaches a real db call).
+          # Compound-identifier match per repo convention: .*(...).*.
+          - metavariable-regex:
+              metavariable: $DB
+              regex: '.*(db|Db|DB|conn|Conn|tx|Tx|database|Database).*'
+    message: >
+      Unsanitized Gin request input (c.Query/c.Param/c.PostForm) reaches a
+      database/sql Query/Exec call as the SQL text, either via fmt.Sprintf
+      interpolation or direct string concatenation (Gin framework
+      knowledge, OWASP A03:2021, CWE-89: SQL Injection). An attacker who
+      controls this value can alter the query's structure to read, modify,
+      or delete data outside the intended scope. Use a parameterized query
+      (`?`/`$1` placeholders passed as separate Query/Exec arguments)
+      instead of building the SQL string from request data.
+    # Primary source: Gin framework docs (Context: Query/Param/PostForm) +
+    # database/sql docs (Query/Exec parameterization) + OWASP A03:2021.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [89]
+      owasp: "A03:2021"
+      framework: gin
+      confidence: high
+      concept: sql_database
+      since: "0.1.0"

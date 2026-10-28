@@ -1,0 +1,26 @@
+rules:
+  - id: bpm-owasp-a03-template-injection-go
+    languages: [go]
+    severity: ERROR
+    message: >
+      A template built via text/template is Executed (OWASP A03:2021,
+      CWE-79: Cross-Site Scripting / Improper Neutralization of Input
+      During Web Page Generation). Unlike html/template, text/template
+      performs no context-aware output escaping — if the rendered data
+      reaches an HTTP response, attacker-controlled input in the template
+      data can inject arbitrary HTML/JS into the page. Use html/template
+      (same New/Parse/Execute API) for any template whose output is written
+      to an http.ResponseWriter.
+    patterns:
+      - pattern: $TPL.Execute($W, ...)
+      - pattern-inside: |
+          import "text/template"
+          ...
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [79]
+      owasp: "A03:2021"
+      confidence: high
+      concept: input_validation
+      since: "0.1.0"

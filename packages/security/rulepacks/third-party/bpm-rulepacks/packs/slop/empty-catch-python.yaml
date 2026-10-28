@@ -1,0 +1,31 @@
+rules:
+  - id: bpm-slop-empty-catch-python
+    languages: [python]
+    severity: WARNING
+    message: >
+      Bare or catch-all except block swallows the error (ANTI_SLOP R-01) with
+      no handling, logging, or re-raise — a silent except hides failures the
+      audit must surface. Handle it, log it with context, or re-raise.
+    pattern-either:
+      - pattern: |
+          try:
+              ...
+          except:
+              pass
+      - pattern: |
+          try:
+              ...
+          except Exception:
+              pass
+      - pattern: |
+          try:
+              ...
+          except Exception as $ERR:
+              pass
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-01"
+      cwe: [390]
+      confidence: high
+      concept: logging_audit
+      since: "0.1.0"

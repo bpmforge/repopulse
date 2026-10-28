@@ -1,0 +1,21 @@
+rules:
+  - id: bpm-owasp-a02-tls-verify-disabled-go
+    languages: [go]
+    severity: ERROR
+    message: >
+      crypto/tls.Config is constructed with InsecureSkipVerify: true (OWASP
+      A02:2021, CWE-295: Improper Certificate Validation). This disables
+      both hostname verification and chain-of-trust validation for the TLS
+      connection, allowing a man-in-the-middle attacker to present any
+      certificate (including a self-signed one) undetected. Remove this
+      option; fix the underlying certificate/CA problem (e.g. add the
+      private CA to a custom RootCAs pool) instead of bypassing validation.
+    pattern: 'tls.Config{..., InsecureSkipVerify: true, ...}'
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [295]
+      owasp: "A02:2021"
+      confidence: high
+      concept: cryptography
+      since: "0.1.0"

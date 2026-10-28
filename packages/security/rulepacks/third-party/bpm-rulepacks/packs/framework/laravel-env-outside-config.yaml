@@ -1,0 +1,43 @@
+rules:
+  - id: bpm-framework-laravel-env-outside-config
+    languages: [php]
+    severity: WARNING
+    pattern: env($KEY)
+    paths:
+      exclude:
+        - "config/*"
+        - "config/**"
+    message: >
+      `env()` is called directly instead of going through `config()`
+      (Laravel configuration framework knowledge, OWASP A05:2021: Security
+      Misconfiguration). Laravel's docs are explicit that `env()` should
+      only ever be called from within `config/*.php` files: when
+      `php artisan config:cache` runs (the standard step in every
+      production deploy), the `.env` file is no longer loaded at runtime
+      and any `env()` call outside the cached config values returns
+      `null` — silently breaking behavior in production while working
+      fine in local dev. It also scatters which environment variables the
+      app depends on across the codebase instead of the single
+      `config/*.php` inventory, making a secrets/config audit harder.
+      Define the value in the relevant `config/*.php` file
+      (`'key' => env('ENV_VAR', $default)`) and read it everywhere else
+      via `config('file.key')`.
+    # Primary source: Laravel docs (Configuration "Accessing Configuration
+    # Values" § — "you should never use the env function outside of your
+    # configuration files") + OWASP A05:2021 Security Misconfiguration
+    # (config-cache bypass is a misconfiguration-class failure).
+    #
+    # NOTE (W1-51): `paths.exclude` scopes this to files outside config/
+    # for a real repo scan; the fixture pair below isn't nested under a
+    # config/ path so paths.exclude doesn't affect the RED/GREEN check —
+    # verified separately that opengrep honors paths.exclude by scanning a
+    # copy of the vuln fixture placed at config/app.php (0 findings there).
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [16]
+      owasp: "A05:2021"
+      framework: laravel
+      confidence: medium
+      concept: secrets_config
+      since: "0.1.0"

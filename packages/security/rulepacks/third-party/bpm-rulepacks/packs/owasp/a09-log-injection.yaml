@@ -1,0 +1,31 @@
+rules:
+  - id: bpm-owasp-a09-log-injection
+    languages: [typescript, javascript]
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - pattern: req.body.$X
+      - pattern: req.query.$X
+      - pattern: req.params.$X
+    pattern-sinks:
+      - pattern: logger.info($SINK, ...)
+      - pattern: logger.warn($SINK, ...)
+      - pattern: logger.error($SINK, ...)
+      - pattern: console.log($SINK, ...)
+    message: >
+      Unsanitized request input reaches a log call (OWASP A09:2021,
+      CWE-117: Improper Output Neutralization for Output Used by a
+      Downstream Component ('Log Injection')). An attacker can embed
+      newlines, ANSI escape codes, or fake log-format fields in the input
+      to forge log entries or corrupt log parsing/alerting. Strip control
+      characters (`\r`, `\n`, ANSI escapes) from user input before it is
+      interpolated into a log message, or log it as a separate structured
+      field rather than inline text.
+    metadata:
+      license: proprietary
+      provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A09"
+      cwe: [117]
+      owasp: "A09:2021"
+      confidence: medium
+      concept: logging_audit
+      since: "0.1.0"

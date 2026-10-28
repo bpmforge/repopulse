@@ -1,0 +1,18 @@
+rules:
+  - id: bpm-slop-prose-padding-java
+    languages: [java]
+    severity: WARNING
+    message: >
+      Javadoc @param restates the parameter name instead of documenting the
+      WHY (ANTI_SLOP R-24/R-29: Docstring Inflation / Prose Padding).
+      "@param userId the userId" duplicates what the signature already says
+      and adds word count with zero information. Document a non-obvious
+      constraint, or delete the tag.
+    pattern-regex: (?i)@param\s+(\w+)\s+the\s+\1\b
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-24/R-29"
+      cwe: [1078]
+      confidence: medium
+      concept: code_quality
+      since: "0.1.0"

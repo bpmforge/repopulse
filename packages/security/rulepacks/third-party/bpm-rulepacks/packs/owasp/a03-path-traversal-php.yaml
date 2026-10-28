@@ -1,0 +1,31 @@
+rules:
+  - id: bpm-owasp-a03-path-traversal-php
+    languages: [php]
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - pattern: $_GET
+      - pattern: $_POST
+      - pattern: $_REQUEST
+    pattern-sanitizers:
+      - pattern: basename(...)
+    pattern-sinks:
+      - pattern: fopen($SINK, $MODE)
+      - pattern: file_get_contents($SINK)
+      - pattern: readfile($SINK)
+    message: >
+      Unsanitized $_GET/$_POST/$_REQUEST input reaches fopen(),
+      file_get_contents(), or readfile() as the filesystem path (OWASP
+      A03:2021, CWE-22: Path Traversal). An attacker can supply `../`
+      sequences to read files outside the intended directory. Strip the
+      request value to a bare filename with basename() before joining it
+      to a fixed base directory, or verify the resolved realpath() still
+      starts with that base directory before reading.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [22]
+      owasp: "A03:2021"
+      confidence: high
+      concept: file_upload_path
+      since: "0.1.0"

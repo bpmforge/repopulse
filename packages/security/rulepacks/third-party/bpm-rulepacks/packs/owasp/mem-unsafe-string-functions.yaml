@@ -1,0 +1,50 @@
+rules:
+  - id: bpm-owasp-mem-unsafe-string-functions
+    languages: [c, cpp]
+    severity: WARNING
+    message: >
+      An unbounded C string function (strcpy, strcat, or sprintf) copies a
+      non-literal source into a destination whose size it is never told
+      (CWE-120: Buffer Copy without Checking Size of Input / CWE-787:
+      Out-of-bounds Write). If the source can exceed the destination, this
+      overflows it. Use the bounded equivalents: strncpy/strlcpy or
+      snprintf for strcpy, strncat/strlcat for strcat, snprintf for
+      sprintf.
+      TRIAGE LEAD, NOT A VERDICT — this rule cannot see the destination's
+      capacity, so it cannot tell a genuine overflow from a copy into a
+      buffer that is provably large enough. Confirm the destination size
+      before reporting it to a customer.
+    patterns:
+      - pattern-either:
+          - pattern: strcpy($DST, $SRC)
+          - pattern: strcat($DST, $SRC)
+          - pattern: sprintf($DST, $FMT, ...)
+      # A string-literal source has a length fixed at compile time, so the
+      # only open question is whether the destination is big enough — a
+      # decision the author already made with full information. Excluding
+      # these cut Juliet false positives from 700 to 186 (-73%) and total
+      # findings from 18,671 to 5,968 (-68%), at a cost of ZERO scored true
+      # positives: every TP the original rule earned came from gets(), which
+      # now lives in mem-inherently-dangerous-function.
+      - pattern-not: strcpy($DST, "...")
+      - pattern-not: strcat($DST, "...")
+      # sprintf with a format string and no arguments writes a constant.
+      - pattern-not: sprintf($DST, $FMT)
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [120, 787]
+      confidence: low
+      concept: memory_safety
+      since: "0.1.0"
+      # Was severity ERROR / confidence high, and also covered gets + scanf.
+      # Measured against all 64,099 Juliet C/C++ cases (2026-07-29):
+      # 18 TP / 700 FP -> precision 0.021 for the rule as a whole, with every
+      # one of those 18 TPs attributable to gets(). strcpy/strcat/sprintf
+      # contributed 0 TP and 700 FP between them.
+      #
+      # Kept rather than deleted, because the weakness class is real and
+      # appears in genuine CVEs — but demoted to WARNING/low and narrowed,
+      # because a 39:1 noise ratio in a paid audit report is worse than no
+      # rule at all. gets/scanf moved to mem-inherently-dangerous-function,
+      # where they score 18 TP / 0 FP.

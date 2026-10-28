@@ -1,0 +1,29 @@
+rules:
+  - id: bpm-owasp-a08-insecure-deserialization-kotlin
+    languages: [kotlin]
+    severity: ERROR
+    patterns:
+      - pattern: $OIS.readObject()
+      - pattern-not-inside: |
+          $OIS.setObjectInputFilter(...)
+          ...
+    message: >
+      Untrusted data is passed to ObjectInputStream.readObject() with no
+      ObjectInputFilter installed (OWASP A08:2021, CWE-502:
+      Deserialization of Untrusted Data), the same java.io API Kotlin
+      calls into on Android/JVM targets. readObject() can drive the JVM
+      into instantiating attacker-chosen classes while reconstructing the
+      object graph — a documented gadget-chain remote-code-execution
+      vector (the ysoserial toolkit is the canonical exploit). Install an
+      allowlisting ObjectInputFilter (JEP 290) via setObjectInputFilter()
+      before calling readObject(), or replace java.io serialization
+      entirely with kotlinx.serialization / Jackson binding to a fixed,
+      known target type.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [502]
+      owasp: "A08:2021"
+      confidence: high
+      concept: deserialization
+      since: "0.1.0"

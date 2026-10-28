@@ -1,0 +1,41 @@
+rules:
+  - id: bpm-owasp-a03-sql-injection-rust
+    languages: [rust]
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - pattern: $REQ.query_string()
+      - pattern: $REQ.match_info().get($X)
+    pattern-propagators:
+      - pattern: format!($FMT, ...)
+        from: $FMT
+        to: $FMT
+    pattern-sanitizers:
+      - patterns:
+          - pattern: $SAN.parse::<$T>()
+          - metavariable-regex:
+              metavariable: $T
+              regex: '^(u8|u16|u32|u64|u128|usize|i8|i16|i32|i64|i128|isize|f32|f64|bool)$'
+    pattern-sinks:
+      - pattern: sqlx::query($SINK)
+      - pattern: sqlx::query_as($SINK)
+      - pattern: diesel::sql_query($SINK)
+    message: >
+      Unsanitized HTTP request input reaches sqlx::query/query_as or
+      diesel::sql_query as the raw SQL text, built via format! interpolation
+      (OWASP A03:2021, CWE-89: SQL Injection). An attacker who controls this
+      value can alter the query's structure to read, modify, or delete data
+      outside the intended scope. Use sqlx's bound-parameter placeholders
+      (`$1`/`?` passed as separate query arguments, e.g.
+      `sqlx::query("... WHERE id = $1").bind(id)`) or Diesel's query builder
+      instead of interpolating request data into the SQL string. If the
+      value must stay in a format! string, type-coerce it first (e.g.
+      `.parse::<i64>()`) so only the constrained shape survives.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [89]
+      owasp: "A03:2021"
+      confidence: high
+      concept: sql_database
+      since: "0.1.0"

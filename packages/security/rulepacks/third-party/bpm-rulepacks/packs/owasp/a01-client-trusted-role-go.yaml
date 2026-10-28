@@ -1,0 +1,36 @@
+rules:
+  - id: bpm-owasp-a01-client-trusted-role-go
+    languages: [go]
+    severity: WARNING
+    message: >
+      Authorization decision trusts a client-supplied form/query field
+      instead of the server-side session/role (OWASP A01:2021, CWE-602:
+      Client-Side Enforcement of Server-Side Security). An attacker can set
+      this field directly in the request body or query string to escalate
+      privilege. Look up the role/permission from the authenticated
+      session or database instead of trusting a value the client sent.
+    pattern-either:
+      - pattern: |
+          if $REQ.FormValue("is_admin") == $VAL {
+            ...
+          }
+      - pattern: |
+          if $REQ.FormValue("role") == $VAL {
+            ...
+          }
+      - pattern: |
+          if $REQ.URL.Query().Get("is_admin") == $VAL {
+            ...
+          }
+      - pattern: |
+          if $REQ.URL.Query().Get("role") == $VAL {
+            ...
+          }
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [602]
+      owasp: "A01:2021"
+      confidence: medium
+      concept: authorization
+      since: "0.1.0"

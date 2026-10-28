@@ -1,0 +1,35 @@
+rules:
+  - id: bpm-slop-prose-padding-hedging
+    languages: [generic]
+    severity: WARNING
+    message: >
+      Confidence-hedging opener in agent-generated prose (ANTI_SLOP R-29:
+      Prose Padding). Phrases like "it's worth noting that" or "one might
+      consider" add word count without information — state the finding
+      directly instead.
+    pattern-regex: (?i)\b(it'?s worth noting that|it should be mentioned that|one might consider|it is important to note that)\b
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-29"
+      cwe: [1078]
+      confidence: high
+      concept: code_quality
+      since: "0.1.0"
+
+  - id: bpm-slop-prose-padding-fake-specificity
+    languages: [generic]
+    severity: WARNING
+    message: >
+      Fake-specificity citation in agent-generated prose (ANTI_SLOP R-29:
+      Prose Padding). Citing "industry best practices" or "established
+      patterns" without naming the specific practice, standard, or source
+      is padding — name the actual standard (e.g. "OWASP A03:2021") or cut
+      the phrase.
+    pattern-regex: (?i)\b(industry best practices|modern approaches|established patterns)\b
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-29"
+      cwe: [1078]
+      confidence: medium
+      concept: code_quality
+      since: "0.1.0"

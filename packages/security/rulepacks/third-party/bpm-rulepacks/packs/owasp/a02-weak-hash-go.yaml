@@ -1,0 +1,25 @@
+rules:
+  - id: bpm-owasp-a02-weak-hash-go
+    languages: [go]
+    severity: WARNING
+    message: >
+      crypto/md5 or crypto/sha1 is used to hash data (OWASP A02:2021,
+      CWE-327: Use of a Broken or Risky Cryptographic Algorithm / CWE-328:
+      Use of Weak Hash). Both are cryptographically broken for security use
+      (practical collision attacks) and must not be used for password
+      hashing, digital signatures, or integrity checks. Use crypto/sha256
+      or better for integrity/signing, and golang.org/x/crypto/bcrypt (never
+      a bare digest) for password storage.
+    pattern-either:
+      - pattern: md5.New()
+      - pattern: md5.Sum(...)
+      - pattern: sha1.New()
+      - pattern: sha1.Sum(...)
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [327, 328]
+      owasp: "A02:2021"
+      confidence: high
+      concept: cryptography
+      since: "0.1.0"

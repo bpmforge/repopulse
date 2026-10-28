@@ -1,0 +1,30 @@
+rules:
+  - id: bpm-owasp-a03-xss-csharp
+    languages: [csharp]
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - pattern: $REQ.QueryString[$X]
+      - pattern: $REQ.Form[$X]
+      - pattern: $REQ.Params[$X]
+    pattern-sinks:
+      - pattern: Response.Write($SINK)
+      - pattern: Html.Raw($SINK)
+    message: >
+      Unsanitized ASP.NET request input (QueryString/Form/Params) reaches
+      Response.Write() or a Razor @Html.Raw() call, both of which emit
+      their argument into the HTML response with no encoding (OWASP
+      A03:2021, CWE-79: Cross-Site Scripting). An attacker who controls
+      the value can inject a <script> tag or event handler that runs in
+      the victim's browser session. Use HttpUtility.HtmlEncode() (or
+      WebUtility.HtmlEncode()) before Response.Write(), or use plain Razor
+      output (`@value`, which auto-encodes) instead of `@Html.Raw(value)`
+      for anything that isn't a fixed, trusted string.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [79]
+      owasp: "A03:2021"
+      confidence: high
+      concept: input_validation
+      since: "0.1.0"

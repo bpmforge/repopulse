@@ -1,0 +1,35 @@
+rules:
+  - id: bpm-framework-gin-path-traversal-fileserve
+    languages: [go]
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - pattern: $C.Query($X)
+      - pattern: $C.Param($X)
+      - pattern: $C.PostForm($X)
+    pattern-sinks:
+      - pattern: $C2.File($SINK)
+      - pattern: $C2.SaveUploadedFile($FILE, $SINK)
+    message: >
+      Unsanitized Gin request input (c.Query/c.Param/c.PostForm) reaches
+      c.File() as the served path, or c.SaveUploadedFile() as the
+      destination path (Gin framework knowledge, CWE-22: Path Traversal).
+      An attacker can supply "../" sequences (or an absolute path) to
+      escape the intended directory, reading arbitrary files with c.File()
+      or writing an uploaded file to an arbitrary location with
+      SaveUploadedFile(). Never build the served/destination path directly
+      from request data — look the requested key up in a fixed allow-list
+      that maps to a known-safe path, or at minimum resolve with
+      filepath.Clean(filepath.Join(baseDir, filepath.Base(input))) and
+      verify the result still has baseDir as a prefix before use.
+    # Primary source: Gin framework docs (Context: File / SaveUploadedFile)
+    # + OWASP Path Traversal Cheat Sheet + CWE-22.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [22]
+      owasp: "A03:2021"
+      framework: gin
+      confidence: high
+      concept: file_upload_path
+      since: "0.1.0"

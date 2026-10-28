@@ -1,0 +1,41 @@
+rules:
+  - id: bpm-framework-laravel-unvalidated-redirect
+    languages: [php]
+    severity: WARNING
+    pattern-either:
+      - pattern: redirect($request->input($X))
+      - pattern: redirect($request->get($X))
+      - pattern: redirect($request->query($X))
+      - pattern: redirect()->to($request->input($X))
+      - pattern: redirect()->to($request->get($X))
+      - pattern: redirect()->to($request->query($X))
+      - pattern: Redirect::to($request->input($X))
+      - pattern: Redirect::to($request->get($X))
+      - pattern: Redirect::to($request->query($X))
+    message: >
+      A redirect target is taken directly from request input — via
+      `redirect()`/`redirect()->to()`/`Redirect::to()` fed
+      `$request->input()`/`get()`/`query()` — with no allow-list or
+      same-site check (Laravel routing framework knowledge, OWASP
+      A01:2021: Broken Access Control, CWE-601: URL Redirection to
+      Untrusted Site ('Open Redirect')). An attacker crafts a link to this
+      app with a query parameter pointing at an attacker-controlled
+      domain; victims trust the link because it starts with the real
+      app's URL, and land on a phishing page after the redirect. Validate
+      the target against an allow-list of known internal paths/hosts
+      before redirecting (e.g. `URL::isValidUrl()` plus a same-host check,
+      or `redirect()->intended()` for post-login redirects), or restrict
+      the parameter to a route name/enum instead of a free-form URL.
+    # Primary source: OWASP Unvalidated Redirects and Forwards Cheat Sheet
+    # + CWE-601. Laravel provides no built-in open-redirect guard on the
+    # `redirect()`/`Redirect::to()` helpers — validation is the caller's
+    # responsibility.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [601]
+      owasp: "A01:2021"
+      framework: laravel
+      confidence: medium
+      concept: input_validation
+      since: "0.1.0"

@@ -1,0 +1,44 @@
+rules:
+  - id: bpm-slop-fallback-hides-failure-go
+    languages: [go]
+    severity: WARNING
+    message: >
+      An `if err != nil` branch returns a fallback value with the error
+      dropped or replaced by `nil` (ANTI_SLOP R-10) — Go idiom is `if err !=
+      nil { return ..., err }`. Returning a default/zero value instead of
+      propagating the error means the caller cannot distinguish "no data"
+      from "the call failed"; monitoring misses the failure.
+    patterns:
+      - pattern-either:
+          - pattern: |
+              if $ERR != nil {
+                return $DEFAULT
+              }
+          - pattern: |
+              if $ERR != nil {
+                return $DEFAULT, nil
+              }
+      - pattern-not: |
+          if $ERR != nil {
+            return $ERR
+          }
+      # opengrep's Go grammar binds a single metavariable in return-position
+      # to the entire (possibly multi-value) return-expression list as raw
+      # text — so $DEFAULT above also absorbs `nil, fmt.Errorf("...: %w",
+      # err)` from a 2-value return, not just a genuine dropped-error
+      # fallback. Anchored exclusion: if the captured return text still
+      # references an err-shaped identifier (err, wrapErr, errors.New,
+      # fmt.Errorf(...err), etc.) the error IS being propagated/wrapped, not
+      # hidden — verified false-fire against packs/slop/ whole-dir sweep on
+      # `return nil, fmt.Errorf("...: %w", err)` and `return
+      # fmt.Errorf("...: %w", err)` (W1-33).
+      - metavariable-regex:
+          metavariable: $DEFAULT
+          regex: (?i)^((?!\berr).)*$
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-10"
+      cwe: [390]
+      confidence: high
+      concept: logging_audit
+      since: "0.1.0"

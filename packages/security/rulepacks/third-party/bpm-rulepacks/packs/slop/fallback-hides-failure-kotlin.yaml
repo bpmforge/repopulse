@@ -1,0 +1,30 @@
+rules:
+  - id: bpm-slop-fallback-hides-failure-kotlin
+    languages: [kotlin]
+    severity: WARNING
+    message: >
+      catch returns/yields a null/empty fallback (ANTI_SLOP R-10) — the
+      caller cannot distinguish "no data" from "the call failed."
+      Monitoring misses the failure. Return a typed error result or
+      rethrow (wrapped in a domain exception); never yield a value that
+      looks like success.
+    pattern-either:
+      - pattern: |
+          try { ... } catch ($ERR: $EXC) { null }
+      - pattern: |
+          try { ... } catch ($ERR: $EXC) { "" }
+      - pattern: |
+          try { ... } catch ($ERR: $EXC) { emptyList() }
+      - pattern: |
+          try { ... } catch ($ERR: $EXC) { return null }
+      - pattern: |
+          try { ... } catch ($ERR: $EXC) { return "" }
+      - pattern: |
+          try { ... } catch ($ERR: $EXC) { return emptyList() }
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-10"
+      cwe: [390]
+      confidence: high
+      concept: logging_audit
+      since: "0.1.0"

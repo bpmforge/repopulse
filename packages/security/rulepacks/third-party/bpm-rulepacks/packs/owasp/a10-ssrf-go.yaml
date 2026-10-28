@@ -1,0 +1,32 @@
+rules:
+  - id: bpm-owasp-a10-ssrf-go
+    languages: [go]
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - pattern: $REQ.URL.Query().Get($X)
+      - pattern: $REQ.FormValue($X)
+      - pattern: $REQ.PostFormValue($X)
+    pattern-sinks:
+      - pattern: http.Get($SINK)
+      - pattern: http.Head($SINK)
+      - pattern: http.Post($SINK, ...)
+      - pattern: http.NewRequest($METHOD, $SINK, $BODY)
+      - pattern: http.NewRequestWithContext($CTX, $METHOD, $SINK, $BODY)
+    message: >
+      A URL derived from HTTP request input reaches an outbound net/http
+      call (OWASP A10:2021, CWE-918: Server-Side Request Forgery (SSRF)).
+      An attacker can point this at internal services (databases, admin
+      panels) or the cloud metadata endpoint (169.254.169.254) that are
+      unreachable from outside the network, exfiltrating credentials or
+      pivoting past the perimeter. Validate the URL's host against an
+      explicit allowlist resolved *after* DNS lookup, and reject
+      private/link-local IP ranges before issuing the request.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [918]
+      owasp: "A10:2021"
+      confidence: medium
+      concept: ssrf_outbound
+      since: "0.1.0"

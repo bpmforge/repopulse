@@ -1,0 +1,29 @@
+rules:
+  - id: bpm-owasp-a03-format-string-c
+    languages: [c, cpp]
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - pattern: getenv($X)
+      - pattern: argv[$I]
+    pattern-sinks:
+      - pattern: printf($SINK)
+      - pattern: fprintf($STREAM, $SINK)
+      - pattern: syslog($PRIO, $SINK)
+    message: >
+      An environment variable or command-line argument reaches printf,
+      fprintf, or syslog as the format-string argument itself, not as a
+      "%s" data argument (OWASP A03:2021, CWE-134: Use of Externally-
+      Controlled Format String). If the attacker-controlled value contains
+      conversion specifiers like %x or %n, the call reads arbitrary stack
+      memory or, with %n, writes to it — a classic route to information
+      disclosure or code execution. Always pass a fixed format string and
+      supply the untrusted value as a "%s" argument: printf("%s", value).
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [134]
+      owasp: "A03:2021"
+      confidence: high
+      concept: input_validation
+      since: "0.1.0"

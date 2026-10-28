@@ -1,0 +1,22 @@
+rules:
+  - id: bpm-owasp-a04-client-supplied-price
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      The charge amount is taken directly from the client-supplied request body
+      (OWASP A04:2021, CWE-807: Reliance on Untrusted Inputs in a Security
+      Decision). An attacker can submit any price they want for checkout. Look
+      up the price/amount server-side from the product/order record instead of
+      trusting the client.
+    pattern-either:
+      - pattern: 'stripe.charges.create({ amount: $REQ.body.$FIELD, ... })'
+      - pattern: 'stripe.paymentIntents.create({ amount: $REQ.body.$FIELD, ... })'
+    metadata:
+      license: proprietary
+      provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A04"
+      cwe: [807]
+      owasp: "A04:2021"
+      confidence: high
+      concept: payment_billing
+      since: "0.1.0"
+

@@ -1,0 +1,41 @@
+rules:
+  - id: bpm-slop-try-catch-in-loop-python
+    languages: [python]
+    severity: WARNING
+    message: >
+      try/except inside a tight loop (ANTI_SLOP R-02) — a try/except wrapping
+      each iteration prevents the interpreter/JIT from optimizing the hot
+      path and usually means one bad item silently derails the whole loop's
+      error handling. Wrap the loop, not each iteration; validate before the
+      loop if items can be invalid.
+    patterns:
+      - pattern-either:
+          - pattern: |
+              try:
+                  ...
+              except:
+                  ...
+          - pattern: |
+              try:
+                  ...
+              except $ERR:
+                  ...
+          - pattern: |
+              try:
+                  ...
+              except $ERR as $NAME:
+                  ...
+      - pattern-either:
+          - pattern-inside: |
+              for $X in $Y:
+                  ...
+          - pattern-inside: |
+              while $COND:
+                  ...
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-02"
+      cwe: [1050]
+      confidence: medium
+      concept: logging_audit
+      since: "0.1.0"

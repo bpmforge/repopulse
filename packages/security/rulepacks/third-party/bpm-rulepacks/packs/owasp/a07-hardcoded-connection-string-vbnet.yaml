@@ -1,0 +1,32 @@
+rules:
+  - id: bpm-owasp-a07-hardcoded-connection-string-vbnet
+    languages: [generic]
+    severity: ERROR
+    message: >
+      A database connection string with a cleartext Password/Pwd value is
+      embedded directly in VB.NET source (OWASP A07:2021, CWE-798: Use of
+      Hard-coded Credentials). Anyone with source or binary access
+      (decompiled) recovers the live credential. Move the connection
+      string to a secrets manager or `ConfigurationManager.ConnectionStrings`
+      backed by an encrypted `<connectionStrings configSource="...">` file
+      or environment variable, and rotate the exposed credential.
+    pattern-regex: (?i)(password|pwd)\s*=\s*[^;"']{6,}\s*;
+    # `languages: [generic]` means this regex is applied to EVERY file the
+    # scanner walks, in any language — the rule was VB.NET only by name.
+    # On the Juliet C/C++ corpus it fired 530 times (27 charged as false
+    # positives, 503 as cross-taxonomy) with zero true positives, matching
+    # ordinary C string assignments that happen to contain "password=...;".
+    # A generic regex rule MUST carry a paths filter; there is no language
+    # grammar to constrain it.
+    paths:
+      include:
+        - '*.vb'
+        - '*.vbs'
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [798]
+      owasp: "A07:2021"
+      confidence: medium
+      concept: secrets_config
+      since: "0.1.0"

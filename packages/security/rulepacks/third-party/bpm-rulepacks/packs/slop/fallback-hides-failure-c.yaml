@@ -1,0 +1,34 @@
+rules:
+  - id: bpm-slop-fallback-hides-failure-c
+    languages: [c, cpp]
+    severity: WARNING
+    message: >
+      An error/return-code check branch returns a success-shaped default
+      (0) instead of propagating the actual failure (ANTI_SLOP R-10). C
+      convention treats 0 as success, so `if (rc != 0) { return 0; }`
+      tells the caller the call succeeded when it actually failed — the
+      caller cannot distinguish "it worked" from "it failed and we hid
+      it," and monitoring misses the failure. Propagate the real return
+      code (or a distinct non-zero error code) and/or log before
+      returning.
+    patterns:
+      - pattern-either:
+          - pattern: |
+              if ($RC != 0) {
+                return 0;
+              }
+          - pattern: |
+              if ($RC == -1) {
+                return 0;
+              }
+          - pattern: |
+              if ($RC < 0) {
+                return 0;
+              }
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-10"
+      cwe: [390]
+      confidence: high
+      concept: logging_audit
+      since: "0.1.0"

@@ -1,0 +1,41 @@
+rules:
+  - id: bpm-slop-hardcoded-env-fallback-c
+    languages: [c, cpp]
+    severity: WARNING
+    message: >
+      A secret-shaped environment variable is coalesced to a hardcoded
+      string literal via getenv(...) (ANTI_SLOP R-23, CWE-798: Use of
+      Hard-coded Credentials) — either the GNU `?:` elvis-operator
+      shorthand or the portable `getenv($X) ? getenv($X) : $FALLBACK`
+      ternary form. AI assistants expose secrets at roughly 2x the rate of
+      human-only commits (CSA 2025) — this pattern is a common source: a
+      "just make it run" fallback that ships a real or production-shaped
+      credential when the env var is unset. Remove the literal fallback;
+      fail closed (return an error / abort) when a required secret is
+      missing.
+    patterns:
+      - pattern-either:
+          - pattern: |
+              getenv($NAME) ?: $FALLBACK
+          - pattern: |
+              getenv($NAME) ? getenv($NAME) : $FALLBACK
+      - metavariable-regex:
+          metavariable: $NAME
+          regex: (?i)^"[^"]*(secret|password|token|api[_-]?key|credential)[^"]*"$
+      - metavariable-regex:
+          # Anchored regex on the captured text, not metavariable-pattern —
+          # metavariable-pattern's '"..."' shape matches any string literal
+          # reachable anywhere inside $FALLBACK's subtree. An anchored
+          # regex on the whole captured span only matches when $FALLBACK IS
+          # a bare string literal (matches the C# hardcoded-env-fallback
+          # fix for the same trap).
+          metavariable: $FALLBACK
+          regex: ^"[^"]*"$
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-23"
+      cwe: [798]
+      owasp: "A07:2021"
+      confidence: high
+      concept: secrets_config
+      since: "0.1.0"

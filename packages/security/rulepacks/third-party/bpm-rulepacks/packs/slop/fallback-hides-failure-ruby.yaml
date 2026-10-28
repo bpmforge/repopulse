@@ -1,0 +1,71 @@
+rules:
+  - id: bpm-slop-fallback-hides-failure-ruby
+    languages: [ruby]
+    severity: WARNING
+    message: >
+      rescue returns an empty/nil fallback (ANTI_SLOP R-10) — the caller
+      cannot distinguish "no data" from "the call failed." Monitoring
+      misses the failure. Return a typed error result or re-raise; never
+      return a value that looks like success.
+    pattern-either:
+      - pattern: |
+          begin
+            ...
+          rescue => $ERR
+            nil
+          end
+      - pattern: |
+          begin
+            ...
+          rescue
+            nil
+          end
+      - pattern: |
+          begin
+            ...
+          rescue => $ERR
+            []
+          end
+      - pattern: |
+          begin
+            ...
+          rescue
+            []
+          end
+      - pattern: |
+          begin
+            ...
+          rescue => $ERR
+            ""
+          end
+      - pattern: |
+          begin
+            ...
+          rescue
+            ""
+          end
+      - pattern: |
+          begin
+            ...
+          rescue => $ERR
+            return nil
+          end
+      - pattern: |
+          begin
+            ...
+          rescue => $ERR
+            return []
+          end
+      - pattern: |
+          begin
+            ...
+          rescue => $ERR
+            return ""
+          end
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-10"
+      cwe: [390]
+      confidence: high
+      concept: logging_audit
+      since: "0.1.0"

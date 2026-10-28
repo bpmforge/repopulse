@@ -1,0 +1,44 @@
+rules:
+  - id: bpm-framework-aspnet-html-raw-xss
+    languages: [csharp]
+    severity: ERROR
+    patterns:
+      - pattern-either:
+          - pattern: Html.Raw($X)
+          - pattern: new HtmlString($X)
+      - pattern-not: Html.Raw("...")
+      - pattern-not: new HtmlString("...")
+    message: >
+      @Html.Raw() (or constructing a raw HtmlString directly) is called
+      with a non-literal value (ASP.NET Core Razor framework knowledge,
+      CWE-79: Cross-Site Scripting). Razor's default `@value` output
+      HTML-encodes automatically; Html.Raw() and HtmlString both bypass
+      that encoding and write the argument into the response verbatim.
+      If the value carries any request-derived or user-supplied content
+      (a comment body, a display name, query-string data), an attacker
+      can inject a <script> tag or event-handler attribute that runs in
+      the victim's browser. Use the default encoded output (`@value`)
+      unless the content is trusted, pre-sanitized HTML — and even then,
+      run it through an HTML sanitizer (e.g. Ganss.XSS/HtmlSanitizer) at
+      the point of output rather than trusting the source.
+    # Primary source: ASP.NET Core Razor docs (HTML encoding §, which
+    # documents Html.Raw as the explicit escape hatch from automatic
+    # encoding) + CWE-79.
+    #
+    # NOTE (W1-54): real Razor views are .cshtml files that embed C# via
+    # `@` directives, which opengrep's csharp parser does not parse (it
+    # expects standalone C#). Html.Raw()/HtmlString are also directly
+    # callable as plain C# (IHtmlHelper extension methods used from
+    # Razor Class Library code-behind, custom HTML helpers, or Razor
+    # Pages PageModel code), so fixtures here use discoverable .cs files
+    # containing the equivalent Html.Raw()/HtmlString call shape as
+    # plain C# — the same mismatch W1-51 hit for Blade templates.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [79]
+      owasp: "A03:2021"
+      framework: aspnet
+      confidence: medium
+      concept: input_validation
+      since: "0.1.0"

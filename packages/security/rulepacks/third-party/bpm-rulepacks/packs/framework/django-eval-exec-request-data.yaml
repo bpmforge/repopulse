@@ -1,0 +1,35 @@
+rules:
+  - id: bpm-framework-django-eval-exec-request-data
+    languages: [python]
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - pattern: request.GET.$X
+      - pattern: request.POST.$X
+      - pattern: request.GET.get(...)
+      - pattern: request.POST.get(...)
+      - pattern: request.body
+    pattern-sinks:
+      - pattern: eval($SINK)
+      - pattern: exec($SINK)
+    message: >
+      Request input reaches eval() or exec() with no validation in between
+      (Django framework knowledge, CWE-95: Improper Neutralization of
+      Directives in Dynamically Evaluated Code). Both builtins compile and
+      run the string as Python code with the interpreter's full privileges;
+      an attacker-controlled expression is arbitrary remote code execution.
+      There is no safe way to sanitize arbitrary code for eval/exec — replace
+      it with a fixed, non-input-derived expression, or if dynamic behavior
+      is genuinely required, use a restricted parser (e.g.
+      ast.literal_eval() for literal data) instead.
+    # Primary source: Django security docs (avoid eval/exec on user input) +
+    # OWASP Code Injection guidance.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [95]
+      owasp: "A03:2021"
+      framework: django
+      confidence: high
+      concept: input_validation
+      since: "0.1.0"

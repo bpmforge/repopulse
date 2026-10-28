@@ -1,0 +1,30 @@
+rules:
+  - id: bpm-owasp-a05-error-display-php
+    languages: [php]
+    severity: WARNING
+    message: >
+      display_errors is turned on at runtime via ini_set() (OWASP
+      A05:2021: Security Misconfiguration, CWE-209: Generation of Error
+      Message Containing Sensitive Information). With display_errors on,
+      an uncaught error or warning renders a stack trace straight into
+      the HTTP response — file paths, function arguments, database DSNs,
+      and framework/library versions all leak to any client that triggers
+      the error. Set display_errors=Off in php.ini for every deployed
+      environment (never override it on at runtime); log errors instead
+      via log_errors=On and error_log, and show a generic message to the
+      client.
+    patterns:
+      - pattern-either:
+          - pattern: ini_set('display_errors', $VAL)
+          - pattern: ini_set("display_errors", $VAL)
+      - metavariable-regex:
+          metavariable: $VAL
+          regex: "^['\"](1|[Oo]n|[Tt]rue|[Yy]es)['\"]$"
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [209]
+      owasp: "A05:2021"
+      confidence: high
+      concept: logging_audit
+      since: "0.1.0"

@@ -1,0 +1,31 @@
+rules:
+  - id: bpm-framework-spring-cors-wildcard
+    languages: [java]
+    severity: WARNING
+    pattern-either:
+      - pattern: '@CrossOrigin(origins = "*")'
+      - pattern: '@CrossOrigin("*")'
+      - pattern: $CORS.addAllowedOrigin("*")
+    message: >
+      A wildcard `"*"` origin is configured for CORS (Spring Web/Spring
+      Security framework knowledge, CWE-942: Permissive Cross-domain
+      Policy with Untrusted Domains). A wildcard origin lets any website
+      make cross-origin requests to this endpoint and read the response;
+      combined with `allowCredentials(true)` (which the spec forbids
+      pairing with `*` but some containers permit anyway) this exposes
+      cookie- or session-authenticated data to any origin on the web.
+      Replace the wildcard with an explicit allow-list of the origins that
+      actually need access (`origins = "https://app.example.com"` or
+      `setAllowedOrigins(List.of(...))`/`setAllowedOriginPatterns(...)` for
+      a small pattern set).
+    # Primary source: MDN CORS docs (wildcard + credentials interaction) +
+    # OWASP A05:2021 Security Misconfiguration.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [942]
+      owasp: "A05:2021"
+      framework: spring
+      confidence: high
+      concept: http_headers_cors
+      since: "0.1.0"

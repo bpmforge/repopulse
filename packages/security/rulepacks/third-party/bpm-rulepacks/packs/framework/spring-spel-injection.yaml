@@ -1,0 +1,37 @@
+rules:
+  - id: bpm-framework-spring-spel-injection
+    languages: [java]
+    severity: ERROR
+    patterns:
+      - pattern-either:
+          - pattern: new SpelExpressionParser().parseExpression($EXPR)
+          - pattern: new SpelExpressionParser().parseExpression($EXPR, $CTX)
+      - metavariable-regex:
+          metavariable: $EXPR
+          regex: '^(?!\s*"([^"\\]|\\.)*"\s*$).+$'
+    message: >
+      A SpelExpressionParser parses an expression that is not a fixed
+      string literal (Spring Expression Language, CWE-917: Improper
+      Neutralization of Special Elements used in an Expression Language
+      Statement). SpEL evaluation can invoke arbitrary methods and
+      constructors — `T(java.lang.Runtime).getRuntime().exec(...)` is a
+      valid SpEL expression — so if the parsed text is built from request
+      data (a query param, header, form field, or any value that traces
+      back to the client), this is expression-language injection with the
+      same impact as remote code execution. Never parse an expression
+      built from untrusted input; if the expression must vary at runtime,
+      restrict evaluation with a `SimpleEvaluationContext` (not
+      `StandardEvaluationContext`) and validate the input against a strict
+      allow-list before it reaches the parser.
+    # Primary source: Spring Framework docs (Expression-Based Access
+    # Control / "Restricting bean and class access") + CVE-2022-22963
+    # (Spring Cloud Function SpEL injection RCE).
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [917]
+      owasp: "A03:2021"
+      framework: spring
+      confidence: medium
+      concept: input_validation
+      since: "0.1.0"

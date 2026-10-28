@@ -1,0 +1,24 @@
+rules:
+  - id: bpm-owasp-a05-insecure-transport-swift
+    languages: [generic]
+    severity: ERROR
+    pattern-regex: '<key>\s*NSAllowsArbitraryLoads\s*</key>\s*<true\s*/>'
+    message: >
+      Info.plist's NSAppTransportSecurity sets NSAllowsArbitraryLoads to
+      true (OWASP A05:2021, CWE-319: Cleartext Transmission of Sensitive
+      Information). This globally disables App Transport Security across
+      every network call the app makes, permitting plain-HTTP connections
+      (no TLS, no certificate validation) to any host — a network attacker
+      (open wifi, a malicious VPN profile, ARP spoofing) can read or
+      tamper with all traffic. Remove the blanket override; if a specific
+      legacy host genuinely needs an exception, scope it narrowly under
+      NSExceptionDomains for that one domain instead of disabling ATS
+      entirely.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [319]
+      owasp: "A05:2021"
+      confidence: high
+      concept: cryptography
+      since: "0.1.0"

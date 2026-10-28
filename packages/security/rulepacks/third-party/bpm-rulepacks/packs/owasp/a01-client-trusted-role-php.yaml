@@ -1,0 +1,39 @@
+rules:
+  - id: bpm-owasp-a01-client-trusted-role-php
+    languages: [php]
+    severity: WARNING
+    message: >
+      An authorization decision branches directly on a client-supplied
+      $_GET/$_POST/$_REQUEST field (an "is_admin" flag or a "role" value)
+      instead of the server-side session/database role (OWASP A01:2021,
+      CWE-602: Client-Side Enforcement of Server-Side Security). An
+      attacker sets this field directly in the query string or POST body
+      to escalate privilege — nothing on the server ever verified it.
+      Look up the role/permission from the authenticated session
+      ($_SESSION) or a database query keyed by the authenticated user ID
+      instead of trusting a value the client sent.
+    pattern-either:
+      - pattern: |
+          if ($_POST['is_admin']) { ... }
+      - pattern: |
+          if ($_GET['is_admin']) { ... }
+      - pattern: |
+          if ($_REQUEST['is_admin']) { ... }
+      - pattern: |
+          if ($_POST['role'] == $VAL) { ... }
+      - pattern: |
+          if ($_GET['role'] == $VAL) { ... }
+      - pattern: |
+          if ($_REQUEST['role'] == $VAL) { ... }
+      - pattern: |
+          if ($_POST['role'] === $VAL) { ... }
+      - pattern: |
+          if ($_GET['role'] === $VAL) { ... }
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [602]
+      owasp: "A01:2021"
+      confidence: medium
+      concept: authorization
+      since: "0.1.0"

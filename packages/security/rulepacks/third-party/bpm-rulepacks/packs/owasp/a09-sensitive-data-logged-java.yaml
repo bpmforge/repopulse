@@ -1,0 +1,38 @@
+rules:
+  - id: bpm-owasp-a09-sensitive-data-logged-java
+    languages: [java]
+    severity: WARNING
+    pattern-either:
+      - patterns:
+          - pattern-either:
+              - pattern: $LOG.$M($...BEFORE, $OBJ.$GETTER(), $...AFTER)
+              - pattern: $LOG.$M($OBJ.$GETTER())
+          - metavariable-regex:
+              metavariable: $GETTER
+              regex: '^get(Password|Secret|Token|ApiKey|PrivateKey|CreditCard|Ssn)$'
+      - patterns:
+          - pattern-either:
+              - pattern: $LOG.$M($...BEFORE, $VAR, $...AFTER)
+              - pattern: $LOG.$M($VAR)
+          - metavariable-regex:
+              metavariable: $VAR
+              regex: '^(password|secret|token|apiKey|privateKey|creditCard|ssn)$'
+    message: >
+      A logger call includes a password/secret/token/API-key/credit-card/
+      SSN getter or identically-named variable directly in its arguments
+      (OWASP A09:2021, CWE-532: Insertion of Sensitive Information into
+      Log File). Application logs are routinely shipped to less-trusted
+      aggregation systems, retained far longer than the credential's
+      lifetime, and read by a broader audience than the code path that
+      handles the secret — logging it turns a log-reader into someone who
+      can authenticate as the user or service. Log a non-reversible
+      identifier (user id, a masked/last-4 form, or omit the value
+      entirely) instead of the raw sensitive field.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [532]
+      owasp: "A09:2021"
+      confidence: medium
+      concept: logging_audit
+      since: "0.1.0"

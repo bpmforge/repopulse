@@ -1,0 +1,20 @@
+rules:
+  - id: bpm-owasp-a03-xss-dangerously-set-innerhtml
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      dangerouslySetInnerHTML renders raw HTML without React's escaping (OWASP
+      A03:2021, CWE-79: Cross-Site Scripting). If $VAR includes user input, an
+      attacker can inject script/markup. Sanitize with DOMPurify.sanitize()
+      first, or avoid raw HTML rendering entirely.
+    patterns:
+      - pattern: '{ __html: $VAR }'
+      - pattern-not: '{ __html: $SANITIZE.sanitize(...) }'
+    metadata:
+      license: proprietary
+      provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A03"
+      cwe: [79]
+      owasp: "A03:2021"
+      confidence: medium
+      concept: input_validation
+      since: "0.1.0"

@@ -1,0 +1,28 @@
+rules:
+  - id: bpm-slop-empty-catch-cpp
+    languages: [cpp]
+    severity: WARNING
+    message: >
+      Empty catch block swallows the exception (ANTI_SLOP R-01). Handle it,
+      log it with context, or rethrow — a silent catch hides failures the
+      audit must surface. This includes the catch-all `catch (...)` form,
+      which in C++ swallows every exception type, not just a specific one.
+    patterns:
+      - pattern-either:
+          - pattern: |
+              try { ... } catch (...) { }
+          - pattern: |
+              try { ... } catch ($EXC& $ERR) { }
+          - pattern: |
+              try { ... } catch (const $EXC& $ERR) { }
+          - pattern: |
+              try { ... } catch ($EXC $ERR) { }
+          - pattern: |
+              try { ... } catch ($EXC) { }
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-01"
+      cwe: [390]
+      confidence: high
+      concept: logging_audit
+      since: "0.1.0"

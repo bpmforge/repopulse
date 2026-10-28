@@ -1,0 +1,28 @@
+rules:
+  - id: bpm-owasp-a03-path-traversal-c
+    languages: [c, cpp]
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - pattern: getenv($X)
+      - pattern: argv[$I]
+    pattern-sinks:
+      - pattern: fopen($SINK, $MODE)
+      - pattern: open($SINK, $FLAGS)
+      - pattern: open($SINK, $FLAGS, $MODE)
+    message: >
+      An environment variable or command-line argument reaches fopen() or
+      open() as the path argument (OWASP A03:2021, CWE-22: Path Traversal).
+      An attacker can supply "../" sequences to escape the intended
+      directory and read or write files elsewhere on disk. Resolve the path
+      with realpath() against a fixed base directory and verify the
+      resolved path still starts with that base before opening it, or
+      validate the input against a strict allowlist of expected filenames.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [22]
+      owasp: "A03:2021"
+      confidence: high
+      concept: file_upload_path
+      since: "0.1.0"

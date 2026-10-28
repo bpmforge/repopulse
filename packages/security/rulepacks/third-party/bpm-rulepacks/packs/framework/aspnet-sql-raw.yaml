@@ -1,0 +1,45 @@
+rules:
+  - id: bpm-framework-aspnet-sql-raw
+    languages: [csharp]
+    severity: ERROR
+    patterns:
+      - pattern-either:
+          - pattern: $CTX.$SET.FromSqlRaw($SQL)
+          - pattern: $CTX.$SET.FromSqlRaw($SQL, ...)
+          - pattern: $CTX.Database.ExecuteSqlRaw($SQL)
+          - pattern: $CTX.Database.ExecuteSqlRaw($SQL, ...)
+      - metavariable-regex:
+          # Anchored on the captured text, not metavariable-pattern (see
+          # hardcoded-env-fallback-csharp.yaml for why: metavariable-pattern's
+          # string-shape check can match a literal reachable anywhere inside
+          # a metavariable's subtree, not just at its top). An anchored
+          # regex on $SQL's whole captured span only matches when the
+          # argument IS a C# interpolated string literal ($"...").
+          metavariable: $SQL
+          regex: ^\$"
+    message: >
+      FromSqlRaw()/ExecuteSqlRaw() is called with a C# interpolated
+      string ($"...") as the raw SQL text (EF Core framework knowledge,
+      OWASP A03:2021: Injection, CWE-89: SQL Injection). Interpolating a
+      variable directly into the string (`$"... WHERE Name = '{name}'"`)
+      builds the SQL text by concatenation before EF Core ever sees it,
+      so any attacker-controlled value in the interpolation is executed
+      as SQL, not treated as data. Use FromSqlInterpolated()/
+      ExecuteSqlInterpolated() instead — same $"..." syntax, but EF Core
+      parameterizes each interpolated hole automatically — or pass a
+      literal SQL string with positional placeholders
+      (`FromSqlRaw("... WHERE Name = {0}", name)`) to FromSqlRaw/
+      ExecuteSqlRaw.
+    # Primary source: Microsoft Learn "EF Core: SQL Queries" (Passing
+    # parameters § — documents FromSqlInterpolated as the safe
+    # counterpart to FromSqlRaw for the exact same $"..." syntax) +
+    # CWE-89.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [89]
+      owasp: "A03:2021"
+      framework: aspnet
+      confidence: high
+      concept: sql_database
+      since: "0.1.0"

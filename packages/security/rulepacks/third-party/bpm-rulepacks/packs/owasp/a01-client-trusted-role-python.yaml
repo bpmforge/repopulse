@@ -1,0 +1,46 @@
+rules:
+  - id: bpm-owasp-a01-client-trusted-role-python
+    languages: [python]
+    severity: WARNING
+    message: >
+      Authorization decision trusts a client-supplied field (Flask
+      request.form/args/json or Django request.POST/GET) instead of the
+      server-side session/role (OWASP A01:2021, CWE-602: Client-Side
+      Enforcement of Server-Side Security). An attacker can set this field
+      directly in the request body/query string to escalate privilege.
+      Look up the role/permission from the authenticated session
+      (flask_login.current_user, request.user) or database instead of
+      trusting a value the client sent.
+    pattern-either:
+      - pattern: |
+          if $REQ.form.get("is_admin"):
+              ...
+      - pattern: |
+          if $REQ.form.get("role") == $VAL:
+              ...
+      - pattern: |
+          if $REQ.args.get("is_admin"):
+              ...
+      - pattern: |
+          if $REQ.json.get("is_admin"):
+              ...
+      - pattern: |
+          if $REQ.json.get("role") == $VAL:
+              ...
+      - pattern: |
+          if $REQ.POST.get("is_admin"):
+              ...
+      - pattern: |
+          if $REQ.POST.get("role") == $VAL:
+              ...
+      - pattern: |
+          if $REQ.GET.get("is_admin"):
+              ...
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [602]
+      owasp: "A01:2021"
+      confidence: medium
+      concept: authorization
+      since: "0.1.0"

@@ -1,0 +1,29 @@
+rules:
+  - id: bpm-owasp-a03-path-traversal
+    languages: [typescript, javascript]
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - pattern: req.params.$X
+      - pattern: req.query.$X
+      - pattern: req.body.$X
+    pattern-sinks:
+      - pattern: fs.readFile($SINK, ...)
+      - pattern: fs.readFileSync($SINK, ...)
+      - pattern: fs.createReadStream($SINK, ...)
+      - pattern: res.sendFile($SINK, ...)
+    message: >
+      User-controlled input reaches a filesystem read without normalization
+      or a containment check (OWASP A03:2021, CWE-22: Path Traversal). An
+      attacker can supply `../` sequences to read files outside the intended
+      directory. Resolve the path with path.join()/path.resolve() against a
+      fixed base directory and verify the resolved path still starts with
+      that base before reading.
+    metadata:
+      license: proprietary
+      provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A03"
+      cwe: [22]
+      owasp: "A03:2021"
+      confidence: medium
+      concept: file_upload_path
+      since: "0.1.0"

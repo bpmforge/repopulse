@@ -1,0 +1,35 @@
+rules:
+  - id: bpm-owasp-a03-file-inclusion-php
+    languages: [php]
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - pattern: $_GET
+      - pattern: $_POST
+      - pattern: $_REQUEST
+    pattern-sanitizers:
+      - pattern: basename(...)
+    pattern-sinks:
+      - pattern: include($SINK);
+      - pattern: include_once($SINK);
+      - pattern: require($SINK);
+      - pattern: require_once($SINK);
+    message: >
+      Unsanitized $_GET/$_POST/$_REQUEST input reaches include(),
+      include_once(), require(), or require_once() as the file path
+      (OWASP A03:2021, CWE-98: PHP Local/Remote File Inclusion). If
+      `allow_url_include` is enabled an attacker can point this at a
+      remote URL for full remote code execution; even with it disabled,
+      `../` sequences or PHP wrapper streams (php://filter, data://) let
+      an attacker include arbitrary local files. Validate the request
+      value against a fixed allowlist of page names (never pass it to
+      include/require directly), or at minimum reduce it to a bare
+      filename with basename() before building the include path.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [98]
+      owasp: "A03:2021"
+      confidence: high
+      concept: file_upload_path
+      since: "0.1.0"

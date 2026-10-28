@@ -1,0 +1,36 @@
+rules:
+  - id: bpm-owasp-a09-sensitive-data-logged
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      A password/token/secret field is passed directly into a log call (OWASP
+      A09:2021, CWE-532: Insertion of Sensitive Information into Log File).
+      Logs are frequently shipped to third-party aggregators, retained far
+      longer than the credential's validity, and readable by anyone with log
+      access — this is a durable credential leak, not just a stray print.
+      Remove the field or redact it (e.g. `password: "[REDACTED]"`) before
+      logging.
+    patterns:
+      - pattern-either:
+          - pattern: console.log($MSG, $OBJ)
+          - pattern: console.error($MSG, $OBJ)
+          - pattern: console.warn($MSG, $OBJ)
+          - pattern: logger.info($MSG, $OBJ)
+          - pattern: logger.warn($MSG, $OBJ)
+          - pattern: logger.error($MSG, $OBJ)
+      - metavariable-pattern:
+          metavariable: $OBJ
+          patterns:
+            - pattern-either:
+                - pattern: '{ ..., password: $P, ... }'
+                - pattern: '{ ..., token: $P, ... }'
+                - pattern: '{ ..., secret: $P, ... }'
+    metadata:
+      license: proprietary
+      provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A09"
+      cwe: [532]
+      owasp: "A09:2021"
+      confidence: medium
+      concept: logging_audit
+      since: "0.1.0"
+
