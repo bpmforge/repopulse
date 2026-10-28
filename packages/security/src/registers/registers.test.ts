@@ -12,7 +12,12 @@ import {
   type ReleaseFactsRow,
 } from './dependency-health.js';
 import { cycleFor, dockerfileRuntimes, eolFindings, manifestRuntimes } from './eol.js';
-import { licenseFindings, licenseIds, DEFAULT_LICENSE_POLICY } from './license.js';
+import {
+  licenseFindings,
+  licenseIds,
+  uncheckedLicenseCount,
+  DEFAULT_LICENSE_POLICY,
+} from './license.js';
 import { readDeclaredRuntimes } from './manifests.js';
 
 // Supply-chain registers (W10-02, FR-REG-2/3/4).
@@ -371,13 +376,36 @@ describe('license posture', () => {
     expect(licenseFindings(withLicense('MIT OR AGPL-3.0'), policy)).toEqual([]);
   });
 
+  // Undeclared is only meaningful where the SBOM states licenses at all: one
+  // sibling in the same ecosystem with a license proves the data was there.
+  const undeclaredBesideStated = () =>
+    resolveScopes(
+      sbom([
+        { purl: 'pkg:npm/some-lib@1.0.0' },
+        { purl: 'pkg:npm/other-lib@1.0.0', licenses: [{ license: { id: 'MIT' } }] },
+      ]),
+    );
+
   it('flags an undeclared license, because unstated is not permissive', () => {
-    expect(licenseFindings(withLicense(null))[0]!.ruleId).toBe('license.unknown');
+    const found = licenseFindings(undeclaredBesideStated());
+    expect(found.map((f) => [f.ruleId, f.package])).toEqual([['license.unknown', 'some-lib']]);
+  });
+
+  // 2026-10-27 walkthrough: a yarn.lock-only SBOM states no license for any
+  // package, and all 1,287 production npm dependencies of outline were
+  // reported "undeclared", Apache-2.0 @aws-sdk packages among them.
+  it('does not call a package undeclared where the SBOM carries no license data at all', () => {
+    const blind = resolveScopes(
+      sbom([{ purl: 'pkg:npm/some-lib@1.0.0' }, { purl: 'pkg:npm/other-lib@1.0.0' }]),
+    );
+    expect(licenseFindings(blind)).toEqual([]);
+    expect(uncheckedLicenseCount(blind)).toBe(2);
+    expect(uncheckedLicenseCount(undeclaredBesideStated())).toBe(0);
   });
 
   it('honours a policy that turns the unknown check off', () => {
     expect(
-      licenseFindings(withLicense(null), { ...DEFAULT_LICENSE_POLICY, flagUnknown: false }),
+      licenseFindings(undeclaredBesideStated(), { ...DEFAULT_LICENSE_POLICY, flagUnknown: false }),
     ).toEqual([]);
   });
 

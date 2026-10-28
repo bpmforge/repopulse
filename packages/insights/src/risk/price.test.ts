@@ -50,13 +50,36 @@ describe('likelihood (FR-RISK-2)', () => {
     expect(likelihoodFor({ ...base, ruleFpRate: 0.99 })).toBeCloseTo(0.8 * 0.3, 10);
   });
 
-  it('uses the dependency branch for CVEs: EPSS, or the floor', () => {
+  it('v2: uses the dependency branch for CVEs: EPSS, or the floor', () => {
     const dep: PricingInput = { ...base, dimension: 'dependency' };
-    expect(likelihoodFor({ ...dep, epss: 0.4 })).toBe(0.4);
+    expect(likelihoodFor({ ...dep, epss: 0.4 }, RISK_MODEL_V2)).toBe(0.4);
     // No EPSS and no KEV means we do not KNOW it is exploited — the floor,
     // not zero and not a guess. This is also today's reality: the EPSS feed
     // is parked with W8-13.
-    expect(likelihoodFor(dep)).toBe(RISK_MODEL_V1.dependencyLikelihoodFloor);
+    expect(likelihoodFor(dep, RISK_MODEL_V2)).toBe(RISK_MODEL_V1.dependencyLikelihoodFloor);
+  });
+
+  // 2026-10-28 walkthrough: with no EPSS feed every CVE sat at the 0.05 floor,
+  // and a confirmed critical CVE in a direct dependency (3.0) ranked under a
+  // test gap (23.5). v3 prices the match like any other evidence.
+  it('v3: a CVE is at least as likely as its evidence, and EPSS can only raise it', () => {
+    const dep: PricingInput = { ...base, dimension: 'dependency', confidence: 5 };
+    expect(likelihoodFor({ ...dep, verifyStatus: 'confirmed' })).toBeCloseTo(0.7, 10);
+    expect(likelihoodFor({ ...dep, verifyStatus: 'unverified' })).toBeCloseTo(0.49, 10);
+    expect(likelihoodFor({ ...dep, verifyStatus: 'contradicted' })).toBeCloseTo(0.105, 10);
+    expect(likelihoodFor({ ...dep, verifyStatus: 'confirmed', epss: 0.9 })).toBe(0.9);
+    // The confirmed critical CVE from the walkthrough: H 1, X 0.6 (manifest only).
+    const cve = priceFinding({ ...dep, severity: 5, verifyStatus: 'confirmed', depScope: { kind: 'prod-direct' } });
+    expect(cve.effectiveRisk).toBe(42);
+    expect(cve.band).toBe('schedule');
+    // A contradicted CVE stays at the bottom of the list.
+    expect(priceFinding({ ...dep, severity: 5, verifyStatus: 'contradicted' }).band).toBe('track');
+  });
+
+  it('prices an installed malicious package as act, whatever the arithmetic', () => {
+    const mal = priceFinding({ ...base, dimension: 'dependency', severity: 5, maliciousPackage: true });
+    expect(mal.riskFactors.L).toBe(1);
+    expect(mal.band).toBe('act');
   });
 
   it('overrides to 1.0 for KEV, verified secrets, chains and compounds', () => {

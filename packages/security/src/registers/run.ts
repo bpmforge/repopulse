@@ -4,7 +4,12 @@ import { persistFindings, type IncomingFinding } from '@repopulse/insights';
 import { dependencyHealthFindings, type ReleaseFactsRow } from './dependency-health.js';
 import { eolFindings, type EolCycleRow } from './eol.js';
 import { EOL_ATTRIBUTION } from '../sync/eol.js';
-import { licenseFindings, DEFAULT_LICENSE_POLICY, type LicensePolicy } from './license.js';
+import {
+  licenseFindings,
+  uncheckedLicenseCount,
+  DEFAULT_LICENSE_POLICY,
+  type LicensePolicy,
+} from './license.js';
 import { LICENSE_CATEGORIES, type LicenseCategory } from './spdx.js';
 import { readDeclaredRuntimes } from './manifests.js';
 import { resolveScopes } from './sbom.js';
@@ -41,6 +46,11 @@ export interface SupplyChainRunResult {
   repoLibyear: number | null;
   /** Runtime declarations we had no EOL data for — silence with a count. */
   unknownRuntimes: number;
+  /**
+   * Prod components whose license could not be checked because the SBOM
+   * carries no license data for their ecosystem — a count, not findings.
+   */
+  licensesUnchecked: number;
   skippedReason?: 'no_sbom' | 'no_snapshot';
   error?: string;
 }
@@ -89,6 +99,7 @@ export async function runSupplyChainRegisters(
     measured: 0,
     repoLibyear: null,
     unknownRuntimes: 0,
+    licensesUnchecked: 0,
   };
 
   const [sbom] = await deps.db
@@ -142,6 +153,7 @@ export async function runSupplyChainRegisters(
       components,
       deps.policy ?? policyFrom(workspace?.settings ?? null),
     );
+    const licensesUnchecked = uncheckedLicenseCount(components);
 
     const cycles = (await deps.db.select().from(security.eolProducts)) as unknown as EolCycleRow[];
     const runtimes = deps.snapshotDir ? readDeclaredRuntimes(deps.snapshotDir) : null;
@@ -235,11 +247,17 @@ export async function runSupplyChainRegisters(
 
     await deps.db
       .update(security.scanRuns)
-      .set({ status: 'succeeded', findingCount: incoming.length, finishedAt: new Date() })
+      .set({
+        status: 'succeeded',
+        findingCount: incoming.length,
+        finishedAt: new Date(),
+        validationFunnel: { licensesUnchecked },
+      })
       .where(eq(security.scanRuns.id, scanRunId));
 
     return {
       status: 'succeeded',
+      licensesUnchecked,
       scanRunId,
       findings: incoming.length,
       created: persisted.created,

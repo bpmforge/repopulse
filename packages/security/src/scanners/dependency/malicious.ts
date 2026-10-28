@@ -17,8 +17,12 @@ import { DEPENDENCY_SCANNER_KEY, type PricedIncomingFinding } from './findings.j
 export interface MaliciousAdvisory {
   id: string;
   summary: string;
-  /** Affected versions, or null when every version is. */
+  /**
+   * Affected versions, or null. Null with `ranges` means "within these bounded
+   * SEMVER ranges"; null without them means every version.
+   */
   versions: string[] | null;
+  ranges?: { introduced: string; fixed?: string; last_affected?: string }[];
 }
 
 export interface MaliciousIndex {
@@ -111,17 +115,68 @@ export interface MaliciousHit {
   advisory: MaliciousAdvisory;
 }
 
+/** SemVer 2.0 core + pre-release; null when the string is not one (a leading v is allowed). */
+function parseSemver(v: string): { core: number[]; pre: string[] } | null {
+  const m = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/.exec(v.trim());
+  if (!m) return null;
+  return { core: [Number(m[1]), Number(m[2]), Number(m[3])], pre: m[4] ? m[4].split('.') : [] };
+}
+
+/** -1, 0 or 1; null when either side is not SemVer. */
+export function compareSemver(a: string, b: string): number | null {
+  const x = parseSemver(a);
+  const y = parseSemver(b);
+  if (!x || !y) return null;
+  for (let i = 0; i < 3; i++) if (x.core[i] !== y.core[i]) return x.core[i]! < y.core[i]! ? -1 : 1;
+  // A pre-release sorts before its release; otherwise identifiers compare in order.
+  if (x.pre.length === 0 || y.pre.length === 0) return x.pre.length === y.pre.length ? 0 : x.pre.length === 0 ? 1 : -1;
+  for (let i = 0; i < Math.max(x.pre.length, y.pre.length); i++) {
+    const p = x.pre[i];
+    const q = y.pre[i];
+    if (p === undefined) return -1;
+    if (q === undefined) return 1;
+    if (p === q) continue;
+    const pn = /^\d+$/.test(p);
+    const qn = /^\d+$/.test(q);
+    if (pn && qn) return Number(p) < Number(q) ? -1 : 1;
+    if (pn !== qn) return pn ? -1 : 1;
+    return p < q ? -1 : 1;
+  }
+  return 0;
+}
+
+/**
+ * True when `version` is inside any range, or when the answer is not knowable
+ * (no ranges, or a version or bound that is not SemVer). Missing real malware
+ * is worse than a false alarm, so only a clean comparison clears a package.
+ */
+function inRanges(version: string, ranges: MaliciousAdvisory['ranges']): boolean {
+  if (!ranges || ranges.length === 0) return true;
+  for (const r of ranges) {
+    const lo = r.introduced === '0' ? 1 : compareSemver(version, r.introduced);
+    const end = r.fixed ?? r.last_affected;
+    const hi = end === undefined ? null : compareSemver(version, end);
+    if (lo === null || (end !== undefined && hi === null)) return true;
+    const aboveLo = lo >= 0;
+    const belowHi = end === undefined ? true : r.fixed !== undefined ? hi! < 0 : hi! <= 0;
+    if (aboveLo && belowHi) return true;
+  }
+  return false;
+}
+
 export function matchMalicious(packages: readonly SbomPackage[], index: MaliciousIndex): MaliciousHit[] {
   const hits: MaliciousHit[] = [];
   for (const pkg of packages) {
     const advisories = index.entries[pkg.ecosystem]?.[pkg.name.toLowerCase()];
     if (!advisories) continue;
     for (const advisory of advisories) {
-      // `versions: null` means every version; a listed set must contain this one.
-      // A component with no version cannot be cleared by a list, so it matches.
-      if (advisory.versions === null || pkg.version === null || advisory.versions.includes(pkg.version)) {
-        hits.push({ pkg, advisory });
-      }
+      // A listed set must contain this version; null means every version unless
+      // bounded ranges say otherwise. A component with no version cannot be
+      // cleared, so it matches.
+      if (pkg.version === null) hits.push({ pkg, advisory });
+      else if (advisory.versions !== null) {
+        if (advisory.versions.includes(pkg.version)) hits.push({ pkg, advisory });
+      } else if (inRanges(pkg.version, advisory.ranges)) hits.push({ pkg, advisory });
     }
   }
   return hits;
@@ -156,6 +211,7 @@ export function maliciousFinding(hit: MaliciousHit): PricedIncomingFinding {
     depScope: null,
     reachability: 'manifest_only',
     repoScoped: finding.file === null,
+    maliciousPackage: true,
   });
   return {
     finding,

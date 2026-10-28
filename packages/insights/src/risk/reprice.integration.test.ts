@@ -295,4 +295,39 @@ describeIfLiveInfra('risk.reprice', () => {
     expect(xs[0]?.X).toBe(xs[1]?.X);
     for (const f of xs) expect(f.inputs['exposure_why']).toMatch(/incomplete.*not adjusted/);
   });
+
+  // 2026-10-28 walkthrough: the reprice read none of reachability, EPSS or
+  // the malicious flag back from the finding, so a CVE priced "imported" at
+  // insert fell to manifest_only overnight and a malicious hit lost "act".
+  it('keeps a dependency finding\'s reachability and malicious flag when repricing', async () => {
+    const dep = async (dedupKey: string, yields: Record<string, unknown>) => {
+      const [row] = await db
+        .insert(read.findings)
+        .values({
+          workspaceId, repoId, scanRunId: runId, analysisRunId: null, pullRequestId: null,
+          dimension: 'dependency', severity: 5, confidence: 5, title: dedupKey,
+          file: 'package-lock.json', lineStart: null, lineEnd: null, evidence: 'e',
+          recommendation: 'r', tier: 1, dedupKey, status: 'open',
+          scannerKey: 'dependency_cve', ruleId: dedupKey, verifyStatus: 'confirmed', yields,
+        })
+        .returning();
+      return row!.id;
+    };
+    const cveId = await dep('w9-09-cve', { reachability: 'imported', dep_scope: { kind: 'prod-direct' } });
+    const malId = await dep('w9-09-mal', { malicious_package: true, advisory: 'MAL-1' });
+    try {
+      await repriceFindings({ db, workspaceId, repoId, hotspots: new Map(), ruleFpRates: new Map() });
+      const rows = await db.select().from(read.findings).where(eq(read.findings.repoId, repoId));
+      const cve = rows.find((r) => r.id === cveId)!;
+      const mal = rows.find((r) => r.id === malId)!;
+      expect((cve.riskFactors as { inputs: { reachability: string } }).inputs.reachability).toBe('imported');
+      // H 1 × L 0.7 (confirmed, v3) × X 0.85 (prod-direct, imported)
+      expect(Number(cve.effectiveRisk)).toBe(59.5);
+      expect(mal.riskBand).toBe('act');
+    } finally {
+      await db.delete(read.findingEvents).where(eq(read.findingEvents.workspaceId, workspaceId));
+      await db.delete(read.findings).where(eq(read.findings.id, cveId));
+      await db.delete(read.findings).where(eq(read.findings.id, malId));
+    }
+  });
 });

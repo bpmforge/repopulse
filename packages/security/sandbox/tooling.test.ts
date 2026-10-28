@@ -83,6 +83,21 @@ describe('tool lists stay true to Containerfile.scan', () => {
     'utf8',
   );
 
+  // 2026-10-27 walkthrough: `"correctness":"on"` enabled every rule in the
+  // group and produced 18,176 noUndeclaredVariables hits on Jest globals in
+  // one repository. Only Biome's recommended rules of the two groups.
+  it('bakes a Biome config limited to the recommended defect rules', () => {
+    const line = containerfile.split('\n').find((l) => l.includes('"linter"'));
+    const config = JSON.parse(line!.slice(line!.indexOf("'{") + 1, line!.lastIndexOf("}'") + 1)) as {
+      linter: { rules: Record<string, unknown> };
+    };
+    expect(config.linter.rules).toEqual({
+      recommended: false,
+      correctness: { recommended: true },
+      suspicious: { recommended: true },
+    });
+  });
+
   it('every supported tool is installed by the image', () => {
     for (const { tool } of SCAN_TOOLS) {
       expect(

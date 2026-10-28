@@ -66,11 +66,41 @@ const matches = (list: readonly string[], id: string): boolean =>
  * DEV SCOPE IS SILENT, deliberately: a copyleft build tool is not distributed
  * with the product and flagging it trains people to ignore the whole category.
  */
+/**
+ * Ecosystems where the SBOM states a license for NO production component.
+ *
+ * There the absence says nothing about any one package: the SBOM was built
+ * from a lockfile that carries no license data (yarn.lock, poetry.lock,
+ * Cargo.lock …) and the snapshot has no installed packages to read it from.
+ * Flagging each package as "undeclared" there accused every dependency of
+ * something nobody had checked — 1,287 findings on outline, including
+ * Apache-2.0 @aws-sdk packages (2026-10-27 walkthrough).
+ */
+export function ecosystemsWithoutLicenseData(
+  components: readonly ResolvedComponent[],
+): Set<string> {
+  const seen = new Set<string>();
+  const stated = new Set<string>();
+  for (const c of components) {
+    if (c.scope === 'dev') continue;
+    seen.add(c.ecosystem);
+    if (licenseIds(c.license).length > 0) stated.add(c.ecosystem);
+  }
+  return new Set([...seen].filter((e) => !stated.has(e)));
+}
+
+/** Prod-scope components whose license could not be checked at all. */
+export function uncheckedLicenseCount(components: readonly ResolvedComponent[]): number {
+  const blind = ecosystemsWithoutLicenseData(components);
+  return components.filter((c) => c.scope !== 'dev' && blind.has(c.ecosystem)).length;
+}
+
 export function licenseFindings(
   components: readonly ResolvedComponent[],
   policy: LicensePolicy = DEFAULT_LICENSE_POLICY,
 ): LicenseFinding[] {
   const findings: LicenseFinding[] = [];
+  const blind = ecosystemsWithoutLicenseData(components);
 
   for (const component of components) {
     if (component.scope === 'dev') continue;
@@ -79,6 +109,8 @@ export function licenseFindings(
 
     if (ids.length === 0) {
       if (!policy.flagUnknown) continue;
+      // Not checked is not undeclared: counted by uncheckedLicenseCount instead.
+      if (blind.has(component.ecosystem)) continue;
       findings.push({
         package: component.name,
         ecosystem: component.ecosystem,

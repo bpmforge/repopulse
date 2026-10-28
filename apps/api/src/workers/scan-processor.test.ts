@@ -248,3 +248,26 @@ describe('a history runner that scanned nothing says so (W16-28)', () => {
     expect(inserted).toHaveLength(0);
   });
 });
+
+// 2026-10-27 walkthrough: findings a scan wrote stayed unpriced until the
+// nightly snapshot, so "Risk (highest first)" ordered 65 of ~22,600.
+describe('a scan queues a reprice of its repository', () => {
+  it('calls afterScan once the job has scanned, and not for a sweep fan-out', async () => {
+    const { db } = stubDb();
+    const afterScan = vi.fn(async () => {});
+    const runner = vi.fn(async () => ({ scanned: 1, findingsCreated: 0, deferred: 0 }));
+    const process = scanProcessor({
+      db,
+      historyRunners: { secrets: runner },
+      afterScan,
+      historySweep: async () => ({ enqueued: 0 }),
+    });
+
+    await process({ data: job({ scannerKey: 'secrets' }) } as never);
+    expect(afterScan).toHaveBeenCalledTimes(1);
+    expect(afterScan).toHaveBeenCalledWith(expect.objectContaining({ repoId: 2 }));
+
+    await process({ data: job({ mode: 'history_sweep', scannerKey: 'secrets' }) } as never);
+    expect(afterScan).toHaveBeenCalledTimes(1);
+  });
+});
