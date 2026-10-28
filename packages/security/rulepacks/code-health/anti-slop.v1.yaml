@@ -104,6 +104,7 @@ rules:
       A catch block that returns an empty value. The caller cannot tell "there
       is nothing" from "we failed to find out", and those are different facts —
       this is the shape behind most "the dashboard shows zero" bugs.
+      Let the error propagate, or log it and return something the caller can tell apart from "nothing found".
     metadata:
       source: R-10
       category: code_health
@@ -177,6 +178,7 @@ rules:
       An emoji in a comment. Harmless once; at scale it is the clearest tell of
       generated commentary nobody edited, and it does not survive a grep, a
       terminal without a font, or a diff someone reads at 6am.
+      Remove the emoji and keep the words.
     metadata:
       source: R-16
       category: code_health
@@ -191,6 +193,7 @@ rules:
       relatives carry no information — they are the written equivalent of
       clearing your throat, and they are what a model produces when it has
       nothing specific to say.
+      Delete the phrase and keep the sentence that says something specific.
     metadata:
       source: R-29
       category: code_health

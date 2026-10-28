@@ -100,6 +100,7 @@ rules:
       Catches everything and yields an empty value. The caller cannot tell
       "there is nothing" from "we failed to find out" — and in a coroutine a
       catch-all also eats CancellationException, so the job stops cancelling.
+      Catch the specific exception you expect, rethrow CancellationException, and return a result the caller can tell apart from empty.
     metadata:
       source: R-10
       category: code_health
@@ -253,6 +254,7 @@ rules:
       Filler phrasing in a comment. "It is important to note that" and its
       relatives carry no information — they are what a model produces when it
       has nothing specific to say.
+      Delete the phrase and keep the sentence that says something specific.
     metadata:
       source: R-29
       category: code_health
