@@ -11695,7 +11695,7 @@
         "Tenancy tests cover every new table"
       ],
       "points": 8,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
         "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md."
       ]
