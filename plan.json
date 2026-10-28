@@ -11671,6 +11671,337 @@
           "Environment, not product: Redis is shared by every worktree on this host, and a run whose sessions sat in database 0 lost them part-way through while other branches ran their suites (30 failures, all from the sign-in page or the auth rate limit). The suite was run with REDIS_URL pointing at its own database index, passed as an environment variable only.",
           "Not done here: the 390px-at-200%-zoom overflow test stays an expected failure (195 CSS px is below the WCAG reflow floor; several screens still scroll sideways there)."
         ]
-      }
+      },
+    {
+      "id": "W22-01",
+      "title": "Code index: symbols, references and fact rules per snapshot",
+      "phase": 22,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "packages/security/src/index/**",
+        "packages/security/rulepacks/facts/**",
+        "packages/shared/src/db/schema/read/code-index.ts",
+        "packages/shared/src/db/migrations/**",
+        "apps/api/src/workers/index.ts",
+        "docs/design/CLOSE_THE_LOOP.md",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "Each scan snapshot builds a tree-sitter symbol table (definitions, references, call edges) for JS/TS, Python, Java, Kotlin, Go, Rust, Swift, C/C++, stored as names, line spans, hashes and edges only (no code bodies), workspace-scoped and replaced per commit",
+        "Opengrep fact rules record routes, auth middleware/guards, sanitizers and sinks per file, with RED/GREEN fixtures",
+        "Measured index size and build time on the six walkthrough repos recorded in the design doc",
+        "Tenancy tests cover every new table"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": [
+        "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md."
+      ]
+    },
+    {
+      "id": "W22-02",
+      "title": "Triage context packer: callers, callees, route and dataflow trace",
+      "phase": 22,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "packages/security/src/triage/**",
+        "packages/security/src/index/**",
+        "apps/api/src/workers/ai-pass-processor.ts",
+        "docs/design/CLOSE_THE_LOOP.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W22-01"
+      ],
+      "acceptance": [
+        "Triage prompts carry the enclosing function, callee definitions, up to N callers, the route and middleware chain and, where Opengrep reports one, the dataflow trace, packed to the model's probed context window",
+        "Before/after triage accuracy on the labelled eval set is recorded; the packer never sends more than the window allows and says what it left out"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": [
+        "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md."
+      ]
+    },
+    {
+      "id": "W22-03",
+      "title": "AI judges every rule hit on each scan, local by default",
+      "phase": 22,
+      "module": "analysis",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers/**",
+        "apps/api/src/lib/ai-pass-egress.ts",
+        "packages/security/src/triage/**",
+        "packages/analysis/src/**",
+        "packages/shared/src/db/schema/read/ai-pass.ts",
+        "packages/shared/src/db/migrations/**",
+        "apps/web/src/widgets/findings/**",
+        "docs/design/AI_LAYER.md",
+        "docs/design/CLOSE_THE_LOOP.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W22-02"
+      ],
+      "acceptance": [
+        "After each scan, open security, performance and slop rule hits are judged in risk order, grouped by rule, until a per-workspace time budget is spent; each verdict sets verify_status and is shown on the finding with its cited evidence",
+        "On by default only when every routed model is local; a hosted link keeps the W19-12 opt-in and the monthly call cap (owner decisions 1 and 2)",
+        "Never dismisses, resolves or suppresses: DB tests assert the finding's status is unchanged after a contradicting verdict"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": [
+        "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md."
+      ]
+    },
+    {
+      "id": "W22-04",
+      "title": "AI hunt by default over a ranked repo map, per-language checklists",
+      "phase": 22,
+      "module": "analysis",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers/**",
+        "packages/analysis/src/**",
+        "packages/analysis/checklists/**",
+        "packages/security/src/index/**",
+        "packages/security/fixtures/eval/**",
+        "docs/design/AI_LAYER.md",
+        "docs/design/CLOSE_THE_LOOP.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W22-01",
+        "W22-03"
+      ],
+      "acceptance": [
+        "A ranked repo map (changed files, hotspots, entry points, files near confirmed findings) picks each pass's files, and every file is reviewed within a rolling window",
+        "Checklists for C/C++ memory safety, Rust unsafe/FFI, Swift and Kotlin mobile, and Java web, each with eval cases",
+        "Every AI-raised finding goes through the second-model verifier before it ranks"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": [
+        "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md."
+      ]
+    },
+    {
+      "id": "W22-05",
+      "title": "Missing-authorization (IDOR) review",
+      "phase": 22,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "packages/security/rulepacks/semgrep/**",
+        "packages/security/rulepacks/facts/**",
+        "packages/security/fixtures/**",
+        "packages/analysis/checklists/**",
+        "packages/analysis/src/specialists/**",
+        "docs/design/SECURITY_SUITE.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W22-01",
+        "W22-04"
+      ],
+      "acceptance": [
+        "A specialist compares each route handler with its neighbours' auth guards and object-ownership checks, using the route and middleware facts",
+        "Mechanical shadow rules flag handlers that load a record by a request id with no guard or ownership check, for Express, Spring, Django/Flask, Rails, Gin and ASP.NET, with RED/GREEN fixtures",
+        "Measured on Juice Shop and WebGoat with every hit read"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": [
+        "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md."
+      ]
+    },
+    {
+      "id": "W22-06",
+      "title": "Learning loop: AI-confirmed issues become shadow rules",
+      "phase": 22,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "packages/security/src/rules/**",
+        "apps/api/src/workers/index.ts",
+        "packages/shared/src/db/schema/read/**",
+        "packages/shared/src/db/migrations/**",
+        "docs/design/CLOSE_THE_LOOP.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W22-03",
+        "W22-04"
+      ],
+      "acceptance": [
+        "A confirmed AI-found issue drafts an Opengrep rule from the issue plus similar code found through the index; the draft is kept only if it fires on the snapshot's issue and not on its verified fix, and lands proposed then shadow",
+        "runTriageTweakPass runs on stored AI false-positive verdicts on the weekly schedule",
+        "Nothing in the path can promote a rule or change an existing one (tested)"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": [
+        "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md."
+      ]
+    },
+    {
+      "id": "W22-07",
+      "title": "Import permissive third-party rule packs with a licence ledger",
+      "phase": 22,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "packages/security/rulepacks/third-party/**",
+        "packages/security/src/scanners/semgrep/**",
+        "packages/security/src/rules/**",
+        "packages/security/fixtures/**",
+        "docs/design/SECURITY_SUITE.md",
+        "docs/THIRD_PARTY_NOTICES.md",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "0xdea (C/C++), GitLab sast-rules MIT/Apache folders, elttam (Java) and gitleaks rules imported pinned by commit, each file's licence recorded in a ledger the build checks; GPL/AGPL/Commons Clause/non-commercial files refused by test",
+        "LGPL rule files bundled unmodified as separately licensed packs only if the owner chooses decision 3",
+        "All imported rules start shadow; hits on the walkthrough repos are counted per rule"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": [
+        "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md."
+      ]
+    },
+    {
+      "id": "W22-08",
+      "title": "Own rules where none are free; fix two noisy web rules",
+      "phase": 22,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "packages/security/rulepacks/semgrep/**",
+        "packages/security/fixtures/**",
+        "packages/security/src/scanners/semgrep/*.test.ts",
+        "docs/design/SECURITY_SUITE.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W22-07"
+      ],
+      "acceptance": [
+        "Swift and Kotlin injection/taint, Rust unsafe/FFI and injection, and Ruby rules with RED/GREEN fixtures",
+        "Open redirect and SQL-by-concatenation fire only when request data reaches the sink; before/after hit counts on the walkthrough repos recorded"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": [
+        "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md."
+      ]
+    },
+    {
+      "id": "W22-09",
+      "title": "Verified fixes ready by default for top confirmed findings",
+      "phase": 22,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "packages/security/src/patches/**",
+        "apps/api/src/workers/**",
+        "apps/web/src/widgets/findings/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W22-03"
+      ],
+      "acceptance": [
+        "After judging, verified fixes are drafted for the top confirmed findings within the time budget and listed as ready to apply",
+        "A draft that fails the rescan is recorded with its reason and never shown as a fix"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": [
+        "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md."
+      ]
+    },
+    {
+      "id": "W22-10",
+      "title": "Measure each stage per language on vulnerable apps",
+      "phase": 22,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "packages/security/src/benchmark/**",
+        "packages/security/fixtures/benchmark/**",
+        "docs/BENCHMARKS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W22-03",
+        "W22-04",
+        "W22-07"
+      ],
+      "acceptance": [
+        "Precision and recall for rules alone, rules + AI judge, and + AI hunt on Juice Shop, WebGoat, Damn Vulnerable C Program, a vulnerable Swift, Kotlin and Rust sample, and Juliet",
+        "Results published per release in docs/BENCHMARKS.md with the corpus SHAs"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": [
+        "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md."
+      ]
+    },
+    {
+      "id": "W22-11",
+      "title": "Findings UX: code, verdict, evidence and fix diff; sorted list with filters",
+      "phase": 22,
+      "module": "web",
+      "stories": [],
+      "write_scope": [
+        "apps/web/src/**",
+        "apps/api/src/routes/findings/**",
+        "e2e/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W22-03",
+        "W22-09"
+      ],
+      "acceptance": [
+        "Each finding shows file and line, the current code, the AI verdict with its evidence, and the verified fix as a diff",
+        "One findings list sorted by risk with filters for security, performance and slop; e2e covers both"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": [
+        "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md."
+      ]
+    },
+    {
+      "id": "W22-12",
+      "title": "Product site rebuilt to show the loop",
+      "phase": 22,
+      "module": "web",
+      "stories": [],
+      "write_scope": [
+        "docs/site/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W22-10",
+        "W22-11"
+      ],
+      "acceptance": [
+        "Hubs for security, performance, slop, code review and browse findings, per-finding pages with real file, line, current code and fix diff, and role paths, built from W22-10's measured examples",
+        "Every claim on the site cites a measured number or a screenshot from a real run"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": [
+        "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md."
+      ]
+    }
   ]
 }
