@@ -35,7 +35,7 @@ the formula version is stamped into `risk_factors`.
 | Factor | Meaning | Inputs (defaults) |
 |---|---|---|
 | **H** hazard | how bad if it bites | `severity/5` (canonical 1–5, ANALYSIS_TIERS §4) |
-| **L** likelihood | will it bite | **dependency dim** (v3): `max(EPSS, 0.05, confidence/5 × verify multiplier × 0.7)` — the version match priced like any rule hit with the unmeasured-rule prior, EPSS only raising it (v1/v2: `max(EPSS, 0.05)`, D10 V4; see §2a). **KEV and an installed malicious package → 1.0.** **All other dims**: `confidence/5` × verify multiplier (`confirmed` 1.0 / `unverified` 0.7 / `contradicted` 0.15, FR-ANALYSIS-9) × rule precision prior `1 − fp_rate` from D11 lifecycle stats (floor 0.3; rules without stats → 0.7). **Overrides → 1.0**: KEV, verified secret, chain, compound. |
+| **L** likelihood | will it bite | **dependency dim** (v3): `max(EPSS, 0.05, confidence/5 × verify multiplier × 0.7)` — the version match priced like any rule hit with the unmeasured-rule prior, EPSS only raising it (v1/v2: `max(EPSS, 0.05)`, D10 V4; see §2a). **KEV and an installed malicious package → 1.0.** **All other dims**: `confidence/5` × verify multiplier (`confirmed` 1.0 / `unverified` 0.7 / `contradicted` 0.15, FR-ANALYSIS-9) × rule precision prior `1 − fp_rate` from D11 lifecycle stats (floor 0.3; rules without stats → 0.7). **Overrides → 1.0**: KEV, verified secret, chain, compound (v4: only a compound cluster with a security member, §2b). |
 | **X** exposure | does it sit where the code lives | **file-bound**: repo-relative hotspot percentile of the file (M2 decay score, latest snapshot), mapped to [0.25, 1.0] — floor 0.25 so cold-file criticals never disappear. **v2 (W18-25) import-graph multiplier**: × 0.6 when nothing imports the file, × `1 + 0.3·log(fanIn/2)/log(16)` (1.0 at ≤ 2 importers, capped 1.3 at 32+) for high fan-in, re-floored at 0.25 and capped at 1.0; exactly 1.0 (neutral) when the graph cannot say — capped snapshot, unindexed language (JS/TS only today), entry-point path, possible path alias, file not in the graph, or no graph yet. **dependency**: dep_scope (prod-direct 1.0 / prod-transitive `0.8 − 0.05·(depth−1)`, floor 0.5 / dev 0.35) × reachability (`symbol_reachable` 1.0 / `imported` 0.85 / `manifest_only` 0.6 / `proven_unreachable` 0.2). **repo-scoped** (no file — e.g. missing-policy findings): 1.0. D13 registers declare their factors here: deterministic registers use L = 1.0 × rule-precision prior; `knowledge`/`architecture`/`test_gap` use the file/module hotspot mapping; `dependency_health` reuses the dep_scope factors. |
 
 D10 relationship: V4's `f(CVSS, KEV, EPSS, reachability, dep_scope)` is
@@ -75,6 +75,19 @@ the other. An installed OpenSSF malicious package now overrides to "act" like
 KEV (installing it is the compromise). The nightly reprice also now reads the
 finding's stored reachability, EPSS and malicious flag; it had dropped all three,
 so a CVE priced "imported" at insert fell to "manifest_only" overnight.
+
+### 2b. risk_model.v4 (2026-10-28) — compound override needs a security member
+
+Owner decision on the walkthrough install: a compound cluster (one file flagged by
+three or more dimensions) was always overridden to L = 1.0 and "act". On outline
+that filled the top of the Findings page with clusters made only of complexity,
+duplication and test gaps, above confirmed CVEs. v4 keeps the override only when
+one member dimension is `security`, `secrets`, `sast`, `iac` or `dependency`
+(`COMPOUND_SECURITY_DIMENSIONS`); any other cluster prices on its own confidence,
+verify status and exposure like every other finding. The reprice reads the
+members from the chainer's `yields.dimensions`; a cluster whose members are
+unknown keeps the override, so an unread cluster is never quietly discounted.
+Scores stamped v3 still reproduce under `RISK_MODEL_V3`.
 
 **Honesty rules (carried from D10/metrics):** decomposition
 `{H, L, X, inputs, model_version}` persisted per finding (`risk_factors`) and

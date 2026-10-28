@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { read, type Database } from '@repopulse/shared';
 import { priceFinding, type PricingInput, type FindingDimension } from './price.js';
-import { RISK_MODEL_V3, type RiskModelConstants } from './model.js';
+import { RISK_MODEL_V4, type RiskModelConstants } from './model.js';
 import {
   importExposureFor,
   indexImportGraph,
@@ -45,7 +45,7 @@ export interface RepriceResult {
 
 /** Prices every open finding in scope, and audits band crossings only. */
 export async function repriceFindings(deps: RepriceDeps): Promise<RepriceResult> {
-  const constants = deps.constants ?? RISK_MODEL_V3;
+  const constants = deps.constants ?? RISK_MODEL_V4;
   const scope = [
     eq(read.findings.workspaceId, deps.workspaceId),
     inArray(read.findings.status, ['open', 'confirmed']),
@@ -82,6 +82,9 @@ export async function repriceFindings(deps: RepriceDeps): Promise<RepriceResult>
       reachability: readReachability(yields),
       epss: typeof yields['epss'] === 'number' ? yields['epss'] : null,
       maliciousPackage: yields['malicious_package'] === true,
+      compoundDimensions: Array.isArray(yields['dimensions'])
+        ? (yields['dimensions'] as unknown[]).filter((d): d is string => typeof d === 'string')
+        : null,
       // The dependency registers record which scope a component sits in, and
       // the D12 exposure factors ramp on exactly that (W10-02). Absent means
       // absent: exposureFor defaults to prod-direct rather than guessing dev,
@@ -131,7 +134,12 @@ export async function repriceFindings(deps: RepriceDeps): Promise<RepriceResult>
 }
 
 /** `{kind, depth}` out of a finding's yields, defensively. */
-const REACHABILITY = ['symbol_reachable', 'imported', 'manifest_only', 'proven_unreachable'] as const;
+const REACHABILITY = [
+  'symbol_reachable',
+  'imported',
+  'manifest_only',
+  'proven_unreachable',
+] as const;
 function readReachability(yields: Record<string, unknown>): (typeof REACHABILITY)[number] | null {
   const raw = yields['reachability'];
   return REACHABILITY.find((r) => r === raw) ?? null;
