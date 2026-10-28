@@ -65,11 +65,10 @@ bar for rules with no public benchmark); every model call goes through the gatew
    the import graph already is. Embeddings (vectors computed from code bodies) are a later,
    separate decision under C1a.
 
-5. **Relicense Lodestone Apache-2.0 and ship it inside RepoPulse** (see "Build on what we
-   own" below). It is private and UNLICENSED today (decision 2026-07-28, made while
-   RepoPulse was closed); an Apache RepoPulse that depends on it is not open source.
-   Same question for the bpm-rulepacks rules folded into W22-07 ("All rights reserved").
-   *Alternative:* keep both closed and ship them as a separately licensed component.
+5. **Decided 2026-10-28 (owner: "Lodestone MIT, open the rules"):** Lodestone, its
+   concept ontology and the bpm-rulepacks rules are MIT, so RepoPulse can ship them and
+   stay open source. Branches `chore/mit-licence` in both repositories; the 2026-07-28
+   decision to keep Lodestone private is reversed.
 
 ## Tickets
 

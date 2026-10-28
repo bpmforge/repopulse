@@ -11699,7 +11699,7 @@
       "status": "todo",
       "notes": [
         "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md.",
-        "2026-10-28: owner asked to use and extend our own CPU tools. Lodestone fix/packet-neighbors a174b02 already fixed regex-tier calls for 8 grammars and markdown callers (measured on gin). Licence: CLOSE_THE_LOOP decision 5."
+        "2026-10-28: owner asked to use and extend our own CPU tools. Lodestone fix/packet-neighbors a174b02 already fixed regex-tier calls for 8 grammars and markdown callers (measured on gin). Licence: MIT (CLOSE_THE_LOOP decision 5, decided 2026-10-28)."
       ]
     },
     {
@@ -11878,7 +11878,7 @@
       "status": "todo",
       "notes": [
         "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md.",
-        "2026-10-28: bpm-rulepacks folded in; licence per CLOSE_THE_LOOP decision 5."
+        "2026-10-28: bpm-rulepacks folded in; MIT per CLOSE_THE_LOOP decision 5 (decided 2026-10-28)."
       ]
     },
     {
