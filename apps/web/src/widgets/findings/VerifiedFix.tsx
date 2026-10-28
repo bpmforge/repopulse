@@ -103,6 +103,7 @@ const RULE_SET_LABEL: Record<string, string> = {
   logging_pack: 'logging rules',
   perf_pack: 'performance rules',
   anti_slop_fast_lane: 'code-health checks',
+  anti_slop_pack: 'AI-slop rules',
 };
 
 function lineClass(line: string): string {
