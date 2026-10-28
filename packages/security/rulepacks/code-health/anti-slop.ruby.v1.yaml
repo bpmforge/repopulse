@@ -139,6 +139,7 @@ rules:
       Filler phrasing in a comment. "It is important to note that" and its
       relatives carry no information — they are what a model produces when it
       has nothing specific to say.
+      Delete the phrase and keep the sentence that says something specific.
     metadata:
       source: R-29
       category: code_health
