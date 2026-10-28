@@ -65,6 +65,11 @@ bar for rules with no public benchmark); every model call goes through the gatew
    the import graph already is. Embeddings (vectors computed from code bodies) are a later,
    separate decision under C1a.
 
+5. **Licences of our own CPU tools.** *Decided by the owner 2026-10-28 ("Lodestone MIT,
+   open the rules"):* Lodestone is MIT (bpmforge/lodestone#7), so an open-source RepoPulse
+   can depend on it; the bpm-rulepacks rules are opened inside RepoPulse under Apache-2.0
+   and imported through the W22-07 ledger like any other pack.
+
 ## Tickets
 
 | Id | What | Depends |
@@ -85,3 +90,31 @@ bar for rules with no public benchmark); every model call goes through the gatew
 Embeddings (pgvector, Qwen3-Embedding-0.6B or CodeRankEmbed) are deliberately not a
 ticket yet: the research found graph and fact tools help local models more than vectors,
 and vectors need decision 4's follow-up.
+
+## Build on what we own (added 2026-10-28)
+
+The owner asked that our own CPU tools be used and extended rather than rebuilt.
+
+**Lodestone** (`bpmforge/lodestone`, CPU-only, zero model calls) already does most of
+W22-01 and W22-02: tree-sitter chunking for 11 languages, a symbol table, a call graph,
+references, imports, and `evidencePacket(finding)` which returns the enclosing chunk,
+callers and callees, with a `crossFileGraphReliable` flag that says when an empty caller
+list is not evidence of anything. Run on gin (107 files) it indexes in 2.7 s: 1,713
+symbols, 2,038 references. W22-01 and W22-02 build on it instead of a second indexer.
+
+Measured defects, and their state:
+
+| Defect on gin | State |
+|---|---|
+| Go/Rust/Java/C/C++/C#/Ruby/PHP calls came from an `identifier(` regex: 1,100 `func` callees, comments, strings, interface declarations | Fixed, `fix/packet-neighbors` a174b02: tree-sitter call sites; 12,216 edges → 9,370, every dropped edge read |
+| Markdown examples recorded as callers (1,247 edges; README/CHANGELOG "called" `RunUnix`) | Fixed in the same commit: no graph for prose |
+| Calls resolve by name only: `c.Request.Cookie()` is listed as a caller of gin's own `Cookie` | Open (W22-01): receiver/import-qualified resolution where the grammar gives it |
+| Refs and imports for those 8 languages still come from the regex tier, so `crossFileGraphReliable` is false | Open (W22-01) |
+| No Kotlin or Swift (grammars ship in `tree-sitter-wasms`, not wired) | Open (W22-01) |
+| Index lives in SQLite with code bodies; RepoPulse persists metadata only (decision 4) | W22-01 runs Lodestone in the scan-runner on the snapshot and exports names, spans, hashes and edges to Postgres; packets are built from the snapshot at triage time |
+
+**bpm-rulepacks** (232 Opengrep rules, separate from RepoPulse's 479; no rule id in
+common). On gin it raised 7 hits, all slop, all read, none real (4 nil-check returns
+called "fallback hides failure", 2 in generated `.pb.go`, 1 `Error()` method). It goes
+into W22-07 as one more pack under the same bar as third-party packs: graded hit by hit
+on the walkthrough repos, shadow first, promoted on evidence.
