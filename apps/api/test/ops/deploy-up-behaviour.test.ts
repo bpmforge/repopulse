@@ -68,6 +68,11 @@ describe('deploy/up.sh behaviour (W17-04)', () => {
       imagesPresent?: boolean;
       /** What `compose version` prints — podman-compose is told apart by it. */
       providerVersion?: string;
+      /**
+       * A stopped container from a previous compose provider listed FIRST for
+       * every service (2026-10-28: docker-compose replaced podman-compose).
+       */
+      staleFirst?: boolean;
     },
   ): string {
     const bin = path.join(dir, 'bin');
@@ -107,6 +112,7 @@ if [ "$1" = "ps" ]; then
     case "$a" in label=com.docker.compose.service=*) svc="\${a##*=}";; esac
   done
   v="$(lookup "$svc")"
+  ${opts.staleFirst ? '[ -n "$v" ] && echo "stale-$svc"' : ''}
   [ -n "$v" ] && echo "cid-$svc"
   exit 0
 fi
@@ -114,10 +120,15 @@ fi
 if [ "$1" = "inspect" ]; then
   cid="$2"; svc="\${cid#cid-}"
   fmt="$4"
+  case "$cid" in stale-*)
+    case "$fmt" in *StartedAt*) echo "2026-10-27 08:00:00" ;; *ExitCode*) echo 137 ;; *Status*) echo exited ;; *) echo "" ;; esac
+    exit 0 ;;
+  esac
   v="$(lookup "$svc")"
   status="\${v%%:*}"; rest="\${v#*:}"; code="\${rest%%:*}"; health="\${rest#*:}"
   case "$fmt" in
     *Health.Status*|*State.Health*) [ "$health" = "none" ] && echo "" || echo "$health" ;;
+    *StartedAt*) echo "2026-10-28 09:00:00" ;;
     *ExitCode*) echo "$code" ;;
     *Status*) echo "$status" ;;
     *) echo "" ;;
@@ -367,6 +378,13 @@ exit 1
       .filter((c) => c.includes(' up -d'));
     expect(ups).toHaveLength(2);
     for (const c of ups) expect(c).not.toContain('--force-recreate');
+  });
+
+  it('checks the running container when a stopped one from another provider shares its labels', async () => {
+    stubRuntime('podman', { services: allHealthy, staleFirst: true });
+    const { code, out } = await runUp({});
+    expect(out).toContain('All services running');
+    expect(code).toBe(0);
   });
 
   it('refuses a COMPOSE_EXTRA_FILES entry that is not in deploy/', async () => {

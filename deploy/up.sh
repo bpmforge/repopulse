@@ -344,11 +344,27 @@ printf '%s\n' "$compose_out"
 # `compose ps` text was fragile in the way that matters — its columns and its
 # name mangling differ per provider, so the check could pass on one and silently
 # never match on the other.
+#
+# MORE THAN ONE CONTAINER CAN CARRY A SERVICE'S LABELS (2026-10-28). When the
+# compose provider changes — `podman compose` prefers docker-compose once it is
+# installed — the new provider names containers differently (rpcustomer-api-1,
+# not rpcustomer_api_1), creates its own, and leaves the old stopped ones. The
+# first match was then a container stopped hours earlier, and a healthy stack
+# was reported as "not running". The one that counts is the running one, else
+# the most recently started (a one-shot like migrate).
 container_for() { # $1 = compose service name -> container id, or empty
-  "$RT" ps -a \
+  local id best="" best_key="" key
+  for id in $("$RT" ps -a \
     --filter "label=com.docker.compose.project=$REPOPULSE_PROJECT" \
     --filter "label=com.docker.compose.service=$1" \
-    --format '{{.ID}}' 2>/dev/null | head -n1
+    --format '{{.ID}}' 2>/dev/null); do
+    key="$([ "$(inspect_field "$id" '{{.State.Status}}')" = running ] && echo 1 || echo 0) $(inspect_field "$id" '{{.State.StartedAt}}')"
+    if [ -z "$best" ] || [[ "$key" > "$best_key" ]]; then
+      best="$id"
+      best_key="$key"
+    fi
+  done
+  printf '%s' "$best"
 }
 
 inspect_field() { # $1 = container id, $2 = go template -> value, or empty
