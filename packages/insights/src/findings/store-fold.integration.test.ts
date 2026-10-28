@@ -184,4 +184,27 @@ describeIfLiveInfra('persistFindings folds in-batch duplicates (W9-15)', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]!.occurrenceCount).toBe(2);
   });
+
+  // 2026-10-27/28 walkthrough: improved rule wording (a sentence title, a
+  // recommendation that says what to do) only reached new findings.
+  it('a re-seen finding takes the latest title and recommendation', async () => {
+    const better = {
+      ...sameRuleAt(4, 2),
+      title: 'A console call in a request path.',
+      suggestedFix: 'Use the logger, which redacts and has levels.',
+    };
+    await persistFindings(db, {
+      workspaceId,
+      repoId,
+      scanRunId,
+      pullRequestId: null,
+      tier: 1,
+      findings: [better],
+      sweepScannerKey: 'logging_hygiene',
+    });
+    const rows = await db.select().from(read.findings).where(eq(read.findings.repoId, repoId));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.title).toBe('A console call in a request path.');
+    expect(rows[0]!.recommendation).toBe('Use the logger, which redacts and has levels.');
+  });
 });
