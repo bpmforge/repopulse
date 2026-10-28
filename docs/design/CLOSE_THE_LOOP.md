@@ -86,6 +86,7 @@ bar for rules with no public benchmark); every model call goes through the gatew
 | W22-10 | Measure each stage per language on deliberately vulnerable apps (Juice Shop, WebGoat, Damn Vulnerable C Program, and Swift/Kotlin/Rust samples) plus Juliet: precision and recall for rules alone, + AI judge, + AI hunt; published per release | 03, 04, 07 |
 | W22-11 | Findings UX: each finding shows file and line, current code, the AI verdict with its evidence, and the fix as a diff; one list sorted by risk with filters for security, performance and slop | 03, 09 |
 | W22-12 | Product site rebuilt KryptKeeper-style (hubs, per-finding pages with diffs, role paths) showing this loop, from W22-10's measured examples | 10, 11 |
+| W22-13 | Open-source release: RepoPulse to Apache 2.0 with a NOTICE, history secrets audit of all three repos, and Lodestone and bpm-rulepacks made public **on release day, not before** (owner: "do it with release") | 01, 07 |
 
 Embeddings (pgvector, Qwen3-Embedding-0.6B or CodeRankEmbed) are deliberately not a
 ticket yet: the research found graph and fact tools help local models more than vectors,
