@@ -10,7 +10,16 @@ Usage: build-malicious-index.py OUT_DIR [ECOSYSTEM=PATH_OR_URL ...]
 With no ecosystem arguments it fetches the default set from osv.dev's bucket.
 Writes OUT_DIR/index.json:
   {"generated": ISO8601, "source": "...", "entries": {"npm": {"name": [{"id","summary","versions"}]}}}
-`versions` is a list of affected versions, or null when every version is affected.
+`versions` is a list of affected versions, or null when no explicit list was
+published. With null, `ranges` (when present) bounds the affected versions:
+[{"introduced": "1.0.0", "fixed": "1.2.11"}, ...], SEMVER ranges only. Null with
+no `ranges` means every version is affected.
+
+RANGES ARE KEPT (2026-10-28). They used to be dropped, and an advisory that
+gave only a bounded range (MAL-2023-462: fsevents >=1.0.0 <1.2.11) became
+"every version" — legitimate fsevents 2.3.3 was then reported as a known
+malicious package. A matcher that predates this field ignores it and keeps the
+old, over-matching behaviour; it never under-matches.
 """
 import io
 import json
@@ -34,6 +43,30 @@ def affects_all(affected):
     return False
 
 
+def semver_ranges(affected):
+    """Bounded SEMVER ranges as [{"introduced", "fixed"|"last_affected"}], or None.
+
+    None when any range is unbounded or not SEMVER: then the caller cannot
+    narrow the advisory and treats every version as affected.
+    """
+    out = []
+    for rng in affected.get("ranges", []):
+        if rng.get("type") != "SEMVER":
+            return None
+        current = None
+        for event in rng.get("events", []):
+            if "introduced" in event:
+                current = {"introduced": event["introduced"]}
+            elif current is not None and ("fixed" in event or "last_affected" in event):
+                key = "fixed" if "fixed" in event else "last_affected"
+                current[key] = event[key]
+                out.append(current)
+                current = None
+        if current is not None:
+            return None  # an introduced with no end: unbounded
+    return out or None
+
+
 def read_zip(blob):
     entries = {}
     with zipfile.ZipFile(io.BytesIO(blob)) as archive:
@@ -48,11 +81,14 @@ def read_zip(blob):
                 if not eco or not pname:
                     continue
                 versions = None if affects_all(affected) else sorted(affected.get("versions", []))
+                ranges = None
                 if versions == [] and not affects_all(affected):
-                    versions = None  # no version data at all: treat the package as affected
-                entries.setdefault(eco, {}).setdefault(pname.lower(), []).append(
-                    {"id": doc["id"], "summary": (doc.get("summary") or "")[:200], "versions": versions}
-                )
+                    versions = None  # no explicit list: bounded by ranges, or every version
+                    ranges = semver_ranges(affected)
+                entry = {"id": doc["id"], "summary": (doc.get("summary") or "")[:200], "versions": versions}
+                if ranges:
+                    entry["ranges"] = ranges
+                entries.setdefault(eco, {}).setdefault(pname.lower(), []).append(entry)
     return entries
 
 

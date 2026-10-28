@@ -8,6 +8,7 @@ import {
   loadMaliciousIndex,
   maliciousFinding,
   matchMalicious,
+  compareSemver,
   packagesFromSbom,
   type MaliciousIndex,
 } from './malicious.js';
@@ -80,13 +81,54 @@ import json, zipfile, sys
 with zipfile.ZipFile(sys.argv[1], 'w') as z:
     z.writestr('MAL-2024-1.json', json.dumps({'id':'MAL-2024-1','summary':'bad','affected':[{'package':{'ecosystem':'npm','name':'Evil-Lib'},'ranges':[{'type':'SEMVER','events':[{'introduced':'0'}]}]}]}))
     z.writestr('MAL-2024-2.json', json.dumps({'id':'MAL-2024-2','affected':[{'package':{'ecosystem':'npm','name':'half-bad'},'versions':['1.0.1']}]}))
+    z.writestr('MAL-2023-462.json', json.dumps({'id':'MAL-2023-462','affected':[{'package':{'ecosystem':'npm','name':'fsevents'},'ranges':[{'type':'SEMVER','events':[{'introduced':'1.0.0'},{'fixed':'1.2.11'}]}]}]}))
     z.writestr('GHSA-xxxx.json', json.dumps({'id':'GHSA-xxxx','affected':[{'package':{'ecosystem':'npm','name':'not-malicious'}}]}))
 `;
     execFileSync('python3', ['-c', py, zipPath]);
     execFileSync('python3', [BUILDER, dir, `npm=${zipPath}`]);
     const built = JSON.parse(readFileSync(path.join(dir, 'index.json'), 'utf8')) as MaliciousIndex;
-    expect(Object.keys(built.entries['npm']!).sort()).toEqual(['evil-lib', 'half-bad']);
+    expect(Object.keys(built.entries['npm']!).sort()).toEqual(['evil-lib', 'fsevents', 'half-bad']);
+    // 2026-10-28: a bounded range is kept, not widened to every version.
+    expect(built.entries['npm']!['fsevents']![0]).toMatchObject({
+      versions: null,
+      ranges: [{ introduced: '1.0.0', fixed: '1.2.11' }],
+    });
+    expect(built.entries['npm']!['evil-lib']![0]!.ranges).toBeUndefined();
     expect(built.entries['npm']!['evil-lib']![0]!.versions).toBeNull();
     expect(built.entries['npm']!['half-bad']![0]!.versions).toEqual(['1.0.1']);
+  });
+
+  // 2026-10-28 walkthrough: MAL-2023-462 covers fsevents >=1.0.0 <1.2.11, but
+  // the index stored it as every version, so legitimate fsevents 2.3.3 on
+  // outline was reported as "a known malicious package".
+  it('matches only inside a bounded range, and matches when it cannot tell', () => {
+    const ranged: MaliciousIndex = {
+      generated: '',
+      source: '',
+      entries: {
+        npm: {
+          fsevents: [{ id: 'MAL-2023-462', summary: '', versions: null, ranges: [{ introduced: '1.0.0', fixed: '1.2.11' }] }],
+          'last-bad': [{ id: 'MAL-L', summary: '', versions: null, ranges: [{ introduced: '0', last_affected: '2.0.0' }] }],
+        },
+      },
+    };
+    const at = (name: string, version: string) =>
+      matchMalicious([{ name, version, ecosystem: 'npm', purl: `pkg:npm/${name}@${version}`, file: null }], ranged).length;
+    expect(at('fsevents', '2.3.3')).toBe(0);
+    expect(at('fsevents', '1.2.11')).toBe(0);
+    expect(at('fsevents', '1.2.10')).toBe(1);
+    expect(at('fsevents', '1.0.0')).toBe(1);
+    expect(at('fsevents', '1.2.11-rc.1')).toBe(1); // a pre-release sorts before its release
+    expect(at('last-bad', '2.0.0')).toBe(1);
+    expect(at('last-bad', '2.0.1')).toBe(0);
+    expect(at('fsevents', 'not-a-version')).toBe(1); // cannot clear what it cannot compare
+  });
+
+  it('orders SemVer versions, pre-releases included', () => {
+    expect(compareSemver('1.2.10', '1.2.9')).toBe(1);
+    expect(compareSemver('v1.0.0', '1.0.0')).toBe(0);
+    expect(compareSemver('1.0.0-alpha', '1.0.0')).toBe(-1);
+    expect(compareSemver('1.0.0-alpha.2', '1.0.0-alpha.10')).toBe(-1);
+    expect(compareSemver('1.0', '1.0.0')).toBeNull();
   });
 });
