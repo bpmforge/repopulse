@@ -23,6 +23,7 @@ rules:
       value you keep is the zero value when this fails — a parse that returns 0,
       a decode that leaves the struct empty, a commit that never happened — and
       nothing downstream can tell that apart from success.
+      Check the error and return or wrap it; if the zero value really is a safe default, say so in a comment where the error is dropped.
     metadata:
       source: R-01
       category: code_health
@@ -151,6 +152,7 @@ rules:
       A function that exists and does nothing but refuse, or nothing at all
       under a TODO. From the outside a caller sees the name and the signature,
       not the stub — which is how "we support that" survives into a demo.
+      Implement it, or remove the name until it does something; if it must exist, return an error that says it is not supported.
     metadata:
       source: R-27
       category: code_health
