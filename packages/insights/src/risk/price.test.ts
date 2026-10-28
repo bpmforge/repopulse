@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { RISK_MODEL_V1, RISK_MODEL_V2, RISK_MODEL_VERSION, bandFor } from './model.js';
+import {
+  RISK_MODEL_V1,
+  RISK_MODEL_V2,
+  RISK_MODEL_V3,
+  RISK_MODEL_VERSION,
+  bandFor,
+} from './model.js';
 import {
   exposureFor,
   hazardFor,
@@ -69,7 +75,12 @@ describe('likelihood (FR-RISK-2)', () => {
     expect(likelihoodFor({ ...dep, verifyStatus: 'contradicted' })).toBeCloseTo(0.105, 10);
     expect(likelihoodFor({ ...dep, verifyStatus: 'confirmed', epss: 0.9 })).toBe(0.9);
     // The confirmed critical CVE from the walkthrough: H 1, X 0.6 (manifest only).
-    const cve = priceFinding({ ...dep, severity: 5, verifyStatus: 'confirmed', depScope: { kind: 'prod-direct' } });
+    const cve = priceFinding({
+      ...dep,
+      severity: 5,
+      verifyStatus: 'confirmed',
+      depScope: { kind: 'prod-direct' },
+    });
     expect(cve.effectiveRisk).toBe(42);
     expect(cve.band).toBe('schedule');
     // A contradicted CVE stays at the bottom of the list.
@@ -77,7 +88,12 @@ describe('likelihood (FR-RISK-2)', () => {
   });
 
   it('prices an installed malicious package as act, whatever the arithmetic', () => {
-    const mal = priceFinding({ ...base, dimension: 'dependency', severity: 5, maliciousPackage: true });
+    const mal = priceFinding({
+      ...base,
+      dimension: 'dependency',
+      severity: 5,
+      maliciousPackage: true,
+    });
     expect(mal.riskFactors.L).toBe(1);
     expect(mal.band).toBe('act');
   });
@@ -87,6 +103,44 @@ describe('likelihood (FR-RISK-2)', () => {
     expect(likelihoodFor({ ...base, verifiedSecret: true })).toBe(1);
     expect(likelihoodFor({ ...base, dimension: 'chain', confidence: 1 })).toBe(1);
     expect(likelihoodFor({ ...base, dimension: 'compound', confidence: 1 })).toBe(1);
+  });
+});
+
+describe('compound override (v4, owner decision 2026-10-28)', () => {
+  const cluster = { ...base, dimension: 'compound' as const, severity: 5, confidence: 4 };
+
+  it('keeps the override when a member dimension is a security one', () => {
+    const priced = priceFinding({
+      ...cluster,
+      compoundDimensions: ['code_health', 'sast', 'test_gap'],
+    });
+    expect(priced.riskFactors.L).toBe(1);
+    expect(priced.band).toBe('act');
+  });
+
+  it('prices a code-health-only cluster on its own evidence, not as "act"', () => {
+    const priced = priceFinding({
+      ...cluster,
+      verifyStatus: 'unverified',
+      ruleFpRate: null,
+      hotspotPercentile: 0.5,
+      compoundDimensions: ['code_health', 'performance', 'test_gap'],
+    });
+    expect(priced.riskFactors.L).toBeLessThan(1);
+    expect(priced.band).not.toBe('act');
+  });
+
+  it('keeps the override when the members are unknown', () => {
+    expect(priceFinding(cluster).band).toBe('act');
+  });
+
+  it('v3 overrides every cluster, so an old score still reproduces', () => {
+    const priced = priceFinding(
+      { ...cluster, compoundDimensions: ['code_health', 'performance', 'test_gap'] },
+      RISK_MODEL_V3,
+    );
+    expect(priced.band).toBe('act');
+    expect(priced.riskFactors.model_version).toBe('risk_model.v3');
   });
 });
 
@@ -119,7 +173,11 @@ describe('exposure (FR-RISK-3)', () => {
     ).toBe(1);
     // prod-transitive at depth 3: 0.8 − 0.05×2 = 0.7, × imported 0.85
     expect(
-      exposureFor({ ...dep, depScope: { kind: 'prod-transitive', depth: 3 }, reachability: 'imported' }),
+      exposureFor({
+        ...dep,
+        depScope: { kind: 'prod-transitive', depth: 3 },
+        reachability: 'imported',
+      }),
     ).toBeCloseTo(0.7 * 0.85, 10);
     // dev × proven_unreachable = 0.35 × 0.2 = 0.07 — near the bottom, and NOT
     // hidden. A proof of unreachability is a proof about today's call graph.
@@ -129,7 +187,11 @@ describe('exposure (FR-RISK-3)', () => {
   });
 
   it('treats unknown reachability as manifest_only, never as proven', () => {
-    const dep: PricingInput = { ...base, dimension: 'dependency', depScope: { kind: 'prod-direct' } };
+    const dep: PricingInput = {
+      ...base,
+      dimension: 'dependency',
+      depScope: { kind: 'prod-direct' },
+    };
     expect(exposureFor(dep)).toBe(RISK_MODEL_V1.reachability.manifest_only);
   });
 });
@@ -242,7 +304,14 @@ describe('import-graph exposure (W18-25)', () => {
     // A capped snapshot, an unindexed language, an entry point, a possible
     // alias, a file the graph never saw, no graph at all: none is evidence of
     // low exposure, so none may discount.
-    for (const state of ['incomplete', 'unindexed', 'entry', 'aliased', 'missing', 'absent'] as const) {
+    for (const state of [
+      'incomplete',
+      'unindexed',
+      'entry',
+      'aliased',
+      'missing',
+      'absent',
+    ] as const) {
       expect(exposureFor({ ...mid, importGraph: { state, fanIn: null } })).toBe(xMid);
       expect(importGraphMultiplier({ state, fanIn: 0 })).toBe(1);
     }
@@ -250,7 +319,9 @@ describe('import-graph exposure (W18-25)', () => {
 
   it('leaves dependency and repo-scoped findings alone', () => {
     const dep: PricingInput = { ...base, dimension: 'dependency', depScope: { kind: 'dev' } };
-    expect(exposureFor({ ...dep, importGraph: { state: 'orphan', fanIn: 0 } })).toBe(exposureFor(dep));
+    expect(exposureFor({ ...dep, importGraph: { state: 'orphan', fanIn: 0 } })).toBe(
+      exposureFor(dep),
+    );
     expect(
       exposureFor({ ...base, repoScoped: true, importGraph: { state: 'orphan', fanIn: 0 } }),
     ).toBe(1);

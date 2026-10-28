@@ -330,4 +330,36 @@ describeIfLiveInfra('risk.reprice', () => {
       await db.delete(read.findings).where(eq(read.findings.id, malId));
     }
   });
+
+  // risk_model.v4 (owner decision 2026-10-28): the reprice reads the cluster's
+  // member dimensions from yields, and only a cluster with a security member
+  // is forced to "act".
+  it('forces a compound cluster to "act" only when a member is a security dimension', async () => {
+    const cluster = async (dedupKey: string, dimensions: string[]) => {
+      const [row] = await db
+        .insert(read.findings)
+        .values({
+          workspaceId, repoId, scanRunId: runId, analysisRunId: null, pullRequestId: null,
+          dimension: 'compound', severity: 5, confidence: 4, title: dedupKey,
+          file: `src/${dedupKey}.ts`, lineStart: null, lineEnd: null, evidence: 'e',
+          recommendation: 'r', tier: 1, dedupKey, status: 'open',
+          scannerKey: 'chainer', ruleId: null, verifyStatus: 'unverified',
+          yields: { member_finding_ids: [1, 2, 3], dimensions },
+        })
+        .returning();
+      return row!.id;
+    };
+    const securityId = await cluster('v4-security', ['code_health', 'sast', 'test_gap']);
+    const healthId = await cluster('v4-health', ['code_health', 'performance', 'test_gap']);
+    try {
+      await repriceFindings({ db, workspaceId, repoId, hotspots: new Map(), ruleFpRates: new Map() });
+      const rows = await db.select().from(read.findings).where(eq(read.findings.repoId, repoId));
+      expect(rows.find((r) => r.id === securityId)!.riskBand).toBe('act');
+      expect(rows.find((r) => r.id === healthId)!.riskBand).not.toBe('act');
+    } finally {
+      await db.delete(read.findingEvents).where(eq(read.findingEvents.workspaceId, workspaceId));
+      await db.delete(read.findings).where(eq(read.findings.id, securityId));
+      await db.delete(read.findings).where(eq(read.findings.id, healthId));
+    }
+  });
 });

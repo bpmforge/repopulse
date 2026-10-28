@@ -12,7 +12,7 @@
 // stamped into each finding's risk_factors, so a score can always be explained
 // by the model that produced it rather than by the model running today.
 
-export const RISK_MODEL_VERSION = 'risk_model.v3';
+export const RISK_MODEL_VERSION = 'risk_model.v4';
 
 export interface RiskModelConstants {
   /** Stamped into risk_factors; absent = RISK_MODEL_VERSION. */
@@ -25,6 +25,12 @@ export interface RiskModelConstants {
    * precisionWithoutStats. Absent = EPSS alone (v1/v2).
    */
   dependencyLikelihoodFromEvidence?: boolean;
+  /**
+   * v4: a compound cluster is overridden to likelihood 1.0 and "act" only when
+   * at least one of its member dimensions is a security one. Absent = every
+   * compound cluster overrides (v1-v3).
+   */
+  compoundOverrideNeedsSecurity?: boolean;
   /** Verify-status multipliers (FR-ANALYSIS-9). */
   verifyMultiplier: { confirmed: number; unverified: number; contradicted: number };
   /** Rule-precision prior floor, and the value used when a rule has no stats. */
@@ -139,9 +145,37 @@ export const RISK_MODEL_V2: RiskModelConstants = {
  */
 export const RISK_MODEL_V3: RiskModelConstants = {
   ...RISK_MODEL_V2,
-  version: RISK_MODEL_VERSION,
+  version: 'risk_model.v3',
   dependencyLikelihoodFromEvidence: true,
 };
+
+/**
+ * v4 = v3 with the compound override limited to clusters that include a
+ * security dimension (owner decision, 2026-10-28 walkthrough).
+ *
+ * A file flagged by three or more kinds of check is a real signal, but on
+ * outline the top of the Findings page filled with clusters made only of
+ * complexity, duplication and test gaps, all forced to "act" above confirmed
+ * CVEs. A code-health-only cluster now prices like any other finding on its
+ * own confidence and exposure: still listed, no longer top priority by fiat.
+ */
+export const RISK_MODEL_V4: RiskModelConstants = {
+  ...RISK_MODEL_V3,
+  version: RISK_MODEL_VERSION,
+  compoundOverrideNeedsSecurity: true,
+};
+
+/**
+ * Member dimensions that let a compound cluster override to "act" under v4:
+ * the security axis (SECURITY_DIMENSIONS) without the chainer's own outputs.
+ */
+export const COMPOUND_SECURITY_DIMENSIONS: readonly string[] = [
+  'security',
+  'secrets',
+  'sast',
+  'iac',
+  'dependency',
+];
 
 export type RiskBand = 'act' | 'schedule' | 'track';
 
@@ -163,7 +197,7 @@ export function bandFor(
     compound?: boolean;
     maliciousPackage?: boolean;
   } = {},
-  constants: RiskModelConstants = RISK_MODEL_V3,
+  constants: RiskModelConstants = RISK_MODEL_V4,
 ): RiskBand {
   if (
     overrides.kev ||

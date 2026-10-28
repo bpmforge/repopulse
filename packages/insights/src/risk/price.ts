@@ -1,5 +1,6 @@
 import {
-  RISK_MODEL_V3,
+  COMPOUND_SECURITY_DIMENSIONS,
+  RISK_MODEL_V4,
   RISK_MODEL_VERSION,
   bandFor,
   type RiskBand,
@@ -75,6 +76,11 @@ export interface PricingInput {
   verifiedSecret?: boolean;
   /** An OpenSSF malicious-package hit: installing it is the compromise. */
   maliciousPackage?: boolean;
+  /**
+   * For a compound cluster: the member dimensions (the chainer's
+   * `yields.dimensions`). Absent = unknown, which keeps the override.
+   */
+  compoundDimensions?: readonly string[] | null;
 }
 
 export interface RiskFactors {
@@ -108,14 +114,14 @@ export function hazardFor(severity: number): number {
  */
 export function likelihoodFor(
   input: PricingInput,
-  constants: RiskModelConstants = RISK_MODEL_V3,
+  constants: RiskModelConstants = RISK_MODEL_V4,
 ): number {
   // Overrides. Each is a case where the argument is already settled: a CVE on
   // the known-exploited list IS being exploited, a verified credential IS live,
   // and a chain or compound finding is an argument about findings that have
   // each been priced already.
   if (input.kev || input.verifiedSecret || input.maliciousPackage) return 1;
-  if (input.dimension === 'chain' || input.dimension === 'compound') return 1;
+  if (input.dimension === 'chain' || compoundOverrides(input, constants)) return 1;
 
   if (input.dimension === 'dependency') {
     // No EPSS and no KEV means we do not KNOW it is exploited — which is the
@@ -126,7 +132,9 @@ export function likelihoodFor(
     if (!constants.dependencyLikelihoodFromEvidence) return floor;
     // v3: the match is evidence like any rule hit, priced with the same prior.
     const verify = constants.verifyMultiplier[input.verifyStatus ?? 'unverified'];
-    return clamp01(Math.max(floor, (input.confidence / 5) * verify * constants.precisionWithoutStats));
+    return clamp01(
+      Math.max(floor, (input.confidence / 5) * verify * constants.precisionWithoutStats),
+    );
   }
 
   const verify = constants.verifyMultiplier[input.verifyStatus ?? 'unverified'];
@@ -140,10 +148,25 @@ export function likelihoodFor(
   return clamp01((input.confidence / 5) * verify * precision);
 }
 
+/**
+ * Whether a compound cluster takes the override. Under v4 only a cluster with
+ * a security member does; unknown members keep it, because an unread cluster
+ * must not be quietly discounted.
+ */
+export function compoundOverrides(
+  input: PricingInput,
+  constants: RiskModelConstants = RISK_MODEL_V4,
+): boolean {
+  if (input.dimension !== 'compound') return false;
+  if (!constants.compoundOverrideNeedsSecurity) return true;
+  if (!input.compoundDimensions) return true;
+  return input.compoundDimensions.some((d) => COMPOUND_SECURITY_DIMENSIONS.includes(d));
+}
+
 /** X — does it sit where the code actually lives. */
 export function exposureFor(
   input: PricingInput,
-  constants: RiskModelConstants = RISK_MODEL_V3,
+  constants: RiskModelConstants = RISK_MODEL_V4,
 ): number {
   if (input.dimension === 'dependency' || input.dimension === 'dependency_health') {
     const scope = input.depScope;
@@ -196,7 +219,7 @@ export function exposureFor(
  */
 export function importGraphMultiplier(
   exposure: ImportExposure | null | undefined,
-  constants: RiskModelConstants = RISK_MODEL_V3,
+  constants: RiskModelConstants = RISK_MODEL_V4,
 ): number {
   const g = constants.importGraph;
   if (!g || !exposure) return 1;
@@ -220,7 +243,7 @@ function withImportGraph(base: number, input: PricingInput, constants: RiskModel
 /** Price one finding. Deterministic, and reproducible from its own factors. */
 export function priceFinding(
   input: PricingInput,
-  constants: RiskModelConstants = RISK_MODEL_V3,
+  constants: RiskModelConstants = RISK_MODEL_V4,
 ): PricedFinding {
   const H = hazardFor(input.severity);
   const L = likelihoodFor(input, constants);
@@ -236,7 +259,7 @@ export function priceFinding(
         ...(input.verifiedSecret !== undefined ? { verifiedSecret: input.verifiedSecret } : {}),
         ...(input.maliciousPackage ? { maliciousPackage: true } : {}),
         chain: input.dimension === 'chain',
-        compound: input.dimension === 'compound',
+        compound: compoundOverrides(input, constants),
       },
       constants,
     ),
