@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { mkdtemp, readdir, rm } from 'node:fs/promises';
+import { SNAPSHOT_NAME_PATTERN } from '../../sandbox/runner-protocol.js';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -116,6 +117,32 @@ describe('verifyPatch', () => {
     expect(result.runs.map((r) => r.state)).toEqual(['before', 'after']);
     expect(new Set(result.runs.map((r) => r.id)).size).toBe(2);
     // Shredded on the way out: nothing of the customer's file is left behind.
+    expect(await readdir(root)).toEqual([]);
+  });
+
+  // 2026-10-28 walkthrough: on a bundle install every verified fix failed with
+  // "snapshotDir must be one snap-* directory directly under …", because both
+  // states lived in snap-XXXX/before and snap-XXXX/after. The sandboxed
+  // scan-runner accepts only a snap-* directory directly under its root.
+  it('scans each state in a snap-* directory directly under the root, as the scan-runner requires', async () => {
+    const dirs: string[] = [];
+    const sidecarLike: FileRuleRunner = {
+      key: 'stub_pack',
+      scannerKeys: ['semgrep'],
+      async run(input) {
+        dirs.push(input.dir);
+        if (path.dirname(input.dir) !== root || !SNAPSHOT_NAME_PATTERN.test(path.basename(input.dir))) {
+          return { status: 'failed', hits: [], reason: `refused ${input.dir}` };
+        }
+        const onDisk = await readFile(path.join(input.dir, input.file), 'utf8');
+        return { status: 'succeeded', hits: [...evalRule(input.file, onDisk), ...htmlRule(input.file, onDisk)] };
+      },
+    };
+    const after = BEFORE.replace('eval(cmd)', 'JSON.parse(cmd)');
+    const result = await verify(after, [sidecarLike]);
+    expect(result.status).toBe('verified');
+    expect(dirs).toHaveLength(2);
+    expect(dirs[0]).not.toBe(dirs[1]);
     expect(await readdir(root)).toEqual([]);
   });
 

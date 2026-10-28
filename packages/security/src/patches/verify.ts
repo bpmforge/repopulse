@@ -12,8 +12,8 @@ import type { SourceFile } from '../snapshot/sources.js';
 // would be worse here, where the claim is "this code is now safe". So the
 // verdict comes from re-running the deterministic rules — the same packs and
 // in-process rules that raised findings in the first place — over the file
-// before and after the patch, in the same scratch dir, under the same
-// conditions. A model's opinion of its own fix is not consulted at all.
+// before and after the patch, in two sibling scratch dirs under the same
+// root, under the same conditions. A model's opinion of its own fix is not consulted at all.
 //
 // BEFORE IS RE-SCANNED TOO, not read from the findings table. A stored finding
 // may come from a whole-tree run, an older rulepack, or a scanner whose
@@ -268,7 +268,7 @@ export interface VerifyPatchResult extends PatchVerdict {
 }
 
 /**
- * Writes both states into a scratch dir under the snapshot root, runs every
+ * Writes each state into its own scratch dir under the snapshot root, runs every
  * runner on each, and judges.
  *
  * Under the SNAPSHOT root with the snapshot prefix on purpose: the sandbox
@@ -280,7 +280,15 @@ export interface VerifyPatchResult extends PatchVerdict {
 export async function verifyPatch(args: VerifyPatchArgs): Promise<VerifyPatchResult> {
   const root = snapshotRoot(args.root !== undefined ? { root: args.root } : {});
   await mkdir(root, { recursive: true, mode: 0o700 });
-  const scratch = await mkdtemp(path.join(root, SNAPSHOT_PREFIX));
+  // One snap-* directory PER STATE, each directly under the root (2026-10-28).
+  // The sandboxed scan-runner accepts only a snap-* directory directly under
+  // its root, so before/ and after/ inside one scratch dir were refused on
+  // every bundle install ("snapshotDir must be one snap-* directory") and no
+  // verified fix could ever be checked there.
+  const scratch = {
+    before: await mkdtemp(path.join(root, SNAPSHOT_PREFIX)),
+    after: await mkdtemp(path.join(root, SNAPSHOT_PREFIX)),
+  };
   const runs: VerificationRun[] = [];
 
   try {
@@ -289,7 +297,7 @@ export async function verifyPatch(args: VerifyPatchArgs): Promise<VerifyPatchRes
       after: new Map<string, RuleRunOutput>(),
     };
     for (const state of ['before', 'after'] as const) {
-      const dir = path.join(scratch, state);
+      const dir = scratch[state];
       const source = state === 'before' ? args.before : args.after;
       const target = safeJoin(dir, args.target.file);
       await mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
@@ -338,6 +346,7 @@ export async function verifyPatch(args: VerifyPatchArgs): Promise<VerifyPatchRes
     });
     return { ...verdict, runs };
   } finally {
-    await shred(scratch);
+    await shred(scratch.before);
+    await shred(scratch.after);
   }
 }
