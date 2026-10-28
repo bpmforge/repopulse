@@ -12,13 +12,19 @@
 // stamped into each finding's risk_factors, so a score can always be explained
 // by the model that produced it rather than by the model running today.
 
-export const RISK_MODEL_VERSION = 'risk_model.v2';
+export const RISK_MODEL_VERSION = 'risk_model.v3';
 
 export interface RiskModelConstants {
   /** Stamped into risk_factors; absent = RISK_MODEL_VERSION. */
   version?: string;
   /** Likelihood floor for a dependency finding with no exploit signal. */
   dependencyLikelihoodFloor: number;
+  /**
+   * v3: a dependency finding's likelihood is at least what the same evidence
+   * would earn any other finding — confidence/5 × verify multiplier ×
+   * precisionWithoutStats. Absent = EPSS alone (v1/v2).
+   */
+  dependencyLikelihoodFromEvidence?: boolean;
   /** Verify-status multipliers (FR-ANALYSIS-9). */
   verifyMultiplier: { confirmed: number; unverified: number; contradicted: number };
   /** Rule-precision prior floor, and the value used when a rule has no stats. */
@@ -99,7 +105,7 @@ export const RISK_MODEL_V1: RiskModelConstants = {
  */
 export const RISK_MODEL_V2: RiskModelConstants = {
   ...RISK_MODEL_V1,
-  version: RISK_MODEL_VERSION,
+  version: 'risk_model.v2',
   importGraph: {
     // 0.6, not lower: a file with no importer is as likely a CLI, a worker or
     // something loaded by a framework convention the path heuristics missed
@@ -111,22 +117,61 @@ export const RISK_MODEL_V2: RiskModelConstants = {
   },
 };
 
+/**
+ * v3 = v2 with dependency likelihood on the same footing as everything else
+ * (2026-10-28 walkthrough). SUPERSEDES D10's "EPSS is the likelihood" for the
+ * dependency dimension, which D12 inherited unchanged (RISK_MODEL.md §2).
+ *
+ * D12's purpose is one ranking across every dimension, but its L meant two
+ * different things: for code findings, how sure we are the finding is real
+ * and bites (confidence × verify × rule precision); for a CVE, the 30-day
+ * exploitation probability, floored at 0.05. EPSS is small for almost every
+ * CVE, and this install has no EPSS feed at all, so every CVE sat at the
+ * floor: a second-model-confirmed critical CVE in a direct production
+ * dependency scored 3.0 ("track") under a test-gap finding at 23.5.
+ *
+ * v3 prices a CVE's likelihood as max(EPSS, floor, confidence/5 × verify ×
+ * precisionWithoutStats): the version match grype makes is evidence like any
+ * rule hit, priced with the same prior an unmeasured rule gets (0.7, no new
+ * constant), and EPSS can only raise it. A confirmed CVE now reaches
+ * "schedule" where its exposure warrants it; a contradicted one stays at the
+ * bottom (×0.15). KEV and malicious packages still override to "act".
+ */
+export const RISK_MODEL_V3: RiskModelConstants = {
+  ...RISK_MODEL_V2,
+  version: RISK_MODEL_VERSION,
+  dependencyLikelihoodFromEvidence: true,
+};
+
 export type RiskBand = 'act' | 'schedule' | 'track';
 
 /**
  * Band from a score, with overrides.
  *
  * An override goes straight to `act` regardless of arithmetic: a KEV-listed
- * CVE, a verified live credential, an attack chain and a compound cluster are
+ * CVE, a verified live credential, an installed malicious package (installing
+ * it IS the compromise), an attack chain and a compound cluster are
  * all things where the score is a summary of an argument that has already been
  * made.
  */
 export function bandFor(
   effectiveRisk: number,
-  overrides: { kev?: boolean; verifiedSecret?: boolean; chain?: boolean; compound?: boolean } = {},
-  constants: RiskModelConstants = RISK_MODEL_V2,
+  overrides: {
+    kev?: boolean;
+    verifiedSecret?: boolean;
+    chain?: boolean;
+    compound?: boolean;
+    maliciousPackage?: boolean;
+  } = {},
+  constants: RiskModelConstants = RISK_MODEL_V3,
 ): RiskBand {
-  if (overrides.kev || overrides.verifiedSecret || overrides.chain || overrides.compound) {
+  if (
+    overrides.kev ||
+    overrides.verifiedSecret ||
+    overrides.chain ||
+    overrides.compound ||
+    overrides.maliciousPackage
+  ) {
     return 'act';
   }
   if (effectiveRisk >= constants.bands.act) return 'act';

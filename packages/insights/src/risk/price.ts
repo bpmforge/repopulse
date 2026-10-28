@@ -1,5 +1,5 @@
 import {
-  RISK_MODEL_V2,
+  RISK_MODEL_V3,
   RISK_MODEL_VERSION,
   bandFor,
   type RiskBand,
@@ -73,6 +73,8 @@ export interface PricingInput {
 
   // --- overrides ---
   verifiedSecret?: boolean;
+  /** An OpenSSF malicious-package hit: installing it is the compromise. */
+  maliciousPackage?: boolean;
 }
 
 export interface RiskFactors {
@@ -106,13 +108,13 @@ export function hazardFor(severity: number): number {
  */
 export function likelihoodFor(
   input: PricingInput,
-  constants: RiskModelConstants = RISK_MODEL_V2,
+  constants: RiskModelConstants = RISK_MODEL_V3,
 ): number {
   // Overrides. Each is a case where the argument is already settled: a CVE on
   // the known-exploited list IS being exploited, a verified credential IS live,
   // and a chain or compound finding is an argument about findings that have
   // each been priced already.
-  if (input.kev || input.verifiedSecret) return 1;
+  if (input.kev || input.verifiedSecret || input.maliciousPackage) return 1;
   if (input.dimension === 'chain' || input.dimension === 'compound') return 1;
 
   if (input.dimension === 'dependency') {
@@ -120,7 +122,11 @@ export function likelihoodFor(
     // floor, not zero and not a guess. When the EPSS feed lands (W8-13), this
     // line starts returning a real number without anything else changing.
     const epss = input.epss ?? 0;
-    return Math.max(epss, constants.dependencyLikelihoodFloor);
+    const floor = Math.max(epss, constants.dependencyLikelihoodFloor);
+    if (!constants.dependencyLikelihoodFromEvidence) return floor;
+    // v3: the match is evidence like any rule hit, priced with the same prior.
+    const verify = constants.verifyMultiplier[input.verifyStatus ?? 'unverified'];
+    return clamp01(Math.max(floor, (input.confidence / 5) * verify * constants.precisionWithoutStats));
   }
 
   const verify = constants.verifyMultiplier[input.verifyStatus ?? 'unverified'];
@@ -137,7 +143,7 @@ export function likelihoodFor(
 /** X — does it sit where the code actually lives. */
 export function exposureFor(
   input: PricingInput,
-  constants: RiskModelConstants = RISK_MODEL_V2,
+  constants: RiskModelConstants = RISK_MODEL_V3,
 ): number {
   if (input.dimension === 'dependency' || input.dimension === 'dependency_health') {
     const scope = input.depScope;
@@ -190,7 +196,7 @@ export function exposureFor(
  */
 export function importGraphMultiplier(
   exposure: ImportExposure | null | undefined,
-  constants: RiskModelConstants = RISK_MODEL_V2,
+  constants: RiskModelConstants = RISK_MODEL_V3,
 ): number {
   const g = constants.importGraph;
   if (!g || !exposure) return 1;
@@ -214,7 +220,7 @@ function withImportGraph(base: number, input: PricingInput, constants: RiskModel
 /** Price one finding. Deterministic, and reproducible from its own factors. */
 export function priceFinding(
   input: PricingInput,
-  constants: RiskModelConstants = RISK_MODEL_V2,
+  constants: RiskModelConstants = RISK_MODEL_V3,
 ): PricedFinding {
   const H = hazardFor(input.severity);
   const L = likelihoodFor(input, constants);
@@ -228,6 +234,7 @@ export function priceFinding(
       {
         ...(input.kev !== undefined ? { kev: input.kev } : {}),
         ...(input.verifiedSecret !== undefined ? { verifiedSecret: input.verifiedSecret } : {}),
+        ...(input.maliciousPackage ? { maliciousPackage: true } : {}),
         chain: input.dimension === 'chain',
         compound: input.dimension === 'compound',
       },

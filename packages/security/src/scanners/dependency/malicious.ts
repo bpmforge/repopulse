@@ -211,6 +211,7 @@ export function maliciousFinding(hit: MaliciousHit): PricedIncomingFinding {
     depScope: null,
     reachability: 'manifest_only',
     repoScoped: finding.file === null,
+    maliciousPackage: true,
   });
   return {
     finding,
