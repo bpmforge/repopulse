@@ -1,0 +1,30 @@
+rules:
+  - id: bpm-owasp-a03-code-injection-php
+    languages: [php]
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - pattern: $_GET
+      - pattern: $_POST
+      - pattern: $_REQUEST
+    pattern-sinks:
+      - pattern: eval($SINK)
+      - pattern: assert($SINK)
+      - pattern: create_function($ARGS, $SINK)
+    message: >
+      Unsanitized $_GET/$_POST/$_REQUEST input reaches eval(), assert(),
+      or create_function() and is executed as PHP code (OWASP A03:2021,
+      CWE-94: Code Injection). An attacker who controls this value gets
+      arbitrary code execution with the application's privileges — this
+      is strictly worse than SQL injection or XSS. Never build a code
+      string from request data; dispatch to a fixed allowlist of
+      handlers (e.g. a lookup table of closures keyed by a validated
+      action name) instead of evaluating dynamic code.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [94]
+      owasp: "A03:2021"
+      confidence: high
+      concept: command_execution
+      since: "0.1.0"

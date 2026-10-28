@@ -1,0 +1,38 @@
+rules:
+  - id: bpm-slop-unimplemented-stub-throw-c
+    languages: [c]
+    severity: WARNING
+    message: >
+      Function body is just `return -1;` or `abort();` under a TODO
+      comment (ANTI_SLOP R-27: Unimplemented Stubs as Features). C has no
+      exceptions, so this is the idiomatic C shape of the same
+      antipattern: a stub that masquerades as a real implementation.
+      Callers — including other AI-generated code that sees this function
+      in context — get a silent failure code or an abnormal termination,
+      or treat the stub as done. Stubs are only acceptable on an explicit
+      TODO branch called out in the PR description; never export or ship a
+      stub as a completed feature.
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $RET $FN(...) {
+                  return -1;
+              }
+          - pattern: |
+              $RET $FN(...) {
+                  abort();
+              }
+      - pattern-either:
+          - pattern-inside: |
+              // TODO: ...
+              $RET $FN(...) { ... }
+          - pattern-inside: |
+              /* TODO: ... */
+              $RET $FN(...) { ... }
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-27"
+      cwe: [1078]
+      confidence: medium
+      concept: code_quality
+      since: "0.1.0"

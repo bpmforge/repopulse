@@ -1,0 +1,36 @@
+rules:
+  - id: bpm-owasp-a03-xpath-injection-java
+    languages: [java]
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - pattern: $REQ.getParameter($X)
+      - pattern: $REQ.getHeader($X)
+      - pattern: $REQ.getQueryString()
+    pattern-sinks:
+      - patterns:
+          - pattern: $XP.evaluate($SINK)
+          - focus-metavariable: $SINK
+      - patterns:
+          - pattern: $XP.evaluate($SINK, $C)
+          - focus-metavariable: $SINK
+      - patterns:
+          - pattern: $XP.compile($SINK)
+          - focus-metavariable: $SINK
+    message: >
+      Unsanitized servlet request input reaches a javax.xml.xpath
+      XPath.evaluate()/compile() expression argument (OWASP A03:2021,
+      CWE-643: XPath Injection). An attacker can inject XPath
+      metacharacters (`'`, `"`, `[`, `]`, `|`) to alter the query's
+      selection logic and read nodes outside the intended scope, similar to
+      SQL injection. Escape XPath special characters in any user-controlled
+      component, or use `XPath.setXPathVariableResolver()` to bind the value
+      as a variable rather than concatenating it into the expression string.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [643]
+      owasp: "A03:2021"
+      confidence: high
+      concept: input_validation
+      since: "0.1.0"

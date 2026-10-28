@@ -1,0 +1,31 @@
+rules:
+  - id: bpm-slop-hardcoded-env-fallback-python
+    languages: [python]
+    severity: WARNING
+    message: >
+      A secret-shaped environment variable falls back to a hardcoded string
+      literal (ANTI_SLOP R-23, CWE-798: Use of Hard-coded Credentials). AI
+      assistants expose secrets at roughly 2x the rate of human-only commits
+      (CSA 2025) — this pattern is a common source: a "just make it run"
+      default that ships a real or production-shaped credential when the env
+      var is unset. Remove the literal fallback; fail closed (raise/exit)
+      when a required secret is missing.
+    patterns:
+      - pattern-either:
+          - pattern: os.getenv($ENV, $FALLBACK)
+          - pattern: os.environ.get($ENV, $FALLBACK)
+      - metavariable-regex:
+          metavariable: $ENV
+          regex: (?i)"\w*(secret|password|token|api[_-]?key|credential)\w*"
+      - metavariable-pattern:
+          metavariable: $FALLBACK
+          patterns:
+            - pattern: '"..."'
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-23"
+      cwe: [798]
+      owasp: "A07:2021"
+      confidence: high
+      concept: secrets_config
+      since: "0.1.0"

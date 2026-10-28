@@ -1,0 +1,32 @@
+rules:
+  - id: bpm-owasp-a03-webview-xss-swift
+    languages: [swift]
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - pattern: $COMPONENTS.queryItems
+      - pattern: $TEXTFIELD.text
+    pattern-sinks:
+      - patterns:
+          - pattern: '$WEBVIEW.loadHTMLString($SINK, baseURL: $BASE)'
+          - focus-metavariable: $SINK
+    message: >
+      Untrusted input (a URL query item or a text field) is interpolated
+      into an HTML string passed to WKWebView's loadHTMLString() (OWASP
+      A03:2021, CWE-79: Cross-Site Scripting). The WKWebView JS engine will
+      execute any `<script>` the attacker embeds, in the app's WebKit
+      context — able to reach anything the page's JS bridge exposes
+      (window.webkit.messageHandlers, cookies, local storage for that
+      origin). Never interpolate untrusted data into HTML markup; render
+      user-controlled text through a native label/text view, or if it must
+      appear in the web content, HTML-escape it first (or load a static
+      bundled HTML template and inject the value only via a
+      properly-escaped JS call / WKUserScript, not string concatenation).
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [79]
+      owasp: "A03:2021"
+      confidence: high
+      concept: input_validation
+      since: "0.1.0"

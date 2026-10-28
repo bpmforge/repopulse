@@ -1,0 +1,31 @@
+rules:
+  - id: bpm-owasp-a03-sql-injection-java
+    languages: [java]
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - pattern: $REQ.getParameter($X)
+      - pattern: $REQ.getHeader($X)
+      - pattern: $REQ.getQueryString()
+    pattern-sinks:
+      - pattern: $STMT.execute($SINK)
+      - pattern: $STMT.executeQuery($SINK)
+      - pattern: $STMT.executeUpdate($SINK)
+      - pattern: $CONN.prepareStatement($SINK)
+      - pattern: $CONN.prepareCall($SINK)
+    message: >
+      Unsanitized servlet request input reaches a JDBC Statement/Connection
+      call as the SQL text (OWASP A03:2021, CWE-89: SQL Injection). An
+      attacker who controls this value can alter the query's structure to
+      read, modify, or delete data outside the intended scope. Use a
+      PreparedStatement with bound parameters (`?` placeholders +
+      setString()/setInt()) instead of concatenating request data into the
+      SQL string.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [89]
+      owasp: "A03:2021"
+      confidence: high
+      concept: sql_database
+      since: "0.1.0"

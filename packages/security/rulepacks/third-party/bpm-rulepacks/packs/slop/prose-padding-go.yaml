@@ -1,0 +1,18 @@
+rules:
+  - id: bpm-slop-prose-padding-go
+    languages: [go]
+    severity: WARNING
+    message: >
+      Padding phrase inside a Go doc comment (ANTI_SLOP R-29: Prose
+      Padding) — hedging ("it's worth noting that") or fake-specificity
+      ("industry best practices") language inflates a doc comment without
+      adding information. State the behavior directly, or name the actual
+      standard/source if citing one.
+    pattern-regex: (?im)^\s*//.*\b(it'?s worth noting that|it should be mentioned that|one might consider|it is important to note that|industry best practices|modern approaches|established patterns)\b
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-29"
+      cwe: [1078]
+      confidence: medium
+      concept: code_quality
+      since: "0.1.0"

@@ -1,0 +1,27 @@
+rules:
+  - id: bpm-owasp-a02-insecure-random-c
+    languages: [c, cpp]
+    severity: WARNING
+    patterns:
+      - pattern: $VAR = rand();
+      - metavariable-regex:
+          metavariable: $VAR
+          regex: '.*(?i)(token|password|secret|otp|session[_a-z]*id|apikey|api_key|nonce|csrf).*'
+    message: >
+      A variable whose name signals a security-sensitive value (token,
+      password, secret, session id, OTP, ...) is assigned from rand()
+      (OWASP A02:2021, CWE-330: Use of Insufficiently Random Values).
+      rand() (typically seeded via srand(time(NULL))) is a low-period,
+      non-cryptographic PRNG — its output is predictable once an attacker
+      observes a few values or brute-forces the time-based seed, and it
+      must not be used for tokens, session IDs, password-reset codes, or
+      any other security-sensitive value. Use a CSPRNG instead: getrandom()
+      (Linux), arc4random_buf() (BSD/macOS), or OpenSSL's RAND_bytes().
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [330]
+      owasp: "A02:2021"
+      confidence: medium
+      concept: cryptography
+      since: "0.1.0"

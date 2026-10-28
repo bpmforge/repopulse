@@ -390,6 +390,14 @@ Commons Clause and EE folders, and only the first two are taken.
 | 0xdea/semgrep-rules | e0121ac | MIT | 49 / 49 | C, C++ (memory safety) |
 | elttam/semgrep-rules (`rules-audit/`) | 2442685 | MIT | 62 / 78 | Java, Go, C#, JS, Python, Kotlin, C, generic |
 | gitlab-org/security-products/sast-rules | 705c083 | MIT, Apache-2.0 | 270 / 270 | Java, Scala, Python, C#, Go, JS/TS |
+| bpmforge/bpm-rulepacks (`packs/`, ours) | f32aebf | Apache-2.0 (grant written by the importer) | 219 / 232 | framework, house, OWASP, secrets, slop |
+
+bpm-rulepacks is our own, not third-party, but it was a separate private repo marked
+"All rights reserved". The owner opened it into Repo Pulse on 2026-10-28 ("open the
+rules"), so it goes through the same ledger, shadow status and flag. Its repo LICENSE
+is still the old one, so the importer writes the Apache-2.0 grant beside the files
+instead of copying it, and the source is private, so it imports with `--src` only. The
+first live look (gin, 7 hits, none real) is why it stays shadow until graded per rule.
 
 **How they run.** The scanner reads the ledger, never the directory, and mounts the pack
 at `/rules-tp` beside ours, only for a full security run that did not narrow its pack.

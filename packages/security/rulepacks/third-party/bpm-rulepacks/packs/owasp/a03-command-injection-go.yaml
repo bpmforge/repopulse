@@ -1,0 +1,28 @@
+rules:
+  - id: bpm-owasp-a03-command-injection-go
+    languages: [go]
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - pattern: $REQ.URL.Query().Get($X)
+      - pattern: $REQ.FormValue($X)
+      - pattern: $REQ.PostFormValue($X)
+    pattern-sinks:
+      - pattern: exec.Command(...)
+      - pattern: exec.CommandContext($CTX, ...)
+    message: >
+      Unsanitized HTTP request input reaches os/exec.Command or
+      CommandContext as an argument (OWASP A03:2021, CWE-78: OS Command
+      Injection). Even though Go's exec package does not invoke a shell,
+      an attacker-controlled argument can still redirect the command to an
+      unintended executable, path, or flag (e.g. supplying `--config` to
+      pivot to arbitrary file reads). Validate the value against a strict
+      allowlist of expected arguments before passing it to exec.Command.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [78]
+      owasp: "A03:2021"
+      confidence: high
+      concept: command_execution
+      since: "0.1.0"

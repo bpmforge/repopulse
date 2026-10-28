@@ -1,0 +1,20 @@
+rules:
+  - id: bpm-owasp-a07-cookie-insecure-flag
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      A session/auth cookie is explicitly configured with `secure: false`
+      (OWASP A07:2021, CWE-614: Sensitive Cookie in HTTPS Session Without
+      'Secure' Attribute). The cookie will be sent over plain HTTP, letting a
+      network attacker capture the session token. Set `secure: true` (and pair
+      it with `httpOnly: true` and an explicit `sameSite`) on every
+      session/auth cookie.
+    pattern: '{ ..., secure: false, ... }'
+    metadata:
+      license: proprietary
+      provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A07"
+      cwe: [614]
+      owasp: "A07:2021"
+      confidence: medium
+      concept: session_management
+      since: "0.1.0"

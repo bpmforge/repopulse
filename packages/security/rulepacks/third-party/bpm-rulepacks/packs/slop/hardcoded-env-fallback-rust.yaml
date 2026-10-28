@@ -1,0 +1,45 @@
+rules:
+  - id: bpm-slop-hardcoded-env-fallback-rust
+    languages: [rust]
+    severity: WARNING
+    message: >
+      A secret-shaped environment variable is coalesced to a hardcoded
+      string literal via std::env::var(...).unwrap_or(...)/.unwrap_or_else(...)
+      (ANTI_SLOP R-23, CWE-798: Use of Hard-coded Credentials). AI assistants
+      expose secrets at roughly 2x the rate of human-only commits (CSA 2025)
+      — this pattern is a common source: a "just make it run" fallback that
+      ships a real or production-shaped credential when the env var is
+      unset. Remove the literal fallback; fail closed (panic!/process::exit/
+      propagate an error) when a required secret is missing.
+    patterns:
+      - pattern-either:
+          - pattern: std::env::var($NAME).unwrap_or($FALLBACK.to_string())
+          - pattern: env::var($NAME).unwrap_or($FALLBACK.to_string())
+          - pattern: std::env::var($NAME).unwrap_or_else(|_| $FALLBACK.to_string())
+          - pattern: env::var($NAME).unwrap_or_else(|_| $FALLBACK.to_string())
+      - metavariable-regex:
+          metavariable: $NAME
+          regex: (?i)"[^"]*(secret|password|token|api[_-]?key|credential)[^"]*"
+      - metavariable-regex:
+          # Anchored regex on the captured text, not metavariable-pattern —
+          # metavariable-pattern's '"..."' shape subtree-searches anywhere
+          # inside $FALLBACK (the Go W1-33 false-positive-trap lesson,
+          # already fixed for C# in W1-30); here $FALLBACK is bound to the
+          # string-literal receiver of `.to_string()` (not the whole
+          # unwrap_or(...) argument — verified separately that binding the
+          # whole argument captures `"literal".to_string()` as one blob,
+          # which the anchor would then correctly reject as non-literal, so
+          # the pattern is deliberately shaped to isolate the literal itself
+          # before the anchor is applied), so an anchored regex on the whole
+          # captured span only matches when $FALLBACK IS a bare string
+          # literal.
+          metavariable: $FALLBACK
+          regex: ^"[^"]*"$
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-23"
+      cwe: [798]
+      owasp: "A07:2021"
+      confidence: high
+      concept: secrets_config
+      since: "0.1.0"

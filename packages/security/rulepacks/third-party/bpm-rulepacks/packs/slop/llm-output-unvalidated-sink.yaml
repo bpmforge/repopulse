@@ -1,0 +1,29 @@
+rules:
+  - id: bpm-slop-llm-output-unvalidated-sink
+    languages: [typescript, javascript]
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - pattern: $LLM.generate(...)
+    pattern-sinks:
+      - pattern: db.execute($SINK)
+      - pattern: eval($SINK)
+    message: >
+      LLM output reaches a database execute call or eval() with no
+      validation in between (ANTI_SLOP R-28: LLM Output Consumed Without
+      Validation; CWE-74: Improper Neutralization of Special Elements in
+      Output Used by a Downstream Component). Veracode
+      GenAI 2025: 45% of AI-generated code fails security tests, with log
+      injection (88%) and XSS (86%) the worst offenders. LLM output is
+      untrusted input — the model can be prompt-injected to emit malicious
+      SQL, shell, or markup. Validate the output against a schema before
+      use; never pass it to db.execute(), eval(), exec(), or innerHTML
+      without parameterization/sanitization.
+    metadata:
+      license: proprietary
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-28"
+      cwe: [74]
+      owasp: "A03:2021"
+      confidence: medium
+      concept: llm_ai
+      since: "0.1.0"

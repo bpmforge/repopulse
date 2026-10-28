@@ -1,0 +1,29 @@
+rules:
+  - id: bpm-framework-spring-permitall-broad
+    languages: [java]
+    severity: ERROR
+    pattern: $AUTH.anyRequest().permitAll()
+    message: >
+      A Spring Security authorization chain permits every request with no
+      further restriction (Spring Security framework knowledge, CWE-862:
+      Missing Authorization). Whether written with the legacy
+      `authorizeRequests()` DSL or the current
+      `authorizeHttpRequests(auth -> ...)` lambda DSL, `anyRequest().permitAll()`
+      is the catch-all rule — it overrides every more specific `hasRole`/
+      `hasAuthority`/`authenticated` rule that isn't matched first, and if
+      it's the only rule in the chain the entire application is
+      unauthenticated. Scope specific paths with `requestMatchers(...)` and
+      end the chain with `anyRequest().authenticated()` (or a named role
+      check), reserving `permitAll()` for the small set of routes that are
+      genuinely public (login, health check, static assets).
+    # Primary source: Spring Security Reference (Authorize HttpServletRequests
+    # with HttpSecurity §) + OWASP A01:2021 Broken Access Control.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [862, 284]
+      owasp: "A01:2021"
+      framework: spring
+      confidence: high
+      concept: authorization
+      since: "0.1.0"

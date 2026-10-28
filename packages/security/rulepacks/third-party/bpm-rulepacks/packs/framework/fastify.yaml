@@ -1,0 +1,36 @@
+rules:
+  - id: bpm-framework-fastify-reply-send-unsanitized
+    languages: [typescript, javascript]
+    severity: WARNING
+    mode: taint
+    pattern-sources:
+      - pattern: req.body
+      - pattern: req.body.$X
+      - pattern: req.query
+      - pattern: req.query.$X
+      - pattern: req.params
+      - pattern: req.params.$X
+    pattern-sinks:
+      - pattern: reply.send($SINK)
+    pattern-sanitizers:
+      - pattern: $SANITIZE.sanitize($SINK)
+      - pattern: $SCHEMA.parse($SINK)
+    message: >
+      Request input flows into reply.send() with no sanitization or schema
+      validation in between (Fastify framework knowledge, CWE-79 /
+      CWE-116: Improper Output Neutralization). If the client renders the
+      response as HTML (or another consumer trusts the payload verbatim),
+      an attacker-controlled body/query/param value is echoed back
+      unchanged — reflected XSS or response-splitting. Validate the input
+      against a Fastify route schema before it is echoed, or sanitize it
+      explicitly before sending.
+    # Primary source: Fastify docs (reply.send) + OWASP Unsafe Reflection
+    # guidance.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [79, 116]
+      framework: fastify
+      confidence: medium
+      concept: input_validation
+      since: "0.1.0"

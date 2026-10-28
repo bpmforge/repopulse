@@ -1,0 +1,20 @@
+rules:
+  - id: bpm-slop-redundant-null-undefined-check
+    languages: [javascript, typescript]
+    severity: INFO
+    message: >
+      redundant null/undefined double-check (ANTI_SLOP R-09) — `x === null ||
+      x === undefined` is always equivalent to `x == null`. If the value's
+      type is owned by this codebase, fix the type instead of guarding it;
+      otherwise use the single loose-equality check.
+    pattern-either:
+      - pattern: $X === null || $X === undefined
+      - pattern: $X === undefined || $X === null
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-09"
+      cwe: [1164]
+      confidence: medium
+      concept: input_validation
+      since: "0.1.0"
+

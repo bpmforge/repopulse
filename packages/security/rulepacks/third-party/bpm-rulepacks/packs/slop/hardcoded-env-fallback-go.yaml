@@ -1,0 +1,32 @@
+rules:
+  - id: bpm-slop-hardcoded-env-fallback-go
+    languages: [go]
+    severity: WARNING
+    message: >
+      A secret-shaped environment variable falls back to a hardcoded string
+      literal when unset (ANTI_SLOP R-23, CWE-798: Use of Hard-coded
+      Credentials). AI assistants expose secrets at roughly 2x the rate of
+      human-only commits (CSA 2025) — a "just make it run" fallback that
+      ships a real or production-shaped credential when the env var is
+      unset is a common source. Fail closed (return an error / os.Exit)
+      when a required secret is missing instead of substituting a literal.
+    patterns:
+      - pattern: |
+          $VAR := os.Getenv($ENVNAME)
+          if $VAR == "" {
+            $VAR = $FALLBACK
+          }
+      - metavariable-regex:
+          metavariable: $ENVNAME
+          regex: (?i)"[^"]*(secret|password|token|api[_-]?key|credential)[^"]*"
+      - metavariable-regex:
+          metavariable: $FALLBACK
+          regex: ^".+"$
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-23"
+      cwe: [798]
+      owasp: "A07:2021"
+      confidence: high
+      concept: secrets_config
+      since: "0.1.0"

@@ -1,0 +1,36 @@
+rules:
+  - id: bpm-slop-hardcoded-env-fallback-ruby
+    languages: [ruby]
+    severity: WARNING
+    message: >
+      A secret-shaped environment variable falls back to a hardcoded string
+      literal (ANTI_SLOP R-23, CWE-798: Use of Hard-coded Credentials). AI
+      assistants expose secrets at roughly 2x the rate of human-only commits
+      (CSA 2025) — this pattern is a common source: a "just make it run"
+      default that ships a real or production-shaped credential when the
+      env var is unset. Remove the literal fallback; fail closed (raise)
+      when a required secret is missing.
+    patterns:
+      - pattern-either:
+          - pattern: ENV.fetch($ENV, $FALLBACK)
+          - pattern: ENV[$ENV] || $FALLBACK
+      - metavariable-regex:
+          metavariable: $ENV
+          regex: (?i)["'][^"']*(secret|password|token|api[_-]?key|credential)[^"']*["']
+      - metavariable-regex:
+          # Anchored regex on the whole captured span, not
+          # metavariable-pattern's '"..."' shape — that subtree-searches
+          # and would false-fire on e.g. `ENV.fetch('TOKEN') { raise("msg")
+          # }` where "msg" is a nested literal, not the fallback value
+          # itself (same FP mode the C#/Go W1-30/W1-33 lessons documented).
+          # This only matches when $FALLBACK IS a bare string literal.
+          metavariable: $FALLBACK
+          regex: ^["'][^"']*["']$
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-23"
+      cwe: [798]
+      owasp: "A07:2021"
+      confidence: high
+      concept: secrets_config
+      since: "0.1.0"

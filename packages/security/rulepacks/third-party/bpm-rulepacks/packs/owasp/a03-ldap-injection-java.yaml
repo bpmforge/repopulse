@@ -1,0 +1,37 @@
+rules:
+  - id: bpm-owasp-a03-ldap-injection-java
+    languages: [java]
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - pattern: $REQ.getParameter($X)
+      - pattern: $REQ.getHeader($X)
+      - pattern: $REQ.getQueryString()
+    pattern-sinks:
+      - patterns:
+          - pattern: $CTX.search($BASE, $SINK)
+          - focus-metavariable: $SINK
+      - patterns:
+          - pattern: $CTX.search($BASE, $SINK, $C)
+          - focus-metavariable: $SINK
+      - patterns:
+          - pattern: $CTX.search($BASE, $SINK, $C, $D)
+          - focus-metavariable: $SINK
+    message: >
+      Unsanitized servlet request input reaches a javax.naming.directory
+      DirContext.search() filter argument (OWASP A03:2021, CWE-90: LDAP
+      Injection). An attacker can inject LDAP filter metacharacters
+      (`*`, `(`, `)`, `\`) to alter the search filter and bypass
+      authentication or enumerate directory entries outside the intended
+      scope. Escape LDAP special characters in any user-controlled filter
+      component, or build the filter with a parameterized helper
+      (javax.naming.directory's `filterExpr`/`filterArgs` form) instead of
+      string concatenation.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [90]
+      owasp: "A03:2021"
+      confidence: high
+      concept: authentication
+      since: "0.1.0"

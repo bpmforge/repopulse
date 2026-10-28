@@ -1,0 +1,30 @@
+rules:
+  - id: bpm-owasp-a05-insecure-transport-php
+    languages: [php]
+    severity: ERROR
+    message: >
+      A cURL handle disables TLS certificate or hostname verification
+      (CURLOPT_SSL_VERIFYPEER set to false, or CURLOPT_SSL_VERIFYHOST set
+      to 0) (OWASP A05:2021: Security Misconfiguration, CWE-295: Improper
+      Certificate Validation). This lets a network attacker (open wifi, a
+      malicious proxy, ARP/DNS spoofing) present any certificate —
+      including a self-signed one — undetected, defeating the point of
+      HTTPS for this request. Leave both options at their secure defaults
+      (VERIFYPEER true, VERIFYHOST 2); if a specific host's certificate
+      genuinely cannot be validated by the system CA bundle, pin the
+      correct CA via CURLOPT_CAINFO instead of disabling verification.
+    pattern-either:
+      - pattern: curl_setopt($CH, CURLOPT_SSL_VERIFYPEER, false)
+      - pattern: curl_setopt($CH, CURLOPT_SSL_VERIFYPEER, 0)
+      - pattern: curl_setopt($CH, CURLOPT_SSL_VERIFYHOST, 0)
+      - pattern: curl_setopt($CH, CURLOPT_SSL_VERIFYHOST, false)
+      - pattern: 'curl_setopt_array($CH, [..., CURLOPT_SSL_VERIFYPEER => false, ...])'
+      - pattern: 'curl_setopt_array($CH, [..., CURLOPT_SSL_VERIFYHOST => 0, ...])'
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [295]
+      owasp: "A05:2021"
+      confidence: high
+      concept: cryptography
+      since: "0.1.0"

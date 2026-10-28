@@ -1,0 +1,29 @@
+rules:
+  - id: bpm-framework-react-dangerous-html
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      dangerouslySetInnerHTML is set from a non-constant value that is not
+      passed through a sanitizer call (React framework knowledge, CWE-79:
+      Cross-Site Scripting). If the value can carry attacker-controlled markup
+      (props, API responses, query params, rich-text editor state), raw HTML
+      injection follows. Sanitize with DOMPurify.sanitize() (or an equivalent
+      allow-listing sanitizer) before assigning to __html, or render via safe
+      React children instead of raw HTML.
+    patterns:
+      - pattern: '{ __html: $VAR }'
+      - pattern-not: '{ __html: $SANITIZE.sanitize(...) }'
+      - metavariable-pattern:
+          metavariable: $VAR
+          patterns:
+            - pattern-not: '"..."'
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [79]
+      owasp: "A03:2021"
+      framework: react
+      confidence: medium
+      concept: input_validation
+      since: "0.1.0"
+

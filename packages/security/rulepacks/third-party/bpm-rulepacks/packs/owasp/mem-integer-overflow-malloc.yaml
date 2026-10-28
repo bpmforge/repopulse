@@ -1,0 +1,67 @@
+rules:
+  - id: bpm-owasp-mem-integer-overflow-malloc
+    languages: [c, cpp]
+    severity: WARNING
+    message: >
+      malloc() or realloc() is sized by multiplying two runtime values
+      inline (CWE-190: Integer Overflow or Wraparound). If either operand is
+      attacker-influenced (a count read from a file, network message, or
+      config) the multiplication can wrap around size_t and return a small
+      value, so the allocation succeeds but is far smaller than the code
+      expects — every subsequent write through it is then a heap buffer
+      overflow (CWE-122). calloc(nmemb, size) takes the two factors as
+      separate arguments and internally rejects a multiplication that would
+      overflow; prefer it over malloc(a * b), or explicitly check that
+      a > SIZE_MAX / b before multiplying.
+      Two shapes are deliberately NOT flagged: both operands as literal
+      integer constants (malloc(4 * 8) cannot overflow from runtime input),
+      and the element-size idiom malloc(n * sizeof(T)) — see the note below,
+      which is corpus evidence rather than a style preference.
+    patterns:
+      - pattern-either:
+          - pattern: malloc($A * $B)
+          - pattern: realloc($P, $A * $B)
+      # The sizeof exclusions. On a 64-bit target, n * sizeof(T) overflowing
+      # size_t requires n above 2^61 for a 8-byte T — unreachable for any
+      # count that came from a real message. This is simply how C code
+      # allocates arrays.
+      - pattern-not: malloc($A * sizeof(...))
+      - pattern-not: malloc(sizeof(...) * $B)
+      - pattern-not: realloc($P, $A * sizeof(...))
+      - pattern-not: realloc($P, sizeof(...) * $B)
+      - pattern-not:
+          patterns:
+            - pattern-either:
+                - pattern: malloc($A * $B)
+                - pattern: realloc($P, $A * $B)
+            - metavariable-regex:
+                metavariable: $A
+                regex: '^[0-9]+$'
+            - metavariable-regex:
+                metavariable: $B
+                regex: '^[0-9]+$'
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [190]
+      confidence: low
+      concept: memory_safety
+      since: "0.1.0"
+      # The sizeof exclusion reverses this rule's original stated position
+      # ("malloc(count * sizeof(T)) still fires: ... exactly the canonical
+      # attacker-controlled CWE-190 shape"). Measured, 2026-07-29:
+      #
+      #   before: 1,072+ findings on Juliet, 130 FP @tol2 / 40 @tol0, 0 TP
+      #   after sizeof exclusion: 0 findings across all 64,099 cases
+      #
+      # Every single firing was the n * sizeof(T) idiom, and every one was a
+      # false positive. The rule as written detected the safe idiom
+      # EXCLUSIVELY. Note this corpus contains 25 genuine CWE-190 vulnerable
+      # cases and the rule matched none of them — Juliet's CWE-190 tests
+      # overflow via fscanf-then-add, not via an allocation multiply.
+      #
+      # confidence: low, and honestly: the remaining malloc(a * b) shape is
+      # UNPROVEN. It fires zero times on the largest corpus available, so it
+      # has neither a true positive nor a false positive to its name here.
+      # It is kept because the CVE record for this class is real, not
+      # because we have evidence it works.

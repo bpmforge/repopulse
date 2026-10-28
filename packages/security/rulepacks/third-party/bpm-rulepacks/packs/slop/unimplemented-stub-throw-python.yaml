@@ -1,0 +1,37 @@
+rules:
+  - id: bpm-slop-unimplemented-stub-throw-python
+    languages: [python]
+    severity: WARNING
+    message: >
+      Function body raises NotImplementedError (ANTI_SLOP R-27: Unimplemented
+      Stubs as Features) outside an @abstractmethod-decorated method. Callers
+      — including other AI-generated code that sees this function in
+      context — get a runtime error or treat the stub as a real
+      implementation. Stubs are only acceptable on an explicit TODO branch
+      called out in the PR description; never export or ship a stub as a
+      completed feature. (Deliberate abstract-base-class stubs decorated
+      with @abstractmethod are excluded — that is the idiomatic Python way
+      to declare an interface method with no implementation.)
+    patterns:
+      - pattern-either:
+          - pattern: |
+              def $FUNC(...):
+                  raise NotImplementedError
+          - pattern: |
+              def $FUNC(...):
+                  raise NotImplementedError(...)
+      - pattern-not: |
+          @abstractmethod
+          def $FUNC(...):
+              ...
+      - pattern-not: |
+          @abc.abstractmethod
+          def $FUNC(...):
+              ...
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-27"
+      cwe: [1078]
+      confidence: medium
+      concept: code_quality
+      since: "0.1.0"

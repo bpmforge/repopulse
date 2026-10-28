@@ -1,0 +1,84 @@
+rules:
+  - id: bpm-framework-fastify-route-missing-schema
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      A Fastify route handler is registered with no `schema` option (Fastify
+      framework knowledge, CWE-20: Improper Input Validation). Without a JSON
+      Schema, Fastify performs no request validation or response
+      serialization allow-listing — malformed or attacker-controlled bodies,
+      query strings, and params reach the handler unchecked. Add a `schema`
+      option (`body`/`querystring`/`params`/`response`) to the route.
+    patterns:
+      - pattern-either:
+          - pattern: $APP.get($ROUTE, $HANDLER)
+          - pattern: $APP.post($ROUTE, $HANDLER)
+          - pattern: $APP.put($ROUTE, $HANDLER)
+          - pattern: $APP.patch($ROUTE, $HANDLER)
+          - pattern: $APP.delete($ROUTE, $HANDLER)
+      - metavariable-regex:
+          # Fastify's own convention (and this pack's fixtures) name the
+          # instance `fastify` -- the encapsulated-plugin parameter is
+          # documented that way. Anchored so it can't substring-match a name
+          # like `app`/`router`, which is how Express route registrations
+          # (app.get/router.get -- no schema concept in Express) were
+          # false-firing on this rule.
+          metavariable: $APP
+          regex: '^fastify$'
+      - metavariable-pattern:
+          metavariable: $ROUTE
+          patterns:
+            - pattern: '"..."'
+      - metavariable-pattern:
+          metavariable: $HANDLER
+          patterns:
+            - pattern-not: '"..."'
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [20]
+      framework: fastify
+      confidence: medium
+      concept: input_validation
+      since: "0.1.0"
+  - id: bpm-framework-fastify-route-missing-schema-3arg
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      A Fastify route handler is registered with an options object that has no
+      `schema` key (Fastify framework knowledge, CWE-20: Improper Input
+      Validation). Without a JSON Schema, Fastify performs no request
+      validation or response serialization allow-listing — malformed or
+      attacker-controlled bodies, query strings, and params reach the handler
+      unchecked. Add a `schema` option (`body`/`querystring`/`params`/`response`)
+      to the route.
+    patterns:
+      - pattern-either:
+          - pattern: $APP.get($ROUTE, $OPTS, $HANDLER)
+          - pattern: $APP.post($ROUTE, $OPTS, $HANDLER)
+          - pattern: $APP.put($ROUTE, $OPTS, $HANDLER)
+          - pattern: $APP.patch($ROUTE, $OPTS, $HANDLER)
+          - pattern: $APP.delete($ROUTE, $OPTS, $HANDLER)
+      - metavariable-regex:
+          # See the 2-arg rule above: anchored to the Fastify instance's
+          # conventional name so Express's app.get/router.get (a 3rd
+          # positional arg there is Express middleware, not a Fastify
+          # options/schema object) doesn't false-fire.
+          metavariable: $APP
+          regex: '^fastify$'
+      - metavariable-pattern:
+          metavariable: $ROUTE
+          patterns:
+            - pattern: '"..."'
+      - metavariable-pattern:
+          metavariable: $OPTS
+          patterns:
+            - pattern-not: '{ ..., schema: $S, ... }'
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [20]
+      framework: fastify
+      confidence: medium
+      concept: input_validation
+      since: "0.1.0"

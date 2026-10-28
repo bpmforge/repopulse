@@ -1,0 +1,37 @@
+rules:
+  - id: bpm-house-control-char-in-string-literal
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      A string literal contains a raw non-printable control character. It is
+      invisible in every editor, diff, and code review — the line looks like an
+      empty or ordinary string while carrying a byte the code depends on. If it
+      is load-bearing (a delimiter, a sentinel, a separator), the next person to
+      tidy that line silently breaks the behaviour it protects, with no test
+      failing and nothing to see in the diff. Write it as an explicit escape
+      instead, so it is visible and its purpose can be commented.
+    pattern-regex: '["''][^"''\n]*[\x01-\x08\x0B\x0C\x0E-\x1F][^"''\n]*["'']'
+    metadata:
+      license: proprietary
+      provenance: "derived:lodestone/SLOP-invisible-delimiter"
+      cwe: [1041]
+      confidence: high
+      concept: code_quality
+      domain: slop
+      since: "0.2.0"
+      # From an LLM slop review of lodestone (src/metrics/duplication.ts:211).
+      # The line renders as a concatenation with an empty string and actually
+      # contains a raw SOH (0x01) byte used as an undocumented token-join
+      # delimiter — confirmed independently with `od -c`.
+      #
+      # It is doing real work: it closes a hash-collision gap the surrounding
+      # code exists to close. One well-meant cleanup reopens that gap silently.
+      #
+      # Fleet prevalence: ONE site across lodestone, quarry, shipwright,
+      # threatforge and repopulse. Low volume by construction, and that is the
+      # point — this defect is invisible to every other form of review we have,
+      # including a careful human reading the file.
+      #
+      # \x09 (tab), \x0A (newline) and \x0D (carriage return) are deliberately
+      # NOT in the class: they are ordinary, visible-by-convention whitespace in
+      # source and flagging them would bury the byte that matters.

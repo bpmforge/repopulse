@@ -1,0 +1,22 @@
+rules:
+  - id: bpm-owasp-a05-stack-trace-exposure
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      The raw exception stack trace is sent in the HTTP response (OWASP
+      A05:2021, CWE-209: Generation of Error Message Containing Sensitive
+      Information). Stack traces leak file paths, dependency versions, and
+      internal logic to any client. Log the full error server-side and return a
+      generic message to the client.
+    pattern-either:
+      - pattern: $RES.send($ERR.stack)
+      - pattern: 'res.json({ error: $ERR.stack, ... })'
+    metadata:
+      license: proprietary
+      provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A05"
+      cwe: [209]
+      owasp: "A05:2021"
+      confidence: high
+      concept: logging_audit
+      since: "0.1.0"
+

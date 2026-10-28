@@ -1,0 +1,25 @@
+rules:
+  - id: bpm-owasp-a01-client-trusted-role
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      Authorization decision trusts a client-supplied flag (req.body/req.query)
+      instead of the server-side session/role (OWASP A01:2021, CWE-602: Client-
+      Side Enforcement of Server-Side Security). An attacker can set this field
+      directly in the request to escalate privilege. Look up the role/permission
+      from the authenticated session or database instead.
+    pattern-either:
+      - pattern: |
+          if ($REQ.body.isAdmin) { ... }
+      - pattern: |
+          if ($REQ.body.role === $VAL) { ... }
+      - pattern: |
+          if ($REQ.query.admin) { ... }
+    metadata:
+      license: proprietary
+      provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A01"
+      cwe: [602]
+      owasp: "A01:2021"
+      confidence: medium
+      concept: authorization
+      since: "0.1.0"

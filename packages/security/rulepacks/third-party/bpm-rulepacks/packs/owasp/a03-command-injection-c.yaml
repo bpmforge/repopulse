@@ -1,0 +1,34 @@
+rules:
+  - id: bpm-owasp-a03-command-injection-c
+    languages: [c, cpp]
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - pattern: getenv($X)
+      - pattern: argv[$I]
+    pattern-sinks:
+      - pattern: system($SINK)
+      - pattern: popen($SINK, $MODE)
+      - pattern: execl($SINK, ...)
+      - pattern: execlp($SINK, ...)
+      - pattern: execvp($SINK, ...)
+      - pattern: execve($SINK, ...)
+    message: >
+      An environment variable or command-line argument reaches system(),
+      popen(), or an exec*() call as the command/executable path (OWASP
+      A03:2021, CWE-78: OS Command Injection). system() and popen() pass
+      their argument to /bin/sh -c, so shell metacharacters (;, |, &&, `` `
+      ``) let an attacker chain arbitrary commands; the exec*() family
+      invokes the named program directly, so an attacker can redirect
+      execution to an unintended binary. Validate the value against a
+      strict allowlist before use, or avoid a shell entirely by calling
+      execve() with a fixed, validated executable path and an explicit
+      argv array (never passed through /bin/sh).
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [78]
+      owasp: "A03:2021"
+      confidence: high
+      concept: command_execution
+      since: "0.1.0"

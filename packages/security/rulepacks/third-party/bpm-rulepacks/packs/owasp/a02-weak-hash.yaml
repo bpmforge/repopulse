@@ -1,0 +1,20 @@
+rules:
+  - id: bpm-owasp-a02-weak-hash
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      MD5/SHA-1 are cryptographically broken for security use (collision attacks)
+      and must not be used for password hashing, signatures, or integrity checks
+      (OWASP A02:2021, CWE-327: Use of a Broken or Risky Cryptographic Algorithm).
+      Use bcrypt/argon2 for passwords, SHA-256+ for integrity/signing.
+    pattern-either:
+      - pattern: crypto.createHash("md5")
+      - pattern: crypto.createHash("sha1")
+    metadata:
+      license: proprietary
+      provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A02"
+      cwe: [327]
+      owasp: "A02:2021"
+      confidence: high
+      concept: cryptography
+      since: "0.1.0"

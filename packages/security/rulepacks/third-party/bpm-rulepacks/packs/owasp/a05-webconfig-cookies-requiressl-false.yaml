@@ -1,0 +1,23 @@
+rules:
+  - id: bpm-owasp-a05-webconfig-cookies-requiressl-false
+    languages: [xml]
+    severity: WARNING
+    message: >
+      `<httpCookies requireSSL="false">` is set in web.config (OWASP
+      A05:2021: Security Misconfiguration, CWE-614: Sensitive Cookie
+      Without 'Secure' Attribute). Without requireSSL, ASP.NET issues
+      cookies — including the session/forms-auth cookie — without the
+      Secure attribute, so a network attacker on an unencrypted or
+      downgraded connection can capture them. Set `requireSSL="true"` on
+      every deployment that serves HTTPS (which should be all of them).
+    pattern-either:
+      - pattern: <httpCookies requireSSL="false" ... />
+      - pattern: <httpCookies requireSSL="false" ...></httpCookies>
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [614]
+      owasp: "A05:2021"
+      confidence: high
+      concept: session_management
+      since: "0.1.0"

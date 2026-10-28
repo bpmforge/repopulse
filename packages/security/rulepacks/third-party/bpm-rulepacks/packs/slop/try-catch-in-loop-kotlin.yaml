@@ -1,0 +1,28 @@
+rules:
+  - id: bpm-slop-try-catch-in-loop-kotlin
+    languages: [kotlin]
+    severity: WARNING
+    message: >
+      try/catch inside a loop (ANTI_SLOP R-02) — a try/catch per iteration
+      prevents JIT/escape-analysis optimizations the JVM can otherwise
+      apply to the loop body, and it's a common sign the exception is
+      being used to skip items rather than validate before the loop. Wrap
+      the loop, not each iteration; validate before the loop if items can
+      be invalid.
+    patterns:
+      - pattern: |
+          try { ... } catch ($ERR: $EXC) { ... }
+      - pattern-either:
+          - pattern-inside: |
+              for ($X in $Y) { ... }
+          - pattern-inside: |
+              while (...) { ... }
+          - pattern-inside: |
+              do { ... } while (...)
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-02"
+      cwe: [1050]
+      confidence: medium
+      concept: logging_audit
+      since: "0.1.0"

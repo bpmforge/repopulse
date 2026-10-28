@@ -1,0 +1,32 @@
+rules:
+  - id: bpm-framework-gin-cors-allow-all
+    languages: [go]
+    severity: ERROR
+    pattern-either:
+      - pattern: 'cors.Config{..., AllowAllOrigins: true, ...}'
+      - pattern: 'cors.Config{..., AllowOrigins: []string{"*"}, ..., AllowCredentials: true, ...}'
+    message: >
+      A gin-contrib/cors Config sets AllowAllOrigins: true, or pairs a
+      wildcard AllowOrigins: []string{"*"} with AllowCredentials: true
+      (Gin/gin-contrib framework knowledge, CWE-942: Permissive
+      Cross-domain Policy with Untrusted Domains). AllowAllOrigins reflects
+      any request's Origin header verbatim, letting any website make
+      credentialed cross-origin requests to this API and read the
+      response; pairing a literal "*" origin list with AllowCredentials
+      has the same effect (the CORS spec forbids serving "*" alongside
+      credentials, but gin-contrib/cors will still start up misconfigured
+      this way). Replace the wildcard with an explicit AllowOrigins list of
+      the origins that actually need access, or use AllowOriginFunc for a
+      dynamic allow-list check.
+    # Primary source: gin-contrib/cors README (Config fields) + MDN CORS
+    # docs (wildcard + credentials interaction) + OWASP A05:2021 Security
+    # Misconfiguration.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [942]
+      owasp: "A05:2021"
+      framework: gin
+      confidence: high
+      concept: http_headers_cors
+      since: "0.1.0"

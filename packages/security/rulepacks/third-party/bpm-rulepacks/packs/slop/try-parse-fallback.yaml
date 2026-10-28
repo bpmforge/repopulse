@@ -1,0 +1,34 @@
+rules:
+  - id: bpm-slop-try-parse-fallback
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      try/catch around JSON.parse used as control flow (ANTI_SLOP R-03) —
+      exceptions are far more expensive than conditional checks and this
+      silently hides the parse failure. Use a guarded try-parse helper that
+      validates before parsing, or surfaces the failure explicitly.
+    pattern-either:
+      - pattern: |
+          try {
+            ...
+            JSON.parse(...)
+            ...
+          } catch {
+            return $VAL;
+          }
+      - pattern: |
+          try {
+            ...
+            JSON.parse(...)
+            ...
+          } catch ($ERR) {
+            return $VAL;
+          }
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-03"
+      cwe: [390]
+      confidence: medium
+      concept: logging_audit
+      since: "0.1.0"
+

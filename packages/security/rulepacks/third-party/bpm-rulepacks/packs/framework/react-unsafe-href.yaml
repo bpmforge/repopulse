@@ -1,0 +1,37 @@
+rules:
+  - id: bpm-framework-react-unsafe-href
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      A JSX href/src is assigned a non-constant value (or a hardcoded
+      javascript: scheme) with no scheme validation (React/DOM framework
+      knowledge, CWE-79 / CWE-601: Cross-Site Scripting via javascript: URL,
+      Open Redirect). If the value is attacker-influenced (props, query
+      params, CMS content), an attacker can supply `javascript:...` to
+      execute script on click (href) or on render (iframe src), or redirect
+      to an attacker-controlled origin. Validate the URL scheme (e.g. an
+      `isSafeUrl()` allow-list of http/https/mailto) or run it through a
+      sanitizer before assigning to href/src.
+    patterns:
+      - pattern-either:
+          - pattern: <a href={$URL}>...</a>
+          - pattern: <a href="javascript:...">...</a>
+          - pattern: <a href={"javascript:..."}>...</a>
+          - pattern: <iframe src="javascript:..." />
+          - pattern: <iframe src={"javascript:..."} />
+      - pattern-not: <a href={$SAFE.sanitize(...)}>...</a>
+      - pattern-not: <a href={isSafeUrl(...)}>...</a>
+      - metavariable-pattern:
+          metavariable: $URL
+          patterns:
+            - pattern-not: '"..."'
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [79]
+      owasp: "A03:2021"
+      framework: react
+      confidence: medium
+      concept: input_validation
+      since: "0.1.0"
+

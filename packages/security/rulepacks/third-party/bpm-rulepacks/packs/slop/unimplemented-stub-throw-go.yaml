@@ -1,0 +1,27 @@
+rules:
+  - id: bpm-slop-unimplemented-stub-throw-go
+    languages: [go]
+    severity: WARNING
+    message: >
+      Function body is a "not implemented" stub (ANTI_SLOP R-27:
+      Unimplemented Stubs as Features) — panic($MSG), return errors.New($MSG),
+      or return fmt.Errorf($MSG) with that message masquerade as a real
+      implementation. Callers, including other AI-generated code that sees
+      this function in context, get a runtime panic or error at call time.
+      Stubs are only acceptable on an explicit TODO branch called out in the
+      PR description; never export or ship a stub as a completed feature.
+    patterns:
+      - pattern-either:
+          - pattern: panic($MSG)
+          - pattern: return errors.New($MSG)
+          - pattern: return fmt.Errorf($MSG)
+      - metavariable-regex:
+          metavariable: $MSG
+          regex: (?i)"(.*(not.?implemented|unimplemented|todo.*implement).*)"
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-27"
+      cwe: [1078]
+      confidence: high
+      concept: code_quality
+      since: "0.1.0"

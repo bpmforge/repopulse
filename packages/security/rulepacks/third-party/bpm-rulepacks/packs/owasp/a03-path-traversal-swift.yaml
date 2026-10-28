@@ -1,0 +1,29 @@
+rules:
+  - id: bpm-owasp-a03-path-traversal-swift
+    languages: [swift]
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - pattern: $COMPONENTS.queryItems
+      - pattern: $TEXTFIELD.text
+    pattern-sinks:
+      - patterns:
+          - pattern: '$FM.contents(atPath: $SINK)'
+          - focus-metavariable: $SINK
+    message: >
+      Untrusted input (a URL query item or a text field) reaches
+      FileManager's contents(atPath:) (OWASP A03:2021, CWE-22: Path
+      Traversal). An attacker can supply "../" sequences to escape the
+      intended sandbox directory and read files elsewhere on disk (other
+      app data, or — with a symlink — outside the sandbox entirely). Map
+      the input against a fixed allowlist of known-safe filenames (a
+      switch/dictionary literal) before it reaches any FileManager call,
+      rather than concatenating the tainted value into the path.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [22]
+      owasp: "A03:2021"
+      confidence: high
+      concept: file_upload_path
+      since: "0.1.0"

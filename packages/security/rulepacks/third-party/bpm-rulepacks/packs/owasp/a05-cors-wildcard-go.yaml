@@ -1,0 +1,21 @@
+rules:
+  - id: bpm-owasp-a05-cors-wildcard-go
+    languages: [go]
+    severity: WARNING
+    message: >
+      An HTTP handler sets Access-Control-Allow-Origin to a wildcard ("*"),
+      permitting every origin to make cross-origin requests to this
+      endpoint (OWASP A05:2021, CWE-942: Overly Permissive Cross-domain
+      Whitelist). This lets any site read the response cross-origin,
+      including authenticated data if credentials are ever layered on
+      later. Replace the literal with an explicit, minimal allowlist of
+      trusted origins.
+    pattern: $W.Header().Set("Access-Control-Allow-Origin", "*")
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [942]
+      owasp: "A05:2021"
+      confidence: high
+      concept: http_headers_cors
+      since: "0.1.0"

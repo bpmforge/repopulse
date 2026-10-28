@@ -1,0 +1,43 @@
+rules:
+  - id: bpm-owasp-mem-inherently-dangerous-function
+    languages: [c, cpp]
+    severity: ERROR
+    message: >
+      An inherently dangerous C input function is used (CWE-242: Use of
+      Inherently Dangerous Function). gets() reads until a newline with no
+      bound of any kind — the caller cannot make it safe, which is why it
+      was removed from the C11 standard library entirely. scanf("%s", buf)
+      is the same defect with a different spelling: a bare "%s" conversion
+      has no field width, so it writes until whitespace regardless of the
+      destination's size. Neither has a safe calling convention. Use
+      fgets(buf, sizeof(buf), stdin) for gets, and an explicit width for
+      scanf (e.g. "%63s" for a 64-byte buffer).
+    pattern-either:
+      - pattern: gets($DST)
+      - patterns:
+          - pattern: scanf($FMT, $BUF)
+          - metavariable-regex:
+              metavariable: $FMT
+              regex: '^"%s"$'
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [242]
+      confidence: high
+      concept: memory_safety
+      since: "0.2.0"
+      # Split out of mem-unsafe-string-functions (2026-07-29) on corpus
+      # evidence, not taste. Broken down by which function actually fired
+      # across all 64,099 Juliet C/C++ cases:
+      #
+      #   gets      18 TP /   0 FP   <- this rule. Every scored TP the
+      #                                 original rule earned came from here.
+      #   strcpy     0 TP / 350 FP
+      #   strcat     0 TP / 286 FP
+      #   sprintf    0 TP /  64 FP
+      #
+      # gets() has no safe calling convention, so "the call exists" IS the
+      # finding and precision is perfect. strcpy/strcat/sprintf are merely
+      # unbounded — usually safe in practice — and belong in a separate,
+      # explicitly low-confidence rule rather than dragging a flawless
+      # CWE-242 detector down to 0.021 precision alongside them.

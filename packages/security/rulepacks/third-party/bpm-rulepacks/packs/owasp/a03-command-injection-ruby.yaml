@@ -1,0 +1,42 @@
+rules:
+  - id: bpm-owasp-a03-command-injection-ruby
+    languages: [ruby]
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - pattern: params[$X]
+      - pattern: params.$X
+    pattern-sanitizers:
+      - pattern: Shellwords.escape(...)
+      - pattern: Shellwords.join(...)
+    pattern-sinks:
+      - pattern: system($SINK)
+      - pattern: Kernel.system($SINK)
+      - pattern: exec($SINK)
+      - pattern: Kernel.exec($SINK)
+      - pattern: '`$SINK`'
+      - pattern: IO.popen($SINK)
+      - pattern: Open3.capture2($SINK)
+      - pattern: Open3.capture2e($SINK)
+      - pattern: Open3.capture3($SINK)
+      - pattern: Open3.popen3($SINK)
+    message: >
+      Unsanitized params[] input reaches system(), exec(), the backtick
+      shell-execution operator, IO.popen(), or Open3.capture2/3/popen3
+      (OWASP A03:2021, CWE-78: OS Command Injection). When any of these
+      is called with a single interpolated string, Ruby hands it to
+      `/bin/sh -c` and an attacker can inject shell metacharacters
+      (`;`, `|`, `` ` ``, `$()`) to run arbitrary commands with the
+      application's privileges. Prefer the multi-argument form
+      (`system("cmd", arg1, arg2)` / `Open3.capture2("cmd", arg1, arg2)`),
+      which bypasses the shell entirely; if a single command string is
+      unavoidable, escape every user-controlled argument with
+      Shellwords.escape() first.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [78]
+      owasp: "A03:2021"
+      confidence: high
+      concept: command_execution
+      since: "0.1.0"

@@ -1,0 +1,17 @@
+rules:
+  - id: bpm-slop-step-by-step-narration-kotlin
+    languages: [kotlin]
+    severity: WARNING
+    message: >
+      Step-by-step narration comment (ANTI_SLOP R-14) — numbered "Step N:"
+      prose blocks mean the code needs narration to be understood. Fix the
+      code (name things well enough that the sequence is self-evident),
+      not the comments.
+    pattern-regex: (?m)^\s*//\s*Step\s+\d+\s*[:.]
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-14"
+      cwe: [1078]
+      confidence: high
+      concept: code_quality
+      since: "0.1.0"

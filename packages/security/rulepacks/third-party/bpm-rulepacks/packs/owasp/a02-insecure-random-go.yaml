@@ -1,0 +1,28 @@
+rules:
+  - id: bpm-owasp-a02-insecure-random-go
+    languages: [go]
+    severity: WARNING
+    message: >
+      math/rand is used where a security-sensitive value (token, session
+      key, password reset code) is generated (OWASP A02:2021, CWE-330: Use
+      of Insufficiently Random Values). math/rand is a deterministic PRNG
+      seeded from a small state space; its output is predictable from a
+      handful of observed values, which breaks any token, session key, or
+      reset code derived from it. Use crypto/rand (rand.Read into a byte
+      slice, or crypto/rand's Int for a bounded value) for anything
+      security-sensitive.
+    pattern-either:
+      - pattern: rand.Intn(...)
+      - pattern: rand.Int31()
+      - pattern: rand.Int31n(...)
+      - pattern: rand.Int63()
+      - pattern: rand.Int63n(...)
+      - pattern: rand.Float64()
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [330]
+      owasp: "A02:2021"
+      confidence: medium
+      concept: cryptography
+      since: "0.1.0"

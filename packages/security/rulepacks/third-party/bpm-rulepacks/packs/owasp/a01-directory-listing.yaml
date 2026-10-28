@@ -1,0 +1,19 @@
+rules:
+  - id: bpm-owasp-a01-directory-listing
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      serve-index enables directory listing, exposing the full file tree of the
+      served directory to any visitor (OWASP A01:2021, CWE-548). Remove it or
+      gate it behind authentication and an explicit allowlist of listable paths.
+    pattern-either:
+      - pattern: require("serve-index")
+      - pattern: import $NAME from "serve-index"
+    metadata:
+      license: proprietary
+      provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A01"
+      cwe: [548]
+      owasp: "A01:2021"
+      confidence: high
+      concept: infra_iac
+      since: "0.1.0"

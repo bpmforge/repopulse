@@ -1,0 +1,31 @@
+rules:
+  - id: bpm-owasp-a03-path-traversal-go
+    languages: [go]
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - pattern: $REQ.URL.Query().Get($X)
+      - pattern: $REQ.FormValue($X)
+      - pattern: $REQ.PostFormValue($X)
+    pattern-sinks:
+      - pattern: os.Open($SINK)
+      - pattern: os.OpenFile($SINK, ...)
+      - pattern: os.ReadFile($SINK)
+      - pattern: os.Create($SINK)
+      - pattern: filepath.Join(...)
+    message: >
+      Unsanitized HTTP request input reaches a filesystem call (os.Open,
+      os.ReadFile, os.Create) or a filepath.Join used to build a filesystem
+      path (OWASP A03:2021, CWE-22: Path Traversal). An attacker can supply
+      "../" sequences to escape the intended directory and read or write
+      files elsewhere on disk. Resolve the joined path with filepath.Clean
+      and verify it still has the intended base directory as a prefix
+      before using it in any filesystem call.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [22]
+      owasp: "A03:2021"
+      confidence: high
+      concept: file_upload_path
+      since: "0.1.0"

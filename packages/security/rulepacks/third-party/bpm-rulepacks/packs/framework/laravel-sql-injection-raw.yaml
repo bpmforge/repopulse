@@ -1,0 +1,55 @@
+rules:
+  - id: bpm-framework-laravel-sql-injection-raw
+    languages: [php]
+    severity: ERROR
+    pattern-either:
+      - pattern: DB::raw($A . $B)
+      - pattern: $QUERY->whereRaw($A . $B)
+      - pattern: $QUERY->selectRaw($A . $B)
+      - pattern: $QUERY->orderByRaw($A . $B)
+      - patterns:
+          - pattern: DB::raw($EXPR)
+          - metavariable-regex:
+              metavariable: $EXPR
+              regex: '.*\{\$[A-Za-z_].*'
+      - patterns:
+          - pattern: $QUERY->whereRaw($EXPR)
+          - metavariable-regex:
+              metavariable: $EXPR
+              regex: '.*\{\$[A-Za-z_].*'
+      - patterns:
+          - pattern: $QUERY->selectRaw($EXPR)
+          - metavariable-regex:
+              metavariable: $EXPR
+              regex: '.*\{\$[A-Za-z_].*'
+      - patterns:
+          - pattern: $QUERY->orderByRaw($EXPR)
+          - metavariable-regex:
+              metavariable: $EXPR
+              regex: '.*\{\$[A-Za-z_].*'
+    message: >
+      A raw-SQL query builder method (`DB::raw()`, `whereRaw()`,
+      `selectRaw()`, or `orderByRaw()`) receives a string built by string
+      concatenation or double-quoted `"{$var}"` interpolation instead of a
+      fixed literal with bound placeholders (Laravel query builder
+      framework knowledge, OWASP A03:2021: Injection, CWE-89: SQL
+      Injection). Laravel's `raw*()` methods bypass the query builder's
+      automatic parameter binding entirely — whatever string is passed is
+      sent to the database verbatim. If any part of that string traces
+      back to request input, an attacker can alter the query's structure.
+      Use a fixed string literal with `?` placeholders and pass the values
+      through the bindings array instead — e.g.
+      `whereRaw('name = ?', [$name])` — or avoid `raw*()` and express the
+      condition with the standard query builder methods.
+    # Primary source: Laravel docs (Query Builder "Raw Expressions" §,
+    # which explicitly warns raw expressions are injected into the query
+    # as strings and could create SQL injection vulnerabilities) + CWE-89.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [89]
+      owasp: "A03:2021"
+      framework: laravel
+      confidence: high
+      concept: sql_database
+      since: "0.1.0"

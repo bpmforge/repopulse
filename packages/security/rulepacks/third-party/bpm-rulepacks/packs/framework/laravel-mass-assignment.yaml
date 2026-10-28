@@ -1,0 +1,45 @@
+rules:
+  - id: bpm-framework-laravel-mass-assignment
+    languages: [php]
+    severity: ERROR
+    pattern-either:
+      - pattern: |
+          class $C {
+            ...
+            protected $guarded = [];
+            ...
+          }
+      - pattern: |
+          class $C {
+            ...
+            protected $guarded = array();
+            ...
+          }
+      - pattern: $MODEL::create($request->all())
+      - pattern: $MODEL->update($request->all())
+      - pattern: $MODEL->fill($request->all())
+    message: >
+      Either an Eloquent model disables mass-assignment protection entirely
+      (`protected $guarded = [];` allows every attribute to be set) or the
+      full, un-filtered request payload (`$request->all()`) is passed
+      straight into `create()`/`update()`/`fill()` (Laravel Eloquent
+      framework knowledge, OWASP A04:2021: Insecure Design, CWE-915:
+      Improperly Controlled Modification of Dynamically-Determined Object
+      Attributes). An attacker can add extra fields to the request body —
+      `is_admin`, `role`, `account_balance` — that the form never exposed,
+      and Eloquent will happily set them. Declare an explicit `$fillable`
+      allow-list on the model (never an empty `$guarded`), and pass only
+      the validated/expected fields — `$request->validated()` from a Form
+      Request, or `$request->only([...])` — into `create()`/`update()`/
+      `fill()`, never the raw `all()` payload.
+    # Primary source: Laravel docs (Eloquent "Mass Assignment" §) + CWE-915 +
+    # OWASP A04:2021 Insecure Design.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [915]
+      owasp: "A04:2021"
+      framework: laravel
+      confidence: medium
+      concept: authorization
+      since: "0.1.0"

@@ -1,0 +1,23 @@
+rules:
+  - id: bpm-framework-react-target-blank-noopener
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      An anchor with target="_blank" has no rel="noopener" (React/DOM
+      framework knowledge, CWE-1022: Use of Web Link to Untrusted Target with
+      window.opener Access — "reverse tabnabbing"). The opened page can access
+      `window.opener` and navigate the original tab to a phishing page. Add
+      rel="noopener noreferrer" alongside target="_blank".
+    patterns:
+      - pattern: <a target="_blank" ...></a>
+      - pattern-not: <a target="_blank" rel="noopener noreferrer" ...></a>
+      - pattern-not: <a target="_blank" rel="noreferrer noopener" ...></a>
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [1022]
+      framework: react
+      confidence: high
+      concept: input_validation
+      since: "0.1.0"
+

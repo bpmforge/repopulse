@@ -1,0 +1,40 @@
+rules:
+  - id: bpm-slop-unimplemented-stub-throw-kotlin
+    languages: [kotlin]
+    severity: WARNING
+    message: >
+      Kotlin stdlib TODO() stub marker in a function body (ANTI_SLOP R-27:
+      Unimplemented Stubs as Features). TODO() always throws
+      NotImplementedError at call time — callers, including other
+      AI-generated code that sees this function in context, get a runtime
+      crash or treat the stub as a real implementation. Stubs are only
+      acceptable on an explicit TODO branch called out in the PR
+      description; never export or ship a stub as a completed feature.
+    pattern-either:
+      - pattern: TODO()
+      - pattern: TODO($MSG)
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-27"
+      cwe: [1078]
+      confidence: high
+      concept: code_quality
+      since: "0.1.0"
+
+  - id: bpm-slop-unimplemented-stub-throw-notimplementederror-kotlin
+    languages: [kotlin]
+    severity: WARNING
+    message: >
+      NotImplementedError thrown directly from a method with no real
+      implementation (ANTI_SLOP R-27: Unimplemented Stubs as Features).
+      Same failure mode as the bare TODO() stub — implement the method or
+      mark it as an explicit TODO branch in the PR description, never ship
+      it as done.
+    pattern: throw NotImplementedError(...)
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-27"
+      cwe: [1078]
+      confidence: high
+      concept: code_quality
+      since: "0.1.0"

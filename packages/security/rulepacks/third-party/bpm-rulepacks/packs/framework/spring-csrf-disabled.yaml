@@ -1,0 +1,30 @@
+rules:
+  - id: bpm-framework-spring-csrf-disabled
+    languages: [java]
+    severity: WARNING
+    patterns:
+      - pattern-either:
+          - pattern: $HTTP.csrf().disable()
+          - pattern: $HTTP.csrf($CSRF -> $CSRF.disable())
+    message: >
+      Spring Security's CSRF protection is explicitly disabled (Spring
+      Security framework knowledge, CWE-352: Cross-Site Request Forgery).
+      This is sometimes legitimate for a pure token-authenticated JSON API
+      that never relies on session cookies, but it removes CSRF defense
+      for every route the SecurityFilterChain covers. Confirm every
+      protected endpoint uses a session-independent auth mechanism (a
+      bearer token validated on each request, not a cookie); otherwise
+      leave CSRF protection enabled and use
+      `CookieCsrfTokenRepository.withHttpOnlyFalse()` for SPA clients
+      instead of disabling it outright.
+    # Primary source: Spring Security Reference (CSRF §) + OWASP CSRF
+    # Prevention Cheat Sheet.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [352]
+      owasp: "A01:2021"
+      framework: spring
+      confidence: high
+      concept: session_management
+      since: "0.1.0"

@@ -1,0 +1,23 @@
+rules:
+  - id: bpm-house-non-js-regex-anchor
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >
+      This regular expression uses anchor or group syntax that JavaScript does
+      not support, so it silently matches something other than intended. `\Z`
+      and `\A` are Python/Perl string anchors — JavaScript has no such escapes,
+      and `\Z` matches a literal "Z". `(?P<name>...)` is Python's named-group
+      syntax; JavaScript spells it `(?<name>...)`. None of these raise an
+      error: the pattern compiles, runs, and quietly fails. Use `$` (with the
+      `m` flag for end-of-line rather than end-of-string) and `(?<name>...)`.
+    pattern-either:
+      - pattern-regex: '/(?:[^/\n\\]|\\.)*\\[ZA](?:[^/\n\\]|\\.)*/[dgimsuvy]*'
+      - pattern-regex: '\(\?P<'
+    metadata:
+      license: proprietary
+      provenance: "derived:quarry/SLOP-nonjs-regex-anchor"
+      cwe: [1041]
+      confidence: high
+      concept: code_quality
+      domain: slop
+      since: "0.2.0"

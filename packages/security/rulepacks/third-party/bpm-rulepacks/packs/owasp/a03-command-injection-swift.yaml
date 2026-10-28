@@ -1,0 +1,29 @@
+rules:
+  - id: bpm-owasp-a03-command-injection-swift
+    languages: [swift]
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - pattern: $COMPONENTS.queryItems
+      - pattern: $TEXTFIELD.text
+    pattern-sinks:
+      - pattern: $TASK.arguments = $SINK
+    message: >
+      Untrusted input (a URL query item or a text field) reaches the
+      `arguments` array of a Process/NSTask (OWASP A03:2021, CWE-78: OS
+      Command Injection). When launchPath points at a shell (`/bin/sh`,
+      `/bin/bash`) with a `-c` argument, or when the tainted value is
+      itself passed straight to an interpreter, an attacker can inject
+      shell metacharacters or extra arguments to run arbitrary commands
+      with the app's privileges. Never build process arguments from
+      unvalidated input; validate against a fixed allowlist (a
+      switch/dictionary mapping the input to a known-safe literal) before
+      it reaches Process.arguments, and avoid invoking a shell at all.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [78]
+      owasp: "A03:2021"
+      confidence: high
+      concept: command_execution
+      since: "0.1.0"

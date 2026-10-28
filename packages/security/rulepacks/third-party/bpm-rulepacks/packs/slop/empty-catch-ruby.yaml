@@ -1,0 +1,31 @@
+rules:
+  - id: bpm-slop-empty-catch-ruby
+    languages: [ruby]
+    severity: WARNING
+    message: >
+      Empty or bare rescue block swallows the error (ANTI_SLOP R-01) with
+      no handling, logging, or re-raise — a silent rescue hides failures
+      the audit must surface. Handle it, log it with context, or re-raise.
+    pattern-either:
+      - pattern: |
+          begin
+            ...
+          rescue => $ERR
+          end
+      - pattern: |
+          begin
+            ...
+          rescue
+          end
+      - pattern: |
+          begin
+            ...
+          rescue $EXC => $ERR
+          end
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-01"
+      cwe: [390]
+      confidence: high
+      concept: logging_audit
+      since: "0.1.0"

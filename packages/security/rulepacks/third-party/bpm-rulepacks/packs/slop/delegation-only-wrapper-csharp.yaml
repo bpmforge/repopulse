@@ -1,0 +1,28 @@
+rules:
+  - id: bpm-slop-delegation-only-wrapper-csharp
+    languages: [csharp]
+    severity: INFO
+    message: >
+      Delegation-only wrapper method (ANTI_SLOP R-06) forwards to a
+      dependency's method of the same name with the same arguments and adds
+      no transformation, validation, caching, or error mapping. Inline the
+      dependency call at the call site, or add real logic to justify the
+      wrapper's existence.
+    pattern-either:
+      - pattern: |
+          $RET $METHOD()
+          {
+              return $DEP.$METHOD();
+          }
+      - pattern: |
+          $RET $METHOD($ARGTYPE $ARG)
+          {
+              return $DEP.$METHOD($ARG);
+          }
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-06"
+      cwe: [710]
+      confidence: medium
+      concept: code_quality
+      since: "0.1.0"

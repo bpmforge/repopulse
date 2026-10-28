@@ -1,0 +1,63 @@
+rules:
+  - id: bpm-slop-fallback-hides-failure-rust
+    languages: [rust]
+    severity: WARNING
+    message: >
+      A `match` arm discards the error (`Err(_) => ...`) and returns a
+      default/empty value, or `.unwrap_or_default()` swallows the error of a
+      fallible I/O call (ANTI_SLOP R-10) — the caller cannot distinguish "no
+      data" from "the call failed"; monitoring misses the failure. Propagate
+      the error (`?`, `return Err(...)`) or at minimum log it before
+      defaulting — never discard it silently with `Err(_)`.
+    patterns:
+      - pattern-either:
+          # Two-arm `match` where the Ok arm is anything and the Err arm
+          # throws away the error binding (`_`, not `e`/`err`) and returns a
+          # fixed default. Binding-discarded via `_` is the same always-true
+          # discriminator the Go port uses (return with no reference to
+          # $ERR) and the Python port uses (bare `except:`): if the arm
+          # instead reads `Err(e) => { log(e); Default::default() }`, this
+          # shape does not match — the error was actually consulted.
+          - pattern: |
+              match $EXPR {
+                Ok($OKPAT) => $OKBODY,
+                Err(_) => Default::default(),
+              }
+          - pattern: |
+              match $EXPR {
+                Ok($OKPAT) => $OKBODY,
+                Err(_) => None,
+              }
+          - pattern: |
+              match $EXPR {
+                Ok($OKPAT) => $OKBODY,
+                Err(_) => vec![],
+              }
+          - pattern: |
+              match $EXPR {
+                Ok($OKPAT) => $OKBODY,
+                Err(_) => "",
+              }
+          - pattern: |
+              match $EXPR {
+                Ok($OKPAT) => $OKBODY,
+                Err(_) => String::new(),
+              }
+          # .unwrap_or_default() narrowed to the canonical fallible I/O call
+          # shapes (matches the confidence discipline already used by
+          # unwrap-expect-io-rust.yaml: File::open/fs::read/fs::read_to_string)
+          # rather than every .unwrap_or_default() in the file — an
+          # Option<T>::unwrap_or_default() on a plain computed value (e.g.
+          # `v.iter().max().copied().unwrap_or_default()`) is ordinary,
+          # non-failure-hiding defaulting and must stay clean.
+          - pattern: std::fs::read_to_string($X).unwrap_or_default()
+          - pattern: fs::read_to_string($X).unwrap_or_default()
+          - pattern: std::fs::read($X).unwrap_or_default()
+          - pattern: fs::read($X).unwrap_or_default()
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-10"
+      cwe: [390]
+      confidence: medium
+      concept: logging_audit
+      since: "0.1.0"

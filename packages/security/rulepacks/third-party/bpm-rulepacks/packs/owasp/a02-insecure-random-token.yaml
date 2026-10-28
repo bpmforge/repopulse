@@ -1,0 +1,18 @@
+rules:
+  - id: bpm-owasp-a02-insecure-random-token
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      Math.random() is not cryptographically secure and must not be used to
+      generate tokens, session IDs, password-reset codes, or API keys (OWASP
+      A02:2021, CWE-338: Use of Cryptographically Weak PRNG). Use
+      crypto.randomBytes()/crypto.randomUUID() instead.
+    pattern: Math.random().toString(36)
+    metadata:
+      license: proprietary
+      provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A02"
+      cwe: [338]
+      owasp: "A02:2021"
+      confidence: medium
+      concept: cryptography
+      since: "0.1.0"

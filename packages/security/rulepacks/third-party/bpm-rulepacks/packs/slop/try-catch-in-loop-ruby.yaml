@@ -1,0 +1,54 @@
+rules:
+  - id: bpm-slop-try-catch-in-loop-ruby
+    languages: [ruby]
+    severity: WARNING
+    message: >
+      begin/rescue inside a loop (ANTI_SLOP R-02) — a rescue per iteration
+      is a common sign the exception is being used to skip items rather
+      than validate before the loop, and it means one bad item silently
+      derails the whole loop's error handling. Wrap the loop, not each
+      iteration; validate before the loop if items can be invalid.
+    patterns:
+      - pattern-either:
+          - pattern: |
+              begin
+                ...
+              rescue => $ERR
+                ...
+              end
+          - pattern: |
+              begin
+                ...
+              rescue
+                ...
+              end
+          - pattern: |
+              begin
+                ...
+              rescue $EXC => $ERR
+                ...
+              end
+      - pattern-either:
+          - pattern-inside: |
+              $ARR.each do |$X|
+                ...
+              end
+          - pattern-inside: |
+              $ARR.each do |$K, $X|
+                ...
+              end
+          - pattern-inside: |
+              while $COND
+                ...
+              end
+          - pattern-inside: |
+              loop do
+                ...
+              end
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-02"
+      cwe: [1050]
+      confidence: medium
+      concept: logging_audit
+      since: "0.1.0"

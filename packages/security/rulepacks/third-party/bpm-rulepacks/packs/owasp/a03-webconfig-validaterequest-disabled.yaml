@@ -1,0 +1,28 @@
+rules:
+  - id: bpm-owasp-a03-webconfig-validaterequest-disabled
+    languages: [xml]
+    severity: ERROR
+    message: >
+      `<pages validateRequest="false">` is set in web.config (OWASP
+      A03:2021: Injection, CWE-79: Cross-Site Scripting). ASP.NET's
+      built-in request validation blocks obviously-malicious markup
+      (`<script`, etc.) in form fields, query string, and cookies before
+      your code ever sees it; disabling it removes that layer entirely
+      for every page under the setting's scope, re-opening reflected and
+      stored XSS on any output that isn't independently encoded. Leave
+      request validation on (`true`, the default) and, if a specific field
+      must legitimately accept markup, disable validation for that one
+      field only (`[ValidateInput(false)]` scoped to the action, or
+      `ValidateRequestMode="Disabled"` on the single control) with output
+      encoding at render time.
+    pattern-either:
+      - pattern: <pages validateRequest="false" ... />
+      - pattern: <pages validateRequest="false" ...></pages>
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [79]
+      owasp: "A03:2021"
+      confidence: high
+      concept: input_validation
+      since: "0.1.0"

@@ -1,0 +1,23 @@
+rules:
+  - id: bpm-owasp-a03-nosql-injection-passthrough
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      The raw request body/query object is passed directly into a MongoDB/Mongoose
+      query filter (OWASP A03:2021, CWE-943: Improper Neutralization of Special
+      Elements in Data Query Logic). An attacker can inject operators like
+      `$ne`/`$gt`/`$where` to bypass filters (NoSQL injection). Build an explicit
+      filter object picking only the expected, typed fields.
+    pattern-either:
+      - pattern: $MODEL.find($REQ.body)
+      - pattern: $MODEL.find($REQ.query)
+      - pattern: $MODEL.findOne($REQ.body)
+      - pattern: $MODEL.findOne($REQ.query)
+    metadata:
+      license: proprietary
+      provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A03"
+      cwe: [943]
+      owasp: "A03:2021"
+      confidence: medium
+      concept: sql_database
+      since: "0.1.0"

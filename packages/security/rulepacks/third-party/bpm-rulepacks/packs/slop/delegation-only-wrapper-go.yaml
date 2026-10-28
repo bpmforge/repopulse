@@ -1,0 +1,27 @@
+rules:
+  - id: bpm-slop-delegation-only-wrapper-go
+    languages: [go]
+    severity: INFO
+    message: >
+      Delegation-only wrapper method (ANTI_SLOP R-06) forwards to a field's
+      same-named method with no transformation, validation, caching, or
+      error mapping — it adds a type and a call frame for zero behavior.
+      Call the dependency directly at the call site, or add real logic to
+      justify the wrapper.
+    patterns:
+      - pattern-either:
+          - pattern: |
+              func ($RECV *$TYPE) $METHOD(...) $RET {
+                return $RECV.$DEP.$METHOD(...)
+              }
+          - pattern: |
+              func ($RECV $TYPE) $METHOD(...) $RET {
+                return $RECV.$DEP.$METHOD(...)
+              }
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-06"
+      cwe: [710]
+      confidence: medium
+      concept: code_quality
+      since: "0.1.0"

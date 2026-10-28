@@ -1,0 +1,29 @@
+rules:
+  - id: bpm-owasp-a05-cors-wildcard-rust
+    languages: [rust]
+    severity: WARNING
+    message: >
+      A wildcard CORS policy is configured (OWASP A05:2021, CWE-942: Overly
+      Permissive Cross-domain Whitelist). Either `actix_cors::Cors::permissive()`
+      is used (its own docs call it "unsafe" and intended only for local
+      development), or the response explicitly sets
+      `Access-Control-Allow-Origin: *`. Either way every origin can make
+      cross-origin requests to this endpoint and read the response, including
+      authenticated data if credentials are ever layered on later. Replace
+      `Cors::permissive()` with `Cors::default()` plus an explicit
+      `.allowed_origin(...)` allowlist, and never set the wildcard header
+      directly.
+    pattern-either:
+      - pattern: Cors::permissive()
+      - pattern: actix_cors::Cors::permissive()
+      - pattern: $RESP.insert_header(("Access-Control-Allow-Origin", "*"))
+      - pattern: $RESP.append_header(("Access-Control-Allow-Origin", "*"))
+      - pattern: $RESP.header("Access-Control-Allow-Origin", "*")
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [942]
+      owasp: "A05:2021"
+      confidence: high
+      concept: http_headers_cors
+      since: "0.1.0"

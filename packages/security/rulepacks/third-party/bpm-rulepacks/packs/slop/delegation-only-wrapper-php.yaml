@@ -1,0 +1,34 @@
+rules:
+  - id: bpm-slop-delegation-only-wrapper-php
+    languages: [php]
+    severity: INFO
+    message: >
+      delegation-only wrapper method (ANTI_SLOP R-06) forwards to a
+      property's method of the same name with the same arguments and adds
+      no transformation, validation, caching, or error mapping. Call the
+      wrapped property's method directly at the call site, or add real
+      logic to justify the wrapper's existence.
+    pattern-either:
+      - pattern: |
+          function $METHOD() {
+            return $this->$DEP->$METHOD();
+          }
+      - pattern: |
+          function $METHOD($A) {
+            return $this->$DEP->$METHOD($A);
+          }
+      - pattern: |
+          function $METHOD($A, $B) {
+            return $this->$DEP->$METHOD($A, $B);
+          }
+      - pattern: |
+          function $METHOD($A, $B, $C) {
+            return $this->$DEP->$METHOD($A, $B, $C);
+          }
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-06"
+      cwe: [710]
+      confidence: medium
+      concept: code_quality
+      since: "0.1.0"

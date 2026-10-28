@@ -1,0 +1,29 @@
+rules:
+  - id: bpm-framework-gin-trusted-all-proxies
+    languages: [go]
+    severity: WARNING
+    pattern: $ROUTER.SetTrustedProxies(nil)
+    message: >
+      A Gin router calls SetTrustedProxies(nil), which restores Gin's
+      pre-hardening default of trusting every proxy (Gin framework
+      knowledge, CWE-290: Authentication Bypass by Spoofing, CWE-441:
+      Unintended Proxy or Intermediary). With no trusted-proxy list, Gin
+      accepts the client-supplied X-Forwarded-For / X-Real-IP headers from
+      any caller, so c.ClientIP() returns attacker-controlled data — any
+      IP-based access control, allow-list, or rate limit keyed on
+      ClientIP() can be bypassed simply by sending a forged header, and
+      audit logs record the spoofed address instead of the real one. Pass
+      the actual CIDR ranges of your load balancer / reverse proxy (e.g.
+      `router.SetTrustedProxies([]string{"10.0.0.0/8"})`) so only headers
+      from those hops are trusted.
+    # Primary source: Gin framework docs (Context: ClientIP / "Don't trust
+    # all proxies") + CWE-290 / CWE-441.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [290, 441]
+      owasp: "A05:2021"
+      framework: gin
+      confidence: high
+      concept: network_trust
+      since: "0.1.0"

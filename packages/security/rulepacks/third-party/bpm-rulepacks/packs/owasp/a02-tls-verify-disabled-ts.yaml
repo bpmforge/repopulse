@@ -1,0 +1,18 @@
+rules:
+  - id: bpm-owasp-a02-tls-verify-disabled-ts
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      TLS certificate verification is explicitly disabled (rejectUnauthorized:
+      false), allowing man-in-the-middle attacks against this connection (OWASP
+      A02:2021, CWE-295: Improper Certificate Validation). Remove this option;
+      fix the underlying certificate/CA problem instead of bypassing validation.
+    pattern: '{ ..., rejectUnauthorized: false, ... }'
+    metadata:
+      license: proprietary
+      provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A02"
+      cwe: [295]
+      owasp: "A02:2021"
+      confidence: high
+      concept: cryptography
+      since: "0.1.0"

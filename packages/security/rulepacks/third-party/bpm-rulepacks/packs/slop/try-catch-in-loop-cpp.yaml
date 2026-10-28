@@ -1,0 +1,37 @@
+rules:
+  - id: bpm-slop-try-catch-in-loop-cpp
+    languages: [cpp]
+    severity: WARNING
+    message: >
+      try/catch inside a loop (ANTI_SLOP R-02) — a try/catch per iteration
+      prevents optimizations the compiler can otherwise apply to the loop
+      body (exception-handling frame setup/teardown per iteration), and
+      it's a common sign the exception is being used to skip items rather
+      than validate before the loop. Wrap the loop, not each iteration;
+      validate before the loop if items can be invalid.
+    patterns:
+      - pattern-either:
+          - pattern: |
+              try { ... } catch (...) { ... }
+          - pattern: |
+              try { ... } catch ($EXC& $ERR) { ... }
+          - pattern: |
+              try { ... } catch (const $EXC& $ERR) { ... }
+          - pattern: |
+              try { ... } catch ($EXC $ERR) { ... }
+      - pattern-either:
+          - pattern-inside: |
+              for (...;...;...) { ... }
+          - pattern-inside: |
+              for ($T $X : $Y) { ... }
+          - pattern-inside: |
+              while (...) { ... }
+          - pattern-inside: |
+              do { ... } while (...);
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-02"
+      cwe: [1050]
+      confidence: medium
+      concept: logging_audit
+      since: "0.1.0"

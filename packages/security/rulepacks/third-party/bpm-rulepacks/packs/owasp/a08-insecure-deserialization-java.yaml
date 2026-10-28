@@ -1,0 +1,40 @@
+rules:
+  - id: bpm-owasp-a08-insecure-deserialization-java
+    languages: [java]
+    severity: ERROR
+    patterns:
+      - pattern-either:
+          - pattern: $OIS.readObject()
+          - pattern: new XMLDecoder($ARGS).readObject()
+          - pattern: new Yaml().load($X)
+          - patterns:
+              - pattern: $Y.load($X)
+              - pattern-inside: |
+                  $YT $Y = new Yaml();
+                  ...
+      - pattern-not-inside: |
+          $OIS.setObjectInputFilter(...);
+          ...
+    message: >
+      Untrusted data is passed to a Java deserializer with no
+      allowlist/type-filter in place (OWASP A08:2021, CWE-502:
+      Deserialization of Untrusted Data): ObjectInputStream.readObject()
+      with no ObjectInputFilter installed, java.beans.XMLDecoder, or
+      SnakeYAML's Yaml.load() using the default (fully-open) Constructor.
+      Each can drive the JVM into instantiating attacker-chosen classes
+      while reconstructing the object graph — a documented gadget-chain
+      remote-code-execution vector (ysoserial and SnakeYAML CVE-2022-1471
+      are the canonical exploits). For ObjectInputStream, install an
+      allowlisting ObjectInputFilter (JEP 290) via setObjectInputFilter()
+      before calling readObject(); for XML, prefer JAXB/Jackson with a
+      fixed target type instead of XMLDecoder; for YAML, construct
+      `new Yaml(new SafeConstructor())` (or SnakeYAML's SafeConstructor-
+      equivalent) instead of the no-arg Yaml() constructor.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [502]
+      owasp: "A08:2021"
+      confidence: high
+      concept: deserialization
+      since: "0.1.0"

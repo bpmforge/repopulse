@@ -1,0 +1,38 @@
+rules:
+  - id: bpm-owasp-a03-command-injection-php
+    languages: [php]
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - pattern: $_GET
+      - pattern: $_POST
+      - pattern: $_REQUEST
+    pattern-sanitizers:
+      - pattern: escapeshellarg(...)
+      - pattern: escapeshellcmd(...)
+    pattern-sinks:
+      - pattern: exec($SINK)
+      - pattern: system($SINK)
+      - pattern: shell_exec($SINK)
+      - pattern: passthru($SINK)
+      - pattern: popen($SINK, $MODE)
+      - pattern: proc_open($SINK, ...)
+      - pattern: '`$SINK`'
+    message: >
+      Unsanitized $_GET/$_POST/$_REQUEST input reaches exec(), system(),
+      shell_exec(), passthru(), popen(), proc_open(), or the backtick
+      shell-execution operator (OWASP A03:2021, CWE-78: OS Command
+      Injection). An attacker can inject shell metacharacters to run
+      arbitrary commands with the application's privileges. Avoid
+      shelling out to build a command from request data; if unavoidable,
+      wrap every user-controlled argument in escapeshellarg() (and the
+      whole command in escapeshellcmd()) or use a fixed-argument API
+      with no shell interpretation.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [78]
+      owasp: "A03:2021"
+      confidence: high
+      concept: command_execution
+      since: "0.1.0"

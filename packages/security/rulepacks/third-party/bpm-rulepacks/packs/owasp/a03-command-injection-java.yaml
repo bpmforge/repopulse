@@ -1,0 +1,33 @@
+rules:
+  - id: bpm-owasp-a03-command-injection-java
+    languages: [java]
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - pattern: $REQ.getParameter($X)
+      - pattern: $REQ.getHeader($X)
+      - pattern: $REQ.getQueryString()
+    pattern-propagators:
+      - pattern: $LIST.add($TAINTED)
+        from: $TAINTED
+        to: $LIST
+    pattern-sinks:
+      - pattern: $PB.command($SINK)
+      - pattern: Runtime.getRuntime().exec($SINK)
+      - pattern: $RT.exec($SINK)
+    message: >
+      Unsanitized servlet request input reaches Runtime.exec() or
+      ProcessBuilder.command() (OWASP A03:2021, CWE-78: OS Command
+      Injection). An attacker can inject shell metacharacters or additional
+      arguments to run arbitrary commands with the application's privileges.
+      Never build a shell command from request data; if a subprocess is
+      unavoidable, pass a fixed executable with a strict allowlist of
+      arguments and no shell interpretation.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [78]
+      owasp: "A03:2021"
+      confidence: high
+      concept: command_execution
+      since: "0.1.0"

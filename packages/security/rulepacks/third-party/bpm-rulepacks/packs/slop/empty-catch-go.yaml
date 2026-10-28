@@ -1,0 +1,29 @@
+rules:
+  - id: bpm-slop-empty-catch-go
+    languages: [go]
+    severity: WARNING
+    message: >
+      Swallowed error (ANTI_SLOP R-01, Go idiom of catch-all swallowing) — an
+      empty `if err != nil {}` block (or one containing only a comment),
+      `_ = err`, or a blank double-discard (`_, _ = f()`) drops the error
+      with no caller notification. Handle it, log it with context, or
+      propagate it — a silently dropped error hides failures the audit must
+      surface.
+    patterns:
+      - pattern-either:
+          - pattern: |
+              if $ERR != nil {
+              }
+          - patterns:
+              - pattern: _ = $ERR
+              - metavariable-regex:
+                  metavariable: $ERR
+                  regex: (?i)^err\w*$
+          - pattern: _, _ = $CALL(...)
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-01"
+      cwe: [390]
+      confidence: high
+      concept: logging_audit
+      since: "0.1.0"

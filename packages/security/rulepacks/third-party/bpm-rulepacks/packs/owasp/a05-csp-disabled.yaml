@@ -1,0 +1,20 @@
+rules:
+  - id: bpm-owasp-a05-csp-disabled
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      Content-Security-Policy is explicitly disabled in the helmet() config
+      (OWASP A05:2021, CWE-1021: Improper Restriction of Rendered UI Layers —
+      a security-misconfiguration of the default security headers). Without
+      CSP, injected scripts (XSS) run with no mitigation. Configure a real
+      policy instead of turning it off.
+    pattern: 'helmet({ ..., contentSecurityPolicy: false, ... })'
+    metadata:
+      license: proprietary
+      provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A05"
+      cwe: [1021]
+      owasp: "A05:2021"
+      confidence: high
+      concept: http_headers_cors
+      since: "0.1.0"
+

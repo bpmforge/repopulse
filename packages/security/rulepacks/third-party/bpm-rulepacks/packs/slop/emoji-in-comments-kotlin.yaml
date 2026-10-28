@@ -1,0 +1,18 @@
+rules:
+  - id: bpm-slop-emoji-in-comments-kotlin
+    languages: [kotlin]
+    severity: WARNING
+    message: >
+      Emoji in a Kotlin source comment (ANTI_SLOP R-16) — emojis in code
+      comments are a near-certain AI giveaway to experienced reviewers
+      ("generated, not authored"). Remove it; emojis belong in commit
+      messages or PR descriptions where the author intentionally placed
+      them.
+    pattern-regex: (?m)^\s*//.*[\x{1F300}-\x{1FAFF}\x{2600}-\x{27BF}\x{2B00}-\x{2BFF}]
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-16"
+      cwe: [1078]
+      confidence: high
+      concept: code_quality
+      since: "0.1.0"

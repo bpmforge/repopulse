@@ -1,0 +1,39 @@
+rules:
+  - id: bpm-framework-aspnet-cors-allowanyorigin
+    languages: [csharp]
+    severity: ERROR
+    pattern-either:
+      - pattern: $POLICY.SetIsOriginAllowed($FUNC).AllowCredentials()
+      - pattern: $POLICY.AllowCredentials().SetIsOriginAllowed($FUNC)
+    message: >
+      A CORS policy chains SetIsOriginAllowed(...) with AllowCredentials()
+      (ASP.NET Core CORS middleware framework knowledge, CWE-942:
+      Permissive Cross-domain Policy with Untrusted Domains). ASP.NET
+      Core's CORS middleware rejects the literal combination of
+      AllowAnyOrigin() + AllowCredentials() at startup, but
+      SetIsOriginAllowed() is the documented escape hatch for dynamically
+      reflecting the caller's Origin header — pairing it with
+      AllowCredentials() lets any site that can reach the API make
+      credentialed cross-origin requests and read authenticated
+      responses, unless the origin-allow function itself validates
+      against a strict, server-controlled allow-list (a subtle,
+      easy-to-get-wrong check that this rule cannot verify statically).
+      Replace SetIsOriginAllowed() with an explicit WithOrigins(...)
+      allow-list wherever the set of trusted origins is known up front;
+      only use SetIsOriginAllowed()+AllowCredentials() when the allow-list
+      truly must be dynamic, and validate against a strict, reviewed
+      source (never `_ => true`).
+    # Primary source: Microsoft Learn "Enable Cross-Origin Requests
+    # (CORS) in ASP.NET Core" (Credentials in cross-origin requests §,
+    # which documents SetIsOriginAllowed as the mechanism for
+    # credentialed CORS with a dynamic origin set and warns it must be
+    # used carefully) + CWE-942.
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [942]
+      owasp: "A05:2021"
+      framework: aspnet
+      confidence: medium
+      concept: http_headers_cors
+      since: "0.1.0"

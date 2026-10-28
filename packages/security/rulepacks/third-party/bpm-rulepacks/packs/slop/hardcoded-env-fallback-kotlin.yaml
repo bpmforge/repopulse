@@ -1,0 +1,31 @@
+rules:
+  - id: bpm-slop-hardcoded-env-fallback-kotlin
+    languages: [kotlin]
+    severity: WARNING
+    message: >
+      A secret-shaped environment variable is coalesced to a hardcoded
+      string literal via the Elvis operator (ANTI_SLOP R-23, CWE-798: Use
+      of Hard-coded Credentials). AI assistants expose secrets at roughly
+      2x the rate of human-only commits (CSA 2025) — this pattern is a
+      common source: a "just make it run" fallback that ships a real or
+      production-shaped credential when the env var is unset. Remove the
+      literal fallback; fail closed (throw/exitProcess) when a required
+      secret is missing.
+    patterns:
+      - pattern: |
+          System.getenv($NAME) ?: $FALLBACK
+      - metavariable-regex:
+          metavariable: $NAME
+          regex: (?i)"[^"]*(secret|password|token|api[_-]?key|credential)[^"]*"
+      - metavariable-pattern:
+          metavariable: $FALLBACK
+          patterns:
+            - pattern: '"..."'
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-23"
+      cwe: [798]
+      owasp: "A07:2021"
+      confidence: high
+      concept: secrets_config
+      since: "0.1.0"

@@ -1,0 +1,24 @@
+rules:
+  - id: bpm-owasp-a04-mass-assignment
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      The entire request body is assigned onto a model/object with no allowlist
+      of permitted fields (OWASP A04:2021, CWE-915: Improperly Controlled
+      Modification of Dynamically-Determined Object Attributes — a mass-
+      assignment design flaw). An attacker can set fields the API never intended
+      to expose (e.g. `role`, `isAdmin`, `balance`). Pick only the expected
+      fields explicitly before assigning/saving.
+    pattern-either:
+      - pattern: Object.assign($TARGET, $REQ.body)
+      - pattern: $MODEL.update($REQ.body)
+      - pattern: $MODEL.create($REQ.body)
+    metadata:
+      license: proprietary
+      provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A04"
+      cwe: [915]
+      owasp: "A04:2021"
+      confidence: medium
+      concept: authorization
+      since: "0.1.0"
+

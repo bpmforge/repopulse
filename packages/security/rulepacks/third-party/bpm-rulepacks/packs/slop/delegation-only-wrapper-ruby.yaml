@@ -1,0 +1,46 @@
+rules:
+  - id: bpm-slop-delegation-only-wrapper-ruby
+    languages: [ruby]
+    severity: INFO
+    message: >
+      delegation-only wrapper method (ANTI_SLOP R-06) forwards every
+      argument unchanged to an instance variable's method of the same name
+      and adds no transformation, validation, caching, or error mapping.
+      Call the dependency directly at the call site, or add real logic to
+      justify the wrapper.
+    patterns:
+      - pattern-either:
+          - pattern: |
+              def $METHOD
+                $RECEIVER.$METHOD
+              end
+          - pattern: |
+              def $METHOD($A)
+                $RECEIVER.$METHOD($A)
+              end
+          - pattern: |
+              def $METHOD($A, $B)
+                $RECEIVER.$METHOD($A, $B)
+              end
+          - pattern: |
+              def $METHOD($A, $B, $C)
+                $RECEIVER.$METHOD($A, $B, $C)
+              end
+      - metavariable-regex:
+          # opengrep's Ruby pattern parser cannot parse a metavariable
+          # directly after the `@` sigil (`@$DEP` is a parse error), so the
+          # receiver is captured as a general expression metavariable and
+          # narrowed here to "bare instance variable" instead. This also
+          # keeps Forwardable's `def_delegator`/ActiveSupport's `delegate`
+          # macros clean by construction — those are class-level macro
+          # calls, not `def ... end` method bodies, so they never match the
+          # outer pattern shape at all (verified via .ok fixture).
+          metavariable: $RECEIVER
+          regex: ^@[A-Za-z_]\w*$
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-06"
+      cwe: [710]
+      confidence: medium
+      concept: code_quality
+      since: "0.1.0"

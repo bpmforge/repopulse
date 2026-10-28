@@ -1,0 +1,45 @@
+rules:
+  - id: bpm-owasp-a02-weak-crypto-c
+    languages: [c, cpp]
+    severity: WARNING
+    message: >
+      OpenSSL is used with a broken hash (MD5/SHA-1) or cipher (DES, or AES
+      in ECB mode) — via the legacy MD5_Init/SHA1_Init API, the EVP_md5()/
+      EVP_sha1()/EVP_des_cbc()/EVP_des_ecb() constant constructors, or
+      EVP_get_digestbyname()/EVP_get_cipherbyname() looked up with an
+      "md5"/"sha1"/"des" name (OWASP A02:2021, CWE-327: Use of a Broken or
+      Risky Cryptographic Algorithm / CWE-328: Use of Weak Hash). MD5 and
+      SHA-1 have practical collision attacks; DES's 56-bit key is
+      brute-forceable; ECB mode leaks plaintext structure because identical
+      blocks encrypt to identical ciphertext. Use EVP_sha256() or better for
+      hashing, EVP_aes_256_gcm() (or another authenticated AEAD cipher, not
+      ECB) for encryption, and bcrypt/argon2 (never a bare digest) for
+      password storage.
+    pattern-either:
+      - pattern: MD5_Init($CTX)
+      - pattern: SHA1_Init($CTX)
+      - pattern: EVP_md5()
+      - pattern: EVP_sha1()
+      - pattern: EVP_des_cbc()
+      - pattern: EVP_des_ecb()
+      - pattern: EVP_aes_128_ecb()
+      - pattern: EVP_aes_192_ecb()
+      - pattern: EVP_aes_256_ecb()
+      - patterns:
+          - pattern: EVP_get_digestbyname($ALG)
+          - metavariable-regex:
+              metavariable: $ALG
+              regex: '(?i)^"(md5|sha1|sha-1)"$'
+      - patterns:
+          - pattern: EVP_get_cipherbyname($ALG)
+          - metavariable-regex:
+              metavariable: $ALG
+              regex: '(?i)^"(des|des-cbc|des-ecb|rc4)"$'
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [327, 328]
+      owasp: "A02:2021"
+      confidence: high
+      concept: cryptography
+      since: "0.1.0"

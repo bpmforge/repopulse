@@ -1,0 +1,32 @@
+rules:
+  - id: bpm-owasp-a05-xxe-java
+    languages: [java]
+    severity: ERROR
+    patterns:
+      - pattern-either:
+          - pattern: $DBF.newDocumentBuilder()
+          - pattern: $SPF.newSAXParser()
+      - pattern-not-inside: |
+          $F.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+          ...
+    message: >
+      A DocumentBuilder/SAXParser is built from its factory with no
+      hardening call disabling DOCTYPE/external-entity processing first
+      (OWASP A05:2021, CWE-611: Improper Restriction of XML External
+      Entity Reference). Java's default XML parser configuration resolves
+      external entities and processes DOCTYPE declarations, so an
+      attacker-supplied document can declare an external entity that
+      reads local files, performs SSRF against internal services, or
+      exhausts memory/CPU ("billion laughs"). Before calling
+      newDocumentBuilder()/newSAXParser(), set
+      setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+      on the factory (and, for defense in depth, disable
+      external-general-entities/external-parameter-entities too).
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [611]
+      owasp: "A05:2021"
+      confidence: high
+      concept: input_validation
+      since: "0.1.0"

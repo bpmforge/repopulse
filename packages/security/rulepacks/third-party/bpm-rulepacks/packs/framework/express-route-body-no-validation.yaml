@@ -1,0 +1,120 @@
+rules:
+  - id: bpm-framework-express-route-body-no-validation
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      An Express route handler passes the raw `req.body` straight into a
+      function call with no runtime shape/type validation anywhere in the
+      handler or its middleware chain (Express framework knowledge, CWE-20:
+      Improper Input Validation). Express performs no request validation of
+      its own -- whatever the body parser decodes reaches this call
+      unchecked, so a caller can send extra fields, wrong types, or missing
+      required fields and the receiving function must defend itself. Validate
+      the body against an explicit schema (zod `.parse`/`.safeParse`, Joi/Yup
+      `.validate`/`.validateSync`, or an `express-validator` middleware
+      chain + `validationResult`) before it reaches business logic.
+    patterns:
+      # $REQ is deliberately the SAME metavariable in the sink pattern and in
+      # the pattern-inside handler-parameter binding below. An earlier draft
+      # used a separate $REQ2 for the handler parameter, which left $REQ in
+      # the sink completely unconstrained -- it happily bound to unrelated
+      # `.body` properties (e.g. `problem.body` off a caught error object)
+      # anywhere in the same handler. Reusing $REQ forces the sink's
+      # `.body` access to be on the actual request parameter, not just any
+      # identifier that happens to have a `.body` field.
+      - pattern: $SVC($REQ.body, ...)
+      # The callee NAME is the discriminator, and without it this rule is
+      # indefensible. An independent FP sweep across shipwright, threatforge and
+      # repopulse produced 7 findings, 0 genuine — and the rule was flagging the
+      # VALIDATORS themselves: validateExportBundle(request.body),
+      # parseAdvanceBody(request.body), parseRequestBody(request.body),
+      # sanitizeObject(request.body, [...]). Reporting "this body was never
+      # validated" while pointing at the validation call is the worst finding
+      # that can appear in a paid audit. JSON.stringify(request.body) was the
+      # seventh — serialisation, not business logic.
+      - metavariable-regex:
+          metavariable: $SVC
+          regex: '^(?!.*(?i:validate|parse|sanitiz|verify|check|assert|guard|coerce|normaliz|schema|stringify)).*$'
+      - pattern-either:
+          - pattern-inside: |
+              $ROUTER.$METHOD($ROUTE, ..., ($REQ, $RES) => { ... })
+          - pattern-inside: |
+              $ROUTER.$METHOD($ROUTE, ..., function ($REQ, $RES) { ... })
+      # Fastify validates via a `schema:` option this rule cannot see (that's
+      # what bpm-framework-fastify-route-missing-schema checks instead), so a
+      # Fastify instance named `fastify` (its own documented convention, and
+      # the anchor the fastify rule itself uses) must not be treated as an
+      # unvalidated Express route. Without this, a schema-validated Fastify
+      # handler that also happens to pass req.body to exactly one function
+      # (e.g. `await db.createUser(req.body)`) false-fires -- caught by the
+      # framework pack's own fastify-route-missing-schema .ok fixture, which
+      # is schema-validated Fastify and must stay clean under every rule in
+      # this pack, not just its own. This is a naming-convention guard, not a
+      # semantic one: a Fastify app whose instance is named `app` (also
+      # common) is NOT excluded and can still false-fire here if it validates
+      # via a custom-named helper -- see the FP-sweep note below.
+      - metavariable-regex:
+          metavariable: $ROUTER
+          regex: '^(?!fastify$).*$'
+      # Absence-based rule: each pattern-not-inside below is one known,
+      # real-world way an Express handler validates req.body. All must be
+      # absent for this to fire -- a route validated by ANY of these is not
+      # flagged. Deliberately scoped to the enclosing handler/registration
+      # (opengrep's pattern-not-inside reach), not "anywhere in the file":
+      # a sibling route's validation call must not suppress an unrelated
+      # unvalidated route in the same file.
+      #
+      # A single "$ANY($REQ.body); ..." blanket clause was tried instead of
+      # this named list (to dodge the wildcard-identifier limitation below)
+      # and rejected: opengrep's sink pattern `$SVC($REQ.body, ...)` matches
+      # ONE-OR-MORE arguments, so a blanket exactly-one-arg not-inside clause
+      # suppresses the sink's own 1-argument matches -- e.g.
+      # `await orderService.createOrder(req.body)` (no callback) went from
+      # FIRE to silently CLEAN under the blanket form. That shape -- a single
+      # awaited call, no callback -- is the dominant one in modern
+      # async/await Express code, so the blanket form traded away exactly
+      # the cases this rule most needs to catch. The named list below does
+      # not self-collide with 1-arg sinks (except in the narrow case where
+      # the sink itself happens to be named exactly `validate`/`.validate`/
+      # etc., which is an acceptable, disclosed edge).
+      #
+      # Known gap this leaves open: opengrep 1.25 does not support wildcarded
+      # identifiers (`validate$SUFFIX(...)` is a silent no-op) or a
+      # metavariable-regex constraint on a name bound only inside
+      # pattern-not-inside (also confirmed empirically as a silent no-op),
+      # so a custom-named helper like `validateExportBundle(req.body)` or
+      # `parseAdvanceBody(req.body)` is NOT recognized and the rule still
+      # fires on it. Seen 3 times in the FP sweep against shipwright (a
+      # Fastify app, outside this rule's declared `framework: express`
+      # scope, using generic `app.` receivers the `$ROUTER` guard above does
+      # not catch). No discriminator available in this engine covers
+      # arbitrary custom validator naming; this is a disclosed precision
+      # limit, not an oversight.
+      - pattern-not-inside: |
+          $SCHEMA.parse($REQ.body);
+          ...
+      - pattern-not-inside: |
+          $SCHEMA.safeParse($REQ.body);
+          ...
+      - pattern-not-inside: |
+          $SCHEMA.validate($REQ.body);
+          ...
+      - pattern-not-inside: |
+          $SCHEMA.validateSync($REQ.body);
+          ...
+      - pattern-not-inside: |
+          validate($REQ.body);
+          ...
+      - pattern-not-inside: |
+          validationResult($REQ);
+          ...
+      - pattern-not-inside: |
+          $ROUTER.$METHOD($ROUTE, ..., body(...), ..., ($REQ, $RES) => { ... });
+    metadata:
+      license: proprietary
+      provenance: authored
+      cwe: [20]
+      framework: express
+      confidence: medium
+      concept: input_validation
+      since: "0.1.0"

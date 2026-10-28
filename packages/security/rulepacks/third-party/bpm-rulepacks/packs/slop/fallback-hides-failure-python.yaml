@@ -1,0 +1,62 @@
+rules:
+  - id: bpm-slop-fallback-hides-failure-python
+    languages: [python]
+    severity: WARNING
+    message: >
+      except returns an empty/None fallback (ANTI_SLOP R-10) — the caller
+      cannot distinguish "no data" from "the call failed." Monitoring misses
+      the failure. Return a typed error result or re-raise; never return a
+      value that looks like success.
+    pattern-either:
+      - pattern: |
+          try:
+              ...
+          except:
+              return None
+      - pattern: |
+          try:
+              ...
+          except $ERR:
+              return None
+      - pattern: |
+          try:
+              ...
+          except $ERR as $NAME:
+              return None
+      - pattern: |
+          try:
+              ...
+          except:
+              return []
+      - pattern: |
+          try:
+              ...
+          except $ERR:
+              return []
+      - pattern: |
+          try:
+              ...
+          except $ERR as $NAME:
+              return []
+      - pattern: |
+          try:
+              ...
+          except:
+              return ""
+      - pattern: |
+          try:
+              ...
+          except $ERR:
+              return ""
+      - pattern: |
+          try:
+              ...
+          except $ERR as $NAME:
+              return ""
+    metadata:
+      license: public-teaser
+      provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-10"
+      cwe: [390]
+      confidence: high
+      concept: logging_audit
+      since: "0.1.0"
