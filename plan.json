@@ -12008,6 +12008,38 @@
       "notes": [
         "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md."
       ]
+    },
+    {
+      "id": "W22-13",
+      "title": "Open-source release: RepoPulse to Apache 2.0, Lodestone and bpm-rulepacks public with it",
+      "phase": 22,
+      "module": "infra",
+      "stories": [],
+      "write_scope": [
+        "LICENSE",
+        "NOTICE",
+        "package.json",
+        "apps/*/package.json",
+        "packages/*/package.json",
+        "docs/work/product-completion/**",
+        "docs/design/CLOSE_THE_LOOP.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W22-01",
+        "W22-07"
+      ],
+      "acceptance": [
+        "RepoPulse LICENSE switched from the proprietary licence to Apache-2.0, with a NOTICE listing what ships inside it and under which licence (Lodestone MIT, bpm-rulepacks MIT, Opengrep LGPL-2.1, imported third-party packs per the W22-07 ledger)",
+        "gitleaks over the full history of repopulse, lodestone and bpm-rulepacks on the release commit, every hit read and recorded; fixture fakes listed so GitHub secret scanning alerts after publication are expected",
+        "On release day, and not before (owner 2026-10-28: 'do it with release'), bpmforge/lodestone and bpmforge/bpm-rulepacks are made public together with RepoPulse, and RepoPulse pins a tagged Lodestone release instead of a private git dependency",
+        "The release checklist records each repository's licence, visibility and tag on the day"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": [
+        "Planned 2026-10-28: owner said 'Lodestone MIT, open the rules' (lodestone#8, bpm-rulepacks#45) and 'do it with release' for making them public."
+      ]
     }
   ]
 }
