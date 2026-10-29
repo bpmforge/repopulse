@@ -8,6 +8,7 @@ import { buildChunkPrompt } from '../chunker/prompt.js';
 import type { AnalysisGateway } from '../gateway/types.js';
 import { FindingParseError, validateFindings, type Finding } from '../schema/finding.js';
 import type { RouteRecord } from '../routing/index.js';
+import { ModelTimeoutError, ProviderError } from '../t2/client.js';
 import { planWaves, type Plan } from './planner.js';
 import type { SpecialistId } from './registry.js';
 import { toDiffFiles, type ReviewInput } from './units.js';
@@ -101,6 +102,16 @@ function withDimension(raw: unknown, dimension: string): unknown {
   };
 }
 
+/**
+ * A model call that failed on its own (timed out, or the provider errored)
+ * rather than a refusal of the whole pass (policy, tier, no host free). W22-03,
+ * measured on gin: the second of two review windows hit the 20-minute timeout
+ * and the throw discarded the first window's finished review.
+ */
+function isPerCallFailure(err: unknown): err is Error {
+  return err instanceof ModelTimeoutError || err instanceof ProviderError;
+}
+
 export async function runSpecialists(
   input: ReviewInput,
   deps: SpecialistRunDeps,
@@ -123,6 +134,11 @@ export async function runSpecialists(
     routes: [],
   };
   const maxCalls = deps.maxCalls ?? Number.POSITIVE_INFINITY;
+  // A call that failed on its own is recorded against its window and the run
+  // goes on. Only when NO call answered at all is the first such error thrown,
+  // as before: a host that is down should fail the pass, not read as reviewed.
+  let answered = false;
+  let firstCallError: Error | null = null;
 
   for (const { specialists } of plan.waves) {
     for (const { specialist } of specialists) {
@@ -166,12 +182,24 @@ export async function runSpecialists(
         let attemptPrompt = prompt.text;
         let lastError = '';
         for (let attempt = 0; attempt < 2; attempt++) {
-          const answer = await deps.gateway.complete(attemptPrompt, {
-            tier: 'T2',
-            maxTokens: 45_000,
-            expectJson: true,
-            meta,
-          });
+          let answer: Awaited<ReturnType<AnalysisGateway['complete']>>;
+          try {
+            answer = await deps.gateway.complete(attemptPrompt, {
+              tier: 'T2',
+              maxTokens: 45_000,
+              expectJson: true,
+              meta,
+            });
+          } catch (err) {
+            if (!isPerCallFailure(err)) throw err;
+            result.calls += 1;
+            usage.calls += 1;
+            firstCallError ??= err;
+            // No retry: the same prompt to the same slow host times out again.
+            lastError = err.message;
+            break;
+          }
+          answered = true;
           result.calls += 1;
           usage.calls += 1;
           usage.tokensIn += answer.tokensIn;
@@ -217,5 +245,6 @@ export async function runSpecialists(
       result.usage[specialist.id] = usage;
     }
   }
+  if (!answered && firstCallError) throw firstCallError;
   return result;
 }

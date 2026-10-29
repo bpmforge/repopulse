@@ -258,7 +258,8 @@ function RunRow({
         <div className="text-xs text-fg" data-testid="ai-pass-failures">
           <p>
             <span className="font-semibold">Could not use the answer of:</span> the model&apos;s
-            reply was malformed even after a retry. This pass says nothing about these.
+            reply was malformed even after a retry, or it did not finish in time. This pass says
+            nothing about these.
           </p>
           <ul className="ml-4 list-disc">
             {[...failedBy.entries()].map(([id, paths]) => (
