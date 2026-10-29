@@ -26,6 +26,7 @@ import { scanProcessor } from './scan-processor.js';
 import { patchProcessor } from './patch-processor.js';
 import { aiPassProcessor } from './ai-pass-processor.js';
 import { judgeConfigFromEnv, queueJudgeAfterScan } from './ai-judge.js';
+import { fixConfigFor } from './ai-fix.js';
 import { createSecondModelVerifier, cveVerifyHook } from './second-model.js';
 import { snapshotSources } from './ai-pass-sources.js';
 import { forgeDiffSources } from './ai-pass-diff.js';
@@ -186,6 +187,9 @@ async function main(): Promise<void> {
     AI_JUDGE_MINUTES_PER_DAY: process.env.AI_JUDGE_MINUTES_PER_DAY,
     AI_JUDGE_SCAN_MINUTES: process.env.AI_JUDGE_SCAN_MINUTES,
   });
+  // W22-09: verified fixes for the top confirmed findings, drafted in the
+  // judge run after judging and within its budget.
+  const fixConfig = fixConfigFor(judgeConfig);
   const processorDeps = {
     db,
     tokenKey: credentials.loadTokenKey(),
@@ -412,6 +416,7 @@ async function main(): Promise<void> {
               {
                 db,
                 config: judgeConfig,
+                fixes: fixConfig,
                 enqueue: async (data) => {
                   await judgeQueue.add('ai.pass', data, { jobId: `ai-pass-${data.runId}` });
                 },
@@ -1112,6 +1117,11 @@ async function main(): Promise<void> {
         // W22-03: judge runs; their verdicts move verify_status, so reprice.
         judge: {
           config: judgeConfig,
+          // W22-09: read-only forge access (D9a), the same scan-lane config.
+          fixes: {
+            config: fixConfig,
+            forgeFor: (workspaceId, repoId) => providerForRepo(scanForgeDeps, workspaceId, repoId),
+          },
           afterVerdicts: async ({ workspaceId, repoId, runId }) => {
             await snapshotQueue.add(
               'reprice',

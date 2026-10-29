@@ -11928,6 +11928,8 @@
         "packages/security/src/patches/**",
         "apps/api/src/workers/**",
         "apps/web/src/widgets/findings/**",
+        "apps/api/src/routes/patches/**",
+        "apps/web/src/routes/findings/index.tsx",
         "plan.json"
       ],
       "depends_on": [
@@ -11938,9 +11940,13 @@
         "A draft that fails the rescan is recorded with its reason and never shown as a fix"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
-        "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md."
+        "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md.",
+        "2026-10-29 built (apps/api/src/workers/ai-fix.ts): drafting runs in the judge's own ai_pass_runs row right after judging, so it spends the judge's wall-clock budget (judge_minutes_per_day / AI_JUDGE_SCAN_MINUTES) with no second ledger; once a fix could be drafted the judge keeps a third of the run for it. Targets: open/confirmed findings with verify_status confirmed and a re-runnable rule (target.ts isRerunnable), riskiest first, at most 5 a run, with no answer yet at the snapshot (a rejected draft is a verdict and is not re-asked; a failed one waits 24 h). Each is the W18-19 job (runPatchDraft: draft, apply at the scanned commit, re-scan); requested_by null marks it as drafted after the scan. Local patch route: on by default; hosted patch route: only inside a judge run on the hosted opt-in (budget calls) and only to destinations that acknowledgement names; AI off stops it, checked before each draft; AI_JUDGE=off stops it with the judge. A timeout, provider or forge error on one draft is recorded on its row and on plan.fixes and the loop goes on (3 in a row stop it). The judge queues a run when nothing is left to judge but a confirmed finding still needs a fix.",
+        "Listed as ready to apply: GET /patches/ready (members; verified rows only, for the snapshot the drawer shows, on open/confirmed findings, riskiest first, workspace-filtered) and a 'Fixes ready to apply' panel on the findings page (widgets/findings/ReadyFixes.tsx) that opens the finding's drawer, where the existing Verified fix section shows the diff with Copy/Download. Write scope widened to apps/api/src/routes/patches/** (the list endpoint; auto drafts no longer count against people's 50-a-day cap) and apps/web/src/routes/findings/index.tsx (mounting the panel).",
+        "Fixed on the way (packages/security/src/patches/run.ts): drafts now route by the `patch` role (meta.role); they routed by the finding's dimension, so a patch chain an admin set was named in the drawer but not used. No migration; no new env var.",
+        "2026-10-29: kept in_progress until the judge and fix drafting run once against the live local model on the Mac (same as W22-03)."
       ]
     },
     {

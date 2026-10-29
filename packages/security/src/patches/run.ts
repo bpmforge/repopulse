@@ -44,6 +44,11 @@ export interface PatchDraftDeps {
   runners?: readonly FileRuleRunner[];
   /** Scratch root for the before/after files; defaults to the snapshot root. */
   root?: string;
+  /**
+   * Who asked, on the egress audit. Defaults to the person on the row, or
+   * `patch_draft`; W22-09's after-judge drafting passes `ai-fix`.
+   */
+  initiator?: string;
 }
 
 export interface PatchDraftResult {
@@ -183,7 +188,14 @@ export async function runPatchDraft(deps: PatchDraftDeps): Promise<PatchDraftRes
             prNumber: 0,
             dimension: gatewayDimension(target.dimension),
             checklistVersion: PATCH_PROMPT_VERSION,
-            initiator: row.requestedBy !== null ? `user:${row.requestedBy}` : 'patch_draft',
+            // W22-09: routed by the `patch` role, the route the drawer names
+            // ("Drafted by ...") and the after-judge drafting checks for egress.
+            // It used to route by the finding's dimension, so a patch chain an
+            // admin set was shown but not used.
+            role: 'patch',
+            initiator:
+              deps.initiator ??
+              (row.requestedBy !== null ? `user:${row.requestedBy}` : 'patch_draft'),
           },
         });
         const drafted = {

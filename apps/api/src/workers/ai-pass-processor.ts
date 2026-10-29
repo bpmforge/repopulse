@@ -22,6 +22,14 @@ import { isAiPaused } from '../lib/ai-pause.js';
 import { withAiPass } from './ai-pass-context.js';
 import { describeEndpoint, loadStoredRouting, providersFor } from '../lib/llm-routing.js';
 import { judgeConfigFromEnv, runJudge, type EgressOf, type JudgeConfig } from './ai-judge.js';
+import {
+  emptyFixSummary,
+  FIX_RESERVE_SHARE,
+  pickFixTargets,
+  runFixes,
+  type FixDeps,
+  type FixSummary,
+} from './ai-fix.js';
 
 // ai.pass processor (W19-09): planned specialists, then evidence-fed triage, over
 // one repository, through THIS workspace's routing chain.
@@ -118,6 +126,11 @@ export interface AiPassDeps {
       runId: number;
     }) => Promise<void>;
     egress?: EgressOf;
+    /**
+     * W22-09: after judging, verified fixes for the top confirmed findings,
+     * in the same run and budget (ai-fix.ts). Absent = no drafting here.
+     */
+    fixes?: FixDeps;
   };
 }
 
@@ -788,6 +801,8 @@ async function judgeStep(a: {
     ...built,
     gateway: trackPassGateway(built.gateway, deps.db, { workspaceId, runId }),
   };
+  const fixes = deps.judge?.fixes;
+  const fixesOn = fixes !== undefined && fixes.config.enabled && fixes.config.top > 0;
   const judged = await runJudge({
     db: deps.db,
     run,
@@ -797,14 +812,68 @@ async function judgeStep(a: {
     config: deps.judge?.config ?? judgeConfigFromEnv(process.env),
     now: a.now,
     ...(deps.judge?.egress ? { egress: deps.judge.egress } : {}),
+    ...(fixesOn
+      ? {
+          fixReserve: {
+            share: FIX_RESERVE_SHARE,
+            pending:
+              (await pickFixTargets(deps.db, workspaceId, run.repoId, 1, a.now())).targets.length >
+              0,
+          },
+        }
+      : {}),
   });
-  const result = await a.finish(judged.status, judged.patch);
+
+  // W22-09: then verified fixes for the top confirmed findings, with what the
+  // run has left (its deadline and calls), through the same tracked gateway.
+  let status = judged.status;
+  let patch = judged.patch;
+  if (fixes !== undefined && judged.budget) {
+    const drafted = await runFixes({
+      db: deps.db,
+      workspaceId,
+      repoId: run.repoId,
+      runBudget: judged.budget.kind,
+      gateway: wg.gateway,
+      deps: fixes,
+      deadlineMs: judged.budget.deadlineMs,
+      callsLeft: judged.budget.callsLeft,
+      now: a.now,
+    });
+    patch = withFixes(patch, drafted.summary, drafted.calls);
+    // Nothing to judge, but fixes were drafted: the run did something.
+    if (status === 'skipped' && drafted.summary.attempts.length > 0) {
+      status = 'succeeded';
+      patch = { ...patch, reasonCode: null, reason: null };
+    }
+  } else if (fixes !== undefined) {
+    patch = withFixes(
+      patch,
+      emptyFixSummary(fixes.config.top, judged.patch.reasonCode ?? 'judge_stopped'),
+      0,
+    );
+  }
+  const result = await a.finish(status, patch);
   if (judged.verdicts > 0) {
     await deps.judge
       ?.afterVerdicts?.({ workspaceId, repoId: run.repoId, runId })
       .catch(() => undefined);
   }
   return result;
+}
+
+/** The run's row with the drafting step's summary (plan.fixes) and calls added. */
+function withFixes(
+  patch: Partial<typeof read.aiPassRuns.$inferInsert>,
+  summary: FixSummary,
+  calls: number,
+): Partial<typeof read.aiPassRuns.$inferInsert> {
+  const plan = (patch.plan ?? {}) as Record<string, unknown>;
+  return {
+    ...patch,
+    plan: { ...plan, fixes: summary },
+    calls: (patch.calls ?? 0) + calls,
+  };
 }
 
 /**
