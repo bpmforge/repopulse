@@ -399,6 +399,47 @@ describeIfLiveInfra('scheduled AI pass routes (W19-12)', () => {
       expect(res.statusCode).toBe(403);
     });
 
+    it('W22-03: sets the local judge minutes on their own, null back to the server default', async () => {
+      const def = (await app.inject({ method: 'GET', url: '/ai-pass/settings' })).json();
+      expect(def).toMatchObject({
+        judge_minutes_per_day: null,
+        judge_default_minutes_per_day: 240,
+        judge_minutes_used: 0,
+        judge_minutes_remaining: 240,
+      });
+      const set = await app.inject({
+        method: 'PUT',
+        url: '/ai-pass/settings',
+        headers: CSRF,
+        payload: { judge_minutes_per_day: 90 },
+      });
+      expect(set.statusCode).toBe(200);
+      expect(set.json()).toMatchObject({ judge_minutes_per_day: 90, judge_minutes_remaining: 90 });
+      // The call cap is untouched by it.
+      expect(
+        (await app.inject({ method: 'GET', url: '/ai-pass/settings' })).json().monthly_call_cap,
+      ).toBe(300);
+      for (const v of [-1, 1.5, '5', 1441]) {
+        const bad = await app.inject({
+          method: 'PUT',
+          url: '/ai-pass/settings',
+          headers: CSRF,
+          payload: { judge_minutes_per_day: v } as never,
+        });
+        expect(bad.statusCode, String(v)).toBe(400);
+      }
+      const reset = await app.inject({
+        method: 'PUT',
+        url: '/ai-pass/settings',
+        headers: CSRF,
+        payload: { judge_minutes_per_day: null },
+      });
+      expect(reset.json()).toMatchObject({
+        judge_minutes_per_day: null,
+        judge_minutes_remaining: 240,
+      });
+    });
+
     it('counts this workspace’s calls this month only', async () => {
       await db.insert(read.aiPassRuns).values([
         {

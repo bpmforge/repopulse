@@ -25,6 +25,7 @@ import { plansVerifyProcessor } from './plans-processor.js';
 import { scanProcessor } from './scan-processor.js';
 import { patchProcessor } from './patch-processor.js';
 import { aiPassProcessor } from './ai-pass-processor.js';
+import { judgeConfigFromEnv, queueJudgeAfterScan } from './ai-judge.js';
 import { createSecondModelVerifier, cveVerifyHook } from './second-model.js';
 import { snapshotSources } from './ai-pass-sources.js';
 import { forgeDiffSources } from './ai-pass-diff.js';
@@ -176,6 +177,13 @@ async function main(): Promise<void> {
   const enrichQueue = createQueue(QUEUE.enrich, connection);
   const reconcileQueue = createQueue(QUEUE.reconcile, connection);
   const securityScanQueue = createQueue(QUEUE.securityScan, connection);
+  // W22-03: judge runs are ai.pass jobs queued after a scan.
+  const judgeQueue = createQueue(QUEUE.aiPass, connection);
+  const judgeConfig = judgeConfigFromEnv({
+    AI_JUDGE: process.env.AI_JUDGE,
+    AI_JUDGE_MINUTES_PER_DAY: process.env.AI_JUDGE_MINUTES_PER_DAY,
+    AI_JUDGE_SCAN_MINUTES: process.env.AI_JUDGE_SCAN_MINUTES,
+  });
   const processorDeps = {
     db,
     tokenKey: credentials.loadTokenKey(),
@@ -394,6 +402,25 @@ async function main(): Promise<void> {
             await enqueueRepriceAfterScan(snapshotQueue, { workspaceId, repoId });
           } catch (err) {
             log.warn({ err, repoId }, '[worker] reprice after scan not queued');
+          }
+          // W22-03: the AI judges the rule hits this scan left open, within
+          // the workspace's budget (local by default; hosted only when opted in).
+          try {
+            const judged = await queueJudgeAfterScan(
+              {
+                db,
+                config: judgeConfig,
+                enqueue: async (data) => {
+                  await judgeQueue.add('ai.pass', data, { jobId: `ai-pass-${data.runId}` });
+                },
+              },
+              { workspaceId, repoId },
+            );
+            if (judged.queued)
+              log.info({ repoId, runId: judged.runId }, '[worker] AI judge queued');
+            else log.debug({ repoId, code: judged.code }, '[worker] AI judge not queued');
+          } catch (err) {
+            log.warn({ err, repoId }, '[worker] AI judge after scan not queued');
           }
         },
         // W21-02. One PR head, every enabled pattern scanner, one archive.
@@ -1084,6 +1111,17 @@ async function main(): Promise<void> {
       // findings and SUGGESTIONS, and cannot change a finding's status.
       [QUEUE.aiPass]: aiPassProcessor({
         db,
+        // W22-03: judge runs; their verdicts move verify_status, so reprice.
+        judge: {
+          config: judgeConfig,
+          afterVerdicts: async ({ workspaceId, repoId, runId }) => {
+            await snapshotQueue.add(
+              'reprice',
+              { workspaceId, repoId, repriceOnly: true },
+              { jobId: `reprice-judge-${runId}` },
+            );
+          },
+        },
         gatewayFor: async (workspaceId) => {
           const built = await gateways.for(workspaceId);
           return built

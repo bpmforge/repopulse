@@ -57,6 +57,13 @@ bar for rules with no public benchmark); every model call goes through the gatew
 2. **Local models are bounded by time, not a monthly call count.** A nightly window per
    workspace (default 4 hours) and a per-scan budget; the 300-call cap stays for hosted
    links. *Alternative:* keep the call cap and raise it.
+
+   *Decisions 1 and 2 taken as recommended on 2026-10-29* (owner: "continue working through
+   this, make sure we complete our loops"; standing rule: proceed on the recommended option).
+   AI judging is on by default only when every model the triage role routes to is local; a
+   hosted link keeps the W19-12 opt-in and the monthly call cap; local models are bounded by a
+   per-workspace time budget (wall-clock minutes over a rolling 24 hours, default 240) and a
+   per-run cap (default 30 minutes), not by a call count. Built in W22-03, below.
 3. **Bundle LGPL rule files unmodified, as separately licensed packs** (GitLab `rules/lgpl`
    from njsscan/mobsfscan: the only real Kotlin and Swift security rule volume). Opengrep
    itself is already LGPL. GPL, AGPL, Commons Clause and non-commercial rules are never
@@ -88,6 +95,39 @@ bar for rules with no public benchmark); every model call goes through the gatew
 | W22-11 | Findings UX: each finding shows file and line, current code, the AI verdict with its evidence, and the fix as a diff; one list sorted by risk with filters for security, performance and slop | 03, 09 |
 | W22-12 | Product site rebuilt KryptKeeper-style (hubs, per-finding pages with diffs, role paths) showing this loop, from W22-10's measured examples | 10, 11 |
 | W22-13 | Open-source release: RepoPulse to Apache 2.0 with a NOTICE, history secrets audit of all three repos, and Lodestone and bpm-rulepacks made public **on release day, not before** (owner: "do it with release") | 01, 07 |
+
+### W22-03 as built (2026-10-29)
+
+- **When.** The worker's after-scan hook (the one that already queues a reprice) calls
+  `queueJudgeAfterScan` (`apps/api/src/workers/ai-judge.ts`). It writes an `ai_pass_runs` row
+  (mode `judge`, trigger `after_scan`, budget `time` or `calls`) and queues it on the `ai.pass`
+  queue, so the judge runs in the worker through the gateway (Law 8), carries the pass's cancel
+  check and call counter, and its calls are attributed on the egress audit. One waiting judge
+  run per repository covers later scans (own one-active index); judge runs do not block or
+  count against a person's pass or the daily pass limit. Nothing is queued, and no row
+  written, when there is nothing to judge, AI is off, `AI_JUDGE=off`, or the budget is spent.
+- **What.** Open, non-shadow findings a rule raised in `security`, `sast`, `performance` and
+  `slop`, with stored code context and no AI verdict, riskiest first, grouped by rule (the rule
+  with the riskiest hit first; at most 25 hits of one rule per run so a noisy rule cannot take
+  the budget). Each goes to `runTriage` alone, so the budget is checked between findings.
+- **Budget.** Every routed triage model local (decision 1): on, bounded by
+  `ai_pass_settings.judge_minutes_per_day` (null = `AI_JUDGE_MINUTES_PER_DAY`, 240) over a
+  rolling 24 hours, measured as the judge runs' started→finished wall clock, and at most
+  `AI_JUDGE_SCAN_MINUTES` (30) per run; these calls are not on the monthly cap (decision 2).
+  A hosted link: only for a repository with an enabled AI-pass schedule whose egress
+  acknowledgement still matches the routing, never under local-only, and on the monthly cap
+  (at most 30 calls a run). Admins set the minutes on `PUT /ai-pass/settings`
+  (`judge_minutes_per_day`, 0-1440 or null); a screen for it is W22-11's.
+- **Verdict.** Stored in `ai_triage_verdicts` (rationale and our copy of each cited line,
+  shown by the existing suggestion panel on the finding, labelled "the open rule hits, judged
+  after a scan"), and marked on the finding with `recordVerdicts`: real → `confirmed`,
+  likely false positive → `contradicted`, needs a human → stays `unverified` with the reason.
+  A reprice is queued when verdicts were written so the ×1.0/×0.7/×0.15 multiplier moves the
+  ranking the same day. The status is never touched (DB test).
+- **Failures.** A timeout or provider error on one finding is recorded on the run
+  (`plan.judge.errors`, samples) and the loop goes on; that finding (and one whose answers the
+  checklist rejected) is not retried for 24 hours. Five errors in a row, or local-only refusing
+  the route, stop the run with the reason in words.
 
 Embeddings (pgvector, Qwen3-Embedding-0.6B or CodeRankEmbed) are deliberately not a
 ticket yet: the research found graph and fact tools help local models more than vectors,

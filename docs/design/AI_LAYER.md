@@ -820,3 +820,13 @@ would store, so the PUT route was not exercised live (it is covered by its tests
 **Still not run live:** the PUT route and the login session; a forge that is not a fake;
 the light path where a *hosted* link is acknowledged and used; and a skipped scheduled run
 (the refusal reasons are covered by tests, not exercised here).
+
+## W22-03: the AI judges every rule hit after a scan (2026-10-29)
+
+A fourth kind of AI pass row, mode `judge` (trigger `after_scan`): after each scan the worker
+queues one per repository, and it puts the open security, performance and slop rule hits to
+the triage checklist in risk order, grouped by rule, until its budget is spent. Local-only
+routing makes it on by default and bounded by wall-clock minutes per workspace (not on the
+monthly call cap); a hosted link needs the W19-12 schedule opt-in and stays on the cap.
+Verdicts are triage suggestions as before and also set `verify_status`; nothing is dismissed.
+Design and details: `CLOSE_THE_LOOP.md`, "W22-03 as built".

@@ -35,10 +35,18 @@ import { findings } from './findings.js';
  * finding that already has a suggestion. It is a pass row so it counts toward
  * the daily pass limit and the monthly call count like any other.
  */
-export const AI_PASS_MODES = ['paths', 'pull_request', 'commit_range', 'second_opinion'] as const;
+export const AI_PASS_MODES = [
+  'paths',
+  'pull_request',
+  'commit_range',
+  'second_opinion',
+  // W22-03: the AI judges the open rule hits after a scan (CLOSE_THE_LOOP.md).
+  'judge',
+] as const;
 export type AiPassMode = (typeof AI_PASS_MODES)[number];
 
-export const AI_PASS_TRIGGERS = ['manual', 'scheduled'] as const;
+/** W22-03: 'after_scan' = a judge run the worker queued when a scan finished. */
+export const AI_PASS_TRIGGERS = ['manual', 'scheduled', 'after_scan'] as const;
 export type AiPassTrigger = (typeof AI_PASS_TRIGGERS)[number];
 export const AI_SCHEDULE_FREQUENCIES = ['daily', 'weekly'] as const;
 export type AiScheduleFrequency = (typeof AI_SCHEDULE_FREQUENCIES)[number];
@@ -46,6 +54,15 @@ export const AI_SCHEDULE_SCOPES = ['paths', 'new_pull_requests'] as const;
 export type AiScheduleScope = (typeof AI_SCHEDULE_SCOPES)[number];
 
 export const AI_PASS_STATUSES = ['pending', 'running', 'succeeded', 'failed', 'skipped'] as const;
+
+/**
+ * W22-03 (owner decision 2): what bounds a run. 'calls' = the monthly call cap
+ * (every pass, and a judge run on a hosted link); 'time' = a judge run on
+ * local models only, bounded by the workspace's daily judge minutes and NOT
+ * counted on the monthly call cap.
+ */
+export const AI_PASS_BUDGETS = ['calls', 'time'] as const;
+export type AiPassBudget = (typeof AI_PASS_BUDGETS)[number];
 
 /** One pass over one repository. The row a person watches: every failure lands here in words. */
 export const aiPassRuns = pgTable(
@@ -92,6 +109,8 @@ export const aiPassRuns = pgTable(
     triageSkipped: text('triage_skipped'),
     /** Gateway calls made, retries included. */
     calls: integer('calls').notNull().default(0),
+    /** W22-03: what bounds this run - the monthly call cap, or local judging's time budget. */
+    budget: text('budget').$type<AiPassBudget>().notNull().default('calls'),
     /** The analysis_runs rows this pass wrote (one per specialist that raised findings). */
     analysisRunIds: jsonb('analysis_run_ids')
       .$type<number[]>()
@@ -115,10 +134,19 @@ export const aiPassRuns = pgTable(
       'ai_pass_runs_status_check',
       sql`${t.status} in (${sql.raw(AI_PASS_STATUSES.map((s) => `'${s}'`).join(', '))})`,
     ),
+    check(
+      'ai_pass_runs_budget_check',
+      sql`${t.budget} in (${sql.raw(AI_PASS_BUDGETS.map((b) => `'${b}'`).join(', '))})`,
+    ),
     // One active pass per repository: a second click returns the first.
+    // W22-03: judge runs are outside it (a scan's judge must not block a
+    // person's pass) and have their own one-active index.
     uniqueIndex('ai_pass_runs_one_active_key')
       .on(t.workspaceId, t.repoId)
-      .where(sql`status in ('pending', 'running')`),
+      .where(sql`status in ('pending', 'running') and mode <> 'judge'`),
+    uniqueIndex('ai_pass_runs_one_active_judge_key')
+      .on(t.workspaceId, t.repoId)
+      .where(sql`status in ('pending', 'running') and mode = 'judge'`),
   ],
 );
 
@@ -346,12 +374,24 @@ export const aiPassSettings = pgTable(
       onDelete: 'set null',
     }),
     aiPausedAt: timestamp('ai_paused_at', { withTimezone: true }),
+    /**
+     * W22-03 (owner decision 2): wall-clock minutes local models may spend
+     * judging rule hits over a rolling 24 hours. NULL = the server default
+     * (AI_JUDGE_MINUTES_PER_DAY). 0 stops local judging.
+     */
+    judgeMinutesPerDay: integer('judge_minutes_per_day'),
     updatedBy: bigint('updated_by', { mode: 'number' }).references(() => users.id, {
       onDelete: 'set null',
     }),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [check('ai_pass_settings_cap_check', sql`${t.monthlyCallCap} between 0 and 100000`)],
+  (t) => [
+    check('ai_pass_settings_cap_check', sql`${t.monthlyCallCap} between 0 and 100000`),
+    check(
+      'ai_pass_settings_judge_minutes_check',
+      sql`${t.judgeMinutesPerDay} is null or ${t.judgeMinutesPerDay} between 0 and 1440`,
+    ),
+  ],
 );
 
 /** The default monthly cap when a workspace has not set one (about ten full passes). */

@@ -13,6 +13,7 @@ import {
   serverTimeZone,
 } from '../../workers/ai-pass-scheduler.js';
 import { aiPauseState } from '../../lib/ai-pause.js';
+import { judgeConfigFromEnv, judgeMsUsed } from '../../workers/ai-judge.js';
 import { cleanPaths } from './index.js';
 
 // Scheduled AI passes (W19-12), the API side. STRICTLY OPT-IN: a schedule is off
@@ -66,6 +67,12 @@ export default async function scheduleRoutes(
 ): Promise<void> {
   const { db } = opts;
   const now = opts.now ?? (() => new Date());
+  // W22-03: the server's judge defaults, as the worker reads them.
+  const judgeConfig = judgeConfigFromEnv({
+    AI_JUDGE: process.env.AI_JUDGE,
+    AI_JUDGE_MINUTES_PER_DAY: process.env.AI_JUDGE_MINUTES_PER_DAY,
+    AI_JUDGE_SCAN_MINUTES: process.env.AI_JUDGE_SCAN_MINUTES,
+  });
 
   async function ownRepo(workspaceId: number, repoId: number): Promise<boolean> {
     const [repo] = await db
@@ -359,10 +366,35 @@ export default async function scheduleRoutes(
       default_cap: read.AI_PASS_DEFAULT_MONTHLY_CAP,
       ai_paused: await aiPauseState(db, workspaceId),
       server_time_zone: serverTimeZone(),
+      ...(await judgeView(workspaceId)),
     });
   });
 
-  app.put<{ Body: { monthly_call_cap?: unknown } }>(
+  /**
+   * W22-03 (owner decision 2): local AI judging is bounded by minutes per
+   * rolling 24 hours, not by the call cap. null = the server default.
+   */
+  const judgeView = async (workspaceId: number) => {
+    const at = now();
+    const own = (
+      await db
+        .select({ m: read.aiPassSettings.judgeMinutesPerDay })
+        .from(read.aiPassSettings)
+        .where(eq(read.aiPassSettings.workspaceId, workspaceId))
+        .limit(1)
+    )[0]?.m;
+    const effective = own ?? judgeConfig.minutesPerDay;
+    const usedMs = await judgeMsUsed(db, workspaceId, at);
+    return {
+      judge_minutes_per_day: own ?? null,
+      judge_default_minutes_per_day: judgeConfig.minutesPerDay,
+      judge_minutes_used: Math.round(usedMs / 60_000),
+      judge_minutes_remaining: Math.max(0, Math.floor((effective * 60_000 - usedMs) / 60_000)),
+      judge_scan_minutes: judgeConfig.scanMinutes,
+    };
+  };
+
+  app.put<{ Body: { monthly_call_cap?: unknown; judge_minutes_per_day?: unknown } }>(
     '/ai-pass/settings',
     { preHandler: requireAdmin },
     async (request, reply) => {
@@ -370,7 +402,45 @@ export default async function scheduleRoutes(
       const userId = request.session?.get('userId');
       if (workspaceId === undefined || userId === undefined)
         return fail(request, reply, 401, 'No active session');
-      const cap = request.body?.monthly_call_cap;
+      const body = request.body ?? {};
+      // W22-03: the judge's minutes may be set on their own; null = server default.
+      const hasJudge = typeof body === 'object' && 'judge_minutes_per_day' in body;
+      const minutes = hasJudge ? body.judge_minutes_per_day : undefined;
+      if (
+        hasJudge &&
+        minutes !== null &&
+        (typeof minutes !== 'number' || !Number.isInteger(minutes) || minutes < 0 || minutes > 1440)
+      ) {
+        return fail(
+          request,
+          reply,
+          400,
+          'Invalid judge minutes',
+          'judge_minutes_per_day must be a whole number from 0 to 1440, or null for the server default. 0 stops local AI judging.',
+        );
+      }
+      const hasCap = typeof body === 'object' && 'monthly_call_cap' in body;
+      if (hasJudge && !hasCap) {
+        const at = now();
+        const judgeMinutesPerDay = minutes as number | null;
+        await db
+          .insert(read.aiPassSettings)
+          .values({ workspaceId, judgeMinutesPerDay, updatedBy: userId, updatedAt: at })
+          .onConflictDoUpdate({
+            target: read.aiPassSettings.workspaceId,
+            set: { judgeMinutesPerDay, updatedBy: userId, updatedAt: at },
+          });
+        auditLog(request.log, {
+          event: 'ai_pass_settings.updated',
+          actorUserId: userId,
+          workspaceId,
+          ip: request.ip,
+          ua: request.headers['user-agent'] ?? null,
+          detail: { judge_minutes_per_day: judgeMinutesPerDay },
+        });
+        return reply.send(await judgeView(workspaceId));
+      }
+      const cap = body.monthly_call_cap;
       if (typeof cap !== 'number' || !Number.isInteger(cap) || cap < 0 || cap > 100_000) {
         return fail(
           request,
@@ -383,10 +453,21 @@ export default async function scheduleRoutes(
       const at = now();
       await db
         .insert(read.aiPassSettings)
-        .values({ workspaceId, monthlyCallCap: cap, updatedBy: userId, updatedAt: at })
+        .values({
+          workspaceId,
+          monthlyCallCap: cap,
+          ...(hasJudge ? { judgeMinutesPerDay: minutes as number | null } : {}),
+          updatedBy: userId,
+          updatedAt: at,
+        })
         .onConflictDoUpdate({
           target: read.aiPassSettings.workspaceId,
-          set: { monthlyCallCap: cap, updatedBy: userId, updatedAt: at },
+          set: {
+            monthlyCallCap: cap,
+            ...(hasJudge ? { judgeMinutesPerDay: minutes as number | null } : {}),
+            updatedBy: userId,
+            updatedAt: at,
+          },
         });
       auditLog(request.log, {
         event: 'ai_pass_settings.updated',
@@ -394,7 +475,7 @@ export default async function scheduleRoutes(
         workspaceId,
         ip: request.ip,
         ua: request.headers['user-agent'] ?? null,
-        detail: { monthly_call_cap: cap },
+        detail: { monthly_call_cap: cap, ...(hasJudge ? { judge_minutes_per_day: minutes } : {}) },
       });
       const used = await monthlyCallsUsed(db, workspaceId, at);
       return reply.send({
@@ -402,6 +483,7 @@ export default async function scheduleRoutes(
         used,
         remaining: Math.max(0, cap - used),
         default_cap: read.AI_PASS_DEFAULT_MONTHLY_CAP,
+        ...(await judgeView(workspaceId)),
       });
     },
   );

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, gte, lte, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, lte, ne, or, sql } from 'drizzle-orm';
 import { core, facts, isConstraintViolation, read, type Database } from '@repopulse/shared';
 import { passEgress as defaultPassEgress, type PassEgress } from '../lib/ai-pass-egress.js';
 import { AI_PASS_MAX_CALLS } from './ai-pass-processor.js';
@@ -104,6 +104,7 @@ export function monthStart(d: Date): Date {
  * scheduled), plus — W21-03, decision AI-14 — every second-model verify call,
  * recorded as analysis_runs rows of pass_kind 'verify' (chunk_count = calls).
  * Verify calls made inside an AI pass are on that pass's row, not here.
+ * W22-03: judge runs on local models only (budget 'time') are not counted.
  */
 export async function monthlyCallsUsed(
   db: Database,
@@ -117,6 +118,9 @@ export async function monthlyCallsUsed(
       and(
         eq(read.aiPassRuns.workspaceId, workspaceId),
         gte(read.aiPassRuns.createdAt, monthStart(now)),
+        // W22-03 (owner decision 2): local judging is bounded by time, not
+        // by this cap, which stays for hosted links.
+        ne(read.aiPassRuns.budget, 'time'),
       ),
     );
   const [verify] = await db
@@ -252,6 +256,8 @@ export async function runScheduleTick(deps: SchedulerDeps): Promise<TickResult> 
           eq(read.aiPassRuns.workspaceId, ws),
           eq(read.aiPassRuns.repoId, sch.repoId),
           sql`status in ('pending', 'running')`,
+          // W22-03: a judge run after a scan does not hold a schedule back.
+          ne(read.aiPassRuns.mode, 'judge'),
         ),
       )
       .limit(1);
@@ -308,6 +314,8 @@ export async function runScheduleTick(deps: SchedulerDeps): Promise<TickResult> 
           eq(read.aiPassRuns.workspaceId, ws),
           gte(read.aiPassRuns.createdAt, since),
           sql`status <> 'skipped'`,
+          // W22-03: judge runs follow scans, not people; not on the daily limit.
+          ne(read.aiPassRuns.mode, 'judge'),
         ),
       );
     if (today >= SCHEDULED_PASSES_PER_DAY) {

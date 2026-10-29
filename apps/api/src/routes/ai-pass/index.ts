@@ -61,6 +61,8 @@ export async function passesInLastDay(
         eq(read.aiPassRuns.workspaceId, workspaceId),
         gte(read.aiPassRuns.createdAt, since),
         sql`${read.aiPassRuns.status} <> 'skipped'`,
+        // W22-03: judge runs follow scans, not people; not on the daily limit.
+        sql`${read.aiPassRuns.mode} <> 'judge'`,
       ),
     );
   return n;
@@ -256,6 +258,8 @@ export default async function aiPassRoutes(
             eq(read.aiPassRuns.workspaceId, workspaceId),
             eq(read.aiPassRuns.repoId, repoId),
             sql`status in ('pending', 'running')`,
+            // W22-03: a judge run after a scan does not stand in for a person's pass.
+            sql`${read.aiPassRuns.mode} <> 'judge'`,
           ),
         )
         .limit(1);
