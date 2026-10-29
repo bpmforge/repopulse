@@ -133,6 +133,61 @@ deleted afterwards.
 | `python_tmpdir_rule-hardcodedtmp` | imported | 1 | 1 | 0 | 1 | 0% |
 | `python_urlopen_rule-urllib-urlopen` | imported | 1 | 1 | 0 | 1 | 0% |
 
+## Dispositions and measured effect (2026-10-28)
+
+Each rule fix in bpm-rulepacks followed the same steps:
+
+1. Add the false-positive family to the rule's `.ok` fixture and confirm it fails (RED).
+2. Narrow the rule until it passes (GREEN).
+3. Run `npm run check`: 732 passed. Then `npm run gate`: all 5 corpora unchanged, so no corpus
+   true positive was lost.
+4. Re-scan the walkthrough repo and read every hit that remained or dropped.
+
+The counts below are live hits on the same six repos, before and after.
+
+**Overall.** 975 live hits before, 508 after. bpm-rulepacks went from 674 to 254, the
+third-party rules from 301 to 254. 29 of the 30 hits labelled true still fire.
+
+| Rule | Before | After | Change |
+|---|--:|--:|---|
+| `bpm-slop-try-catch-in-loop-python` | 97 | 2 | Only a catch-all that neither logs, re-raises nor passes the error on. The perf premise was false: CPython's `try` is zero-cost. |
+| `bpm-house-catch-discards-error` | 59 | 8 | The try block must do I/O (`await`, `*Sync(`, `fetch(`). Parse-or-fallback over a value in memory is exempt. |
+| `bpm-slop-delegation-only-wrapper-rust` | 51 | 31 | `pub` accessors are exempt. **Trait impls still fire**: no opengrep `impl $T for $U` form excluded them without silencing the vuln fixture. |
+| `bpm-owasp-a07-hardcoded-secret-python` | 48 | 0 | Values shaped like a label, sentence, file name or dotted path are exempt. It still fires on saleor's test passwords. |
+| `bpm-slop-empty-catch` (JS/TS) | 42 | 0 | A comment giving the reason exempts it. TODO, FIXME, "handle", "swallow" and "silent" still fire. |
+| `bpm-house-async-effect-no-cleanup` | 35 | 5 | Needs a `setX(...)` call inside the effect. **Drops true #197**, a create-on-mount effect, which is a different defect. |
+| `bpm-slop-try-catch-in-loop` (JS/TS) | 34 | 7 | Only a catch that never looks at the error. The 7 left skip unparsable items, which is R-02's own example. |
+| `bpm-slop-fallback-hides-failure-python` | 23 | 3 | Only bare `except`, `Exception` or `BaseException`. The find-or-None idiom is exempt. |
+| `bpm-slop-empty-catch-swift` | 19 | 15 | Same comment rule as JS. All 10 true hits are kept. |
+| `bpm-secret-generic-assignment` | 18 | 1 | Identifier-only values and URLs are exempt. sampleco's corpus secret still fires. |
+| `bpm-slop-emoji-in-comments-rust` | 16 | 1 | Rustdoc `///` and `//!` comments are exempt. |
+| `bpm-slop-unimplemented-stub-throw-python` | 16 | 1 | Class methods (the base-class contract) are exempt. The one true module-level stub still fires. |
+| `bpm-slop-unimplemented-stub-throw-rust` | 12 | 0 | `mod tests` is exempt. |
+| `bpm-owasp-a03-sql-string-concat` | 12 | 4 | `RegExp.exec` receivers and `${this.field}` templates are exempt. Juice Shop and sampleco true positives are kept (gate). |
+| `bpm-framework-react-target-blank-noopener` | 11 | 1 | Any `rel` containing `noopener` or `noreferrer`, on any line, now counts. |
+| `bpm-slop-try-catch-in-loop-swift` | 6 | 2 | Only a catch that never uses `error`, logs or rethrows. |
+| `struts-xml-action-name` (elttam) | 4 | 0 | **File excluded in the importer.** It matched every AndroidManifest.xml. |
+| `beego-orm.yaml` (elttam, 4 rules) | 1 | 0 | **File excluded in the importer.** It matched `fmt.Fprintf` with no Beego in the repo. |
+| Third-party, test and tooling paths | 41 + 23 + some | 0 | The scanner drops third-party findings in test, fixture, `.semgrep/` and `.claude/` paths. |
+
+**Not fixed, filed here as next.**
+
+- **Redundant `bpm-*` rule pairs.**
+  - `bpm-slop-redundant-null-undefined-check` (13): style only.
+  - `bpm-slop-try-parse-fallback` (11): parse-or-undefined is a contract.
+  - The duplicated `dangerouslySetInnerHTML` pair: the framework and OWASP rules fire on the
+    same lines, and GitLab's fires on the same lines too.
+  - `bpm-framework-react-unsafe-href` (21, 4 true): email templates.
+  - `bpm-house-unbounded-response-read` (14, 1 true): should honour a `size:` option.
+  - `bpm-house-regexp-constructed-in-loop` (12, 2 true).
+  - The Swift and JS `fallback-hides-failure` rules.
+- **elttam's `rules-audit/` folder.** Its author publishes these as audit leads, not findings.
+  The rules that fired (Prisma and Django ORM-leak) were 0 for 156 here, but on a repo without
+  Prisma that means "not promotable on this evidence", not "wrong rule". They stay shadow and
+  are not excluded.
+- **Re-importing bpm-rulepacks at the fixed commit.** Waits until the fix PR and the MIT PR
+  (#45) merge.
+
 ## Observations about the scanned code (not filed anywhere)
 
 These are the "true" rows, recorded for the sheet only. Nothing was reported upstream.

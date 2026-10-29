@@ -57,6 +57,14 @@ export const SOURCES = [
     licenceFile: 'LICENSE',
     include: (rel) => /^rules-audit\//.test(rel) && /\.ya?ml$/.test(rel),
     fileLicence: () => 'MIT',
+    // Files that fire on the wrong language or framework. Graded on the
+    // walkthrough repos (docs/benchmarks/rule-grade-w22-07, 2026-10-28).
+    exclude: {
+      'rules-audit/java/struts2/security/audit/entrypoints/struts-xml-action-name.yml':
+        'matches <action android:name> in every AndroidManifest.xml (4 of 4 nowinandroid hits)',
+      'rules-audit/go/orm-leak/beego-orm.yaml':
+        'matches fmt.Fprintf in a repository with no Beego ORM (gin recovery.go)',
+    },
   },
   {
     key: 'gitlab',
@@ -145,7 +153,12 @@ function main() {
     }
     const files = [];
     const refused = [];
+    const excluded = [];
     for (const rel of walk(dir).filter(src.include)) {
+      if (src.exclude?.[rel]) {
+        excluded.push({ path: `${src.key}/${rel}`, reason: src.exclude[rel] });
+        continue;
+      }
       const text = readFileSync(path.join(dir, rel), 'utf8');
       if (!isRuleFile(text)) continue;
       const licence = src.fileLicence(text);
@@ -178,8 +191,11 @@ function main() {
       licence: src.licence,
       files,
       refusedCount: refused.length,
+      ...(excluded.length ? { excluded } : {}),
     });
-    console.log(`${src.key}: ${files.length} files, ${files.reduce((n, f) => n + f.ruleIds.length, 0)} rules, ${refused.length} refused`);
+    console.log(
+      `${src.key}: ${files.length} files, ${files.reduce((n, f) => n + f.ruleIds.length, 0)} rules, ${refused.length} refused, ${excluded.length} excluded`,
+    );
     if (!local.has(src.key)) rmSync(dir, { recursive: true, force: true });
   }
 

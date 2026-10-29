@@ -30,7 +30,7 @@ vi.mock('node:child_process', () => ({
   }),
 }));
 
-const { runSemgrepScan, SEMGREP_RULEPACK_DIR } = await import('./scanner.js');
+const { runSemgrepScan, readRulepack, SEMGREP_RULEPACK_DIR } = await import('./scanner.js');
 const { readThirdPartyPack, THIRD_PARTY_MOUNT_PATH } = await import('../../rules/third-party.js');
 
 const configsUnder = (command: string[], mount: string) =>
@@ -73,5 +73,44 @@ describe('third-party pack in a semgrep run (W22-07)', () => {
       expect(configsUnder(call.command, THIRD_PARTY_MOUNT_PATH)).toEqual([]);
       expect(call.extraMounts.map((m) => m.containerPath)).not.toContain(THIRD_PARTY_MOUNT_PATH);
     }
+  });
+});
+
+describe('third-party findings on test paths (W22-07 grading)', () => {
+  it('drops a third-party rule on a test or rule-fixture path, and keeps ours', async () => {
+    const { runInSandbox } = await import('../../../sandbox/run.js');
+    const tpId = readThirdPartyPack()!.ruleIds[0]!;
+    const ourId = readRulepack().ruleIds[0]!;
+    const result = (rule: string, file: string) => ({
+      check_id: rule,
+      path: `/scan/${file}`,
+      start: { line: 1, col: 1 },
+      end: { line: 1, col: 2 },
+      extra: { message: 'm.', severity: 'WARNING', metadata: {}, lines: '' },
+    });
+    vi.mocked(runInSandbox).mockResolvedValueOnce({
+      status: 'succeeded',
+      exitCode: 0,
+      stderr: '',
+      durationMs: 1,
+      rawStdout: JSON.stringify({
+        results: [
+          result(tpId, 'app/server.py'),
+          result(tpId, 'app/tests/test_server.py'),
+          result(tpId, '.semgrep/security/requests/no-use-requests-lib.py'),
+          result(ourId, 'app/tests/conftest.py'),
+        ],
+        errors: [],
+        paths: { scanned: [] },
+      }),
+    } as never);
+    const run = await runSemgrepScan({
+      targetDir: '/tmp/none',
+      budget: { wallClockMs: 1000 },
+      thirdParty: true,
+    });
+    expect(run.findings.map((f) => `${f.ruleId} ${f.file}`).sort()).toEqual(
+      [`${tpId} app/server.py`, `${ourId} app/tests/conftest.py`].sort(),
+    );
   });
 });

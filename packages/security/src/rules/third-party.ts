@@ -66,3 +66,19 @@ export function isThirdPartyRule(ruleId: string): boolean {
   shippedIds ??= new Set(readThirdPartyPack()?.ruleIds ?? []);
   return shippedIds.has(ruleId);
 }
+
+/**
+ * Test, fixture, example and rule-test paths. Our own rule files exclude
+ * these in each rule's `paths:`; a third-party file mostly does not, and we
+ * cannot edit it. Graded on the walkthrough repos (docs/benchmarks/
+ * rule-grade-w22-07): 41 third-party hits sat in test paths and 23 more in
+ * saleor's `.semgrep/` rule fixtures, and `.claude/` holds a repo's agent
+ * tooling scripts. None of them is a finding about the product.
+ */
+const THIRD_PARTY_SKIP_PATH =
+  /(^|\/)(tests?|__tests__|__mocks__|specs?|e2e|fixtures?|__fixtures__|testdata|examples?|samples?|mocks?|\.semgrep|\.claude)(\/|$)|\.(test|spec)\.[cm]?[jt]sx?$|_test\.go$|(^|\/)test_[^/]*\.py$|Tests?\.(swift|kt|java)$/i;
+
+/** True for a path a third-party rule's finding is dropped on. */
+export function isThirdPartySkipPath(file: string): boolean {
+  return THIRD_PARTY_SKIP_PATH.test(file);
+}

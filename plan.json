@@ -11879,7 +11879,8 @@
       "notes": [
         "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md.",
         "Slice 1 (2026-10-28): 0xdea, elttam rules-audit and GitLab sast-rules MIT/Apache folders imported verbatim with LEDGER.json (381 files, 397 rules); scanner mounts them at /rules-tp behind SCAN_THIRD_PARTY_RULES (off) until validated on the live engine; every imported rule ships shadow. Also fixes quoted rule ids in readRulepack and adds swift/scala to the PR-scan file filter.",
-        "Slice 2 (2026-10-28): bpm-rulepacks opened by the owner ('open the rules'), imported as source bpm-rulepacks under an Apache-2.0 grant, through the same ledger, shadow and flag."
+        "Slice 2 (2026-10-28): bpm-rulepacks opened by the owner ('open the rules'), imported as source bpm-rulepacks under an Apache-2.0 grant, through the same ledger, shadow and flag.",
+        "Slice 3 (2026-10-28): validated and graded. All 629 imported rules pass opengrep --validate; 975 live hits on the six walkthrough repos, 775 sampled and read: proposed precision 3.9% (30 true, 1 of them third-party), sheet in docs/benchmarks/rule-grade-w22-07 with the brad column empty. 376 third-party and 185 bpm rules never fired (ungradeable on this corpus). Two misfiring elttam files excluded in the importer (392 third-party rules left); third-party findings on test paths are dropped. bpm-rulepacks rule fixes land in that repo first; re-import here at the fixed commit is a follow-up."
       ]
     },
     {
