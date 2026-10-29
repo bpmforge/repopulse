@@ -458,6 +458,27 @@ describeIfLiveInfra('verified-patch routes (W18-19)', () => {
     expect(added).toHaveLength(1);
   });
 
+  it('W22-09: drafts the after-judge step made do not count against people’s daily cap', async () => {
+    await db.insert(read.verifiedPatches).values(
+      Array.from({ length: PATCH_DRAFTS_PER_DAY }, (_, i) => ({
+        workspaceId,
+        repoId,
+        findingId: judgmentFindingId,
+        commitSha: `auto-${i}`,
+        targetDedupKey: 'k',
+        status: 'rejected',
+        requestedBy: null,
+      })),
+    );
+    const res = await app.inject({
+      method: 'POST',
+      url: `/findings/${findingId}/patch`,
+      headers: as('member'),
+      payload: {},
+    });
+    expect(res.statusCode).toBe(202);
+  });
+
   it('refuses past the workspace daily cap', async () => {
     await db.insert(read.verifiedPatches).values(
       Array.from({ length: PATCH_DRAFTS_PER_DAY }, (_, i) => ({
@@ -467,6 +488,7 @@ describeIfLiveInfra('verified-patch routes (W18-19)', () => {
         commitSha: `cap-${i}`,
         targetDedupKey: 'k',
         status: 'rejected',
+        requestedBy: userId,
       })),
     );
     const res = await app.inject({
@@ -552,5 +574,75 @@ describeIfLiveInfra('verified-patch routes (W18-19)', () => {
     expect((await get('?status=nope')).statusCode).toBe(400);
     expect((await get('?before=x')).statusCode).toBe(400);
     expect((await get('?repo_id=x')).statusCode).toBe(400);
+  });
+
+  // W22-09: the fixes ready to apply. Verified only, for the snapshot the
+  // drawer shows, on a finding still open; workspace-filtered.
+  describe('GET /patches/ready (W22-09)', () => {
+    const ready = async (qs = '') =>
+      app.inject({ method: 'GET', url: `/patches/ready${qs}`, headers: as('member') });
+
+    it('lists a verified fix, to a member, with what it is for and who drafted it', async () => {
+      const row = await setRow({
+        status: 'verified',
+        diff: '--- a/src/run.js',
+        modelId: 'm1',
+        requestedBy: null,
+        finishedAt: new Date(),
+      });
+      const res = await ready();
+      expect(res.statusCode).toBe(200);
+      expect(res.json().items).toEqual([
+        expect.objectContaining({
+          patch_id: row.id,
+          finding_id: findingId,
+          title: 'eval of input',
+          file: 'src/run.js',
+          line_start: 2,
+          commit_sha: SHA,
+          drafted_by: 'auto',
+          repo: { id: repoId, name: 'patches' },
+        }),
+      ]);
+      expect((await ready(`?repo_id=${repoId}`)).json().items).toHaveLength(1);
+      expect(
+        (await ready(`?repo_id=${repoId + 100000},${repoId + 100001}`)).json().items,
+      ).toHaveLength(0);
+      expect((await ready('?repo_id=x')).statusCode).toBe(400);
+    });
+
+    it('never lists a draft the rescan rejected, a pending or failed one, or a stale snapshot', async () => {
+      await setRow({ status: 'rejected', reasonCode: 'new_finding', reason: 'innerHTML' });
+      expect((await ready()).json().items).toEqual([]);
+      await db.delete(read.verifiedPatches).where(eq(read.verifiedPatches.repoId, repoId));
+      await setRow({ status: 'failed', reasonCode: 'model_busy' });
+      expect((await ready()).json().items).toEqual([]);
+      await db.delete(read.verifiedPatches).where(eq(read.verifiedPatches.repoId, repoId));
+      // Verified, but for a commit the finding is no longer seen at.
+      await setRow({ status: 'verified', commitSha: 'c'.repeat(40) });
+      expect((await ready()).json().items).toEqual([]);
+    });
+
+    it('drops a fix whose finding is no longer open, and never another workspace’s', async () => {
+      await setRow({ status: 'verified' });
+      await db
+        .update(read.findings)
+        .set({ status: 'resolved' })
+        .where(eq(read.findings.id, findingId));
+      try {
+        expect((await ready()).json().items).toEqual([]);
+      } finally {
+        await db
+          .update(read.findings)
+          .set({ status: 'open' })
+          .where(eq(read.findings.id, findingId));
+      }
+      const other = await app.inject({
+        method: 'GET',
+        url: '/patches/ready',
+        headers: { ...as('member'), 'x-no-session': '1' },
+      });
+      expect(other.statusCode).toBe(401);
+    });
   });
 });

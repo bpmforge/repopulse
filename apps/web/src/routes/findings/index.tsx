@@ -43,6 +43,7 @@ import type { ViewConfig } from '../../views/contracts.js';
 import { ShadowBadge } from '../../widgets/findings/ShadowBadge.js';
 import { ExportFindings } from '../../widgets/findings/ExportFindings.js';
 import { TicketLink } from '../../widgets/findings/ExternalTicket.js';
+import { ReadyFixes } from '../../widgets/findings/ReadyFixes.js';
 
 // Findings Explorer (W6-04, UX_SPEC §4.e, FR-WEB-9).
 //
@@ -1090,6 +1091,9 @@ function FindingsExplorer() {
           </button>
         </p>
       )}
+
+      {/* W22-09: verified fixes drafted after the AI judged a scan's rule hits. */}
+      <ReadyFixes repos={repos} onOpen={(id) => setOpenId(id)} />
 
       <WidgetFrame
         title={shadowMode === 'only' ? 'Shadow findings' : 'Findings'}

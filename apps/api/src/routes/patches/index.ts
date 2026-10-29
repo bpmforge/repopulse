@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, isNotNull, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNotNull, lt, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Queue } from 'bullmq';
 import { auditLog, core, read, type Database } from '@repopulse/shared';
@@ -12,6 +12,7 @@ import { aiPauseState, refuseWhenAiPaused } from '../../lib/ai-pause.js';
 //
 //   GET  /findings/:id/patch  — the verified fix for a finding, if there is one
 //   POST /findings/:id/patch  — ask for one to be drafted and verified
+//   GET  /patches/ready       — verified fixes ready to apply, riskiest first (W22-09)
 //
 // NOTHING HERE WRITES TO THE FORGE (D9a). The diff is served to the person who
 // asked, who copies or downloads it and applies it with their own tools. There
@@ -27,6 +28,10 @@ import { aiPauseState, refuseWhenAiPaused } from '../../lib/ai-pause.js';
 
 /** Requests a workspace may make per rolling day. Each is a model call over a file of source. */
 export const PATCH_DRAFTS_PER_DAY = 50;
+
+/** Most fixes GET /patches/ready lists, and how many rows it reads to find them. */
+export const READY_FIXES_LIMIT = 25;
+const READY_FIXES_READ = 100;
 
 /** Per-session request rate on POST (SC-11 style). */
 export const PATCH_DRAFT_RATE_LIMIT = { max: 10, timeWindow: '1 minute' } as const;
@@ -293,6 +298,9 @@ export default async function patchRoutes(
           and(
             eq(read.verifiedPatches.workspaceId, workspaceId),
             gte(read.verifiedPatches.createdAt, since),
+            // W22-09: drafts the after-judge step made (no person asked) are
+            // bounded by the judge's time budget, not by people's daily cap.
+            isNotNull(read.verifiedPatches.requestedBy),
           ),
         );
       if (n >= PATCH_DRAFTS_PER_DAY) {
@@ -390,6 +398,99 @@ export default async function patchRoutes(
       return reply.code(202).send({ patch: patchView(row, target.file, isAdmin) });
     },
   );
+
+  /**
+   * GET /patches/ready — verified fixes ready to apply (W22-09), riskiest first.
+   *
+   * ONLY `verified` rows: a draft the re-scan rejected is never listed, to
+   * anyone. And only a fix for the snapshot the finding's drawer would show
+   * (resolvePatchTarget), on a finding still open or confirmed: a fix for code
+   * that has since changed is not ready to apply. Workspace-filtered (Law 5);
+   * `repo_id` (one id, or several comma-separated, as the topbar sends them)
+   * narrows it to those repositories.
+   */
+  app.get<{ Querystring: { repo_id?: string } }>('/patches/ready', async (request, reply) => {
+    const workspaceId = request.workspace?.id;
+    if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
+    const rawRepos = request.query?.repo_id;
+    const repoIds =
+      rawRepos !== undefined && rawRepos !== '' ? rawRepos.split(',').map(Number) : null;
+    if (repoIds !== null && !repoIds.every((n) => Number.isInteger(n))) {
+      return fail(request, reply, 400, 'Invalid repository');
+    }
+    const rows = await db
+      .select({
+        patchId: read.verifiedPatches.id,
+        findingId: read.verifiedPatches.findingId,
+        commitSha: read.verifiedPatches.commitSha,
+        modelId: read.verifiedPatches.modelId,
+        requestedBy: read.verifiedPatches.requestedBy,
+        finishedAt: read.verifiedPatches.finishedAt,
+        title: read.findings.title,
+        file: read.findings.file,
+        lineStart: read.findings.lineStart,
+        severity: read.findings.severity,
+        dimension: read.findings.dimension,
+        effectiveRisk: read.findings.effectiveRisk,
+        verifyStatus: read.findings.verifyStatus,
+        repoId: read.verifiedPatches.repoId,
+        repoName: core.repos.name,
+      })
+      .from(read.verifiedPatches)
+      .innerJoin(
+        read.findings,
+        and(
+          eq(read.findings.id, read.verifiedPatches.findingId),
+          eq(read.findings.workspaceId, workspaceId),
+        ),
+      )
+      .leftJoin(
+        core.repos,
+        and(
+          eq(core.repos.id, read.verifiedPatches.repoId),
+          eq(core.repos.workspaceId, workspaceId),
+        ),
+      )
+      .where(
+        and(
+          eq(read.verifiedPatches.workspaceId, workspaceId),
+          eq(read.verifiedPatches.status, 'verified'),
+          inArray(read.findings.status, ['open', 'confirmed']),
+          ...(repoIds !== null ? [inArray(read.verifiedPatches.repoId, repoIds)] : []),
+        ),
+      )
+      .orderBy(sql`${read.findings.effectiveRisk} desc nulls last`, desc(read.verifiedPatches.id))
+      .limit(READY_FIXES_READ);
+
+    const items = [];
+    const seen = new Set<number>();
+    for (const r of rows) {
+      if (items.length >= READY_FIXES_LIMIT) break;
+      if (seen.has(r.findingId)) continue;
+      const target = await resolvePatchTarget(db, workspaceId, r.findingId);
+      // The drawer shows the fix for this snapshot only; an older one is stale.
+      if (!target.ok || target.commitSha !== r.commitSha) continue;
+      seen.add(r.findingId);
+      items.push({
+        patch_id: r.patchId,
+        finding_id: r.findingId,
+        title: r.title,
+        file: r.file,
+        line_start: r.lineStart,
+        severity: r.severity,
+        dimension: r.dimension,
+        effective_risk: r.effectiveRisk === null ? null : Number(r.effectiveRisk),
+        verify_status: r.verifyStatus,
+        repo: { id: r.repoId, name: r.repoName ?? `repository ${r.repoId}` },
+        commit_sha: r.commitSha,
+        model_id: r.modelId,
+        // No person asked: the after-judge step drafted it (W22-09).
+        drafted_by: r.requestedBy === null ? 'auto' : 'person',
+        finished_at: r.finishedAt?.toISOString() ?? null,
+      });
+    }
+    return reply.send({ items });
+  });
 
   /**
    * GET /admin/patches — recent attempts with their reasons (admin).

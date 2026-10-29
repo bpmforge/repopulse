@@ -7,12 +7,13 @@ import {
   type T2Host,
 } from '@repopulse/analysis';
 import { recordVerdicts, type FindingVerify } from '@repopulse/insights';
-import { emptyTriageFunnel, runTriage, type TriageFunnel } from '@repopulse/security';
+import { emptyTriageFunnel, isRerunnable, runTriage, type TriageFunnel } from '@repopulse/security';
 import { isConstraintViolation, read, safeErrorText, type Database } from '@repopulse/shared';
 import { passEgress, PASS_ROLES, type PassEgress } from '../lib/ai-pass-egress.js';
 import { isAiPaused } from '../lib/ai-pause.js';
 import { monthlyCallsUsed, monthlyCap } from './ai-pass-scheduler.js';
 import { triageCandidateOf } from './ai-pass-processor.js';
+import { fixEligibility, pickFixTargets, type FixConfig } from './ai-fix.js';
 
 // W22-03: the AI judges every rule hit after each scan (CLOSE_THE_LOOP.md,
 // "The loop"; owner decisions 1 and 2, taken as recommended 2026-10-29).
@@ -348,6 +349,8 @@ export async function queueJudgeAfterScan(
     enqueue: (data: { workspaceId: number; runId: number }) => Promise<void>;
     now?: () => Date;
     egress?: EgressOf;
+    /** W22-09: also queue when nothing is left to judge but a confirmed finding needs a fix. */
+    fixes?: FixConfig;
   },
   target: { workspaceId: number; repoId: number },
 ): Promise<QueueJudgeResult> {
@@ -364,7 +367,21 @@ export async function queueJudgeAfterScan(
   });
   if (!ok.ok) return { queued: false, code: ok.code };
   if ((await judgeCandidates(db, ws, repoId, 1)).length === 0) {
-    return { queued: false, code: 'nothing_to_judge' };
+    // W22-09: a confirmed finding the last run had no time to draft a fix for
+    // is still worth a run, within the same budget.
+    const fixable =
+      deps.fixes !== undefined &&
+      (
+        await fixEligibility({
+          db,
+          workspaceId: ws,
+          config: deps.fixes,
+          runBudget: ok.budget,
+          ...(deps.egress ? { egress: deps.egress } : {}),
+        })
+      ).ok &&
+      (await pickFixTargets(db, ws, repoId, 1, now)).targets.length > 0;
+    if (!fixable) return { queued: false, code: 'nothing_to_judge' };
   }
 
   // A judge run a crashed worker left active would block every later one.
@@ -485,6 +502,11 @@ export interface JudgeRunResult {
   patch: Partial<typeof read.aiPassRuns.$inferInsert>;
   /** Verdicts written: the caller reprices the repository when > 0. */
   verdicts: number;
+  /**
+   * W22-09: what the run has left for drafting fixes, when it was allowed to
+   * run at all: the same deadline and calls as the judge's.
+   */
+  budget?: { kind: 'time' | 'calls'; deadlineMs: number; callsLeft: number };
 }
 
 /**
@@ -500,6 +522,13 @@ export async function runJudge(a: {
   config: JudgeConfig;
   now: () => Date;
   egress?: EgressOf;
+  /**
+   * W22-09: the share of the run kept for drafting fixes after judging. It is
+   * held back once a fix could be drafted: `pending` (a confirmed finding was
+   * already waiting for one) or a hit this run confirms that has a re-runnable
+   * rule. Otherwise judging may use the whole run.
+   */
+  fixReserve?: { share: number; pending: boolean };
 }): Promise<JudgeRunResult> {
   const { db, run, workspaceId: ws, runId } = a;
   const started = a.now();
@@ -518,6 +547,14 @@ export async function runJudge(a: {
   const failedBefore = await recentlyFailedIds(db, ws, run.repoId, started);
   const rows = (await judgeCandidates(db, ws, run.repoId)).filter((r) => !failedBefore.has(r.id));
   const queue = orderJudgeQueue(rows);
+  const deadline = started.getTime() + ok.minutes * 60_000;
+  const maxCalls = ok.budget === 'calls' ? ok.maxCalls : Number.POSITIVE_INFINITY;
+  let calls = 0;
+  const budgetLeft = () => ({
+    kind: ok.budget,
+    deadlineMs: deadline,
+    callsLeft: Math.max(0, maxCalls - calls),
+  });
   const summary: JudgeSummary = {
     budget: ok.budget,
     minutes_allowed: ok.minutes,
@@ -546,20 +583,21 @@ export async function runJudge(a: {
         plan: { judge: summary },
       },
       verdicts: 0,
+      budget: budgetLeft(),
     };
   }
 
-  const deadline = started.getTime() + ok.minutes * 60_000;
-  const maxCalls = ok.budget === 'calls' ? ok.maxCalls : Number.POSITIVE_INFINITY;
   const contextWindow = contextWindowForRole(a.wg.routing, 'triage', a.wg.hosts);
   const funnel = emptyTriageFunnel();
-  let calls = 0;
+  let fixable = a.fixReserve?.pending ?? false;
+  const reserveMs = a.fixReserve ? Math.floor(ok.minutes * 60_000 * a.fixReserve.share) : 0;
+  const judgeDeadline = () => deadline - (fixable ? reserveMs : 0);
   let consecutiveErrors = 0;
   let verdicts = 0;
   let fatal: string | null = null;
 
   for (const [i, f] of queue.entries()) {
-    if (a.now().getTime() >= deadline) {
+    if (a.now().getTime() >= judgeDeadline()) {
       summary.stopped = 'time_budget';
       summary.not_reached = queue.length - i;
       break;
@@ -645,8 +683,10 @@ export async function runJudge(a: {
     // Another pass answered this finding meanwhile: its suggestion stands.
     if (!stored) continue;
     summary.judged += 1;
-    if (p.verdict === 'real') summary.confirmed += 1;
-    else if (p.verdict === 'likely_false_positive') summary.contradicted += 1;
+    if (p.verdict === 'real') {
+      summary.confirmed += 1;
+      if (isRerunnable(f.scannerKey, f.ruleId) && f.file !== null) fixable = true;
+    } else if (p.verdict === 'likely_false_positive') summary.contradicted += 1;
     else summary.needs_human += 1;
     // MARKS the finding (verify columns only): never its status (D9a).
     await recordVerdicts(db, {
@@ -680,15 +720,18 @@ export async function runJudge(a: {
       verdicts,
     };
   }
+  // W22-09: a model that failed five times in a row, or a route local-only
+  // refuses, is not asked to draft fixes either.
+  const budget = fatal === null ? budgetLeft() : undefined;
   if (fatal !== null) {
     patch.reasonCode = summary.stopped;
     patch.reason = fatal.slice(0, 2000);
   } else if (summary.stopped === 'time_budget') {
     patch.reasonCode = 'time_budget';
-    patch.reason = `Stopped at this run's ${ok.minutes}-minute budget; ${summary.not_reached} rule hit(s) wait for the next scan.`;
+    patch.reason = `Stopped at this run's ${ok.minutes}-minute budget${judgeDeadline() < deadline ? ' (part of it kept for drafting fixes)' : ''}; ${summary.not_reached} rule hit(s) wait for the next scan.`;
   } else if (summary.stopped === 'call_cap') {
     patch.reasonCode = 'call_cap';
     patch.reason = `Stopped at this run's ${summary.max_calls}-call cap; ${summary.not_reached} rule hit(s) wait for the next scan.`;
   }
-  return { status: 'succeeded', patch, verdicts };
+  return { status: 'succeeded', patch, verdicts, ...(budget ? { budget } : {}) };
 }
