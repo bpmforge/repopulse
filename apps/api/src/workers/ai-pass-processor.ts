@@ -21,6 +21,7 @@ import { overlaps, rangesByFile, type DiffRequest, type LoadedDiff } from './ai-
 import { isAiPaused } from '../lib/ai-pause.js';
 import { withAiPass } from './ai-pass-context.js';
 import { describeEndpoint, loadStoredRouting, providersFor } from '../lib/llm-routing.js';
+import { judgeConfigFromEnv, runJudge, type EgressOf, type JudgeConfig } from './ai-judge.js';
 
 // ai.pass processor (W19-09): planned specialists, then evidence-fed triage, over
 // one repository, through THIS workspace's routing chain.
@@ -104,6 +105,20 @@ export interface AiPassDeps {
   }) => { verify: SecondModelVerify; calls(): number };
   maxCalls?: number;
   now?: () => Date;
+  /**
+   * W22-03: judge runs (mode 'judge', queued after a scan). `config` defaults
+   * to the environment's; `afterVerdicts` queues a reprice so verify_status
+   * moves the ranking today; `egress` is for tests.
+   */
+  judge?: {
+    config?: JudgeConfig;
+    afterVerdicts?: (target: {
+      workspaceId: number;
+      repoId: number;
+      runId: number;
+    }) => Promise<void>;
+    egress?: EgressOf;
+  };
 }
 
 export type AiPassResult = {
@@ -265,6 +280,14 @@ export function aiPassProcessor(deps: AiPassDeps) {
     if (run.mode === 'second_opinion') {
       try {
         return await secondOpinionStep({ deps, run, workspaceId, runId, maxCalls, fail, finish });
+      } catch (err) {
+        return fail('error', safeErrorText(err));
+      }
+    }
+
+    if (run.mode === 'judge') {
+      try {
+        return await judgeStep({ deps, run, workspaceId, runId, now, fail, finish });
       } catch (err) {
         return fail('error', safeErrorText(err));
       }
@@ -737,6 +760,54 @@ async function triageStep(a: {
 }
 
 /**
+ * W22-03: a judge run - the open rule hits after a scan, judged one at a time
+ * within the workspace's budget (ai-judge.ts). Same gateway, cancel check and
+ * call counter as a pass; never changes a finding's status.
+ */
+async function judgeStep(a: {
+  deps: AiPassDeps;
+  run: typeof read.aiPassRuns.$inferSelect;
+  workspaceId: number;
+  runId: number;
+  now: () => Date;
+  fail: (code: string, reason: string) => Promise<AiPassResult>;
+  finish: (
+    status: 'succeeded' | 'failed' | 'skipped',
+    patch?: Partial<typeof read.aiPassRuns.$inferInsert>,
+  ) => Promise<AiPassResult>;
+}): Promise<AiPassResult> {
+  const { deps, run, workspaceId, runId } = a;
+  const built = await deps.gatewayFor(workspaceId);
+  if (!built) {
+    return a.fail(
+      'no_gateway',
+      'No model is configured for this workspace, so no rule hit was judged. Add one in Settings → Models.',
+    );
+  }
+  const wg = {
+    ...built,
+    gateway: trackPassGateway(built.gateway, deps.db, { workspaceId, runId }),
+  };
+  const judged = await runJudge({
+    db: deps.db,
+    run,
+    workspaceId,
+    runId,
+    wg,
+    config: deps.judge?.config ?? judgeConfigFromEnv(process.env),
+    now: a.now,
+    ...(deps.judge?.egress ? { egress: deps.judge.egress } : {}),
+  });
+  const result = await a.finish(judged.status, judged.patch);
+  if (judged.verdicts > 0) {
+    await deps.judge
+      ?.afterVerdicts?.({ workspaceId, repoId: run.repoId, runId })
+      .catch(() => undefined);
+  }
+  return result;
+}
+
+/**
  * The connection behind a triage answer (W20-25, UX_TODO X-10), from the route
  * the gateway recorded: its id while it exists, and its name kept beside it.
  */
@@ -756,7 +827,7 @@ export function verifierColumns(route: unknown): {
 }
 
 /** A rule-raised finding with stored context, as triage reads it. */
-function triageCandidateOf(r: typeof read.findings.$inferSelect): TriageCandidate {
+export function triageCandidateOf(r: typeof read.findings.$inferSelect): TriageCandidate {
   return {
     finding: {
       dedupKey: r.dedupKey,

@@ -497,6 +497,36 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     default: '900000',
   },
   {
+    name: 'AI_JUDGE',
+    scope: 'shared',
+    required: false,
+    purpose:
+      "Whether the worker has the AI judge the open security, performance and slop rule hits after each scan (W22-03). On by default only when every model the triage role routes to is on your network; a hosted link still needs the repository's scheduled-pass opt-in and stays on the monthly call cap. 'off' removes it.",
+    ifWrong:
+      "With 'off', rule hits are never judged automatically (a person's AI pass still triages). Left on, nothing is sent while no model is configured or AI is switched off for the workspace.",
+    default: 'on',
+  },
+  {
+    name: 'AI_JUDGE_MINUTES_PER_DAY',
+    scope: 'shared',
+    required: false,
+    purpose:
+      'Default wall-clock minutes local models may spend judging rule hits per workspace over a rolling 24 hours (0 to 1440). A workspace can set its own in Settings (judge_minutes_per_day).',
+    ifWrong:
+      'Too low and most rule hits wait several scans for a verdict; too high and the local model is busy judging for most of the day. Not a monthly call count: local calls are not on that cap.',
+    default: '240',
+  },
+  {
+    name: 'AI_JUDGE_SCAN_MINUTES',
+    scope: 'shared',
+    required: false,
+    purpose:
+      'Most wall-clock minutes one judge run (after one scan) may spend, within the daily minutes (0 to 1440).',
+    ifWrong:
+      'Too low and each scan judges only a few hits; too high and one large scan can spend the whole day in one run. A run also stops at its rule hits, so a small repository finishes early.',
+    default: '30',
+  },
+  {
     name: 'RECONCILE_CRON',
     scope: 'worker',
     required: false,

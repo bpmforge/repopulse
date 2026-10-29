@@ -18,8 +18,11 @@ export interface AiCitation {
   text: string;
 }
 
-/** W20-18 (UX_TODO AI-14): 'second_opinion' is another model asked about one finding. */
-export type PassMode = 'paths' | 'pull_request' | 'commit_range' | 'second_opinion';
+/**
+ * W20-18 (UX_TODO AI-14): 'second_opinion' is another model asked about one finding.
+ * W22-03: 'judge' is the AI judging the open rule hits after a scan.
+ */
+export type PassMode = 'paths' | 'pull_request' | 'commit_range' | 'second_opinion' | 'judge';
 
 /** What a pass reviewed, as the API reports it next to an answer. */
 export interface PassInfo {
@@ -38,6 +41,9 @@ export function passLabel(
   if (!p) return 'an unrecorded scope';
   if (p.mode === 'pull_request') {
     return `the diff of pull request #${p.pr_number ?? '?'}${p.base_ref ? ` (base ${p.base_ref}${p.head_ref ? `, head ${p.head_ref.slice(0, 8)}` : ''})` : ''}`;
+  }
+  if (p.mode === 'judge') {
+    return 'the open rule hits, judged after a scan';
   }
   if (p.mode === 'second_opinion') {
     return `one finding in ${p.paths[0] ?? 'a file'}, for a second opinion`;
