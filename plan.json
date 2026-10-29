@@ -12100,9 +12100,10 @@
         "Escalation, batching and per-model timing are visible on the run's plan.judge and on the AI pass screen"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
-        "Filed 2026-10-29 from the Mac's outline run 33 (owner: 'do what you recommend'). 162 rule hits were left after a 30-minute run; at that rate outline needs more than 50 scans to be judged once."
+        "Filed 2026-10-29 from the Mac's outline run 33 (owner: 'do what you recommend'). 162 rule hits were left after a 30-minute run; at that rate outline needs more than 50 scans to be judged once.",
+        "2026-10-29: the fast first pass is built (#195). It uses an optional triage_fast routing role (Settings → Models → Routing, \"Quick first look at rule hits\"). A confident false positive (>= 4 of 5, AI_JUDGE_FAST_MIN_CONFIDENCE) stands; everything else escalates to the triage model. ai_triage_verdicts.pass records which pass, and plan.judge counts fast_cleared/escalated/fast_errors and per-pass time. Still to do here: batching several hits of one rule per call, and the fast-vs-strong agreement measurement on outline and saleor."
       ]
     }
   ]
