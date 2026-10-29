@@ -69,4 +69,51 @@ describe('per-host slots shared across clients', () => {
     for (const r of [r2, r3, other]) r();
     expect(slots.active('h1')).toBe(0);
   });
+
+  // 2026-10-29 outline run: anti-slop failed twice while the AI judge, which
+  // takes minutes a verdict, held LM Studio's only slot.
+  it('serves a scan waiting for the host before a background (judge) call queued earlier', async () => {
+    const slots = new HostSlots();
+    const scanClient = new T2Client(
+      { ...T2_DEFAULTS, hosts: [HOST], concurrencyCap: 1, queueTimeoutMs: 5_000 },
+      { slots },
+    );
+    const judgeClient = new T2Client(
+      { ...T2_DEFAULTS, hosts: [HOST], concurrencyCap: 1, queueTimeoutMs: 5_000 },
+      { slots, background: true },
+    );
+    const order: string[] = [];
+    const first = gate();
+    const judge1 = judgeClient.track(HOST, async () => {
+      order.push('judge 1');
+      await first.wait;
+    });
+    await new Promise((r) => setTimeout(r, 5));
+    const judge2 = judgeClient.track(HOST, async () => {
+      order.push('judge 2');
+    });
+    await new Promise((r) => setTimeout(r, 5));
+    const scan = scanClient.track(HOST, async () => {
+      order.push('scan');
+    });
+    await new Promise((r) => setTimeout(r, 5));
+    first.open();
+    await Promise.all([judge1, judge2, scan]);
+    expect(order).toEqual(['judge 1', 'scan', 'judge 2']);
+  });
+
+  it('keeps first-come order among calls of the same kind', async () => {
+    const slots = new HostSlots();
+    const hold = await slots.acquire('h', 1, 1_000);
+    const order: string[] = [];
+    const wait = (name: string, background: boolean) =>
+      slots.acquire('h', 1, 1_000, { background }).then((r) => {
+        order.push(name);
+        r();
+      });
+    const all = [wait('bg1', true), wait('s1', false), wait('bg2', true), wait('s2', false)];
+    hold();
+    await Promise.all(all);
+    expect(order).toEqual(['s1', 's2', 'bg1', 'bg2']);
+  });
 });

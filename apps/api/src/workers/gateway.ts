@@ -239,6 +239,8 @@ export async function buildWorkerGateway(
    * the same egress audit for any call that leaves the network.
    */
   pin?: { providerId: number; model: string },
+  /** The AI judge's gateway: its calls wait behind every other analysis (host-slots.ts). */
+  opts: { background?: boolean } = {},
 ): Promise<WorkerGateway | null> {
   // Configured providers first. The env path is kept so an existing install
   // does not lose its model the moment it upgrades, but it is documented as
@@ -329,6 +331,7 @@ export async function buildWorkerGateway(
 
   const gateway = createAnalysisGateway({
     hosts,
+    ...(opts.background ? { background: true } : {}),
     ...(policy ? { routing: policy } : {}),
     egressAuditor,
     // W20-21 (UX_TODO AI-63): each connection's last success and last error,
@@ -392,6 +395,14 @@ export async function buildWorkerGateway(
 export interface GatewayResolver {
   /** This workspace's gateway, or null when it has no usable provider. */
   for(workspaceId: number): Promise<WorkerGateway | null>;
+  /**
+   * The same workspace's gateway for background work (the AI judge,
+   * 2026-10-29). A separate client, so its calls do not count against the
+   * scans' own per-client cap (which made anti-slop fail with "No Tier-2 host
+   * is available" while the judge held LM Studio), and every call waits
+   * behind the scans' calls for the host's slot.
+   */
+  forBackground(workspaceId: number): Promise<WorkerGateway | null>;
   /** Drops the cache — for tests, and for an admin change taking effect. */
   invalidate(workspaceId?: number): void;
 }
@@ -434,22 +445,42 @@ export function createGatewayResolver(
   const absentTtlMs = options.absentTtlMs ?? Math.min(ttlMs, 5_000);
   const now = options.now ?? (() => Date.now());
   const cache = new Map<number, { at: number; built: WorkerGateway | null }>();
+  const backgroundCache = new Map<number, { at: number; built: WorkerGateway | null }>();
+
+  async function resolve(
+    from: typeof cache,
+    workspaceId: number,
+    background: boolean,
+  ): Promise<WorkerGateway | null> {
+    const hit = from.get(workspaceId);
+    // A cached NULL counts, but for less long. A workspace with no provider
+    // is a settled answer inside one sweep; across a minute it is the answer
+    // an admin is in the middle of changing.
+    if (hit && now() - hit.at < (hit.built ? ttlMs : absentTtlMs)) return hit.built;
+
+    const built = await buildWorkerGateway(
+      db,
+      env,
+      tokenKey,
+      workspaceId,
+      undefined,
+      background ? { background: true } : {},
+    );
+    from.set(workspaceId, { at: now(), built });
+    return built;
+  }
 
   return {
-    async for(workspaceId: number): Promise<WorkerGateway | null> {
-      const hit = cache.get(workspaceId);
-      // A cached NULL counts, but for less long. A workspace with no provider
-      // is a settled answer inside one sweep; across a minute it is the answer
-      // an admin is in the middle of changing.
-      if (hit && now() - hit.at < (hit.built ? ttlMs : absentTtlMs)) return hit.built;
-
-      const built = await buildWorkerGateway(db, env, tokenKey, workspaceId);
-      cache.set(workspaceId, { at: now(), built });
-      return built;
-    },
+    for: (workspaceId: number) => resolve(cache, workspaceId, false),
+    forBackground: (workspaceId: number) => resolve(backgroundCache, workspaceId, true),
     invalidate(workspaceId?: number): void {
-      if (workspaceId === undefined) cache.clear();
-      else cache.delete(workspaceId);
+      if (workspaceId === undefined) {
+        cache.clear();
+        backgroundCache.clear();
+      } else {
+        cache.delete(workspaceId);
+        backgroundCache.delete(workspaceId);
+      }
     },
   };
 }
