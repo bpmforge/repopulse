@@ -489,17 +489,6 @@
           "sha256": "fd6ce2693a08702bfba754b8c6361d9386f180b66ccb2fbc9c34873555d604b2"
         },
         {
-          "path": "elttam/rules-audit/go/orm-leak/beego-orm.yaml",
-          "licence": "MIT",
-          "ruleIds": [
-            "beego-ormleak-taint-dynamic-expr",
-            "beego-ormleak-filterraw",
-            "beego-ormleak-dynamic-expr-review",
-            "beego-ormleak-dynamic-orderby-review"
-          ],
-          "sha256": "ed971aead212bd69540bb6467525c62026cf8b772272c5a0eec9f609830a740f"
-        },
-        {
           "path": "elttam/rules-audit/java/jackson/polymorphic-typing.yml",
           "licence": "MIT",
           "ruleIds": [
@@ -799,14 +788,6 @@
           "sha256": "1d99b0a2999370d5bc9f962499cd885abfe373bf59d981eb8e03ffa193d51f7f"
         },
         {
-          "path": "elttam/rules-audit/java/struts2/security/audit/entrypoints/struts-xml-action-name.yml",
-          "licence": "MIT",
-          "ruleIds": [
-            "struts-xml-action-name"
-          ],
-          "sha256": "1d2140d828ff3b49620792b356b104dc5648e62b01684b56b026eadf850e8bf5"
-        },
-        {
           "path": "elttam/rules-audit/java/struts2/security/audit/entrypoints/taglib-action.yml",
           "licence": "MIT",
           "ruleIds": [
@@ -925,7 +906,17 @@
           "sha256": "de4f75bdd33d5e6c548f9508ec107d6b994a14e2715cd9fa283b525c1e7cdc9e"
         }
       ],
-      "refusedCount": 0
+      "refusedCount": 0,
+      "excluded": [
+        {
+          "path": "elttam/rules-audit/go/orm-leak/beego-orm.yaml",
+          "reason": "matches fmt.Fprintf in a repository with no Beego ORM (gin recovery.go)"
+        },
+        {
+          "path": "elttam/rules-audit/java/struts2/security/audit/entrypoints/struts-xml-action-name.yml",
+          "reason": "matches <action android:name> in every AndroidManifest.xml (4 of 4 nowinandroid hits)"
+        }
+      ]
     },
     {
       "key": "gitlab",
