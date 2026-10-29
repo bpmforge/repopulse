@@ -19,6 +19,21 @@ export type TriageVerdict = (typeof TRIAGE_VERDICTS)[number];
 
 export const TRIAGE_CHECKLIST_VERSION = 'triage.v1';
 
+/**
+ * How much a REAL performance hit matters (W22-03, 2026-10-29). A copy in a
+ * loop over a fixed list of five editor extensions is real and does not
+ * matter; the judge said "real" and fix drafting spent a 27B model's time on
+ * it. `negligible` = the input is small or bounded (a fixed list, config, a
+ * per-request constant); `material` = it can grow with data or traffic;
+ * `unknown` = the lines shown do not say. The hand-check sheets' "small" mark
+ * (docs/benchmarks/perf-hand-check*) is the same judgement.
+ *
+ * Asked only for findings in this dimension, and kept only on a `real` verdict.
+ */
+export const TRIAGE_IMPACTS = ['material', 'negligible', 'unknown'] as const;
+export type TriageImpact = (typeof TRIAGE_IMPACTS)[number];
+export const IMPACT_DIMENSION = 'performance';
+
 /** The finding as the rule raised it. */
 export interface TriageFinding {
   dedupKey: string;
@@ -99,6 +114,12 @@ export interface TriageProposal {
   citations: CitedLine[];
   vex: TriageVex | null;
   patch: TriagePatch | null;
+  /**
+   * How much a real performance hit matters, and the one-line evidence for it.
+   * Null on any other dimension or verdict, or when the model did not say.
+   */
+  impact?: TriageImpact | null;
+  impactReason?: string | null;
   /** The routing link that served the call, so a verdict has an author. */
   route: { providerName: string; model: string; linkIndex: number } | null;
 }

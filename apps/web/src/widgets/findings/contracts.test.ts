@@ -6,6 +6,10 @@ import {
   foundByText,
   reviewSummary,
   statusLabel,
+  verifiedByText,
+  verifyLabelOf,
+  VERIFY_LABEL,
+  VERIFY_LABEL_NEGLIGIBLE,
   type Finding,
 } from './contracts.js';
 
@@ -41,6 +45,32 @@ describe('reviewSummary (W17-23)', () => {
     // No link line when there is nothing honest to link to.
     expect(text).not.toContain('Link:');
     expect(text).not.toContain('History:');
+  });
+
+  it('W22-03: a real hit on a small input is still confirmed, worded as small', () => {
+    const small = {
+      ...base,
+      verify_status: 'confirmed' as const,
+      verified_by: {
+        model: 'm',
+        connection: null,
+        verdict: 'real',
+        at: null,
+        impact: 'negligible',
+      },
+    };
+    expect(reviewSummary(small)).toContain(
+      'Verification: confirmed on AI review: real, but small input',
+    );
+    expect(verifyLabelOf(small)).toBe(VERIFY_LABEL_NEGLIGIBLE);
+    expect(
+      verifyLabelOf({ ...small, verified_by: { ...small.verified_by, impact: 'material' } }),
+    ).toBe(VERIFY_LABEL.confirmed);
+    expect(verifyLabelOf(base)).toBe(VERIFY_LABEL.unverified);
+    expect(verifiedByText(small.verified_by)).toBe('verified by m: judged real, but small input');
+    expect(verifiedByText({ ...small.verified_by, impact: 'material' })).toBe(
+      'verified by m: judged real',
+    );
   });
 
   it('carries the dismiss reason and the history with who and why', () => {

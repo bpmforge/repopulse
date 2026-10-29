@@ -566,6 +566,68 @@ describeIfLiveInfra('verified fixes after judging (W22-09)', () => {
     expect((await runOf(timed.runId!)).budget).toBe('time');
   });
 
+  // W22-03 (2026-10-29): on outline a fix was drafted for a copy-in-a-loop over
+  // five editor extensions, judged real, while riskier hits waited.
+  it('passes over a confirmed finding whose newest verdict says the impact is negligible', async () => {
+    const small = await evalHit('src/small.js', { confirmed: true, risk: '90.00' });
+    const big = await evalHit('src/big.js', { confirmed: true, risk: '50.00' });
+    const plain = await evalHit('src/plain.js', { confirmed: true, risk: '40.00' });
+    const [run] = await db
+      .insert(read.aiPassRuns)
+      .values({
+        workspaceId: WS,
+        repoId: REPO,
+        paths: [],
+        mode: 'judge',
+        trigger: 'after_scan',
+        budget: 'time',
+        status: 'succeeded',
+      })
+      .returning({ id: read.aiPassRuns.id });
+    const verdict = (findingId: number, impact: string | null) => ({
+      workspaceId: WS,
+      findingId,
+      aiPassRunId: run!.id,
+      verdict: 'real',
+      confidence: 4,
+      model: 'scripted-model',
+      checklistVersion: 'triage.v1',
+      rationale: 'copies on every pass',
+      citations: [{ file: 'src/x.js', line: 2, text: 'x' }],
+      impact,
+      impactReason: impact ? 'line 1: a fixed list' : null,
+    });
+    await db
+      .insert(read.aiTriageVerdicts)
+      .values([verdict(small, 'negligible'), verdict(big, 'material'), verdict(plain, null)]);
+
+    const picked = await pickFixTargets(db, WS, REPO, 1, new Date());
+    // The negligible one is passed over and does not take the one slot.
+    expect(picked.targets.map((t) => t.findingId)).toEqual([big]);
+    expect(picked.passedOver).toEqual(
+      expect.arrayContaining([
+        { finding_id: small, code: 'negligible_impact' },
+        { finding_id: plain, code: 'over_top' },
+      ]),
+    );
+    // Passed over, never dismissed: it stays confirmed and open.
+    const [f] = await db.select().from(read.findings).where(eq(read.findings.id, small));
+    expect(f).toMatchObject({ status: 'open', verifyStatus: 'confirmed' });
+
+    // A database check holds the impact to its three values.
+    const other = await evalHit('src/other.js', { confirmed: true });
+    const err = await db
+      .insert(read.aiTriageVerdicts)
+      .values(verdict(other, 'small'))
+      .then(
+        () => null,
+        (e: unknown) => e,
+      );
+    expect(`${String(err)} ${String((err as { cause?: unknown } | null)?.cause)}`).toMatch(
+      /ai_triage_verdicts_impact_check/,
+    );
+  });
+
   it('keeps part of the run for drafting once a fix could be drafted', async () => {
     // One confirmed finding is already waiting for a fix; five hits to judge.
     await evalHit('src/waiting.js', { confirmed: true, risk: '95.00' });

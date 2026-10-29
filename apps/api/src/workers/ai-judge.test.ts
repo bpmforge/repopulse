@@ -118,6 +118,8 @@ function scripted(
     verdictFor?: (prompt: string) => string;
     throwFor?: (prompt: string) => boolean;
     onCall?: () => void;
+    /** Extra answer fields (W22-03: impact on a performance hit). */
+    extraFor?: (prompt: string) => Record<string, unknown>;
   } = {},
 ) {
   const prompts: string[] = [];
@@ -141,6 +143,7 @@ function scripted(
             verdict === 'likely_false_positive' ? 'inline_mitigations_already_exist' : null,
           vex_statement: verdict === 'likely_false_positive' ? 'validated upstream' : null,
           patch: null,
+          ...(opts.extraFor?.(prompt) ?? {}),
         }),
         model: 'scripted-model',
         tokensIn: 100,
@@ -537,6 +540,63 @@ describeIfLiveInfra('the AI judge after a scan (W22-03)', () => {
 
     // Judged once: the next scan finds nothing left to judge.
     expect(await queue()).toMatchObject({ queued: false, code: 'nothing_to_judge' });
+  });
+
+  // W22-03 (2026-10-29): on outline two copy-in-a-loop hits over small fixed
+  // lists were confirmed and one got a fix drafted. A real performance hit now
+  // says how much it matters; negligible is counted apart and stays confirmed.
+  it("stores a performance hit's impact, counts real_but_negligible apart, and changes no status", async () => {
+    const small = await ruleHit({
+      ruleId: 'perf-copy',
+      dimension: 'performance',
+      effectiveRisk: '40.00',
+      title: 'Copy over fixed list',
+    });
+    const big = await ruleHit({
+      ruleId: 'perf-copy',
+      dimension: 'performance',
+      effectiveRisk: '30.00',
+      title: 'Copy over rows',
+    });
+    const sast = await ruleHit({ effectiveRisk: '20.00', title: 'Injection' });
+    const gw = scripted({
+      extraFor: (p) =>
+        p.includes('Copy over fixed list')
+          ? { impact: 'negligible', impact_reason: 'line 2: the routes are a fixed list' }
+          : p.includes('Copy over rows')
+            ? { impact: 'material', impact_reason: 'line 3: rows from the database' }
+            : { impact: 'negligible', impact_reason: 'not asked, so not kept' },
+    });
+    const { runId } = await queue();
+    expect((await processor(gw)(job(runId!))).status).toBe('succeeded');
+
+    // Asked of the performance hits only.
+    const perfPrompts = gw.prompts.filter((p) => p.includes('Dimension: performance'));
+    expect(perfPrompts).toHaveLength(2);
+    for (const p of perfPrompts) expect(p).toContain('How much it matters');
+    expect(gw.prompts.find((p) => p.includes('Injection'))).not.toContain('How much it matters');
+
+    const summary = ((await runOf(runId!)).plan as { judge: JudgeSummary }).judge;
+    expect(summary).toMatchObject({ judged: 3, confirmed: 2, real_but_negligible: 1 });
+
+    const impactOf = async (id: number) =>
+      (
+        await db
+          .select({ impact: read.aiTriageVerdicts.impact, why: read.aiTriageVerdicts.impactReason })
+          .from(read.aiTriageVerdicts)
+          .where(eq(read.aiTriageVerdicts.findingId, id))
+      )[0]!;
+    expect(await impactOf(small)).toEqual({
+      impact: 'negligible',
+      why: 'line 2: the routes are a fixed list',
+    });
+    expect((await impactOf(big)).impact).toBe('material');
+    expect(await impactOf(sast)).toEqual({ impact: null, why: null });
+
+    // Still confirmed, still open: the AI never suppresses.
+    const f = await finding(small);
+    expect(f).toMatchObject({ verifyStatus: 'confirmed', status: 'open' });
+    expect(f.verifyReason).toMatch(/small or bounded input/);
   });
 
   it('NEVER dismisses, resolves or suppresses: a contradicting verdict leaves the status as it was', async () => {

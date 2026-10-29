@@ -34,6 +34,7 @@ describe('verifiedByOf (W21-03)', () => {
       connection: 'Box B',
       verdict: 'contradicted',
       at: '2026-10-26T10:00:00.000Z',
+      impact: null,
     });
   });
 
@@ -51,6 +52,19 @@ describe('verifiedByOf (W21-03)', () => {
     };
     expect(verifiedByOf(both)?.model).toBe('judge-b');
     expect(verifiedByOf({ ...both, verifiedAt: '2026-10-27T10:00:00Z' })?.model).toBe('triager');
+  });
+
+  it("carries a triage answer's impact (W22-03, 2026-10-29)", () => {
+    const judged = {
+      ...none,
+      verifiedModel: 'judge',
+      verifiedConnection: null,
+      verifiedVerdict: 'real',
+      verifiedAt: '2026-10-29T10:00:00Z',
+      verifiedImpact: 'negligible',
+    };
+    expect(verifiedByOf(judged)?.impact).toBe('negligible');
+    expect(verifiedByOf({ ...judged, verifiedImpact: null })?.impact).toBeNull();
   });
 
   it('a reason with no verdict (no second opinion could be had) is not a verifier', () => {

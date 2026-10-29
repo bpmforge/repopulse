@@ -439,7 +439,14 @@ export interface JudgeSummary {
   candidates: number;
   rules: number;
   judged: number;
+  /** Judged real (verify_status confirmed), less the negligible ones below. */
   confirmed: number;
+  /**
+   * W22-03 (2026-10-29): judged real, but on a small or bounded input (a
+   * performance hit's impact 'negligible'). Also verify_status confirmed;
+   * counted apart so a run's "confirmed" is what is worth fixing.
+   */
+  real_but_negligible: number;
   contradicted: number;
   needs_human: number;
   /** Answers that failed the checklist (malformed, uncited, ...): no verdict stored. */
@@ -455,14 +462,29 @@ export interface JudgeSummary {
   elapsed_ms: number;
 }
 
-function verifyOf(p: {
+export function verifyOf(p: {
   verdict: string;
   rationale: string;
   model: string;
   connection: string | null;
+  impact?: string | null;
+  impactReason?: string | null;
 }): FindingVerify {
   const base = { model: p.model, providerId: null, connection: p.connection };
   const why = p.rationale.slice(0, 900);
+  // Still confirmed (the hit is real); the reason says it is small, and why.
+  if (p.verdict === 'real' && p.impact === 'negligible') {
+    const small = p.impactReason ? ` ${p.impactReason.slice(0, 300)}` : '';
+    return {
+      ...base,
+      status: 'confirmed',
+      reason:
+        `The AI judged this rule hit real, but on a small or bounded input, so it is unlikely to matter.${small} ${why}`.slice(
+          0,
+          1200,
+        ),
+    };
+  }
   if (p.verdict === 'real') {
     return { ...base, status: 'confirmed', reason: `The AI judged this rule hit real: ${why}` };
   }
@@ -563,6 +585,7 @@ export async function runJudge(a: {
     rules: new Set(queue.map((r) => `${r.scannerKey}:${r.ruleId}`)).size,
     judged: 0,
     confirmed: 0,
+    real_but_negligible: 0,
     contradicted: 0,
     needs_human: 0,
     rejected: 0,
@@ -672,6 +695,8 @@ export async function runJudge(a: {
         citations: p.citations,
         vexJustification: p.vex?.justification ?? null,
         vexStatement: p.vex?.statement ?? null,
+        impact: p.impact ?? null,
+        impactReason: p.impactReason ?? null,
         // No patch proof runs here: judging is a verdict, not a fix (W22-09).
         patchStatus: 'not_attempted',
         route: p.route as Record<string, unknown> | null,
@@ -683,7 +708,11 @@ export async function runJudge(a: {
     // Another pass answered this finding meanwhile: its suggestion stands.
     if (!stored) continue;
     summary.judged += 1;
-    if (p.verdict === 'real') {
+    if (p.verdict === 'real' && p.impact === 'negligible') {
+      // Real, but too small to matter: no fix is drafted for it (ai-fix.ts),
+      // so it does not hold back time for one either.
+      summary.real_but_negligible += 1;
+    } else if (p.verdict === 'real') {
       summary.confirmed += 1;
       if (isRerunnable(f.scannerKey, f.ruleId) && f.file !== null) fixable = true;
     } else if (p.verdict === 'likely_false_positive') summary.contradicted += 1;
@@ -700,6 +729,8 @@ export async function runJudge(a: {
             rationale: p.rationale,
             model: p.model,
             connection,
+            impact: p.impact ?? null,
+            impactReason: p.impactReason ?? null,
           }),
         },
       ],

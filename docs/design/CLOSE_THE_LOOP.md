@@ -127,6 +127,17 @@ bar for rules with no public benchmark); every model call goes through the gatew
   (`plan.judge.errors`, samples) and the loop goes on; that finding (and one whose answers the
   checklist rejected) is not retried for 24 hours. Five errors in a row, or local-only refusing
   the route, stop the run with the reason in words.
+- **Impact of a real performance hit (2026-10-29).** On outline the judge confirmed two
+  copy-on-append hits over small fixed lists (decorator fields per model, editor extensions),
+  and fix drafting spent the local model's time on one. A performance hit's prompt now also
+  asks for `impact` (`material` / `negligible`: small or bounded input such as a fixed list,
+  config or a per-request constant / `unknown`) and a one-line `impact_reason` naming the line
+  that shows the size; other dimensions' prompts are unchanged. It is optional (absent → null),
+  kept only on `real`, and a `negligible` without a reason is recorded as `unknown`. Stored on
+  `ai_triage_verdicts.impact` / `impact_reason` (migration 0062). Negligible stays `confirmed`
+  and open; the run counts it as `real_but_negligible` (apart from `confirmed`), W22-09 passes
+  it over (`negligible_impact`), and the finding reads "judged real, but small input" — the
+  hand-check sheets' `small` mark.
 
 ### W22-02 slice 1 (2026-10-29): evidence packets captured at scan time
 

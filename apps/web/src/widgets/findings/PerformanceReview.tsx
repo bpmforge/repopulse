@@ -3,7 +3,7 @@ import { Link } from '@tanstack/react-router';
 import { WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery, queryKeyFor } from '../../api/useApiQuery.js';
 import { FindingDetail } from './FindingDetail.js';
-import { VERIFY_LABEL, locationOf, statusLabel, type Finding } from './contracts.js';
+import { locationOf, statusLabel, verifyLabelOf, type Finding } from './contracts.js';
 import {
   PERFORMANCE_DIMENSION,
   PERFORMANCE_REVIEW_DISCLAIMER,
@@ -266,9 +266,7 @@ export function PerformanceReview({ repoId, openId, onOpen, search }: Props) {
                   </td>
                   <td className="py-1 font-mono text-xs">{locationOf(f)}</td>
                   <td className="py-1 text-xs">{statusLabel(f.status)}</td>
-                  <td className="py-1 text-xs whitespace-nowrap">
-                    {VERIFY_LABEL[f.verify_status]}
-                  </td>
+                  <td className="py-1 text-xs whitespace-nowrap">{verifyLabelOf(f)}</td>
                 </tr>
               ))}
             </tbody>

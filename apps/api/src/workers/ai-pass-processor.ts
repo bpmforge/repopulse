@@ -806,6 +806,8 @@ async function triageStep(a: {
         citations: p.citations,
         vexJustification: p.vex?.justification ?? null,
         vexStatement: p.vex?.statement ?? null,
+        impact: p.impact ?? null,
+        impactReason: p.impactReason ?? null,
         // Only a patch that a re-scan proved is ever stored.
         patchDiff: p.patch?.status === 'verified' ? p.patch.diff : null,
         patchStatus: p.patch?.status ?? 'not_attempted',

@@ -132,7 +132,9 @@ describe('the verify pass outcome is in the panel (W21-01)', () => {
         invalidate={[]}
       />,
     );
-    expect(screen.getByTestId('finding-verify-status')).toHaveTextContent(/confirmed on AI review/i);
+    expect(screen.getByTestId('finding-verify-status')).toHaveTextContent(
+      /confirmed on AI review/i,
+    );
     rerender(<FindingDetail finding={hostile()} onClose={vi.fn()} invalidate={[]} />);
     expect(screen.queryByTestId('finding-verify-status')).toBeNull();
     // Once the pass names its model (W21-03), "verified by <model>" says it.
@@ -151,5 +153,32 @@ describe('the verify pass outcome is in the panel (W21-01)', () => {
     );
     expect(screen.queryByTestId('finding-verify-status')).toBeNull();
     expect(screen.getByTestId('finding-verified-by')).toHaveTextContent(/m-2/);
+  });
+
+  // W22-03 (2026-10-29): a performance hit judged real on a small, bounded
+  // input stays confirmed, and the panel says it is small.
+  it('says "real, but small input" when the judge found the impact negligible', () => {
+    render(
+      <FindingDetail
+        finding={
+          {
+            ...hostile(),
+            verify_status: 'confirmed',
+            verified_by: {
+              model: 'm-3',
+              connection: null,
+              verdict: 'real',
+              at: null,
+              impact: 'negligible',
+            },
+          } as Finding
+        }
+        onClose={vi.fn()}
+        invalidate={[]}
+      />,
+    );
+    expect(screen.getByTestId('finding-verified-by')).toHaveTextContent(
+      /judged real, but small input/,
+    );
   });
 });

@@ -318,6 +318,10 @@ function findingsQuery(db: Database) {
         verifiedConnection: sql<
           string | null
         >`(select coalesce(p.name, v.connection_name) from ${read.aiTriageVerdicts} v left join ${core.llmProviders} p on p.id = v.llm_provider_id and p.workspace_id = v.workspace_id where v.finding_id = ${read.findings.id} and v.workspace_id = ${read.findings.workspaceId} and v.second_opinion_of is null order by v.created_at desc, v.id desc limit 1)`,
+        // W22-03 (2026-10-29): a real performance hit on a small input.
+        verifiedImpact: sql<
+          string | null
+        >`(select v.impact from ${read.aiTriageVerdicts} v where v.finding_id = ${read.findings.id} and v.workspace_id = ${read.findings.workspaceId} and v.second_opinion_of is null order by v.created_at desc, v.id desc limit 1)`,
         verifiedAt: sql<
           string | null
         >`(select v.created_at from ${read.aiTriageVerdicts} v where v.finding_id = ${read.findings.id} and v.workspace_id = ${read.findings.workspaceId} and v.second_opinion_of is null order by v.created_at desc, v.id desc limit 1)`,
@@ -501,11 +505,19 @@ export function verifiedByOf(r: {
   verifiedConnection?: string | null;
   verifiedVerdict?: string | null;
   verifiedAt?: string | Date | null;
+  verifiedImpact?: string | null;
   secondModel: string | null;
   secondConnection: string | null;
   secondAt: Date | null;
   verifyStatus: string;
-}): { model: string; connection: string | null; verdict: string | null; at: string | null } | null {
+}): {
+  model: string;
+  connection: string | null;
+  verdict: string | null;
+  at: string | null;
+  /** W22-03: a real performance hit's impact; null otherwise, and on a second-model verify. */
+  impact: string | null;
+} | null {
   const triageAt = r.verifiedAt ? new Date(r.verifiedAt) : null;
   const triage =
     r.verifiedModel === null || r.verifiedModel === undefined
@@ -515,6 +527,7 @@ export function verifiedByOf(r: {
           connection: r.verifiedConnection ?? null,
           verdict: r.verifiedVerdict ?? null,
           at: triageAt ? triageAt.toISOString() : null,
+          impact: r.verifiedImpact ?? null,
         };
   const second =
     r.secondModel === null || r.verifyStatus === 'unverified'
@@ -524,6 +537,7 @@ export function verifiedByOf(r: {
           connection: r.secondConnection,
           verdict: r.verifyStatus,
           at: r.secondAt ? r.secondAt.toISOString() : null,
+          impact: null,
         };
   if (!second) return triage;
   if (!triage) return second;

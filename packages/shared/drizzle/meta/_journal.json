@@ -399,6 +399,13 @@
       "when": 1794400000000,
       "tag": "0061_finding_context_packet",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1794500000000,
+      "tag": "0062_triage_impact",
+      "breakpoints": true
     }
   ]
 }

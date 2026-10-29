@@ -252,6 +252,8 @@ export interface VerifiedBy {
   connection: string | null;
   verdict: string | null;
   at: string | null;
+  /** W22-03: a real performance hit's impact (material / negligible / unknown). */
+  impact?: string | null;
 }
 
 const VERDICT_WORDS: Record<string, string> = {
@@ -270,7 +272,13 @@ const VERDICT_WORDS: Record<string, string> = {
 export function verifiedByText(v: VerifiedBy | null | undefined): string | null {
   if (!v) return null;
   const via = v.connection ? ` (${v.connection})` : '';
-  const said = v.verdict ? `: ${VERDICT_WORDS[v.verdict] ?? v.verdict.replace(/_/g, ' ')}` : '';
+  const words =
+    v.verdict === 'real' && v.impact === 'negligible'
+      ? 'judged real, but small input'
+      : v.verdict
+        ? (VERDICT_WORDS[v.verdict] ?? v.verdict.replace(/_/g, ' '))
+        : null;
+  const said = words ? `: ${words}` : '';
   return `verified by ${v.model}${via}${said}`;
 }
 
@@ -400,6 +408,21 @@ export const VERIFY_LABEL: Record<string, string> = {
   unverified: '· not independently verified',
 };
 
+/**
+ * W22-03 (2026-10-29): a performance hit the AI judged real on a small or
+ * bounded input (a fixed list, config). Still confirmed, still open: the label
+ * says it is unlikely to matter, and no fix is drafted for it automatically.
+ */
+export const VERIFY_LABEL_NEGLIGIBLE = '✓ confirmed on AI review: real, but small input';
+
+/** The verify label for one finding: VERIFY_LABEL, or the small-input wording. */
+export function verifyLabelOf(f: Pick<Finding, 'verify_status' | 'verified_by'>): string {
+  if (f.verify_status === 'confirmed' && f.verified_by?.impact === 'negligible') {
+    return VERIFY_LABEL_NEGLIGIBLE;
+  }
+  return VERIFY_LABEL[f.verify_status] ?? f.verify_status;
+}
+
 export interface FindingStats {
   by_dimension: { dimension: string; status: string; n: number }[];
   /** null = nothing triaged yet. NOT 0 — that would read as a flawless model. */
@@ -487,7 +510,7 @@ export function reviewSummary(
       ` · confidence ${finding.confidence}/5 · ${dimensionLabel(finding.dimension)}`,
     `Status: ${statusLabel(finding.status)}` +
       (finding.dismiss_reason ? ` (${dismissReasonLabel(finding.dismiss_reason)})` : ''),
-    `Verification: ${(VERIFY_LABEL[finding.verify_status] ?? finding.verify_status).replace(/^[✓✕·]+ /, '')}`,
+    `Verification: ${verifyLabelOf(finding).replace(/^[✓✕·]+ /, '')}`,
     ...(finding.forge ? [`Link: ${finding.forge.url}`] : []),
     // W20-18 (UX_TODO X-08): where the work on it is tracked.
     ...(ticketLabel(finding.external_ticket_url) ? [`Ticket: ${finding.external_ticket_url}`] : []),

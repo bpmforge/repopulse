@@ -146,8 +146,9 @@ export interface FixTarget {
  * The confirmed findings that need a draft, riskiest first, at most `top`.
  * A finding with any answer at its snapshot (pending, verified, rejected, or
  * failed within a day) is passed over: a rejected draft is a verdict, and only
- * a person's Try again asks the model again. Workspace- and repository-
- * filtered (Law 5).
+ * a person's Try again asks the model again. A finding whose newest AI verdict
+ * says the impact is negligible is passed over too ('negligible_impact').
+ * Workspace- and repository-filtered (Law 5).
  */
 export async function pickFixTargets(
   db: Database,
@@ -162,6 +163,13 @@ export async function pickFixTargets(
       id: read.findings.id,
       scannerKey: read.findings.scannerKey,
       ruleId: read.findings.ruleId,
+      // W22-03 (2026-10-29): the newest AI verdict's impact (a second opinion
+      // aside, the same rule as the finding panel's "verified by"). Qualified
+      // by hand: in a one-table select drizzle writes the outer column bare,
+      // and a bare "id" inside the subquery would mean the verdict's own id.
+      impact: sql<
+        string | null
+      >`(select v.impact from ${read.aiTriageVerdicts} v where v.finding_id = "findings"."id" and v.workspace_id = ${workspaceId} and v.second_opinion_of is null order by v.created_at desc, v.id desc limit 1)`,
     })
     .from(read.findings)
     .where(
@@ -188,6 +196,13 @@ export async function pickFixTargets(
 
   const targets: FixTarget[] = [];
   for (const r of rerunnable) {
+    // Real, but the input is small or bounded (W22-03, 2026-10-29): a copy in a
+    // loop over five editor extensions is not worth a local model's time.
+    // Passed over, never dismissed: it stays confirmed for a person.
+    if (r.impact === 'negligible') {
+      passedOver.push({ finding_id: r.id, code: 'negligible_impact' });
+      continue;
+    }
     if (targets.length >= top) {
       passedOver.push({ finding_id: r.id, code: 'over_top' });
       continue;
