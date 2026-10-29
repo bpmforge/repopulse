@@ -11,6 +11,7 @@ import { parseOpengrepOutput, type SemgrepFinding } from './output.js';
 import {
   THIRD_PARTY_MOUNT_PATH,
   THIRD_PARTY_RULEPACK_DIR,
+  isThirdPartySkipPath,
   readThirdPartyPack,
 } from '../../rules/third-party.js';
 
@@ -278,9 +279,16 @@ export async function runSemgrepScan(args: SemgrepRunArgs): Promise<SemgrepRunRe
     };
   }
 
+  // A third-party rule cannot carry our per-rule `paths: exclude`, so its
+  // findings on test and fixture paths are dropped here instead.
+  const thirdPartyIds = new Set(thirdParty?.ruleIds ?? []);
+  const findings = parsed.findings.filter(
+    (f) => !(thirdPartyIds.has(f.ruleId) && isThirdPartySkipPath(f.file)),
+  );
+
   return {
     status: 'succeeded',
-    findings: parsed.findings,
+    findings,
     toolErrors: parsed.toolErrors,
     scannedPaths: parsed.scannedPaths,
     erroredPaths: parsed.erroredPaths,
