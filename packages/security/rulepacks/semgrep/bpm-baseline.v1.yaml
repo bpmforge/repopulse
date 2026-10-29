@@ -153,6 +153,17 @@ rules:
                   metavariable: $Q
                   # Anchored by the engine, hence the leading `.*`.
                   regex: (?is).*\b(select\s.*\sfrom|insert\s+into|update\s.*\sset|delete\s+from)\b
+      # What is spliced in has to be able to come from outside. A field the
+      # object set for itself (`${this.workingTable}`), an UPPER_SNAKE module
+      # constant (`LIMIT ${BATCH_SIZE}`) or a number literal is not input.
+      # Graded on outline (docs/benchmarks/rule-grade-w22-07, 2026-10-29): the
+      # AI judge spent a whole 30-minute run on six hits of these shapes and
+      # could not rule on one, because the definition was off-screen.
+      - metavariable-regex:
+          metavariable: $X
+          # opengrep binds a member expression with its braces (`${this.x}`),
+          # an identifier without them, so both spellings are allowed.
+          regex: (?!(\$\{)?\s*this\.[A-Za-z_$][\w$]*\s*\}?$)(?![A-Z][A-Z0-9_]*$)(?!\d+$).*
 
   - id: bpm-js-weak-hash
     languages: [javascript, typescript]
