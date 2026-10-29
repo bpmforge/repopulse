@@ -12072,6 +12072,34 @@
       "notes": [
         "Planned 2026-10-28: owner said 'Lodestone MIT, open the rules' (lodestone#8, bpm-rulepacks#45) and 'do it with release' for making them public."
       ]
+    },
+    {
+      "id": "W22-14",
+      "title": "Judge throughput: first pass on a fast model, several hits of one rule per call",
+      "phase": 22,
+      "module": "analysis",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers/ai-judge.ts",
+        "apps/api/src/workers/ai-judge.test.ts",
+        "packages/analysis/src/**",
+        "docs/design/CLOSE_THE_LOOP.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W22-03"
+      ],
+      "acceptance": [
+        "A cheaper first pass: the judge can route a finding to a faster local model (for example qwen3-8b) and escalate only real and needs-a-human answers to the configured triage model; likely-false-positive answers from the fast model are kept as unverified-by-the-strong-model, never as contradicted",
+        "Several hits of one rule go to the model in one call (bounded by tokens), each with its own verdict, citations and packet lines, and a malformed or partial answer fails only the hits it covers",
+        "Measured on outline and saleor on LM Studio against the 2026-10-29 baseline (about 7 minutes a verdict on qwen3.8-27b with evidence packets, 3 verdicts in a 30-minute run): verdicts per run and agreement with the strong model on the same hits are recorded in CLOSE_THE_LOOP.md",
+        "Escalation, batching and per-model timing are visible on the run's plan.judge and on the AI pass screen"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": [
+        "Filed 2026-10-29 from the Mac's outline run 33 (owner: 'do what you recommend'). 162 rule hits were left after a 30-minute run; at that rate outline needs more than 50 scans to be judged once."
+      ]
     }
   ]
 }
