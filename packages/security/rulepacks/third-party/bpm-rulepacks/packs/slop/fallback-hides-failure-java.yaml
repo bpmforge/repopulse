@@ -12,7 +12,7 @@ rules:
       - pattern: try { ... } catch ($EXC $ERR) { return ""; }
       - pattern: try { ... } catch ($EXC $ERR) { return Collections.emptyList(); }
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-10"
       cwe: [390]
       confidence: high

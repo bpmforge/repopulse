@@ -27,7 +27,7 @@ rules:
     # Primary source: Rails Security Guide (Unsafe Query Generation /
     # dynamic dispatch guidance) + OWASP Unsafe Reflection guidance.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [470]
       owasp: "A03:2021"

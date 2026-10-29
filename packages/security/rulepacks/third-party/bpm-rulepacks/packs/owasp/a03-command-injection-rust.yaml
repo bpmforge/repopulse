@@ -25,7 +25,7 @@ rules:
       it to Command::new/.arg, or type-coerce it (e.g. `.parse::<u32>()`) so
       only the constrained shape can reach the sink.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [78]
       owasp: "A03:2021"

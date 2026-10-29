@@ -110,7 +110,7 @@ rules:
           metavariable: $...MW
           regex: '^(?!.*(?i:role|permission|permit|authoriz|rbac|acl|admin)).*$'
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [862]
       owasp: "A01:2021"

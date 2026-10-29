@@ -19,7 +19,7 @@ rules:
       pivot to arbitrary file reads). Validate the value against a strict
       allowlist of expected arguments before passing it to exec.Command.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [78]
       owasp: "A03:2021"

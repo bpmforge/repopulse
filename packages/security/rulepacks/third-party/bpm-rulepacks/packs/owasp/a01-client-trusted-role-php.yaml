@@ -30,7 +30,7 @@ rules:
       - pattern: |
           if ($_GET['role'] === $VAL) { ... }
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [602]
       owasp: "A01:2021"

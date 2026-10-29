@@ -26,7 +26,7 @@ rules:
                 - pattern: '{ ..., token: $P, ... }'
                 - pattern: '{ ..., secret: $P, ... }'
     metadata:
-      license: proprietary
+      license: MIT
       provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A09"
       cwe: [532]
       owasp: "A09:2021"

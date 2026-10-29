@@ -14,7 +14,7 @@ rules:
       - pattern: <httpCookies requireSSL="false" ... />
       - pattern: <httpCookies requireSSL="false" ...></httpCookies>
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [614]
       owasp: "A05:2021"

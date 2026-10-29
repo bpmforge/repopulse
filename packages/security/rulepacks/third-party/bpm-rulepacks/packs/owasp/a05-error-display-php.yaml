@@ -21,7 +21,7 @@ rules:
           metavariable: $VAL
           regex: "^['\"](1|[Oo]n|[Tt]rue|[Yy]es)['\"]$"
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [209]
       owasp: "A05:2021"

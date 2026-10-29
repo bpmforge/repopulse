@@ -23,7 +23,7 @@ rules:
       caller genuinely needs unserialize() and the input is at least
       integrity-checked (e.g. HMAC-signed) first.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [502]
       owasp: "A08:2021"

@@ -19,7 +19,7 @@ rules:
     # Primary source: Spring Security Reference (Authorize HttpServletRequests
     # with HttpSecurity §) + OWASP A01:2021 Broken Access Control.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [862, 284]
       owasp: "A01:2021"

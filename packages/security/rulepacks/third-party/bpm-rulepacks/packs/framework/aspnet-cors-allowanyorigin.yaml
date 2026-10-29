@@ -29,7 +29,7 @@ rules:
     # credentialed CORS with a dynamic origin set and warns it must be
     # used carefully) + CWE-942.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [942]
       owasp: "A05:2021"

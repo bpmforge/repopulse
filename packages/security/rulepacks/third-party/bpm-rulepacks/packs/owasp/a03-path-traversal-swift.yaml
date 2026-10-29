@@ -20,7 +20,7 @@ rules:
       switch/dictionary literal) before it reaches any FileManager call,
       rather than concatenating the tainted value into the path.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [22]
       owasp: "A03:2021"

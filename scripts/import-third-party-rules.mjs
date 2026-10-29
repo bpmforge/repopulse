@@ -80,20 +80,17 @@ export const SOURCES = [
     fileLicence: (text) => gitlabHeaderLicence(text),
   },
   {
-    // Our own rule packs, opened into Repo Pulse by the owner on 2026-10-28. The
-    // repository is private, so this source is imported with --src only. Its repo
-    // LICENSE is the old proprietary one, so the grant below is written instead.
+    // Our own rule packs, opened into Repo Pulse by the owner on 2026-10-28 and
+    // relicensed MIT in their own repository (bpm-rulepacks#45). The repository is
+    // private until release day (W22-13), so this source is imported with --src only.
     key: 'bpm-rulepacks',
     upstream: 'https://github.com/bpmforge/bpm-rulepacks',
-    commit: 'f32aebf89d733839184b7a8888a6112d85bcee15',
-    licence: 'Apache-2.0',
-    licenceText:
-      'Copyright (c) 2026 bpmforge.\n\n' +
-      'The rule files in this folder are licensed under the Apache License, Version 2.0\n' +
-      '(https://www.apache.org/licenses/LICENSE-2.0). bpmforge opened them into Repo Pulse\n' +
-      'on 2026-10-28; this grant covers these files whatever the source repository says.\n',
+    commit: '84481162a147d68bc7221ef17fd3cce67975e4f8',
+    licence: 'MIT',
+    licenceFile: 'LICENSE',
+    private: true,
     include: (rel) => /^packs\//.test(rel) && /\.ya?ml$/.test(rel),
-    fileLicence: () => 'Apache-2.0',
+    fileLicence: () => 'MIT',
   },
 ];
 
@@ -145,7 +142,7 @@ function main() {
   const seen = new Map();
 
   for (const src of SOURCES) {
-    if (src.licenceText && !local.has(src.key)) throw new Error(`${src.key}: private source, pass --src ${src.key}=DIR`);
+    if (src.private && !local.has(src.key)) throw new Error(`${src.key}: private source, pass --src ${src.key}=DIR`);
     const dir = local.get(src.key) ?? fetchSource(src);
     if (local.has(src.key)) {
       const head = execFileSync('git', ['-C', dir, 'rev-parse', 'HEAD']).toString().trim();
@@ -181,9 +178,7 @@ function main() {
         sha256: createHash('sha256').update(text).digest('hex'),
       });
     }
-    const licenceOut = path.join(OUT, src.key, 'LICENSE');
-    if (src.licenceText) writeFileSync(licenceOut, src.licenceText);
-    else copyFileSync(path.join(dir, src.licenceFile), licenceOut);
+    copyFileSync(path.join(dir, src.licenceFile), path.join(OUT, src.key, 'LICENSE'));
     ledger.sources.push({
       key: src.key,
       upstream: src.upstream,

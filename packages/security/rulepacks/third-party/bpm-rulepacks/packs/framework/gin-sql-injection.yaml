@@ -50,7 +50,7 @@ rules:
     # Primary source: Gin framework docs (Context: Query/Param/PostForm) +
     # database/sql docs (Query/Exec parameterization) + OWASP A03:2021.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [89]
       owasp: "A03:2021"

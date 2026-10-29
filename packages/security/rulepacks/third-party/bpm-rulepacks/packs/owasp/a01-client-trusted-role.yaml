@@ -16,7 +16,7 @@ rules:
       - pattern: |
           if ($REQ.query.admin) { ... }
     metadata:
-      license: proprietary
+      license: MIT
       provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A01"
       cwe: [602]
       owasp: "A01:2021"

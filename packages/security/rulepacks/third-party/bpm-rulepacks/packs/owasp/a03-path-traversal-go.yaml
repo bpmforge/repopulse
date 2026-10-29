@@ -22,7 +22,7 @@ rules:
       and verify it still has the intended base directory as a prefix
       before using it in any filesystem call.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [22]
       owasp: "A03:2021"

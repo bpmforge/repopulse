@@ -25,7 +25,7 @@ rules:
     # Primary source: Gin framework docs (Context: File / SaveUploadedFile)
     # + OWASP Path Traversal Cheat Sheet + CWE-22.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [22]
       owasp: "A03:2021"

@@ -10,7 +10,7 @@ rules:
       - pattern: require("serve-index")
       - pattern: import $NAME from "serve-index"
     metadata:
-      license: proprietary
+      license: MIT
       provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A01"
       cwe: [548]
       owasp: "A01:2021"

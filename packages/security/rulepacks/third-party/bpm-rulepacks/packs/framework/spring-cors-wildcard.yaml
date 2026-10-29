@@ -21,7 +21,7 @@ rules:
     # Primary source: MDN CORS docs (wildcard + credentials interaction) +
     # OWASP A05:2021 Security Misconfiguration.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [942]
       owasp: "A05:2021"

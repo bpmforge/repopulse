@@ -22,7 +22,7 @@ rules:
     # OWASP Top 10 A05:2021 Security Misconfiguration.
     pattern-regex: (?m)^\s*management\.endpoints\.web\.exposure\.include\s*[:=]\s*['"]?\*
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [16, 200]
       owasp: "A05:2021"

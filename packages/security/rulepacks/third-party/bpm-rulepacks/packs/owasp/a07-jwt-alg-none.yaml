@@ -11,7 +11,7 @@ rules:
       include "none".
     pattern: '{ ..., algorithms: ["none"], ... }'
     metadata:
-      license: proprietary
+      license: MIT
       provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A07"
       cwe: [347]
       owasp: "A07:2021"

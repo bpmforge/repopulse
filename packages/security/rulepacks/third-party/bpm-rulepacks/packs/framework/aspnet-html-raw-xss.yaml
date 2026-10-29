@@ -34,7 +34,7 @@ rules:
     # containing the equivalent Html.Raw()/HtmlString call shape as
     # plain C# — the same mismatch W1-51 hit for Blade templates.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [79]
       owasp: "A03:2021"

@@ -36,7 +36,7 @@ rules:
               metavariable: $ALG
               regex: '(?i)^"(des|des-cbc|des-ecb|rc4)"$'
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [327, 328]
       owasp: "A02:2021"

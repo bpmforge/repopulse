@@ -25,7 +25,7 @@ rules:
     # Primary source: Django security docs (avoid eval/exec on user input) +
     # OWASP Code Injection guidance.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [95]
       owasp: "A03:2021"

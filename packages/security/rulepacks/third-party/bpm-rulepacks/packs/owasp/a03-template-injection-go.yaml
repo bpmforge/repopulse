@@ -17,7 +17,7 @@ rules:
           import "text/template"
           ...
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [79]
       owasp: "A03:2021"

@@ -19,7 +19,7 @@ rules:
       - pattern: rand.Int63n(...)
       - pattern: rand.Float64()
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [330]
       owasp: "A02:2021"

@@ -16,7 +16,7 @@ rules:
       - pattern: sha1.New()
       - pattern: sha1.Sum(...)
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [327, 328]
       owasp: "A02:2021"

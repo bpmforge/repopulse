@@ -26,7 +26,7 @@ rules:
             return $this->$DEP->$METHOD($A, $B, $C);
           }
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-06"
       cwe: [710]
       confidence: medium

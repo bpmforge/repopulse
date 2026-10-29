@@ -12,7 +12,7 @@ rules:
       instead, so it is visible and its purpose can be commented.
     pattern-regex: '["''][^"''\n]*[\x01-\x08\x0B\x0C\x0E-\x1F][^"''\n]*["'']'
     metadata:
-      license: proprietary
+      license: MIT
       provenance: "derived:lodestone/SLOP-invisible-delimiter"
       cwe: [1041]
       confidence: high

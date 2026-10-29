@@ -9,7 +9,7 @@ rules:
       the comments.
     pattern-regex: (?m)^\s*//\s*Step\s+\d+\s*[:.]
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-14"
       cwe: [1078]
       confidence: high

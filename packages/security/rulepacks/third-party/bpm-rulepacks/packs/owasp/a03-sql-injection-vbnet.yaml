@@ -17,7 +17,7 @@ rules:
       - pattern: New SqlCommand($A & $B)
       - pattern: $CMD.CommandText = $A & $B
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [89]
       owasp: "A03:2021"

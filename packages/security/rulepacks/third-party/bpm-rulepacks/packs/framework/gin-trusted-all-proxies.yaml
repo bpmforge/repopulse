@@ -19,7 +19,7 @@ rules:
     # Primary source: Gin framework docs (Context: ClientIP / "Don't trust
     # all proxies") + CWE-290 / CWE-441.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [290, 441]
       owasp: "A05:2021"

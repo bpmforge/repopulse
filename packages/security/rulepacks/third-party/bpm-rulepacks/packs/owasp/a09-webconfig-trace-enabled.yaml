@@ -16,7 +16,7 @@ rules:
       - pattern: <trace enabled="true" ... />
       - pattern: <trace enabled="true" ...></trace>
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [215]
       owasp: "A09:2021"

@@ -20,7 +20,7 @@ rules:
       use; never pass it to db.execute(), eval(), exec(), or innerHTML
       without parameterization/sanitization.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-28"
       cwe: [74]
       owasp: "A03:2021"

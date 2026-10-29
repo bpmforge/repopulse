@@ -31,7 +31,7 @@ rules:
       `new Yaml(new SafeConstructor())` (or SnakeYAML's SafeConstructor-
       equivalent) instead of the no-arg Yaml() constructor.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [502]
       owasp: "A08:2021"

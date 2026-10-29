@@ -23,7 +23,7 @@ rules:
         - '*.vb'
         - '*.vbs'
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [798]
       owasp: "A07:2021"

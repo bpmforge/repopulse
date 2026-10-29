@@ -12,13 +12,21 @@ rules:
       treat the stub as a real implementation. Stubs are only acceptable on
       an explicit TODO branch called out in the PR description; never
       export or ship a stub as a completed feature.
-    pattern-either:
-      - pattern: todo!()
-      - pattern: todo!($MSG)
-      - pattern: unimplemented!()
-      - pattern: unimplemented!($MSG)
+    patterns:
+      - pattern-either:
+          - pattern: todo!()
+          - pattern: todo!($MSG)
+          - pattern: unimplemented!()
+          - pattern: unimplemented!($MSG)
+      # Test modules are excluded (2026-10-28, RepoPulse
+      # docs/benchmarks/rule-grade-w22-07): all 12 axum hits were type-level
+      # stubs inside `#[cfg(test)] mod tests`, compiled and never run.
+      - pattern-not-inside: |
+          mod tests { ... }
+      - pattern-not-inside: |
+          mod test { ... }
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-27"
       cwe: [1078]
       confidence: high

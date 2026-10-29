@@ -33,7 +33,7 @@ rules:
     # verified separately that opengrep honors paths.exclude by scanning a
     # copy of the vuln fixture placed at config/app.php (0 findings there).
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [16]
       owasp: "A05:2021"

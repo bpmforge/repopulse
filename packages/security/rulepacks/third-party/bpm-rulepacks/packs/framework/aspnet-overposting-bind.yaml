@@ -33,7 +33,7 @@ rules:
     # recommended allow-list defense and warns against including
     # sensitive properties in it) + CWE-915.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [915]
       owasp: "A04:2021"

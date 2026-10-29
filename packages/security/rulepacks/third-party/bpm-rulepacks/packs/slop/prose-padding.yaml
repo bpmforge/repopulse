@@ -9,7 +9,7 @@ rules:
       directly instead.
     pattern-regex: (?i)\b(it'?s worth noting that|it should be mentioned that|one might consider|it is important to note that)\b
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-29"
       cwe: [1078]
       confidence: high
@@ -27,7 +27,7 @@ rules:
       the phrase.
     pattern-regex: (?i)\b(industry best practices|modern approaches|established patterns)\b
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-29"
       cwe: [1078]
       confidence: medium

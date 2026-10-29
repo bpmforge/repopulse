@@ -29,7 +29,7 @@ rules:
     # `.blade` extension (no `.php` suffix) to exercise the same directive
     # text a real `.blade.php` file would contain.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [79]
       owasp: "A03:2021"

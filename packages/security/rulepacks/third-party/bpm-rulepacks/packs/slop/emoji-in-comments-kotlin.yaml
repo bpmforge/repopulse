@@ -10,7 +10,7 @@ rules:
       them.
     pattern-regex: (?m)^\s*//.*[\x{1F300}-\x{1FAFF}\x{2600}-\x{27BF}\x{2B00}-\x{2BFF}]
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-16"
       cwe: [1078]
       confidence: high

@@ -11,7 +11,7 @@ rules:
       - pattern: crypto.createHash("md5")
       - pattern: crypto.createHash("sha1")
     metadata:
-      license: proprietary
+      license: MIT
       provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A02"
       cwe: [327]
       owasp: "A02:2021"

@@ -27,7 +27,7 @@ rules:
       verify the resolved File.expand_path() still starts with that base
       directory before reading.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [22]
       owasp: "A03:2021"

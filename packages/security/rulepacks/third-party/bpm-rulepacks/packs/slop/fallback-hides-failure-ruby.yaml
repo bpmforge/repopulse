@@ -63,7 +63,7 @@ rules:
             return ""
           end
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-10"
       cwe: [390]
       confidence: high

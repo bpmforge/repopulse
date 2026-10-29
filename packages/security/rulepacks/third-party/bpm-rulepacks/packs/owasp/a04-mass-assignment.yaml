@@ -14,7 +14,7 @@ rules:
       - pattern: $MODEL.update($REQ.body)
       - pattern: $MODEL.create($REQ.body)
     metadata:
-      license: proprietary
+      license: MIT
       provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A04"
       cwe: [915]
       owasp: "A04:2021"

@@ -10,7 +10,7 @@ rules:
       policy instead of turning it off.
     pattern: 'helmet({ ..., contentSecurityPolicy: false, ... })'
     metadata:
-      license: proprietary
+      license: MIT
       provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A05"
       cwe: [1021]
       owasp: "A05:2021"

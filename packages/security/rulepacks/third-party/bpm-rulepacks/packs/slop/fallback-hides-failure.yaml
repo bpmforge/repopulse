@@ -15,7 +15,7 @@ rules:
       - pattern: try { ... } catch { return null }
       - pattern: try { ... } catch ($ERR) { return null }
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-10"
       cwe: [390]
       confidence: high
@@ -46,7 +46,7 @@ rules:
           do { ... } catch let $ERR { return nil }
       - pattern: (try? $EXPR) ?? $DEFAULT
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-10"
       cwe: [390]
       confidence: high

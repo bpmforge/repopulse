@@ -11,7 +11,7 @@ rules:
       session/auth cookie.
     pattern: '{ ..., secure: false, ... }'
     metadata:
-      license: proprietary
+      license: MIT
       provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A07"
       cwe: [614]
       owasp: "A07:2021"

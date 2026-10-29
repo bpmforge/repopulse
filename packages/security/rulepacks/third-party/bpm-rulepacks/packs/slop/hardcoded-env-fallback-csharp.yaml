@@ -27,7 +27,7 @@ rules:
           metavariable: $FALLBACK
           regex: ^"[^"]*"$
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-23"
       cwe: [798]
       owasp: "A07:2021"

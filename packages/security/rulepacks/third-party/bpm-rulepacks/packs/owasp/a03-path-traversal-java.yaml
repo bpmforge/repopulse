@@ -21,7 +21,7 @@ rules:
       (path.normalize + a startsWith check on the resolved canonical path)
       before using the value in any filesystem call.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [22]
       owasp: "A03:2021"

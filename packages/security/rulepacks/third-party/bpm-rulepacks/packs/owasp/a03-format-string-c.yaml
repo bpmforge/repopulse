@@ -20,7 +20,7 @@ rules:
       disclosure or code execution. Always pass a fixed format string and
       supply the untrusted value as a "%s" argument: printf("%s", value).
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [134]
       owasp: "A03:2021"

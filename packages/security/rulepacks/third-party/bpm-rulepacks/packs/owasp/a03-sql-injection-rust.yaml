@@ -32,7 +32,7 @@ rules:
       value must stay in a format! string, type-coerce it first (e.g.
       `.parse::<i64>()`) so only the constrained shape survives.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [89]
       owasp: "A03:2021"

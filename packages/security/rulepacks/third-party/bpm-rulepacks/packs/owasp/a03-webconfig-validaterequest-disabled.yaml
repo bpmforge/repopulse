@@ -19,7 +19,7 @@ rules:
       - pattern: <pages validateRequest="false" ... />
       - pattern: <pages validateRequest="false" ...></pages>
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [79]
       owasp: "A03:2021"

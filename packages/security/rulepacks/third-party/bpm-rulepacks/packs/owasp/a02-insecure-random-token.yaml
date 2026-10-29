@@ -9,7 +9,7 @@ rules:
       crypto.randomBytes()/crypto.randomUUID() instead.
     pattern: Math.random().toString(36)
     metadata:
-      license: proprietary
+      license: MIT
       provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A02"
       cwe: [338]
       owasp: "A02:2021"

@@ -31,7 +31,7 @@ rules:
     # `redirect()`/`Redirect::to()` helpers — validation is the caller's
     # responsibility.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [601]
       owasp: "A01:2021"

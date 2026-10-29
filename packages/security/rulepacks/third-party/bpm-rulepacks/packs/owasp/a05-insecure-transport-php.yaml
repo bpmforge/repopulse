@@ -21,7 +21,7 @@ rules:
       - pattern: 'curl_setopt_array($CH, [..., CURLOPT_SSL_VERIFYPEER => false, ...])'
       - pattern: 'curl_setopt_array($CH, [..., CURLOPT_SSL_VERIFYHOST => 0, ...])'
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [295]
       owasp: "A05:2021"

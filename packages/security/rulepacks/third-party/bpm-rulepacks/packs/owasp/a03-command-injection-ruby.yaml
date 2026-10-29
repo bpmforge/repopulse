@@ -33,7 +33,7 @@ rules:
       unavoidable, escape every user-controlled argument with
       Shellwords.escape() first.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [78]
       owasp: "A03:2021"

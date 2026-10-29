@@ -12,7 +12,7 @@ rules:
       completed feature.
     pattern: new UnsupportedOperationException(...)
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-27"
       cwe: [1078]
       confidence: high
@@ -34,7 +34,7 @@ rules:
           metavariable: $MSG
           regex: (?i)"(.*(not.?implemented|unimplemented|todo.*implement).*)"
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-27"
       cwe: [1078]
       confidence: high

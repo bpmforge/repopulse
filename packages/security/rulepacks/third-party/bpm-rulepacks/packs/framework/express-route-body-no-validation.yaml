@@ -111,7 +111,7 @@ rules:
       - pattern-not-inside: |
           $ROUTER.$METHOD($ROUTE, ..., body(...), ..., ($REQ, $RES) => { ... });
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [20]
       framework: express

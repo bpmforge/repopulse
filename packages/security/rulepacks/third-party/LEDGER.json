@@ -3090,1773 +3090,1773 @@
     {
       "key": "bpm-rulepacks",
       "upstream": "https://github.com/bpmforge/bpm-rulepacks",
-      "commit": "f32aebf89d733839184b7a8888a6112d85bcee15",
-      "licence": "Apache-2.0",
+      "commit": "84481162a147d68bc7221ef17fd3cce67975e4f8",
+      "licence": "MIT",
       "files": [
         {
           "path": "bpm-rulepacks/packs/framework/aspnet-cookie-insecure.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-aspnet-cookie-insecure"
           ],
-          "sha256": "de625032f6e539e22bf9d997f3e95385df6e4c845625675dda963cefebfd93d3"
+          "sha256": "c85ad3123e8d3bd1d66dc11146e0e6ad565adf8b8498c7535890be0c59499e89"
         },
         {
           "path": "bpm-rulepacks/packs/framework/aspnet-cors-allowanyorigin.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-aspnet-cors-allowanyorigin"
           ],
-          "sha256": "d8c0e4f1cb013e36e41984f4efe54887602c4756cad04c30460ea13b0c7f44eb"
+          "sha256": "9551adec9d086c39a91b1d7fd2d191b355deb163d79831629b60e3638cbad62c"
         },
         {
           "path": "bpm-rulepacks/packs/framework/aspnet-disable-antiforgery.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-aspnet-disable-antiforgery"
           ],
-          "sha256": "b5a4c58d9ae4d1d3e3e0d48fdd839dd434c798ab7cd22f7f730b83f515e655f2"
+          "sha256": "d21479bc494768544416ac3e3564130340532d3b063d0fa52b02776d96645adc"
         },
         {
           "path": "bpm-rulepacks/packs/framework/aspnet-html-raw-xss.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-aspnet-html-raw-xss"
           ],
-          "sha256": "67a6e57f89c14ff051bae30d4b15745dc151ff984c06711d8090914857f4769f"
+          "sha256": "4c60c101a7e886be9974a44a4ea836ce6bb6cbec5d151165978a78f2d98ed01e"
         },
         {
           "path": "bpm-rulepacks/packs/framework/aspnet-overposting-bind.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-aspnet-overposting-bind"
           ],
-          "sha256": "0ca45fc3ca83cb4b7016a2a6a9de8ad5a12ef611a6212a8bf229672cfbfa2919"
+          "sha256": "6c3e24e96d01b94a0d37c8dd4f2af091ac8567f3ace64eb326df4a0d1fe2915b"
         },
         {
           "path": "bpm-rulepacks/packs/framework/aspnet-sql-raw.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-aspnet-sql-raw"
           ],
-          "sha256": "1ba5b92f253e09ad576d7e01b5d68596edf233bbee4a6fbe04b5ccfb0ee6a30a"
+          "sha256": "a1faa004526356ccf7886f083724a9fb6443c00bea6acc39a20af4cb62305728"
         },
         {
           "path": "bpm-rulepacks/packs/framework/django-eval-exec-request-data.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-django-eval-exec-request-data"
           ],
-          "sha256": "d79976257610b3d77c3a4f59f2edd74481aa245ac2a569e4524f7ec0770dee7a"
+          "sha256": "e712876b1f1d1be2d63c987548c97da65226c122a056c7b6df71b70dedd77d68"
         },
         {
           "path": "bpm-rulepacks/packs/framework/django-raw-sql-injection.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-django-raw-sql-injection"
           ],
-          "sha256": "35f17dd85f2c15305c4b43cd0ebb3f5ffa93488c68cc82cd068bc68a9ff7bda9"
+          "sha256": "6085c898408506769fd6c581251f9f34270852b7ab0dab7e290999271c022cc5"
         },
         {
           "path": "bpm-rulepacks/packs/framework/drizzle-execute-string-concat.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-drizzle-execute-string-concat"
           ],
-          "sha256": "1cb92e2bdc48143f8ce8dd7f87f0fef9e282bc43bdf7356316e7877197207687"
+          "sha256": "3dc261fed6a66ac58c8b5a0f2653f939b2e053f47e4ae22bac3720ae54e3c430"
         },
         {
           "path": "bpm-rulepacks/packs/framework/drizzle-sql-raw-injection.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-drizzle-sql-raw-injection"
           ],
-          "sha256": "f59c91d9857cdd10bb30b31fa0539497781b9c366f6871bd383a46f07aee9146"
+          "sha256": "acbcc7f2b4a829c2eaf5549d933dc6c1c4fc0c71d9b215bdcd4ccb8a6d813292"
         },
         {
           "path": "bpm-rulepacks/packs/framework/echo-sql-injection.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-echo-sql-injection"
           ],
-          "sha256": "bbaff0185c2e1bc4ba49036ca1bacc203278ded33204fdc2685e486d6e66444d"
+          "sha256": "31eade16dab980762a6e77114a5955ccfb0d37ed6aa6a7505078e24a0c6f8840"
         },
         {
           "path": "bpm-rulepacks/packs/framework/express-route-body-no-validation.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-express-route-body-no-validation"
           ],
-          "sha256": "17cfea755f736622c82fc1647ed222adc63c8bbb1f174064eb71772fbe554a73"
+          "sha256": "468a8a4dcc3f3ae42ab2a6b1195adec04bbdd36961aa282ddab34c7177cd4501"
         },
         {
           "path": "bpm-rulepacks/packs/framework/fastify-route-missing-schema.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-fastify-route-missing-schema",
             "bpm-framework-fastify-route-missing-schema-3arg"
           ],
-          "sha256": "cbe5ca149613b36aaae69cf4507a3b9fcf94464cb6186532274882724d53fcd5"
+          "sha256": "77c7df8ba6a03e1937c3496c93afe0470084e0ac6a44c5f40da8e172431ed896"
         },
         {
           "path": "bpm-rulepacks/packs/framework/fastify.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-fastify-reply-send-unsanitized"
           ],
-          "sha256": "370a31d2a012d6f7caf1a192bdee6099a8feaec76334e116cdaf318687020b4b"
+          "sha256": "9423e4e762708265bd28740691e0efa748a68d9730ef9f33769d46b05f740d4e"
         },
         {
           "path": "bpm-rulepacks/packs/framework/gin-cors-allow-all.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-gin-cors-allow-all"
           ],
-          "sha256": "5bef1f3d25959268d608c365e0e3a363ed32a55fa7c37a0747225690e018688e"
+          "sha256": "8228a103f566788e9b13f9d1b3df91616fbf5aa9ba5c2d01f5a3eb4b77dc0ea4"
         },
         {
           "path": "bpm-rulepacks/packs/framework/gin-path-traversal-fileserve.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-gin-path-traversal-fileserve"
           ],
-          "sha256": "70f2344b7cf65d4fd95ca75ca67e5afe0aebf6bb296cf097cf97af4706346b83"
+          "sha256": "21574ac0f5927945fefb8b19f8e50b29c0959f44b9c4b504f90a29f282b0dd0f"
         },
         {
           "path": "bpm-rulepacks/packs/framework/gin-sql-injection.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-gin-sql-injection"
           ],
-          "sha256": "665cc9c9996827aa2f51ba99aa6530f45cfd5607d7db13753c5d4c6045f780f5"
+          "sha256": "764689081d4ea20e81a9fd8482a095e9a46bc2dfe27601cdc49253c5a0f5abf7"
         },
         {
           "path": "bpm-rulepacks/packs/framework/gin-trusted-all-proxies.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-gin-trusted-all-proxies"
           ],
-          "sha256": "0aaa942d7879c303085b5809543a5e7aa1a0faf65aa729d5e2fae21dd9dbc209"
+          "sha256": "3fd733db4a22677b2ce33dc6528b267b1a379e08b996ad90baaf0505dc101087"
         },
         {
           "path": "bpm-rulepacks/packs/framework/laravel-blade-xss.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-laravel-blade-xss"
           ],
-          "sha256": "06bf0666a96276d226c7f1ea89cfe2d7b6950460a1f86d05c2cac8847a1fa19c"
+          "sha256": "3d8f531046e15d4b51b3cd4ef860096637624121d00d921a35a8fb80f6d6a8c6"
         },
         {
           "path": "bpm-rulepacks/packs/framework/laravel-env-outside-config.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-laravel-env-outside-config"
           ],
-          "sha256": "149f4393e07ea7c070cf3d13432b96afe44fa63e237728828171e5465120f513"
+          "sha256": "c904a367344a91544c00692f1b4b229bee3331888c95dbe2f58473889ac9dd47"
         },
         {
           "path": "bpm-rulepacks/packs/framework/laravel-mass-assignment.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-laravel-mass-assignment"
           ],
-          "sha256": "8a8d12737317d406bd19dd753186ab3521054f6ef366bc9d90e570c68c08bbd1"
+          "sha256": "af1f3e3cba6bf3d61c7e5aa5bbab4e61652696f60ab015974adc8f8b5453f6ce"
         },
         {
           "path": "bpm-rulepacks/packs/framework/laravel-sql-injection-raw.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-laravel-sql-injection-raw"
           ],
-          "sha256": "aac0cb75de55e28e06d35759e5259dcbf8f974b163872c63a926f11a33bbe533"
+          "sha256": "6c4e55e08e1d5c1dd19a22accdcc71669a370522fb5268ff3272f62baec9bbb3"
         },
         {
           "path": "bpm-rulepacks/packs/framework/laravel-unvalidated-redirect.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-laravel-unvalidated-redirect"
           ],
-          "sha256": "72af1252a31b9900ff5eab896e6626cad7f34450b90f5721f19845d4d1b10743"
+          "sha256": "746e613db6a34d01995e47e91e45d8fc3b96f4627db04317c8d860b017e3a174"
         },
         {
           "path": "bpm-rulepacks/packs/framework/rails-send-constantize-params.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-rails-send-constantize-params"
           ],
-          "sha256": "29bb5ca0b50802b7daa40ae595ab94b8225cd664ad292d2fa0e0215811b92e7c"
+          "sha256": "99120ce980eb14021bb0645b03df2f3a43137531d4c601f17742ffd0acb57d65"
         },
         {
           "path": "bpm-rulepacks/packs/framework/react-dangerous-html.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-react-dangerous-html"
           ],
-          "sha256": "8f1e2439eca8b160b57c0a83d5a6390a57d8e8d3853dca1a52cc54586a9ae715"
+          "sha256": "b539f42850f0cff312e89682114330ec90187ca345b20bf048262147329c3b9f"
         },
         {
           "path": "bpm-rulepacks/packs/framework/react-target-blank-noopener.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-react-target-blank-noopener"
           ],
-          "sha256": "c4ecc8e28acbdb8b93c6cdf679d1eb8c7ce983c8010f4345d37b6662f1bebf99"
+          "sha256": "09e664da69db03bced2209a5815a9d33e7928a3e9668795c3b3810b821ebc59b"
         },
         {
           "path": "bpm-rulepacks/packs/framework/react-unsafe-href.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-react-unsafe-href"
           ],
-          "sha256": "d7c8c5122adba511ead4c4d810907d07134f9968081f5968410a5254508b2994"
+          "sha256": "cef276e14dab92cb5a3d878893bbdf96b645eb8ff12e19ec412be41d10d86f60"
         },
         {
           "path": "bpm-rulepacks/packs/framework/spring-actuator-exposure.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-spring-actuator-exposure"
           ],
-          "sha256": "50b4fc25b73835b9128623942df4d773a518881c6c9d5406c81a4f484bc0934c"
+          "sha256": "d20fce06bcb7f93b82d671c3d4182ac87ff827dd963345e4d2cc76a04299c88e"
         },
         {
           "path": "bpm-rulepacks/packs/framework/spring-cors-wildcard.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-spring-cors-wildcard"
           ],
-          "sha256": "e8f81d9733a8d0e328b73525035c4bce90aa24184d225fd77f42d1346af63284"
+          "sha256": "ac086acbd0f57ef9f631353b767de15f085f94d991028ef98e05cf87952933a1"
         },
         {
           "path": "bpm-rulepacks/packs/framework/spring-csrf-disabled.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-spring-csrf-disabled"
           ],
-          "sha256": "adc300d52e01d610f524f0440ca9d1395349fc54e4ed069ba7e3c843567201a0"
+          "sha256": "07ebb8968d5d45341498edff58fd273e48f287ba58de2d257450e5aec59360a4"
         },
         {
           "path": "bpm-rulepacks/packs/framework/spring-permitall-broad.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-spring-permitall-broad"
           ],
-          "sha256": "d1e97f5bee7114926daac87e9542a3465bf14631dae971d82af144fb1ff26add"
+          "sha256": "8d5201aaf26eb70c6831350bfeba76c3e406032513193a95eff9f91099abf7fc"
         },
         {
           "path": "bpm-rulepacks/packs/framework/spring-spel-injection.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-framework-spring-spel-injection"
           ],
-          "sha256": "5b6f5c7785c622333076927535b93796023e266982cf216ceb9f830094030e5b"
+          "sha256": "2943c3907b2332b292a23c10550d455a00f837cb008972e81c5d18e1e0d460b0"
         },
         {
           "path": "bpm-rulepacks/packs/house/control-char-in-string-literal.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-house-control-char-in-string-literal"
           ],
-          "sha256": "f13add500cc2892a553b8c7cd9c5099633f45d19a8ef3250463d9afeec0a3dbb"
+          "sha256": "0c4d47bf6444485dfc8943b918a9286e876b7743e18e220bf22d1fc2badcfc06"
         },
         {
           "path": "bpm-rulepacks/packs/house/non-js-regex-anchor.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-house-non-js-regex-anchor"
           ],
-          "sha256": "7232aaffbbaf1558930db454cc1cefb2051375406929bb5c214f66d18a71947d"
+          "sha256": "9655341b0d1043a2a0953b1cd5997f295d91d6cc9a35956a6dbc3e0e829b3349"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a01-admin-route-missing-role-check.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a01-admin-route-missing-role-check"
           ],
-          "sha256": "0852ff970f3f30625aa1de3dd65a68006562c4a1f7a7b301134939792dcb1fe0"
+          "sha256": "79fa4573acb0597ad46293e5e306a3cfc7ad77def115537dd8a3f719875ae50a"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a01-client-trusted-role-go.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a01-client-trusted-role-go"
           ],
-          "sha256": "b4e4a6f727c9362748b3dd0875019c016719a33ce0f98d986e24ac841780635a"
+          "sha256": "ef0e027a7eefae8d3532bf92c14f1e60da16b8e696407b1b4b30aafad53e090a"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a01-client-trusted-role-php.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a01-client-trusted-role-php"
           ],
-          "sha256": "16d888c1d7c28ad591f244f987d7de685bf8f4e9d57426ff30824c2d6e9ebd36"
+          "sha256": "c9f8fc4cb0f02e67fb7bb1bad5ae0d737c48c481d388593126edb6cff1742fd9"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a01-client-trusted-role-python.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a01-client-trusted-role-python"
           ],
-          "sha256": "3b5679b0361b013286b128eecd68d9586740dba9527b13fe0cac58216960794b"
+          "sha256": "4f86567ff1b59b2d3ddc639bbacfd509e8021028da84eb034330241adfd5ec80"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a01-client-trusted-role.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a01-client-trusted-role"
           ],
-          "sha256": "b8d62cd4053f814d5ade5cc06c0b7288760926456990566cdd0b63545a579335"
+          "sha256": "daaa65edcdaebd8a5700d68319a96c5d75f2a37ebb814a5e8d93166c4facced4"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a01-cors-wildcard.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a01-cors-wildcard"
           ],
-          "sha256": "d9273c013ea733459ae63709226c572a92e60e7076b035d500f79458b2e42212"
+          "sha256": "0e65d142acff992491b586a020d36e4b85ac835d823490a92b287210897c366c"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a01-directory-listing.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a01-directory-listing"
           ],
-          "sha256": "5781248a51474c3bdad5c444bb8758f48b09e58595ed0edd67b87a47421594e2"
+          "sha256": "d61f1e1a2f8d07df00bd0313358e5dd7f81d207a52ee8edab37b3fdf902ad010"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a02-insecure-random-c.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a02-insecure-random-c"
           ],
-          "sha256": "5c9e9d20d8c407cf94351f4d859e6cab3686c8f3e0cc81a6fb8ed69316851ea0"
+          "sha256": "b813e11edf9eaaf00bd70ecede57626656243cd132188f9595989674db58334d"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a02-insecure-random-go.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a02-insecure-random-go"
           ],
-          "sha256": "8fdf743945c4fd8301150bcbe18fff1e9928746e63b4b5522ec160c3db888679"
+          "sha256": "c50c60d0783ba8b35d041fd9bc945e8652a5d176db0f4e0538014cd8a689013e"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a02-insecure-random-token.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a02-insecure-random-token"
           ],
-          "sha256": "3b70c799116cacdf53ae8bdd88e50af1aa4ac47e9814572e61bd488b1463714e"
+          "sha256": "2ceefa20012f630e96d21a6e147f2189aed4f35da489e862da694f3360ccb8a2"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a02-tls-verify-disabled-go.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a02-tls-verify-disabled-go"
           ],
-          "sha256": "3072999b68629fccca75b49629a96196d070f41d8ef56875fe1b1664932da365"
+          "sha256": "a8caab8fac8ac7946a316e602177c0baa3dcb7a4306c1969253b53bbd28ec3a9"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a02-tls-verify-disabled-ts.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a02-tls-verify-disabled-ts"
           ],
-          "sha256": "6df000f16b47764eae41b4903d6380c01cd0a0c890d88208acd04832e19efc67"
+          "sha256": "9d518e8ca2ab431c7d98b6878e557ecdda9b9b2afa6c2455d68c877329d4e05d"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a02-weak-cipher-go.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a02-weak-cipher-go"
           ],
-          "sha256": "ede3e937815aa657adca5cdfe69164030b9a9b6713380a91877f07e49d472a0b"
+          "sha256": "bd8594ecc96a280e38b7ae18acc5676e1d4eabde0574ea1355655ebeb3f10985"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a02-weak-cipher-vbnet.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a02-weak-cipher-vbnet"
           ],
-          "sha256": "e868260082a8546836085473297045af1993c08e64449cb181d71b97ee6b7eb3"
+          "sha256": "671ebcfbbf4fb73c7c3ba0c28fd1d0b354dc15d26425c8b3a87af8830a7b8d84"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a02-weak-crypto-c.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a02-weak-crypto-c"
           ],
-          "sha256": "231d7f64680053a3a8a5c3ceae62ffda8f9a5331c82221ad39f3bc34c72afa51"
+          "sha256": "bf868daafaae16978faae342b84ad6a2faf4a695a6593041b05a44fe62e71c40"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a02-weak-hash-go.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a02-weak-hash-go"
           ],
-          "sha256": "64fc0b60e54cccf75de0ab435234fb630cfd31dafba8905fcf17a1b8f989d8f1"
+          "sha256": "f5a618ea81b8a4b2ee311508e10fbda5a7207d1dcfca78f9e5da71d6ebb66acf"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a02-weak-hash-vbnet.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a02-weak-hash-vbnet"
           ],
-          "sha256": "f1a2496596cf78b8ab0122d7d7d01e6e2a412e5e54d9d9664f67c44baa656fbe"
+          "sha256": "9eb253269fbebb68d61ee0042b6d21226ea690d264cce9954e83566e55dddbc4"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a02-weak-hash.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a02-weak-hash"
           ],
-          "sha256": "772c7ddb5e2391f05aaa6ab870e709c20fb69b21daa0bca66e2ba02a40658422"
+          "sha256": "da17460cb7b13e3a34f6f27f7c25cc3b78a60eb5ba8f02c524e6e0a6a8dfea65"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-code-injection-php.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-code-injection-php"
           ],
-          "sha256": "a2eb21d148d7de9d6a082cbc292d4e02cd237da6ba77ffd12403d8528fd316a2"
+          "sha256": "0ce52df85ac305b5fabfd9fdb4a5e8f23d43f8ace9bbb7d6fe15da953bdb7469"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-code-injection-python.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-code-injection-python"
           ],
-          "sha256": "a114c12bd2d610e23c14374d2b998998633dcd37efa6fdd48581aca5a1c578ba"
+          "sha256": "3e2cedd3fc45a27dd85abd9391a47407fd0d9910b7204df7e22fabe0c69a63ee"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-code-injection-ruby.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-code-injection-ruby"
           ],
-          "sha256": "5245f740b2cd854c017ab38743e21caf34f8ff2585676e7d24caf7a1bc14051e"
+          "sha256": "fa27947524f448e29d4495d46fa07835db518521b7cb20ce409acbec7405daf2"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-command-injection-c.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-command-injection-c"
           ],
-          "sha256": "27a23677e0a9d5b89ca781662043d56c9f10072e19688e561a4393b7a2856d2c"
+          "sha256": "f7784e10255e209da642aee6b8a5f2dbfceb7ea4cec961bc0beaa1798e93afeb"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-command-injection-csharp.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-command-injection-csharp"
           ],
-          "sha256": "87ea455b70957c967615faaa54c116dd33ef36b814d82edd452695627fffd901"
+          "sha256": "679c7e89d0693d6f0eca70414eccb46e4c245e3e1cb04f4653bcbe0d97e12e16"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-command-injection-exec.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-command-injection-exec"
           ],
-          "sha256": "31f5749581ddd945172212f8a9a59577b4e3ebb2124c540b69b17b649dc6384b"
+          "sha256": "250e3bbd24682f318a7c22ffa27e89649c83aac4416c8d4c456f7a342f6cff62"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-command-injection-go.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-command-injection-go"
           ],
-          "sha256": "34fe99c89a35abd2867bb92d6ecdd95ebb263011f674af9b1414acb02a70dd4b"
+          "sha256": "f786046defbd7f727277345d1d799752973ee26dfeef10b6c519c1ef9265cf2f"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-command-injection-java.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-command-injection-java"
           ],
-          "sha256": "6d0d00b6ae633468dde577ac0bb0c6f22b11448b4c73e1455d50857068ff6c2c"
+          "sha256": "c8e60ccae6299d397504a818a3f3ff1c801e7a2c6717f653f03d8f32b08a9add"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-command-injection-php.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-command-injection-php"
           ],
-          "sha256": "fdc84caa8f519f68876288f14190c47a94d2e58d4b629b2eb2516cbcb153ab34"
+          "sha256": "e5af8333534bcd922e1d0a8f253d3a3e351d74e760bf46aaeab4a8448e3f5a20"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-command-injection-python.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-command-injection-python"
           ],
-          "sha256": "1f5c1effeaccb550a008d6574750e385f100428416b874e8091cae972ccb53b5"
+          "sha256": "817c296e74e2bb8aabd13625a873eeb9f6168555f8ea633547e93cac1ed3ff3b"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-command-injection-ruby.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-command-injection-ruby"
           ],
-          "sha256": "5a9e5cf9b2729a6d6c1ca3ee9dababb9c51c1a8edb932861e379252b4d2a8492"
+          "sha256": "06cba2a2c88be318dfbd2856bc4c7cd0a7e498e71498b81761f1a798b175e5b0"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-command-injection-rust.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-command-injection-rust"
           ],
-          "sha256": "ffcce54fd0a151cd1ac9d394038a877f559c0d6c197639b264c7b2f3cbaffd31"
+          "sha256": "e70f3d2ef545e443c14cf2fd7c23ace4b2db3f1e44a2595c4659dd7cd4795b55"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-command-injection-swift.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-command-injection-swift"
           ],
-          "sha256": "4f1c02dda14ccfed022f060e7fd625fbee7719cbd3499c47a7b7734f596bb1b9"
+          "sha256": "d7b1c0425103a5993c54f38be295ceb8be73618b50891fe26ea72a5d2075ffa3"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-command-injection-vbnet.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-command-injection-vbnet"
           ],
-          "sha256": "172991b59bc12aadc8cc2d480e614c17133e8553dc2302b82e8a8a99f7c0d296"
+          "sha256": "1ad8a07c49cde60923890e07b0f2ec2bd8fd9a594062ea1cd358212aed088484"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-file-inclusion-php.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-file-inclusion-php"
           ],
-          "sha256": "eaec54116a8a5aca7924a5eaff3d5a5624b6d52159d274d92b1b6b1a3a34d19d"
+          "sha256": "81fa07c33159a61ec84f5464b00afb69f5c092308aa9b0bd509ff95ab5a054a3"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-format-string-c.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-format-string-c"
           ],
-          "sha256": "e091eb629ca82eb49c2412fb8fe67dff84b50aa450fb237d185309397eb05f28"
+          "sha256": "c0e5286523b3d66f9198b201a32c21a76f2004bd8944866890b2f10585463717"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-ldap-injection-java.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-ldap-injection-java"
           ],
-          "sha256": "dbc8929db1278432512cc828ecc555bb6360d942189771ceed967123cf331563"
+          "sha256": "17c57e28bee0decc132744ed39b54776bfa80e437cf748b166f97d82a59b09ea"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-nosql-injection-passthrough.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-nosql-injection-passthrough"
           ],
-          "sha256": "f07b5439370905c92de5e8d7c46f5a2a0f55e61527409b6cc83e7653906e29d6"
+          "sha256": "12a46cf4350944a867cc6210c5ccbc490dd46ada65c006ec97c85f5ae1c993ac"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-path-traversal-c.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-path-traversal-c"
           ],
-          "sha256": "6375afa64cfe44c03d7699ca1ddfcc0e56c3b1da369610032a252954d50bae63"
+          "sha256": "050f256d9c5dd20a5fc3728ee08070160b88db89466cb5af4ddd37820d438c8c"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-path-traversal-csharp.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-path-traversal-csharp"
           ],
-          "sha256": "5a4c29fbe3c9f1c2e02a5b5229e1938d311065fba72b9b46ca0e78a40970ca72"
+          "sha256": "03f486d5d26430b8a3ece453af4eb49ae6cf3581818c8294f91e11d89663948d"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-path-traversal-go.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-path-traversal-go"
           ],
-          "sha256": "ca2414a7995312aaa4d2c991a3548e1a3e8a4bdd4cdcb74838aa51082bef9165"
+          "sha256": "7a10883a1d6b4aec74c9c2b07132e6c8a7e4fae58e705b2c3ba4b151de35e97c"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-path-traversal-java.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-path-traversal-java"
           ],
-          "sha256": "9a9013b5d3628ac1ca70d304c88a0542bb72f848571f27565de97d06f24a4105"
+          "sha256": "632f349002d08333d3d11fd7d2764fc0ce426451bbbb5d48db38c5f2a3a98359"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-path-traversal-kotlin.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-path-traversal-kotlin"
           ],
-          "sha256": "0fe5a9aff992b7b15a7545d2edac6fe9a035c0218d6fb05c9b36fbbae8008ecd"
+          "sha256": "065f064bc6886681b7489f3c04b7cad1879acb42b604376be4f197dcfeaed33d"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-path-traversal-php.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-path-traversal-php"
           ],
-          "sha256": "3b6a75508dbbf92a04c82873f71cd3dbb46debbf63f87043125a3575e626ffa8"
+          "sha256": "f096ae6a265147f9fd3d457c863e0225fbb3012c69eb7880a7f229b5de18632a"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-path-traversal-python.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-path-traversal-python"
           ],
-          "sha256": "28a0416c6e4d8bbda0c8b4cf409557a297d17be269afc07c5602288a6f395d0e"
+          "sha256": "ac78ad7733cfe2afad57b59cad4803f19d523401eaeb6f79da98b98aedcfcfb1"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-path-traversal-ruby.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-path-traversal-ruby"
           ],
-          "sha256": "66d5876e9b1ffa7fb62b94e2e7991415be0bc34dca3c2e7f8918a4fd457dd733"
+          "sha256": "0b63a5f96dcdf608ad9efc6db93c864b83056a6310782b0d30d12c7f1c7e321e"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-path-traversal-rust.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-path-traversal-rust"
           ],
-          "sha256": "44daa366a7bb7d34ebc146e45a6af1e80bd39f8938267ac0c19ea25c9ac501c6"
+          "sha256": "5cf69caacaee10fc221f7aa4ce81a4a10803b5dbacef3629ddc1425e4b2b1327"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-path-traversal-swift.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-path-traversal-swift"
           ],
-          "sha256": "5aec6aeaf0030f8fba079f06c303a833091fda34544292b4d5c66dffff32352d"
+          "sha256": "ea1b7d83df8e52c86e9b8f2f2d4f40ed3466db09d8065dce4960a5584a07a6b9"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-path-traversal.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-path-traversal"
           ],
-          "sha256": "964a362dceff708b92a2f766bc3276da91227cb08ec335a6e2c93dc8d430d5e1"
+          "sha256": "9aa357ed7c9939e24e213b4ffcada77c78b5f7aab5b8362f729688b0b4e2b36b"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-sql-injection-go.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-sql-injection-go"
           ],
-          "sha256": "655de2cb89858cf7871c5d5aa3aede30a430a05803ce33905577cc6f9b250286"
+          "sha256": "2cc33e8ea3ff0ed4dbf57cb0adf4614f8f6847cdfad63393a10338721ef37b95"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-sql-injection-java.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-sql-injection-java"
           ],
-          "sha256": "142b11740cce9aa6cbc95af6d1dcd6548ceff03a9ce68cc1b42c22565b49a1ab"
+          "sha256": "f759e581f2640b1b9b12c67dd8260df3c8063ed55367a34ec62223907d96be46"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-sql-injection-php.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-sql-injection-php"
           ],
-          "sha256": "4f961f628108f149e4847e540150b4b65f6190154169291f8ef316370e5eadff"
+          "sha256": "8e1e33a673d8942cd08d07f6b2c1608e737c3b0589cf906c0875dcad9a33ab94"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-sql-injection-python.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-sql-injection-python"
           ],
-          "sha256": "2b0cc1165d899796d4ed6b46fe5eed9f45e58eb2b5b4eda6cfd8b35aeb19bb1d"
+          "sha256": "21b83f6f14503613bf2db6d012441d9707988d783e2fa18b0f36cda62fa7941e"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-sql-injection-ruby.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-sql-injection-ruby"
           ],
-          "sha256": "bcd4705d12014a3bd21bd103a6c6b1879cc8e9d0e5447d11f0502c4a93bb3f5d"
+          "sha256": "d2e6c7189ecb5fddae435b8b7ef7fecd9cb539762b26d949c72c34595ba4ac6b"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-sql-injection-rust.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-sql-injection-rust"
           ],
-          "sha256": "86d3f71d9e796531a50ab61c16f5937e3d73545dc856c96d1a0803a0c8884716"
+          "sha256": "51d3a6f9bc19d6f6e1b759cb29271163a7827f6ae4158b0f8a327628c41087bb"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-sql-injection-swift.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-sql-injection-swift"
           ],
-          "sha256": "26fda85b7754d7872f2f1814517ce12aabf269f02bf81f51bc6b904f819ca47a"
+          "sha256": "53fb733283776cd32d1850c104e3833a76992140afe0c7027f1fef5b6e1fa4d0"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-sql-injection-vbnet.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-sql-injection-vbnet"
           ],
-          "sha256": "ba86edcbc2bf7736c2e1229c12ba79cad2408681daf81adf96d1608e4538b5c8"
+          "sha256": "34b2ac5e23bc183168924c8c390749ea96cbec508b8ca1cd9e6d48fd17349ca5"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-sql-string-concat.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-sql-string-concat"
           ],
-          "sha256": "ab09b85ac435acc0f4cf3d0c5b9a483a5523b62b3d16ee2538ba516b81a1f491"
+          "sha256": "4c25a3b363794bff3fef69ddac8699101bdfa0ccb2c11ca5b6ed6dd6c159b47a"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-template-injection-go.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-template-injection-go"
           ],
-          "sha256": "55886c6bef7cd77a98bfd712ca15f23c9d670921abd0b7006293ed95428c0f36"
+          "sha256": "13c32c809fa41a57166c2f84f7d2413787c4bf38df40f927f01387b89d84c783"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-webconfig-validaterequest-disabled.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-webconfig-validaterequest-disabled"
           ],
-          "sha256": "5bf1f6cd85dbe8f0d2e5442f0b45945563ebe94264817fd0acac0226397ee466"
+          "sha256": "dc3c1bfc02d837f147a0ba633feab4987efca722bc32d898519d170ce0b99e65"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-webview-xss-swift.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-webview-xss-swift"
           ],
-          "sha256": "9603647abc5742deb84d7a04d9e6de3818e9864164fa68f331a2bbdfba818e9b"
+          "sha256": "04cbe2c5ca4971cbaf279548f675bb68e6975d9002c43ddabb02aa1f44eaa184"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-xpath-injection-java.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-xpath-injection-java"
           ],
-          "sha256": "7a0b445d793172c90f7b65baf23ba102d2efac555cf4e374de487a6c7e0e82cc"
+          "sha256": "cb1bd131121f3d08d9c05377c9fcd53c5dfd6ad55ac3ae4bab85ac3c3024a41f"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-xss-csharp.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-xss-csharp"
           ],
-          "sha256": "88335858218061a3c688cc7e82333ddea5f919722246135a4f817297e9badd04"
+          "sha256": "e6a0248f276da6b93b34634b350f7c8d119132c9c44f40955fdc21953cdf5416"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-xss-dangerously-set-innerhtml.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-xss-dangerously-set-innerhtml"
           ],
-          "sha256": "fa4e27e15cece0204d0b87c61d16fe12ab02e93ddeb644675e3d44013d29a440"
+          "sha256": "b7dffbf497a66fc2bf8942a704be1a9715fb1ebb9b9928072f2d4e93b96d8f99"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a03-xss-php.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a03-xss-php"
           ],
-          "sha256": "e65548b27eaf7a56df71dd8c8f78d16e98156b8936207485a384e431cbbfe3b4"
+          "sha256": "d85529f5b0bf4e7ff9f8955e6ffd9cef7b1be6d75d8222d746c63fee56018adf"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a04-client-supplied-price.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a04-client-supplied-price"
           ],
-          "sha256": "81a32ffadb52a863bdac17684a33fe1df003dd7e6a02fb5126516d0bb64fc870"
+          "sha256": "9929df806a24ebae539b71c32c4e7ceaed7cb5f27720e122c9a8fabd80ebdd97"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a04-mass-assignment.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a04-mass-assignment"
           ],
-          "sha256": "2df02a08aec5adc9558b91c08b254e8accdf967bb0ef14bcd022cc25b926c61c"
+          "sha256": "c9574c97ee3ed7c939661ca86001ad0bcc2d4a4cb2e585d53eda05d394ddc96d"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a04-unrestricted-file-upload.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a04-unrestricted-file-upload"
           ],
-          "sha256": "5ab7bb8fef914c7b7663d657217705808e73139271447f3050793e708d05af33"
+          "sha256": "c98a4eb144eba8a7dade914925a222e762ac47ceeb8b8380c4a15e6c00eca055"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a05-cors-wildcard-csharp.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a05-cors-wildcard-csharp"
           ],
-          "sha256": "f982042063a52b209e62994c916078ce8442e27622abde055ae13ffa151b0725"
+          "sha256": "907cc7bfc7851bce1bcf146ebd18033f94439bc2fa75e6c6870f5a43c3f104a0"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a05-cors-wildcard-go.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a05-cors-wildcard-go"
           ],
-          "sha256": "15e26520103dc2ab76b977a21c7ac6c417a0eed35d77b2ff739d61be308b8aaf"
+          "sha256": "4d5260ae10a35b76b2a8c3e0de152a8e72481683b3e8b878e6871f56781f872e"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a05-cors-wildcard-rust.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a05-cors-wildcard-rust"
           ],
-          "sha256": "b1b4b5883a537a471fe54ac7cb2024ab9ac1c4d5c63cd92eada5d86bcbcb40d9"
+          "sha256": "7b47830db5bbda3ce7e26c6641f198fbd68d35afc3e9ee46c0e93938013079eb"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a05-csp-disabled.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a05-csp-disabled"
           ],
-          "sha256": "cc1961d7579e44257bf8ff2a16a3e73fcc33fea75ae6167ac1eb27cb297fde31"
+          "sha256": "891e7e352e7535952aac44f11d2808f0cef298e1616481809ed719af51672c8a"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a05-default-credentials.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a05-default-credentials"
           ],
-          "sha256": "2eb236c3bb9357ec43c0d88a91e925fbaa7227ee1d3d16df43e207154d3adc5b"
+          "sha256": "6b00b6260371a3ca361da19d9e0428b0f8e40d000664800e3fcad0d086f3360d"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a05-error-display-php.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a05-error-display-php"
           ],
-          "sha256": "14ff6978161c9d9c9b2cd30a0c772864516ef7f0a9928ff7ffd125e288d90f40"
+          "sha256": "0e7ab99edd98301af0941f3cd102d1f1f4e623024a060c1ddd7c542314a9ad1b"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a05-insecure-transport-php.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a05-insecure-transport-php"
           ],
-          "sha256": "90475c1c619bf9e0677cf73f9d656396204fa2d7abae395b273a958a59cbe8bb"
+          "sha256": "736e0494ddc0a37cfb80932aa777de61460f17e620299d97d2c04b7b990a0de6"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a05-insecure-transport-swift.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a05-insecure-transport-swift"
           ],
-          "sha256": "69f5ce2ab074864689b0501c50e5f76b4fa0082fdc5236096c3ede2528e2c657"
+          "sha256": "14e642d05bc96c84565df099280a7191e85a9885a626e723cee5eaa3b83462ee"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a05-stack-trace-exposure.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a05-stack-trace-exposure"
           ],
-          "sha256": "6d9089b67d1cf32fb19e80351a7fa27e132eded630d3e38d4279071946873f75"
+          "sha256": "5cb82a832d7e47514ff94c99f075580c123fe1ceaca682bcbc830dcc3712f4c2"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a05-webconfig-cookies-requiressl-false.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a05-webconfig-cookies-requiressl-false"
           ],
-          "sha256": "592184cb2f5ec75abdbf6cd468146730ebd0f3a570701584b51b74a5f8b8ad74"
+          "sha256": "27269c74326c2b8a1873038033918b5adecf55a1992185bf6dfaac9bd81ad18b"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a05-webconfig-customerrors-off.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a05-webconfig-customerrors-off"
           ],
-          "sha256": "e43d35c9e6657a113058e48c415a3862ccf104063e9905defacb9a7e53488441"
+          "sha256": "fb73cb5e7e45dda6341208d99ac5a2972539649b30d98b465cc4d196bb036b13"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a05-webconfig-debug-enabled.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a05-webconfig-debug-enabled"
           ],
-          "sha256": "8beb562431ad6a99ced96eddfa9ff851cd12db06da67d4a4a7bf810fe1355c19"
+          "sha256": "4ac70dc1ae0340b9ba616ec09e920ddc8b23da99df711f7038496227012b416d"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a05-xxe-java.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a05-xxe-java"
           ],
-          "sha256": "336975826271ba3fc94f6278cc2e8d630ac03eaf2068e944000b3d6ba6481336"
+          "sha256": "824dc002ce73ab1a824c00d4365f7ec24753dfcb28212cb080c1e2c5080b321b"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a07-cookie-insecure-flag.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a07-cookie-insecure-flag"
           ],
-          "sha256": "df36a3e4da37730a22884982dff7f30d871ac7859b78c941d2b730790a6683fb"
+          "sha256": "857d5c39e4a92550193f61d5c930d6c7c3091d58f1fa2e26f8951c21498f9645"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a07-hardcoded-connection-string-vbnet.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a07-hardcoded-connection-string-vbnet"
           ],
-          "sha256": "901f484369631dc5a2b3c68cffd6fe85efbc30818a7f42bab2e35e453f8059b5"
+          "sha256": "2211b3aa637fa114e8cadecd8000fe2218ce3b5c25c545ebf06eae8b5eb76355"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a07-hardcoded-jwt-secret.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a07-hardcoded-jwt-secret"
           ],
-          "sha256": "fcddce74d8d9b3aa964d346d7589f27eb59f4c64ab40f6c0d0f39cac419bc2e8"
+          "sha256": "ddbe5e104eb4cf9a53a3f4b29779f3ad1ed5b4e30e964c24b653602bc34da824"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a07-hardcoded-secret-csharp.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a07-hardcoded-secret-csharp"
           ],
-          "sha256": "c28cbf716d214614d09acf80faed95e4a9324003ca3ba990b2a28ae252af4f46"
+          "sha256": "87b24fd186013ba07bbd4ef47658b2bbef23dc9484a325b4c935759d67604759"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a07-hardcoded-secret-go.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a07-hardcoded-secret-go"
           ],
-          "sha256": "df0fd96cdb109e744fceeca7a4f1d306e58fc78c048972a34be245fa746efd3f"
+          "sha256": "3ac971f8097b46d10a173f4d635a4c646d9e372af6f1d2294c1ded9b6b20dd7f"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a07-hardcoded-secret-kotlin.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a07-hardcoded-secret-kotlin"
           ],
-          "sha256": "f6907d728126c67e648d09a00da60e28ead91cd321661ca34afb54835bcd4de6"
+          "sha256": "f2de1456cc36d19ddce54ea21f9554295ee29931aef7705828f8bc354ea92851"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a07-hardcoded-secret-php.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a07-hardcoded-secret-php"
           ],
-          "sha256": "856b5d3933d5eabeee0a44ef1db300f7a2cb6bba2dc662c5179e4973550e6d66"
+          "sha256": "f16054925250eb9e4ccb4e9481299214583ceebf91665ff491c09d6c57d667d7"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a07-hardcoded-secret-rust.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a07-hardcoded-secret-rust"
           ],
-          "sha256": "b99e4f67daedd938ac9023b3f67d067c5bd0a07212c30a2af6388a706a29acb4"
+          "sha256": "f6634e6e3e2f25386b3a339681061fad96e4d1b8b0526ac5777b675c95a10289"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a07-jwt-alg-none.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a07-jwt-alg-none"
           ],
-          "sha256": "1cef91a99a1e5309ce170f9dce92fc5e3a6d7fa39bc9f36a9dfc1f81a3330238"
+          "sha256": "39b52163f92601cb672b7e54b06976b812af4977ed5c63c9cd44eb5fd99aa0a3"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a07-plaintext-password-compare-csharp.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a07-plaintext-password-compare-csharp"
           ],
-          "sha256": "6dac4fada0747353a375963fd5d143d8227025f78d41a4004ae8582ce3bd3672"
+          "sha256": "59304af79f715e30a75166385f05a06ec500df81e12579dfb6be6be20c579a26"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a07-plaintext-password-compare.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a07-plaintext-password-compare"
           ],
-          "sha256": "7e0bc0bcba7a3bdf565f43ac9401cee36753768a486476413ac8fd4adb41101e"
+          "sha256": "253041be7e272d57a2b31e237fd5445a9fa09dc7be5888bce5d60206cb9bf666"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a07-webconfig-cleartext-connectionstring.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a07-webconfig-cleartext-connectionstring"
           ],
-          "sha256": "2e1651ab69d0529cf399aaf3d2993e5b8869b9b2b72b33e687d8d5ad39e0df20"
+          "sha256": "969f48406a95b09869837bcc63efbd7c3268bd67b769013ef87783f858228c7b"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a08-insecure-deserialization-java.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a08-insecure-deserialization-java"
           ],
-          "sha256": "a5b46d98e49b8bef998db65948a31efcab6807f24177c100db6f383d3e743ba0"
+          "sha256": "8e3a22eaa7e09914c1a58d1cba617ed3b7d1bee84b115379954bc12fd7c93ed3"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a08-insecure-deserialization-kotlin.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a08-insecure-deserialization-kotlin"
           ],
-          "sha256": "52281ac71f40c120a79d80857b7852b2ef7878bc843b5ec661fe1d55d87ab8be"
+          "sha256": "4a459de91c0cf9b8f8ac7271286a7a10e0829ff830f3ddcfca7d3ca3cec367c6"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a08-insecure-deserialization-php.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a08-insecure-deserialization-php"
           ],
-          "sha256": "be3d39c91b83490a26fa84e51742e430c9914a7146198f34ac706c4db315f44e"
+          "sha256": "20a0865036b0bf927330d0868e8a693458639723cdda2d150986dc23d9c1a301"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a08-insecure-deserialization-vbnet.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a08-insecure-deserialization-vbnet"
           ],
-          "sha256": "e07f2a65c5e799eee020b291fd0bacbf82e4b5c5f19aa3e12010f4828cbd4c5b"
+          "sha256": "682b65aa7e591a7b210f054dc61441a9bbc2ea4098d1fd9e99e6fd1dc902b08b"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a09-log-injection.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a09-log-injection"
           ],
-          "sha256": "6ad8d6312e8c6f16adefdd9bd09b82a92529e534d8c7bfce028329b416186de9"
+          "sha256": "45493402b10c8d9f167f4662c0261bbd25acf9c5da81d7939675cb42a6920541"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a09-sensitive-data-logged-java.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a09-sensitive-data-logged-java"
           ],
-          "sha256": "df9cacb1f0bd99fa9e22cedb50c15096f8e7c8de439aaa6dec039d44ca4a4fcc"
+          "sha256": "be2e36e9f2656d9664f7f9861679d7881a040fa0225ab11383c6fc51c67c0e68"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a09-sensitive-data-logged-php.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a09-sensitive-data-logged-php"
           ],
-          "sha256": "bf8bd67ac9faffd7097770f55a828846188f6fdb1c6c71fc5961f2dd1befa6d2"
+          "sha256": "e5c65b670cddb6fcf69ec5a7f8f90a398503e57b368c90b204c25ab0730ceac4"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a09-sensitive-data-logged.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a09-sensitive-data-logged"
           ],
-          "sha256": "ae0461c660964fa4efd0b6045b00da3cc9ebee8f8ee9d21a2622f20637dc2a07"
+          "sha256": "abc2a5fa870123ad5ee93e94125b0880eadc09cc4122a04ab7a1186d934df6dc"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a09-webconfig-trace-enabled.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a09-webconfig-trace-enabled"
           ],
-          "sha256": "2b76f8d66501f3ee4e12c800ed94e2a11135e7fcbc9cc75412a147fddbba8a64"
+          "sha256": "662a9f523548f63739239a852d8b362c819b79632426941e78ea5a52a9febd0c"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a10-ssrf-go.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a10-ssrf-go"
           ],
-          "sha256": "4577cf97846629be897675d9f064398658343ecdb7d648f4dae69d1486048fab"
+          "sha256": "df763eff4ee3508a68bc36f006732881769c6352d44a6641eb2bd5ed3219a2af"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a10-ssrf-rust.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a10-ssrf-rust"
           ],
-          "sha256": "3036dfabf07b717deda05c44ba5489e7c4abee434d1d49e26ca529163157614f"
+          "sha256": "e5f049af8ee336844b2adc1f2e5999e46730e8949d95a2866ac09a107e1f7688"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/a10-ssrf-user-controlled-url.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-a10-ssrf-user-controlled-url"
           ],
-          "sha256": "20f1ae3ac28870971106f8a74ca81cc577ff3d828cf5f754b8d9364aed6e2186"
+          "sha256": "e5f9211a8fc10ac4271b7d1cf1d941ddcd76df15f0068e028f9116bed3c6cc22"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/mem-inherently-dangerous-function.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-mem-inherently-dangerous-function"
           ],
-          "sha256": "e7fe45df459392f5bff6b023372e4c4aecab42ba0a9d13737b47ebf72a7786aa"
+          "sha256": "269e747479e70dbf5d05b21547218afa5d5ea887ab82995412713e370e9e4f39"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/mem-integer-overflow-malloc.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-mem-integer-overflow-malloc"
           ],
-          "sha256": "730b2ca94210aec3fe33cf6e6d5033eec52b29e86f5563c15305cbbda985c2cc"
+          "sha256": "40165293564ae7f07a2bf7c1e42791c660930c28f806319515482c073ed1d8e9"
         },
         {
           "path": "bpm-rulepacks/packs/owasp/mem-unsafe-string-functions.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-owasp-mem-unsafe-string-functions"
           ],
-          "sha256": "241536b3f97f05c5e9af587ae4823e6426cd3795b2a45eac37723d4d31a6b80b"
+          "sha256": "02b8b7d6bd2645bbae014b5da271fb7db17645f5e28b7839a656eb9327702aff"
         },
         {
           "path": "bpm-rulepacks/packs/secrets/github-token.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-secret-github-pat"
           ],
-          "sha256": "93dcc16dbb7c17fca1fc058097233b531992546ef5d1799ad806820a76eb8f95"
+          "sha256": "17cd3833bd1fa7a9d32c0da7e043379d61760888a51da265c7ba12b080c4b778"
         },
         {
           "path": "bpm-rulepacks/packs/secrets/hardcoded-credentials.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-secret-aws-access-key",
             "bpm-secret-generic-assignment"
           ],
-          "sha256": "09793dcba0c01c8757c1353aa509e796247945f417d1e5d91fbc5a3e98f7ced4"
+          "sha256": "56825668a78e42df777dbccf38dbff47d12aa88c6812b7ad747d261e83ff022a"
         },
         {
           "path": "bpm-rulepacks/packs/secrets/pem-private-key.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-secret-pem-private-key"
           ],
-          "sha256": "210df0f1f18cdb81dc48dd890b62e1ea529f6b622dd52fd1f39ea2113ef0c8ed"
+          "sha256": "b0db8cd7cc729d0defc156da809053727259f4de85050a006df4696f500252c7"
         },
         {
           "path": "bpm-rulepacks/packs/secrets/slack-token.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-secret-slack-token"
           ],
-          "sha256": "a0fc4aecd91784bdafb0622dcae12af5873a020d1604ac4fcfc0562036e0632a"
+          "sha256": "5c2771903cd88aee808ab69a34ae00588bf3a007ffb433fc85dc988159d36854"
         },
         {
           "path": "bpm-rulepacks/packs/secrets/stripe-secret-key.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-secret-stripe-live-key"
           ],
-          "sha256": "5b3c7fbeceac1c273a642cd5f1fcc35ebbf8638b94e0ffcd8dac6069fc5fc17b"
+          "sha256": "4591903d28f259fa7c023bc6e3f17ef3e5c4579ae90f28090793ca73950aeb5a"
         },
         {
           "path": "bpm-rulepacks/packs/slop/delegation-only-wrapper-cpp.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-delegation-only-wrapper-cpp"
           ],
-          "sha256": "7fa0a9a1e694201b90fe91b008eee3fb2fe0d363e3034849894e3caa5f252273"
+          "sha256": "8a752b4857a5b6b975ea3a8a40b42268f63c0f3d4512a94faf8d94f6cd5d291f"
         },
         {
           "path": "bpm-rulepacks/packs/slop/delegation-only-wrapper-csharp.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-delegation-only-wrapper-csharp"
           ],
-          "sha256": "6882f3ecfc814c733ea2b99e216ad506953dcbf415787b3dc1762c56acfdb443"
+          "sha256": "5db8ad38416923845c2605565d16773af3423f9def1cebb2b2c6df1bccd908ca"
         },
         {
           "path": "bpm-rulepacks/packs/slop/delegation-only-wrapper-go.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-delegation-only-wrapper-go"
           ],
-          "sha256": "443ccb5c9241f5b9149fd954661d265128a4e29ec52634ed2c5d387ce051e638"
+          "sha256": "78bf9c116299b1b256d5471fc34ec5320001686dbe62292efa39d2145a05b6bc"
         },
         {
           "path": "bpm-rulepacks/packs/slop/delegation-only-wrapper-java.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-delegation-only-wrapper-java"
           ],
-          "sha256": "5c9d26e1198e42ed49739c82636631b05c395e9b07b09002cffb234537c20612"
+          "sha256": "c134e5e1e86b4c6cb87ebd78902b4e9d8820ab788d6367cda8266d73ae07ad59"
         },
         {
           "path": "bpm-rulepacks/packs/slop/delegation-only-wrapper-kotlin.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-delegation-only-wrapper-kotlin"
           ],
-          "sha256": "7d71149af34a3ea7ae9b8bfb39267b592cc8db35591d26ae3c747eeff2ef15e3"
+          "sha256": "bf2f863dc6f61d68348212145d52a58994f302aa967caf7dceddb5fa4ad4f3e9"
         },
         {
           "path": "bpm-rulepacks/packs/slop/delegation-only-wrapper-php.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-delegation-only-wrapper-php"
           ],
-          "sha256": "5907edbb66179cecb64f1ce65fbde0520c4e1e926081140feff1b41368d5de12"
+          "sha256": "d7c353639891f69f4124314e9962cf8525ebf3ee244f40c60ba6882aa12d68fb"
         },
         {
           "path": "bpm-rulepacks/packs/slop/delegation-only-wrapper-python.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-delegation-only-wrapper-python"
           ],
-          "sha256": "3e96c3647a234885fdf6f717dacd16b201b0a869f1ac43a27e206866e8d4c073"
+          "sha256": "7143c0232ee71f8e7aefa0fbf5cdf43733d359d86706e98570677b1a85f3295c"
         },
         {
           "path": "bpm-rulepacks/packs/slop/delegation-only-wrapper-ruby.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-delegation-only-wrapper-ruby"
           ],
-          "sha256": "ed92e88ff44340c20d7979dd93bfee167b0849872c0246573f46adaf74311ad3"
+          "sha256": "d3574ef3e4ffcf824a9ca5187e1b4c95c70fe00a03bcd01692dd4910d9c2cff0"
         },
         {
           "path": "bpm-rulepacks/packs/slop/delegation-only-wrapper-rust.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-delegation-only-wrapper-rust"
           ],
-          "sha256": "4edaa8fe583d32224712f2c0f4293e0ea979ce190d54389d873d2faaf4686dd4"
+          "sha256": "0d0b05635c1036686b40a46d676b5919f44155eeee359ff83e7d87ea5ffb2486"
         },
         {
           "path": "bpm-rulepacks/packs/slop/delegation-only-wrapper.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-delegation-only-wrapper",
             "bpm-slop-delegation-only-wrapper-swift"
           ],
-          "sha256": "d26098ff024fa8e8c8f79be7b229bcf701db9299cced3c1872d7476b58a42d44"
+          "sha256": "7d03b4ac5ee410b8271d941494458949bab465b942cc332cc9b0d395d7662b2c"
         },
         {
           "path": "bpm-rulepacks/packs/slop/emoji-in-comments-go.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-emoji-in-comments-go"
           ],
-          "sha256": "ac4cb6d1ea09aa90ca67ac8c1c5ea478276b452234797bb6661dec5d7973bbc6"
+          "sha256": "2ccc63f037ee56d36142b80a3d6e114625d2e9f33098e9938057d066fe61d40c"
         },
         {
           "path": "bpm-rulepacks/packs/slop/emoji-in-comments-kotlin.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-emoji-in-comments-kotlin"
           ],
-          "sha256": "2b61bf97fdd1f8c793dc99139eae0acf6de7d1636e6da7b45cca716dae5ef89d"
+          "sha256": "c097ea07e41ad0a929da2aff45f5489a3a05edef75ee4e808dfa8bc1b390705f"
         },
         {
           "path": "bpm-rulepacks/packs/slop/empty-catch-cpp.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-empty-catch-cpp"
           ],
-          "sha256": "ff77ce6333a3cd8d7f431bb515bb98a451cacf0020e363e65f36ee5e042fa3a3"
+          "sha256": "2cdc8579ee59351693863e4fcf9341a361e8848f1496b579019a0f87d362988f"
         },
         {
           "path": "bpm-rulepacks/packs/slop/empty-catch-csharp.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-empty-catch-csharp"
           ],
-          "sha256": "782758d4b3f152ccb7f92be246cca37110d7fef7e2b4b73e89709a4094160ba5"
+          "sha256": "547524ee11a8f66bc87b40dcda79bb3509d34d846529d1905b9996c1f77d2044"
         },
         {
           "path": "bpm-rulepacks/packs/slop/empty-catch-go.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-empty-catch-go"
           ],
-          "sha256": "ac32e8964bc976b6798347223062542abcf855b09441b06f317aa66d59060b00"
+          "sha256": "27378394cee5ef85fee266f8c1a8a7eff7c88393bf95a2206ebf7630d9fc0bf3"
         },
         {
           "path": "bpm-rulepacks/packs/slop/empty-catch-java.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-empty-catch-java"
           ],
-          "sha256": "bb3038d869c6a1ebe69f75abedfec46f1f7a94bcdb602c6721619667025e5950"
+          "sha256": "7e5247c027ca6b3d0a26e7161b14166ff6cb2c3a36aad24470139371ccfc075e"
         },
         {
           "path": "bpm-rulepacks/packs/slop/empty-catch-kotlin.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-empty-catch-kotlin"
           ],
-          "sha256": "b29ae6d829b7829b4782fa3e234295227921af0b0b1276339e887c85e12463ff"
+          "sha256": "1bdada62e37e3548e11dfe7582490aaff65cd086c9222e9c52a11d5064e65f66"
         },
         {
           "path": "bpm-rulepacks/packs/slop/empty-catch-php.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-empty-catch-php"
           ],
-          "sha256": "968a5275cc000a80a9fa486e3f14d2962f6a03672eb70f1c92e67ff329512658"
+          "sha256": "77f2a9e402fcb56936023798ac42c78c93862c9fc7b7238caa75cc00b3f434a7"
         },
         {
           "path": "bpm-rulepacks/packs/slop/empty-catch-python.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-empty-catch-python"
           ],
-          "sha256": "327b23edf01bf751ef9f6cbd1025e09bf7bd4a8c9c7ea536e114fc908c0a0d41"
+          "sha256": "dfc2c05a4cefd1eb3b2c272d9bd74122841926c8a5930c140f8d70bbcb09fe44"
         },
         {
           "path": "bpm-rulepacks/packs/slop/empty-catch-ruby.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-empty-catch-ruby"
           ],
-          "sha256": "6200a12928aeaaef80407a2d4fe5f35b3ed0be4776ef95dd952ed81707f7234d"
+          "sha256": "d5df177be8a5befe0538e2ce23d3904d73bc065ebbacf82f80c39cca87a01319"
         },
         {
           "path": "bpm-rulepacks/packs/slop/empty-catch.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-empty-catch",
             "bpm-slop-empty-catch-swift"
           ],
-          "sha256": "ce6ee224bb1cd113ea01b24b381c02c9682fac50eb1619ef1075ae2f7fdac2c2"
+          "sha256": "e9c310219bd46082b20925a1f24e43ae548af07097015d0037db0e71bef387da"
         },
         {
           "path": "bpm-rulepacks/packs/slop/fallback-hides-failure-c.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-fallback-hides-failure-c"
           ],
-          "sha256": "b564617228603ddf1441e56af204ad6a8ff0dc8ed1bb253f2f1d620a3a2a7301"
+          "sha256": "c23262f8ccba2886ffe505845e69a6a82de98cc62dfdb52f373d400960b8ebd9"
         },
         {
           "path": "bpm-rulepacks/packs/slop/fallback-hides-failure-csharp.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-fallback-hides-failure-csharp"
           ],
-          "sha256": "b3c5ea2c2ee0690c26f0016dcd5727d1e74b2281cda18f411236bd310a5c1cc6"
+          "sha256": "68ac68e051eda4168b864eb4205dbcb2939609829f42d3683dffe5a043058d1b"
         },
         {
           "path": "bpm-rulepacks/packs/slop/fallback-hides-failure-go.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-fallback-hides-failure-go"
           ],
-          "sha256": "e34c3ae9b7918bc10b3317eea39047b23b90a0e8c38a84de6dabcc4db873a733"
+          "sha256": "94ef75a594cb5f15fedb7ae8b205e6a96062f4bb20c3b7ae23404fca8c8a9471"
         },
         {
           "path": "bpm-rulepacks/packs/slop/fallback-hides-failure-java.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-fallback-hides-failure-java"
           ],
-          "sha256": "6ae4825cedf1cc4324f4cd07661762471c873546da4a99c396c7bd7ff57759b5"
+          "sha256": "3725887fda3008fec7f9c9f0d0f6279a732d7b0aecbf0a84ba0bbdcb40694761"
         },
         {
           "path": "bpm-rulepacks/packs/slop/fallback-hides-failure-kotlin.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-fallback-hides-failure-kotlin"
           ],
-          "sha256": "9306ff1532a0dc598f65578f237ee07c1b49c5409b78357181815de66d26cb5c"
+          "sha256": "4ceed6f6e97adf4264609e2f94461176c06b7b209ce8900ff770ab6cfe75de05"
         },
         {
           "path": "bpm-rulepacks/packs/slop/fallback-hides-failure-php.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-fallback-hides-failure-php"
           ],
-          "sha256": "0181b18b79109cf5db8cddf09f49b9a798fcbb8f28f55adee5ccb5632ddb90da"
+          "sha256": "3929b465c9ae0d844b68adfc2cab3d75e5e5da2fcf41a301b756d5865a3db68d"
         },
         {
           "path": "bpm-rulepacks/packs/slop/fallback-hides-failure-python.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-fallback-hides-failure-python"
           ],
-          "sha256": "014f24734973be4566985aae2f155a1b0df2aee78adbb8f9d8287275aa06aba7"
+          "sha256": "bf416d005434847d307f07f39898537fad760b4d79bfdc8eaa3550b1bea953d0"
         },
         {
           "path": "bpm-rulepacks/packs/slop/fallback-hides-failure-ruby.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-fallback-hides-failure-ruby"
           ],
-          "sha256": "d21128b61364cc5f16b7d2463649ac0ba581b320049e5c8a1caa929a0146cd98"
+          "sha256": "b578232d80a7040c756eda2599637bc8efe4367c6532666aef53cbb5f71c01d5"
         },
         {
           "path": "bpm-rulepacks/packs/slop/fallback-hides-failure-rust.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-fallback-hides-failure-rust"
           ],
-          "sha256": "af939148a38876b1b865623c12ebd8f1c0c7b281a786bff9e3ce8e8f1ce69c5d"
+          "sha256": "4b77fd6483a0e82273633d544a2f3c37659b3c943683896c70971079f6c21092"
         },
         {
           "path": "bpm-rulepacks/packs/slop/fallback-hides-failure.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-fallback-hides-failure",
             "bpm-slop-fallback-hides-failure-swift"
           ],
-          "sha256": "a89d5f271a0e627892e46d6c914cd73abadaa368b1bc189cec77b89992216cd5"
+          "sha256": "564a3e6d2beb694b3fc018d0e28b2985269c27f7b028559a82316c4b0894f465"
         },
         {
           "path": "bpm-rulepacks/packs/slop/hardcoded-env-fallback-c.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-hardcoded-env-fallback-c"
           ],
-          "sha256": "0239d0191671285183efa3c5af6c9611c17d91db239c7f14ebf9bc036d1410ff"
+          "sha256": "20d89932353800796906d1edfe3384c88cd462b37f1aec1cec180c023647949c"
         },
         {
           "path": "bpm-rulepacks/packs/slop/hardcoded-env-fallback-csharp.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-hardcoded-env-fallback-csharp"
           ],
-          "sha256": "2cc5639d72bd0840b9f7988432d13835959cc7e9a8ebf6ac2a85f469169ad179"
+          "sha256": "7eca8c759121dcab1c7dae779eeaa454e577334e6a7e99198bd9f86bb61ee9cf"
         },
         {
           "path": "bpm-rulepacks/packs/slop/hardcoded-env-fallback-go.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-hardcoded-env-fallback-go"
           ],
-          "sha256": "24ff3c76a31f174a5b3523e46826cae2161db206500efe289a01a2449f486bf2"
+          "sha256": "5ad449b57519b242c6aefdf1cbd621ed1c9a7f11bd08ffdc6d194afb0cf0b5de"
         },
         {
           "path": "bpm-rulepacks/packs/slop/hardcoded-env-fallback-java.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-hardcoded-env-fallback-java"
           ],
-          "sha256": "3e751df4438a0ddf99ba267f3eee50397f2865ea4e90200a5297da29d3df0917"
+          "sha256": "76c714fa2114301ee78eff17f9f9ca43387b6557d076478be32470d5b4724c21"
         },
         {
           "path": "bpm-rulepacks/packs/slop/hardcoded-env-fallback-kotlin.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-hardcoded-env-fallback-kotlin"
           ],
-          "sha256": "fa9b30a8204da5762001e77093892314fec2f5c31c8ed8d844d28dae823cf408"
+          "sha256": "b387a8753ddefaa7b9d9e94954e35b620f4ced4cd235dd593d2f71128f49e923"
         },
         {
           "path": "bpm-rulepacks/packs/slop/hardcoded-env-fallback-php.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-hardcoded-env-fallback-php",
             "bpm-slop-hardcoded-env-fallback-superglobal-php"
           ],
-          "sha256": "af772b5caa89ef9ee9d199fdad054adc113c0564b68d2312c9b2332222f19618"
+          "sha256": "78f74ae0f9abb890f5669a6fa0411e5e8bdd0544f160b4d02b614e3b0c6c3c9e"
         },
         {
           "path": "bpm-rulepacks/packs/slop/hardcoded-env-fallback-python.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-hardcoded-env-fallback-python"
           ],
-          "sha256": "f175a5dc503531b96ec9cba634103a6a48878bf763031942a2b9700c7beab7b5"
+          "sha256": "04ddb9f8b2e85ab74ca727929430ab907f29529ba8f05f456950e2d768e982a6"
         },
         {
           "path": "bpm-rulepacks/packs/slop/hardcoded-env-fallback-ruby.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-hardcoded-env-fallback-ruby"
           ],
-          "sha256": "429d9e6866c7d13ef8e90e4e0222b1628abffd20e3cf22cc7e5c08fa71c96992"
+          "sha256": "a254696d8e093e837f2665dd68294b2539a5d9364e266aa8276ba2500b6fda84"
         },
         {
           "path": "bpm-rulepacks/packs/slop/hardcoded-env-fallback-rust.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-hardcoded-env-fallback-rust"
           ],
-          "sha256": "6cba3bcb5312753c15c0fa0963fcf0f8338fd6cf441a9c12eaf22a3fb03703fb"
+          "sha256": "f9b40e856cb472abef8aa5af195a59b121efad7c3c04d0e578462edf07702791"
         },
         {
           "path": "bpm-rulepacks/packs/slop/hardcoded-env-fallback.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-hardcoded-env-fallback",
             "bpm-slop-hardcoded-env-fallback-swift"
           ],
-          "sha256": "c09340217578edf4a2870c74defcad84cebf1474647810596c733b4a9fdbf168"
+          "sha256": "246b0d8275975ff95c282d8611c656186efe0c691f6bcde0aac62839931b1b3f"
         },
         {
           "path": "bpm-rulepacks/packs/slop/llm-output-unvalidated-sink.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-llm-output-unvalidated-sink"
           ],
-          "sha256": "9566f6eae2af1713e8b10c06be278d0b77ee4e3e75d92afb92f349eca855fdc3"
+          "sha256": "da6bf9d361d2a0b57a3f9b9febe990dc2738d05a1eda6695d38853048803956e"
         },
         {
           "path": "bpm-rulepacks/packs/slop/prose-padding-c.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-prose-padding-c"
           ],
-          "sha256": "f45b2cd780bf83dadf53b624e46058dac5665c8c6b619936f41138f214047120"
+          "sha256": "6517f53be5a6383a82b430788f9cade47b2c11c7adc815fd56822e9300290779"
         },
         {
           "path": "bpm-rulepacks/packs/slop/prose-padding-csharp.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-prose-padding-csharp"
           ],
-          "sha256": "0bda870d3c5bc91b68512aa21d07400555a5e4e958f74502cacfe132bed0174a"
+          "sha256": "ad660b738c975c9459677001c557bf87399d6972f80b6e5b496814de02815f2b"
         },
         {
           "path": "bpm-rulepacks/packs/slop/prose-padding-go.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-prose-padding-go"
           ],
-          "sha256": "2b8d2f09707387f86473efd7a267b0dafd76b40524bd5cae98eba6e7db880dfa"
+          "sha256": "79fa47213ac734c342892b9abdddf363ef3d24532df36fda8157dd900056879e"
         },
         {
           "path": "bpm-rulepacks/packs/slop/prose-padding-java.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-prose-padding-java"
           ],
-          "sha256": "94305116ca4a145cbffb9329bc116826ad1920e8c73671489d8474352458a9c7"
+          "sha256": "edaec6dfc3af6e718bf1490066a51a0f847e1783bb9de5211b218ca8ee9b9d3c"
         },
         {
           "path": "bpm-rulepacks/packs/slop/prose-padding-kotlin.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-prose-padding-kotlin"
           ],
-          "sha256": "0170f908cbf272bab3bf8bc4efea0a5b027bfdf6edf6a0a47909a4e2c682bb0c"
+          "sha256": "c9957760c6aa202833185474ec22073547c605fd48532faa17447e125e2993ad"
         },
         {
           "path": "bpm-rulepacks/packs/slop/prose-padding-php.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-prose-padding-php",
             "bpm-slop-prose-padding-param-php"
           ],
-          "sha256": "7d89c45bc5bfcd184546f0e05fec3cd9046e38d44fdc6f1ee028de3ddbe01b93"
+          "sha256": "2fcb4fcff31a0682b607c026ca4cfe3a5bba26e5f13cfc9a8439380bee53ecab"
         },
         {
           "path": "bpm-rulepacks/packs/slop/prose-padding-ruby.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-prose-padding-ruby"
           ],
-          "sha256": "ebde76fe661d776f3053a7564fc7c823256377482672c61b7880e9419eb9d233"
+          "sha256": "efbe2ef469251c5a4fdb8a6a99b2753b11ad0670848fe746ca7d1cb35b0ea87c"
         },
         {
           "path": "bpm-rulepacks/packs/slop/prose-padding-rust.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-prose-padding-rust"
           ],
-          "sha256": "93bb60c61ec9367516d764531071ff1a1e05cc0c2924187e76ff68203e0356e9"
+          "sha256": "2aa5ea6e87af0b1a5815dfdc1c53c80785afe362b2b17066ee0b4300a7fe9668"
         },
         {
           "path": "bpm-rulepacks/packs/slop/prose-padding.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-prose-padding-hedging",
             "bpm-slop-prose-padding-fake-specificity"
           ],
-          "sha256": "57a4905431a24e7d3862c28c90b54f9e1dc83d2698d9d9118b1d94971e87000d"
+          "sha256": "c8f0681bafa426e741f98de2bf9fcc2bc14a7e186b7fd1de1fead6a709cb2688"
         },
         {
           "path": "bpm-rulepacks/packs/slop/redundant-null-undefined-check.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-redundant-null-undefined-check"
           ],
-          "sha256": "580059e38a2e36c0399e570c95ec1b323c57ff981810771bbaafc48887833122"
+          "sha256": "c141c7ae22633e9fc086f1f7d57449172db223c55d7e083abf26b4231e14522c"
         },
         {
           "path": "bpm-rulepacks/packs/slop/step-by-step-narration-csharp.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-step-by-step-narration-csharp"
           ],
-          "sha256": "3c571a8b84089b98b5d95a84a0630f605df3c16191aaba72b1e1b19f99fcdaf2"
+          "sha256": "c6e5a37e66c3e1998f60f71074ed25bf0a919f1134a359cf1fc2d1f0552f41d3"
         },
         {
           "path": "bpm-rulepacks/packs/slop/step-by-step-narration-go.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-step-by-step-narration-go"
           ],
-          "sha256": "74094f588618fc9eb396d0f12fc6103ffe0f60ccaa9490c1acc99c8d77bc10bf"
+          "sha256": "d6b78d29d08996c63e128eef55fc48e38ec7360852ed1be235e86f3a91ff15b2"
         },
         {
           "path": "bpm-rulepacks/packs/slop/step-by-step-narration-kotlin.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-step-by-step-narration-kotlin"
           ],
-          "sha256": "3583eca3496a052bb6834891db61b3810837be676d33b0c1f03f81df6a5741ac"
+          "sha256": "f1a98b9fa36d1a40852f6b9eb2aec65fdb0bae3908f3d6f03c45b1a31cc5bf28"
         },
         {
           "path": "bpm-rulepacks/packs/slop/try-catch-in-loop-cpp.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-try-catch-in-loop-cpp"
           ],
-          "sha256": "2552a14002351ab9a6e6a74ae108095eb0755985514aa7bbc937ea667f6847af"
+          "sha256": "5d4838e8a26eda98fe097eb4365e9565948b23280b25b8c0be4897c512503832"
         },
         {
           "path": "bpm-rulepacks/packs/slop/try-catch-in-loop-csharp.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-try-catch-in-loop-csharp"
           ],
-          "sha256": "c78c7fdae71109db848bb714bc4822c2f4c2625a179b0644121cc7bc1751af18"
+          "sha256": "9d09c009d024ae58e523d79fda61222e52c3bf5739284c48b476699a9c686b16"
         },
         {
           "path": "bpm-rulepacks/packs/slop/try-catch-in-loop-java.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-try-catch-in-loop-java"
           ],
-          "sha256": "78fa7159426324d73bd2e27d212d5a7fc5cfc8381ec456b8e1245a6fb96f8dfe"
+          "sha256": "504f9f26f7c11e1ec5abf79ead36e54ef6f3477a3b780747a626d4b5d0027302"
         },
         {
           "path": "bpm-rulepacks/packs/slop/try-catch-in-loop-kotlin.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-try-catch-in-loop-kotlin"
           ],
-          "sha256": "c8767d9cd50295e1b0b35a859f603e667c4a24f10c5388cbecd5122f6f0cc4de"
+          "sha256": "43fecf1e2801945256630981ae540458bd2a54d2938c498a41771cd162d5ac87"
         },
         {
           "path": "bpm-rulepacks/packs/slop/try-catch-in-loop-php.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-try-catch-in-loop-php"
           ],
-          "sha256": "5f4f2d3d6e82e0c8f2a3e59b9e35d55e0c3264aa9e9fefac9421307f7d1d5780"
+          "sha256": "731781cd71375604cddb85f2ef44ccc4df1207b921e7d5c03105f6e434dbe6f4"
         },
         {
           "path": "bpm-rulepacks/packs/slop/try-catch-in-loop-python.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-try-catch-in-loop-python"
           ],
-          "sha256": "fde9613dbe20a0b63f2c3568fa0f47ec8fa79542b6ddd146c6ebd9f06772c4da"
+          "sha256": "2d33cc9c0be4c34778a3a7e7237e16378d4c8abc853072db66ebf606c369e0a3"
         },
         {
           "path": "bpm-rulepacks/packs/slop/try-catch-in-loop-ruby.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-try-catch-in-loop-ruby"
           ],
-          "sha256": "e83def5ed42a525c05ac661f0d100546e8fe16c01c0f2b14bef029af3ac7518d"
+          "sha256": "cf3113dc6b0ab56e0e025d9060cb37cabffbee1bf1215f70f899ae9116b83426"
         },
         {
           "path": "bpm-rulepacks/packs/slop/try-catch-in-loop.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-try-catch-in-loop",
             "bpm-slop-try-catch-in-loop-swift"
           ],
-          "sha256": "2b6d19b264003a8748806dddd27c0ccc478636162a3982545a06e512349898dc"
+          "sha256": "89d0376eb4f3b73ab40d38097bedf1e3ccd830ac55da092cbc4613cdc2140abe"
         },
         {
           "path": "bpm-rulepacks/packs/slop/try-parse-fallback.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-try-parse-fallback"
           ],
-          "sha256": "0ec4dfc6571f8535666fb9bc8730f88c2319944fd051d2103765926f30b745d9"
+          "sha256": "5606882b37df0272f8b1216a699284351267ab46a2da5cf9e31dd2c7c4fb407a"
         },
         {
           "path": "bpm-rulepacks/packs/slop/unimplemented-stub-throw-c.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-unimplemented-stub-throw-c"
           ],
-          "sha256": "27df5e83c5325e6f120113d233aa089b0c0cfb068668d114736018c65b352fd1"
+          "sha256": "3389b1038a53a6c66d8d5f5dddb5c812baf071af060dc79520f57a11f380e384"
         },
         {
           "path": "bpm-rulepacks/packs/slop/unimplemented-stub-throw-cpp.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-unimplemented-stub-throw-cpp"
           ],
-          "sha256": "f297f1a0f2260d8bafc86d048617956f9565b59e18b68134593847ddb5559ef7"
+          "sha256": "b5f840e31cc42862b8abf4d46af9e732b768e003cb5b9048c8ae42f0cbe425c0"
         },
         {
           "path": "bpm-rulepacks/packs/slop/unimplemented-stub-throw-csharp.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-unimplemented-stub-throw-csharp"
           ],
-          "sha256": "8115aec0e64313e8209bde43149cf6697571674e43493a50bf35ca7370b8bd2c"
+          "sha256": "814705d48c55fbdf945c0d097f841179d1bf29e8fe25e8ab4823772f6857952e"
         },
         {
           "path": "bpm-rulepacks/packs/slop/unimplemented-stub-throw-go.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-unimplemented-stub-throw-go"
           ],
-          "sha256": "f62f596a5920e803eaeff016299fbe9c058e949d718feb3d5fe6e2f72e1dc08e"
+          "sha256": "f905700275fbc33f968c23548d110e47b13f2b7e01bcc0d230c92d60cc7976f3"
         },
         {
           "path": "bpm-rulepacks/packs/slop/unimplemented-stub-throw-java.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-unimplemented-stub-throw-java",
             "bpm-slop-unimplemented-stub-throw-runtimeexception-java"
           ],
-          "sha256": "a24659c86429ead4e595f87cf5d53b72c1a055ded269b9235725637d70df40ea"
+          "sha256": "9f13a2ee1af65598be1c33432fed3bb3ab245269c0d873dca8947a3c99b6b79e"
         },
         {
           "path": "bpm-rulepacks/packs/slop/unimplemented-stub-throw-kotlin.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-unimplemented-stub-throw-kotlin",
             "bpm-slop-unimplemented-stub-throw-notimplementederror-kotlin"
           ],
-          "sha256": "e83d21b286b87aa09a1b77a5aa4d40c40ee79fe99adf02589f2bdb72dda47717"
+          "sha256": "ea507175d13b4446c7e7ffb5ae77a373f343b1d39cb8f873940b63b3eecd59e1"
         },
         {
           "path": "bpm-rulepacks/packs/slop/unimplemented-stub-throw-php.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-unimplemented-stub-throw-php"
           ],
-          "sha256": "5f37deb4b6ba8d54a156c25bbdc33165fb65b471309d347271b04d5f67ef09f6"
+          "sha256": "49ad0895081cbadcda122cbbe86dab4604e2057e580a55d5f3b34db085809cda"
         },
         {
           "path": "bpm-rulepacks/packs/slop/unimplemented-stub-throw-python.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-unimplemented-stub-throw-python"
           ],
-          "sha256": "26991bdc522d603ca21a85ed12f7f80480308b0a61a5595299076735ff448444"
+          "sha256": "91bfe226d93a69dbbc370f22bc03adc30745c8f1d7b55dc9cea0a7b79979abee"
         },
         {
           "path": "bpm-rulepacks/packs/slop/unimplemented-stub-throw-rust.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-unimplemented-stub-throw-rust"
           ],
-          "sha256": "fd283e753fad6112181668b2431e61fc44ff06da8a0718c7e02579923d0c09de"
+          "sha256": "cb143603cbdf847217e5f153737e8c97a6ccf699c6472eec8c3d71781be9e4ce"
         },
         {
           "path": "bpm-rulepacks/packs/slop/unimplemented-stub-throw.yaml",
-          "licence": "Apache-2.0",
+          "licence": "MIT",
           "ruleIds": [
             "bpm-slop-unimplemented-stub-throw",
             "bpm-slop-unimplemented-stub-throw-swift"
           ],
-          "sha256": "1e9270e6af6b452d39b38240233f4259200ee40add2ebb2f4f3e5e685635f443"
+          "sha256": "33d4c0fe1733d52269c9ce0cda8ad921a3708bf95eedeb039642df07dcf98ea2"
         }
       ],
       "refusedCount": 0
