@@ -851,7 +851,10 @@ describeIfLiveInfra('the AI judge after a scan (W22-03)', () => {
         escalated: 0,
         fast_errors: 0,
         fast_ms: 0,
+        fast_vs_full: {},
       });
+      // W22-14: no quick first look, so nothing kept beside the verdict.
+      for (const id of [a, b, c]) expect((await verdictsOf(id))[0]!.fastPass).toBeNull();
       expect((await verdictsOf(a))[0]).toMatchObject({ pass: 'full', model: 'scripted-model' });
       expect(await finding(a)).toMatchObject({ verifyStatus: 'contradicted', status: 'open' });
       expect((await finding(a)).verifyReason).not.toMatch(/quick first look/);
@@ -908,6 +911,12 @@ describeIfLiveInfra('the AI judge after a scan (W22-03)', () => {
         escalated: 4,
         fast_errors: 0,
         stopped: 'done',
+        // W22-14: escalations where both answered (F garbled's fast answer was rejected).
+        fast_vs_full: {
+          'real->real': 1,
+          'needs_human->real': 1,
+          'likely_false_positive->real': 1,
+        },
       });
 
       // The fast verdict is stored as the verdict, and says so; status untouched.
@@ -916,6 +925,7 @@ describeIfLiveInfra('the AI judge after a scan (W22-03)', () => {
         verdict: 'likely_false_positive',
         pass: 'fast',
         model: 'scripted-small',
+        fastPass: null,
       });
       const c = await finding(cleared);
       expect(c).toMatchObject({ verifyStatus: 'contradicted', status: 'open' });
@@ -927,6 +937,32 @@ describeIfLiveInfra('the AI judge after a scan (W22-03)', () => {
         expect(vs[0]).toMatchObject({ verdict: 'real', pass: 'full', model: 'scripted-model' });
         expect(await finding(id)).toMatchObject({ verifyStatus: 'confirmed', status: 'open' });
       }
+      // W22-14: each escalation keeps the quick first look's answer and why it escalated.
+      const fastOf = async (id: number) => (await verdictsOf(id))[0]!.fastPass;
+      expect(await fastOf(real)).toMatchObject({
+        verdict: 'real',
+        confidence: 5,
+        reason: 'not_false_positive',
+        model: 'scripted-small',
+      });
+      expect(await fastOf(unsure)).toMatchObject({
+        verdict: 'needs_human',
+        confidence: 5,
+        reason: 'not_false_positive',
+      });
+      expect(await fastOf(shaky)).toMatchObject({
+        verdict: 'likely_false_positive',
+        confidence: 3,
+        reason: 'low_confidence',
+        model: 'scripted-small',
+      });
+      expect(await fastOf(garbled)).toMatchObject({
+        verdict: null,
+        confidence: null,
+        reason: 'rejected',
+        model: null,
+      });
+      expect(typeof (await fastOf(shaky))!.ms).toBe('number');
     });
 
     it('a quick-first-look provider error escalates to triage, and is counted apart', async () => {
@@ -949,9 +985,15 @@ describeIfLiveInfra('the AI judge after a scan (W22-03)', () => {
         fast_errors: 1,
         escalated: 1,
         fast_cleared: 0,
+        // W22-14: no fast answer, so nothing to compare.
+        fast_vs_full: {},
       });
       expect(summary.error_samples[0]!.error).toMatch(/^quick first look: .*did not answer/);
-      expect((await verdictsOf(id))[0]).toMatchObject({ pass: 'full', model: 'scripted-model' });
+      expect((await verdictsOf(id))[0]).toMatchObject({
+        pass: 'full',
+        model: 'scripted-model',
+        fastPass: { verdict: null, confidence: null, reason: 'provider_error', model: null },
+      });
       expect((await finding(id)).verifyReason).not.toMatch(/quick first look/);
     });
 

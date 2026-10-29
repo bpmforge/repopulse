@@ -12089,7 +12089,10 @@
         "apps/api/src/workers/ai-judge.test.ts",
         "packages/analysis/src/**",
         "docs/design/CLOSE_THE_LOOP.md",
-        "plan.json"
+        "plan.json",
+        "packages/shared/drizzle/**",
+        "packages/shared/src/db/schema/read/ai-pass.ts",
+        "scripts/judge-agreement.mjs"
       ],
       "depends_on": [
         "W22-03"
@@ -12104,7 +12107,8 @@
       "status": "in_progress",
       "notes": [
         "Filed 2026-10-29 from the Mac's outline run 33 (owner: 'do what you recommend'). 162 rule hits were left after a 30-minute run; at that rate outline needs more than 50 scans to be judged once.",
-        "2026-10-29: the fast first pass is built (#195). It uses an optional triage_fast routing role (Settings → Models → Routing, \"Quick first look at rule hits\"). A confident false positive (>= 4 of 5, AI_JUDGE_FAST_MIN_CONFIDENCE) stands; everything else escalates to the triage model. ai_triage_verdicts.pass records which pass, and plan.judge counts fast_cleared/escalated/fast_errors and per-pass time. Still to do here: batching several hits of one rule per call, and the fast-vs-strong agreement measurement on outline and saleor."
+        "2026-10-29: the fast first pass is built (#195). It uses an optional triage_fast routing role (Settings → Models → Routing, \"Quick first look at rule hits\"). A confident false positive (>= 4 of 5, AI_JUDGE_FAST_MIN_CONFIDENCE) stands; everything else escalates to the triage model. ai_triage_verdicts.pass records which pass, and plan.judge counts fast_cleared/escalated/fast_errors and per-pass time. Still to do here: batching several hits of one rule per call, and the fast-vs-strong agreement measurement on outline and saleor.",
+        "2026-10-29: agreement is now measurable. Live on outline the 8B fast model took about 16 s a hit, escalated all 4, and the 27B called all 4 real; the fast answer was thrown away. An escalated hit's stored full verdict now keeps the fast answer in ai_triage_verdicts.fast_pass (migration 0064: {verdict, confidence, reason low_confidence|not_false_positive|rejected|provider_error, model, ms}; null on fast rows by a check, with no triage_fast route and on AI-pass rows); the stored verdict, verify_status and finding status are unchanged. plan.judge gains fast_vs_full (\"<fast>-><full>\" counts where both answered). scripts/judge-agreement.mjs (read-only, workspace-filtered) prints the matrix across stored verdicts and the precision of a fast likely-false-positive by confidence below the threshold. Write scope widened to packages/shared/drizzle/** and packages/shared/src/db/schema/read/ai-pass.ts (the column and migration) and scripts/judge-agreement.mjs. Still to do: batching, and recording the measured numbers on outline and saleor."
       ]
     }
   ]

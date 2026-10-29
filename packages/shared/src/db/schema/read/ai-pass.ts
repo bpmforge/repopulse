@@ -183,6 +183,29 @@ export const AI_DECISIONS = ['accepted', 'dismissed', 'superseded'] as const;
 export const AI_IMPACTS = ['material', 'negligible', 'unknown'] as const;
 /** W22-03 (2026-10-29): which judge pass produced a verdict (the quick first look, or the main route). */
 export const AI_JUDGE_PASSES = ['fast', 'full'] as const;
+/**
+ * W22-14: why the quick first look handed a hit on to the main triage route.
+ * low_confidence = a likely false positive under AI_JUDGE_FAST_MIN_CONFIDENCE;
+ * not_false_positive = real or needs a human; rejected = the answer failed the
+ * checklist; provider_error = the call threw (timeout, refused, ...).
+ */
+export const AI_JUDGE_FAST_ESCALATIONS = [
+  'low_confidence',
+  'not_false_positive',
+  'rejected',
+  'provider_error',
+] as const;
+/** W22-14: the quick first look's answer on an escalated hit (ai_triage_verdicts.fast_pass). */
+export interface AiJudgeFastPass {
+  /** Null when it gave no usable answer (rejected, provider_error). */
+  verdict: (typeof AI_VERDICTS)[number] | null;
+  /** 1-5, null when there was no answer. */
+  confidence: number | null;
+  reason: (typeof AI_JUDGE_FAST_ESCALATIONS)[number];
+  model: string | null;
+  /** Wall-clock milliseconds the quick first look took on this hit. */
+  ms: number;
+}
 const VEX = [
   'component_not_present',
   'vulnerable_code_not_present',
@@ -270,6 +293,15 @@ export const aiTriageVerdicts = pgTable(
      * or 'full' (the triage route). NULL on AI-pass rows and older rows.
      */
     pass: text('pass'),
+    /**
+     * W22-14 (2026-10-29): on a 'full' verdict the judge reached after the
+     * quick first look escalated, that first look's answer (verdict,
+     * confidence, why it escalated, model, ms), so fast-vs-full agreement can
+     * be measured (scripts/judge-agreement.mjs). NULL on 'fast' rows, on judge
+     * runs with no triage_fast route, on AI-pass rows and on older rows. It
+     * never feeds the stored verdict or the finding.
+     */
+    fastPass: jsonb('fast_pass').$type<AiJudgeFastPass>(),
   },
   (t) => [
     index('ai_triage_verdicts_workspace_finding_idx').on(
@@ -307,6 +339,7 @@ export const aiTriageVerdicts = pgTable(
       'ai_triage_verdicts_pass_check',
       sql`${t.pass} is null or ${t.pass} in (${sql.raw(AI_JUDGE_PASSES.map((v) => `'${v}'`).join(', '))})`,
     ),
+    check('ai_triage_verdicts_fast_pass_check', sql`${t.fastPass} is null or ${t.pass} = 'full'`),
     check(
       'ai_triage_verdicts_patch_check',
       sql`${t.patchStatus} in ('verified', 'rejected', 'failed', 'not_attempted') and (${t.patchDiff} is null or ${t.patchStatus} = 'verified')`,

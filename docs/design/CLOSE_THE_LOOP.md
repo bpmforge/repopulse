@@ -158,6 +158,24 @@ bar for rules with no public benchmark); every model call goes through the gatew
   `full_ms`). The verify mapping is unchanged (contradicted, ×0.15) and no status moves.
   The fast route counts in the judge's egress check and in the pass egress digest only when
   routed, so existing acknowledgements stay valid.
+- **Fast-vs-full agreement (W22-14, 2026-10-29).** Live on outline the 8B fast model took
+  about 16 s a hit and escalated all 4; the 27B main model called all 4 real. The fast answer
+  on an escalation was thrown away, so agreement could not be measured. Now a `full` verdict
+  reached after an escalation keeps the fast answer beside it in
+  `ai_triage_verdicts.fast_pass` (migration 0064): `{verdict, confidence, reason, model, ms}`,
+  `reason` one of `low_confidence` (a likely false positive under the threshold),
+  `not_false_positive` (real / needs a human), `rejected` (failed the checklist) or
+  `provider_error` (verdict and confidence null for the last two). Null on `fast` rows (a check
+  constraint), with no `triage_fast` route, and on AI-pass rows. It never feeds the stored
+  verdict, verify_status or the finding's status. `plan.judge.fast_vs_full` tallies the run's
+  escalations where both answered, keyed `"<fast>-><full>"` (e.g. `"needs_human->real": 2`).
+  Across stored verdicts, `node scripts/judge-agreement.mjs --workspace <id> [--repo <id|org/name>]
+  [--json]` (read-only transaction, workspace-filtered) prints the matrix, the agreement rate,
+  the escalation reasons with mean fast-pass time, and the precision of a fast "likely false
+  positive" by confidence: of escalated hits where the fast model said likely FP below
+  `AI_JUDGE_FAST_MIN_CONFIDENCE`, how often the main model agreed. That is the evidence for
+  lowering the threshold; hits cleared at or above it are never checked by the main model, so
+  their precision is not measured (sample them by hand, or route a run with the threshold at 1).
 
 ### W22-02 slice 1 (2026-10-29): evidence packets captured at scan time
 
