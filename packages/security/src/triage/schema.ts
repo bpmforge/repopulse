@@ -1,8 +1,10 @@
 import { z } from 'zod';
 import type { CodeSlice } from './slice.js';
 import {
+  TRIAGE_IMPACTS,
   TRIAGE_VERDICTS,
   type CitedLine,
+  type TriageImpact,
   type TriageRejectReason,
   type TriageVerdict,
   type TriageVex,
@@ -34,6 +36,11 @@ const answerSchema = z.object({
     .optional(),
   vex_statement: z.string().max(400).nullable().optional(),
   patch: z.string().max(20_000).nullable().optional(),
+  // W22-03 (2026-10-29): performance hits only. Optional, and read leniently: a
+  // label outside the three is dropped with a note rather than costing the
+  // whole verdict a retry.
+  impact: z.string().max(40).nullable().optional(),
+  impact_reason: z.string().max(400).nullable().optional(),
 });
 
 export interface AcceptedAnswer {
@@ -44,6 +51,9 @@ export interface AcceptedAnswer {
   vex: TriageVex | null;
   /** The model's proposed diff, still UNVERIFIED. Only present for a `real` verdict. */
   patchText: string | null;
+  /** Only on a `real` verdict; null when absent or dropped. */
+  impact: TriageImpact | null;
+  impactReason: string | null;
   /** Fields dropped and why — reported, not silent. */
   notes: string[];
 }
@@ -137,6 +147,8 @@ export function validateTriageAnswer(
     else notes.push(`dropped a patch offered with a "${a.verdict}" verdict`);
   }
 
+  const { impact, impactReason } = impactOf(a.verdict, a.impact, a.impact_reason, notes);
+
   return {
     ok: true,
     answer: {
@@ -146,7 +158,43 @@ export function validateTriageAnswer(
       citations,
       vex,
       patchText,
+      impact,
+      impactReason,
       notes,
     },
   };
+}
+
+/**
+ * The impact of a real hit, read leniently. Absent -> null (every answer from
+ * before 2026-10-29 and every non-performance answer). Kept only on `real`: a
+ * false positive has no impact to weigh. `negligible` is what holds a fix back
+ * (ai-fix.ts), so it must say why; without a reason it becomes `unknown`.
+ */
+function impactOf(
+  verdict: TriageVerdict,
+  raw: string | null | undefined,
+  rawReason: string | null | undefined,
+  notes: string[],
+): { impact: TriageImpact | null; impactReason: string | null } {
+  if (raw === null || raw === undefined || raw.trim() === '') {
+    return { impact: null, impactReason: null };
+  }
+  const label = raw.trim().toLowerCase();
+  if (!(TRIAGE_IMPACTS as readonly string[]).includes(label)) {
+    notes.push(
+      `dropped an impact "${raw.slice(0, 40)}" that is not one of ${TRIAGE_IMPACTS.join(', ')}`,
+    );
+    return { impact: null, impactReason: null };
+  }
+  if (verdict !== 'real') {
+    notes.push(`dropped an impact offered with a "${verdict}" verdict`);
+    return { impact: null, impactReason: null };
+  }
+  const reason = rawReason?.trim() ? rawReason.trim().slice(0, 300) : null;
+  if (label === 'negligible' && reason === null) {
+    notes.push('an impact of "negligible" gave no reason, so it was recorded as unknown');
+    return { impact: 'unknown', impactReason: null };
+  }
+  return { impact: label as TriageImpact, impactReason: reason };
 }

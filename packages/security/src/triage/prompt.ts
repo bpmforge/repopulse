@@ -4,7 +4,12 @@ import { estimateTokens } from '@repopulse/analysis';
 import { VEX_JUSTIFICATIONS } from '../vex/types.js';
 import { CHECKLIST_DIR } from '../scanners/owasp/checklist.js';
 import type { CodeSlice } from './slice.js';
-import { TRIAGE_CHECKLIST_VERSION, type TriageFinding, type TriageReachability } from './types.js';
+import {
+  IMPACT_DIMENSION,
+  TRIAGE_CHECKLIST_VERSION,
+  type TriageFinding,
+  type TriageReachability,
+} from './types.js';
 
 // The triage prompt (W19-04). The checklist is a versioned asset
 // (checklists/triage.v1.md); the proposal records which version asked.
@@ -38,6 +43,30 @@ const REQUIRED_JSON_WITH_PACKET = REQUIRED_JSON.replace(
   '{"line":<a line number printed in a left margin above>,"quote":"the text of that line","file":"only for a line from a file other than the flagged one: the path shown with it"}',
 );
 
+/**
+ * W22-03 (2026-10-29): a performance hit can be real and not matter (a copy in
+ * a loop over a fixed handful of editor extensions). Asked of performance hits
+ * only; every other dimension's prompt is unchanged.
+ */
+export const IMPACT_QUESTION = `## How much it matters (performance hits only)
+
+If your verdict is "real", also say how much it costs, judged ONLY from the lines shown:
+- "material": the loop or input can grow with data, users or traffic (rows from a database, request bodies, files in a repository, an unbounded collection).
+- "negligible": the input is small or bounded: a fixed list written in the code, configuration, a handful of registered plugins or fields, a per-request constant, or code that runs once at startup.
+- "unknown": the lines shown do not say how big the input can get.
+Give a one-line impact_reason that names the cited line (or evidence line) showing the size of the input. If the verdict is not "real", use null for both.`;
+
+const IMPACT_JSON_FIELDS = `,
+"impact":null or "material" or "negligible" or "unknown",
+"impact_reason":null or "<=200 chars, naming the line that shows how big the input is"}`;
+
+function withImpactFields(json: string): string {
+  return json.replace(
+    '"patch":null or "a unified diff against this file"}',
+    `"patch":null or "a unified diff against this file"${IMPACT_JSON_FIELDS}`,
+  );
+}
+
 export interface TriagePrompt {
   text: string;
   tokens: number;
@@ -58,6 +87,8 @@ export function buildTriagePrompt(args: {
       ? 'not computed for this scanner'
       : `${reachability.tier}${reachability.detail ? ` — ${reachability.detail}` : ''}`;
 
+  const asksImpact = finding.dimension === IMPACT_DIMENSION;
+  const json = args.packetText ? REQUIRED_JSON_WITH_PACKET : REQUIRED_JSON;
   const text = [
     args.checklist ?? loadTriageChecklist(),
     '',
@@ -76,7 +107,8 @@ export function buildTriagePrompt(args: {
     slice.text,
     '```',
     '',
-    ...(args.packetText ? [args.packetText, '', REQUIRED_JSON_WITH_PACKET] : [REQUIRED_JSON]),
+    ...(args.packetText ? [args.packetText, ''] : []),
+    ...(asksImpact ? [IMPACT_QUESTION, '', withImpactFields(json)] : [json]),
   ]
     .filter((l, i, a) => !(l === '' && a[i - 1] === ''))
     .join('\n');

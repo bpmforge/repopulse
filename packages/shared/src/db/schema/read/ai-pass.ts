@@ -179,6 +179,8 @@ export const aiFindingProvenance = pgTable(
 
 export const AI_VERDICTS = ['real', 'likely_false_positive', 'needs_human'] as const;
 export const AI_DECISIONS = ['accepted', 'dismissed', 'superseded'] as const;
+/** W22-03 (2026-10-29): how much a real performance hit matters (triage TRIAGE_IMPACTS). */
+export const AI_IMPACTS = ['material', 'negligible', 'unknown'] as const;
 const VEX = [
   'component_not_present',
   'vulnerable_code_not_present',
@@ -251,6 +253,15 @@ export const aiTriageVerdicts = pgTable(
       onDelete: 'set null',
     }),
     connectionName: text('connection_name'),
+    /**
+     * W22-03 (2026-10-29): on a `real` verdict about a PERFORMANCE hit, how much
+     * it matters (material / negligible / unknown) and the one-line evidence.
+     * NULL on every other row, and on rows from before this column. Negligible
+     * keeps verify_status 'confirmed' and the finding's status; it only holds
+     * back fix drafting (ai-fix.ts) and changes the label on screen.
+     */
+    impact: text('impact'),
+    impactReason: text('impact_reason'),
   },
   (t) => [
     index('ai_triage_verdicts_workspace_finding_idx').on(
@@ -279,6 +290,10 @@ export const aiTriageVerdicts = pgTable(
     check(
       'ai_triage_verdicts_decider_check',
       sql`${t.decision} is null or ${t.decision} = 'superseded' or (${t.decidedAt} is not null)`,
+    ),
+    check(
+      'ai_triage_verdicts_impact_check',
+      sql`${t.impact} is null or ${t.impact} in (${sql.raw(AI_IMPACTS.map((v) => `'${v}'`).join(', '))})`,
     ),
     check(
       'ai_triage_verdicts_patch_check',

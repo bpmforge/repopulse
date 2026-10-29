@@ -8,7 +8,7 @@ import {
   DISMISS_REASON_LABEL,
   DISMISS_REASONS,
   SEVERITY_LABEL,
-  VERIFY_LABEL,
+  verifyLabelOf,
   dimensionLabel,
   isDismissReason,
   locationOf,
@@ -341,7 +341,7 @@ export function TriageQueue({
       <div className="flex flex-wrap gap-3 text-xs text-fg-muted">
         <span>{SEVERITY_LABEL[current.severity]}</span>
         <span>{dimensionLabel(current.dimension)}</span>
-        <span>{VERIFY_LABEL[current.verify_status]}</span>
+        <span>{verifyLabelOf(current)}</span>
         {/* W20-13 (FND-35): a repository-level CVE read "null:null". */}
         <span className="font-mono" data-testid="triage-location">
           {current.forge ? (

@@ -17,7 +17,7 @@ import {
   findingUrl,
   foundByText,
   verifiedByText,
-  VERIFY_LABEL,
+  verifyLabelOf,
   SEVERITY_LABEL,
   statusLabel,
   tomorrow,
@@ -223,9 +223,7 @@ export function FindingDetail({
               the outcome. The list and the PR page showed "verified by a second
               model" while this panel said nothing, so it says it here too. */}
           {!finding.verified_by && finding.verify_status !== 'unverified' ? (
-            <span data-testid="finding-verify-status">
-              {VERIFY_LABEL[finding.verify_status] ?? finding.verify_status}
-            </span>
+            <span data-testid="finding-verify-status">{verifyLabelOf(finding)}</span>
           ) : null}
           {/* The status, from the server's copy of the finding — never from
               the button that was just pressed (W17-23). */}

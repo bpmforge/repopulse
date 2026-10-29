@@ -10,6 +10,7 @@ import { buildTriagePrompt, loadTriageChecklist } from './prompt.js';
 import { validateTriageAnswer } from './schema.js';
 import { sliceAround } from './slice.js';
 import {
+  IMPACT_DIMENSION,
   TRIAGE_CHECKLIST_VERSION,
   emptyTriageFunnel,
   type TriageCandidate,
@@ -179,6 +180,8 @@ export async function runTriage(
       }
 
       const a = checked.answer;
+      // Impact is asked of performance hits only; one offered elsewhere is not kept.
+      const impactAsked = finding.dimension === IMPACT_DIMENSION;
       const patch =
         a.patchText !== null
           ? await proveTriagePatch(candidate, a.patchText, deps.patchProof)
@@ -193,6 +196,8 @@ export async function runTriage(
         citations: a.citations,
         vex: a.vex,
         patch,
+        impact: impactAsked ? a.impact : null,
+        impactReason: impactAsked ? a.impactReason : null,
         route: answer.route
           ? {
               providerName: answer.route.providerName,
