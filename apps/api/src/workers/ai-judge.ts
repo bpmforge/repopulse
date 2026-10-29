@@ -498,6 +498,12 @@ export interface JudgeSummary {
   /** Wall-clock milliseconds spent in each pass (the per-verdict cost of each model). */
   fast_ms: number;
   full_ms: number;
+  /**
+   * W22-14: on escalated hits where both passes answered and the main verdict
+   * was stored, how the quick first look's verdict compares with the main one,
+   * keyed "<fast verdict>-><full verdict>" (e.g. "needs_human->real").
+   */
+  fast_vs_full: Record<string, number>;
   stopped: 'done' | 'time_budget' | 'call_cap' | 'errors' | 'local_only';
   elapsed_ms: number;
 }
@@ -648,6 +654,7 @@ export async function runJudge(a: {
     fast_errors: 0,
     fast_ms: 0,
     full_ms: 0,
+    fast_vs_full: {},
     stopped: 'done',
     elapsed_ms: 0,
   };
@@ -695,6 +702,9 @@ export async function runJudge(a: {
     const rule = `${f.scannerKey}:${f.ruleId}`;
     let result: Awaited<ReturnType<typeof runTriage>> | undefined;
     let pass: 'fast' | 'full' = 'full';
+    // W22-14: the quick first look's answer on an escalation, kept beside the
+    // main verdict so the two can be compared (it never changes the verdict).
+    let fastPass: read.AiJudgeFastPass | null = null;
 
     // Quick first look: only a confident likely false positive stops here.
     if (summary.fast_pass && !fastOff) {
@@ -713,6 +723,18 @@ export async function runJudge(a: {
         if (fp && fp.verdict === 'likely_false_positive' && fp.confidence / 5 >= fastMin) {
           result = fast;
           pass = 'fast';
+        } else {
+          fastPass = {
+            verdict: (fp?.verdict ?? null) as read.AiJudgeFastPass['verdict'],
+            confidence: fp?.confidence ?? null,
+            reason: !fp
+              ? 'rejected'
+              : fp.verdict === 'likely_false_positive'
+                ? 'low_confidence'
+                : 'not_false_positive',
+            model: fp?.model ?? null,
+            ms: a.now().getTime() - t0,
+          };
         }
       } catch (err) {
         if (err instanceof Error && err.name === 'PassCancelledError') throw err;
@@ -726,6 +748,13 @@ export async function runJudge(a: {
           });
         }
         if (err instanceof LocalOnlyViolationError) fastOff = true;
+        fastPass = {
+          verdict: null,
+          confidence: null,
+          reason: 'provider_error',
+          model: null,
+          ms: a.now().getTime() - t0,
+        };
       }
       summary.fast_ms += a.now().getTime() - t0;
       if (!result) {
@@ -821,6 +850,8 @@ export async function runJudge(a: {
         connectionName: connection,
         // W22-03: which pass produced it, so the quick first look is measurable.
         pass,
+        // W22-14: what the quick first look said before it escalated (null otherwise).
+        fastPass: pass === 'full' ? fastPass : null,
       })
       .onConflictDoNothing()
       .returning({ id: read.aiTriageVerdicts.id });
@@ -828,6 +859,10 @@ export async function runJudge(a: {
     if (!stored) continue;
     summary.judged += 1;
     if (pass === 'fast') summary.fast_cleared += 1;
+    else if (fastPass?.verdict) {
+      const key = `${fastPass.verdict}->${p.verdict}`;
+      summary.fast_vs_full[key] = (summary.fast_vs_full[key] ?? 0) + 1;
+    }
     if (p.verdict === 'real' && p.impact === 'negligible') {
       // Real, but too small to matter: no fix is drafted for it (ai-fix.ts),
       // so it does not hold back time for one either.
