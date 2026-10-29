@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { budgetForContext, chunkDiff, splitHunks } from '../chunker/index.js';
 import { buildChunkPrompt } from '../chunker/prompt.js';
 import type { AnalysisGateway, CompleteOpts, CompleteResult } from '../gateway/types.js';
+import { ModelTimeoutError, ProviderError } from '../t2/client.js';
 import { classifyPath, planWaves } from './planner.js';
 import { SPECIALISTS, specialistById, type SpecialistId } from './registry.js';
 import { extractJson, runSpecialists } from './run.js';
@@ -381,6 +382,51 @@ describe('the runner', () => {
     });
     expect(run.failures).toEqual([]);
     expect(run.calls).toBe(2);
+  });
+
+  it('keeps finished reviews when a later call times out, and records the timeout (W22-03)', async () => {
+    let n = 0;
+    const { gateway, calls } = scripted(() => {
+      if (n++ === 0) return '{"findings":[]}';
+      throw new ModelTimeoutError('the model did not finish within 1200s');
+    });
+    const run = await runSpecialists(inputWithAllSignals, { gateway, prTitle: 't', meta });
+    // Every specialist was still asked; the timed-out ones are not retried.
+    expect(calls.length).toBe(Object.keys(run.usage).length);
+    expect(run.usage['security']?.calls).toBe(1);
+    expect(run.failures.length).toBe(calls.length - 1);
+    expect(run.failures[0]?.error).toMatch(/did not finish within 1200s/);
+    expect(run.calls).toBe(calls.length);
+  });
+
+  it('a provider error on one call is a failure of that call, not of the run', async () => {
+    let n = 0;
+    const { gateway } = scripted(() => {
+      if (n++ === 0) throw new ProviderError('Model host responded 500: model crashed');
+      return '{"findings":[]}';
+    });
+    const run = await runSpecialists(inputWithAllSignals, { gateway, prTitle: 't', meta });
+    expect(run.failures).toHaveLength(1);
+    expect(run.failures[0]?.error).toMatch(/model crashed/);
+  });
+
+  it('still throws when no call answered at all, so a dead host fails the pass', async () => {
+    const { gateway } = scripted(() => {
+      throw new ProviderError('connect ECONNREFUSED');
+    });
+    await expect(
+      runSpecialists(inputWithAllSignals, { gateway, prTitle: 't', meta }),
+    ).rejects.toThrow(/ECONNREFUSED/);
+  });
+
+  it('a refusal that is not a call failure still stops the run at once', async () => {
+    const { gateway, calls } = scripted(() => {
+      throw new Error('local-only: this role has no local connection');
+    });
+    await expect(
+      runSpecialists(inputWithAllSignals, { gateway, prTitle: 't', meta }),
+    ).rejects.toThrow(/local-only/);
+    expect(calls).toHaveLength(1);
   });
 
   it('runs nothing and calls no model for a docs-only change', async () => {

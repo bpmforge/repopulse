@@ -11759,7 +11759,8 @@
       "points": 8,
       "status": "todo",
       "notes": [
-        "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md."
+        "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md.",
+        "Slice 1 (2026-10-29): a timed-out or provider-failed model call is recorded against its window and the run goes on (ModelTimeoutError as the abort reason; runSpecialists still throws when no call answered). Found on the gin baseline: one 20-minute timeout discarded a finished review."
       ]
     },
     {

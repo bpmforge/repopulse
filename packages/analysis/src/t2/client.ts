@@ -44,6 +44,19 @@ export class ProviderError extends Error {
   }
 }
 
+/**
+ * The model took longer than the request timeout (W22-03). Thrown as the abort
+ * reason, so it surfaces as itself mid-stream and as a ProviderError's cause
+ * before the headers arrive. A per-call failure, not a broken host: one slow
+ * review must not discard the reviews that finished around it.
+ */
+export class ModelTimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ModelTimeoutError';
+  }
+}
+
 export interface T2Host {
   baseUrl: string;
   /** The connection's label, for sentences that name it (W19-02). */
@@ -370,7 +383,7 @@ export class T2Client {
       ? setTimeout(
           () =>
             controller.abort(
-              new Error(
+              new ModelTimeoutError(
                 `the model did not finish within ${Math.round(timeoutMs / 1000)}s — it may be ` +
                   'loaded on a busy host, or the prompt may be too large for it',
               ),

@@ -162,7 +162,7 @@ export interface AiPassRun {
   specialists: {
     usage?: Record<string, { calls?: number; findings?: number }>;
     droppedForBudget?: string[];
-    /** Specialists whose answer was malformed even after a retry, with the paths they were given. */
+    /** Specialists whose answer was malformed even after a retry, or that timed out or errored, with the paths they were given and why. */
     failures?: { specialist: string; paths: string[]; error: string }[];
     /** Findings the evidence validator refused (a quote not in the source, a line out of range). */
     rejected?: number;

@@ -532,7 +532,7 @@ export function aiPassProcessor(deps: AiPassDeps) {
             ? {
                 reasonCode: 'specialists_unusable',
                 reason:
-                  'No specialist gave a usable answer (each answer was malformed, even after a retry), so this pass reviewed nothing. Try a model that follows JSON instructions more reliably.',
+                  'No specialist gave a usable answer (each answer was malformed even after a retry, or the model did not finish in time), so this pass reviewed nothing. Try a model that follows JSON instructions more reliably, or a narrower scope.',
               }
             : {}),
       });
