@@ -107,6 +107,18 @@ describeIfLiveInfra('each workspace analyses on its own providers (W16-19)', () 
     expect(built!.hosts[0]?.baseUrl).toContain('10.0.0.7');
   });
 
+  it('builds a separate background gateway for the judge, on the same providers', async () => {
+    const gateways = createGatewayResolver(db, NO_ENV, KEY);
+    const scans = await gateways.for(withProvider);
+    const judge = await gateways.forBackground(withProvider);
+    expect(judge).not.toBeNull();
+    // Its own client: the judge's calls do not fill the scans' per-client cap.
+    expect(judge!.gateway).not.toBe(scans!.gateway);
+    expect(judge!.hosts.map((h) => h.modelSlot)).toEqual(scans!.hosts.map((h) => h.modelSlot));
+    expect(await gateways.forBackground(withProvider)).toBe(judge);
+    expect(await gateways.forBackground(withoutProvider)).toBeNull();
+  });
+
   it('gives a workspace with no provider NOTHING, rather than the other one', async () => {
     // The borrowed-model case. Before W16-19 the worker passed the DEFAULT
     // workspace's id for every scan, so this workspace would have been analysed

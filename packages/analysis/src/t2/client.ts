@@ -144,6 +144,12 @@ export interface T2Deps {
   sleep?: (ms: number) => Promise<void>;
   /** Per-host call slots; defaults to the process-wide table (host-slots.ts). */
   slots?: HostSlots;
+  /**
+   * Background work (the AI judge): every call waits behind any other
+   * analysis waiting for the same host (host-slots.ts), so scans that need the
+   * model are not starved or failed by it.
+   */
+  background?: boolean;
 }
 
 interface ChatResponse {
@@ -361,7 +367,9 @@ export class T2Client {
   /** Waits for this host's turn across every client in the process. */
   private acquireSlot(host: T2Host): Promise<() => void> {
     const slots = this.deps.slots ?? SHARED_HOST_SLOTS;
-    return slots.acquire(host.baseUrl, this.config.concurrencyCap, this.config.queueTimeoutMs);
+    return slots.acquire(host.baseUrl, this.config.concurrencyCap, this.config.queueTimeoutMs, {
+      background: this.deps.background ?? false,
+    });
   }
 
   /** True when this host is under the concurrency cap (used by routing chains). */

@@ -1122,6 +1122,16 @@ async function main(): Promise<void> {
             config: fixConfig,
             forgeFor: (workspaceId, repoId) => providerForRepo(scanForgeDeps, workspaceId, repoId),
           },
+          gatewayFor: async (workspaceId) => {
+            const built = await gateways.forBackground(workspaceId);
+            return built
+              ? {
+                  gateway: built.gateway,
+                  hosts: built.hosts,
+                  ...(built.routing ? { routing: built.routing } : {}),
+                }
+              : null;
+          },
           scansPending: async ({ workspaceId, repoId }) => {
             const jobs = await securityScanQueue.getJobs([
               'active',

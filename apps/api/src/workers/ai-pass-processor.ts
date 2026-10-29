@@ -144,6 +144,11 @@ export interface AiPassDeps {
      * or running; the run then waits (`requeue`) instead of starting.
      */
     scansPending?: (target: { workspaceId: number; repoId: number }) => Promise<boolean>;
+    /**
+     * The gateway judge runs use (2026-10-29): the workspace's background
+     * gateway, whose calls wait behind scans for the model. Absent = gatewayFor.
+     */
+    gatewayFor?: AiPassDeps['gatewayFor'];
     /** Puts the run's job back on the queue after `delayMs`; the row stays pending. */
     requeue?: (data: AiPassJobData, delayMs: number) => Promise<void>;
   };
@@ -832,7 +837,7 @@ async function judgeStep(a: {
   ) => Promise<AiPassResult>;
 }): Promise<AiPassResult> {
   const { deps, run, workspaceId, runId } = a;
-  const built = await deps.gatewayFor(workspaceId);
+  const built = await (deps.judge?.gatewayFor ?? deps.gatewayFor)(workspaceId);
   if (!built) {
     return a.fail(
       'no_gateway',

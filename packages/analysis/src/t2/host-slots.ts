@@ -29,7 +29,7 @@ export class HostBusyError extends Error {
 
 interface Slot {
   active: number;
-  waiters: { grant: () => void }[];
+  waiters: { grant: () => void; background: boolean }[];
 }
 
 export class HostSlots {
@@ -51,9 +51,19 @@ export class HostSlots {
 
   /**
    * Resolves with a release function once fewer than `cap` calls hold `host`.
-   * First come, first served. Rejects with HostBusyError after `maxWaitMs`.
+   * First come, first served, except that a `background` call (the AI judge,
+   * 2026-10-29) waits behind every other call: a scan that needs the model is
+   * served at the next free slot instead of failing or queueing behind a
+   * judge that can take hundreds of verdicts. Rejects with HostBusyError
+   * after `maxWaitMs`.
    */
-  acquire(host: string, cap: number, maxWaitMs: number): Promise<() => void> {
+  acquire(
+    host: string,
+    cap: number,
+    maxWaitMs: number,
+    opts: { background?: boolean } = {},
+  ): Promise<() => void> {
+    const background = opts.background ?? false;
     const s = this.slot(host);
     let released = false;
     const release = () => {
@@ -70,6 +80,7 @@ export class HostSlots {
     const started = Date.now();
     return new Promise((resolve, reject) => {
       const waiter = {
+        background,
         grant: () => {
           clearTimeout(timer);
           s.active += 1;
@@ -81,7 +92,10 @@ export class HostSlots {
         if (at >= 0) s.waiters.splice(at, 1);
         reject(new HostBusyError(host, Date.now() - started, s.active + Math.max(0, at)));
       }, maxWaitMs);
-      s.waiters.push(waiter);
+      // Ahead of the first background waiter, unless this is one.
+      const at = background ? -1 : s.waiters.findIndex((w) => w.background);
+      if (at < 0) s.waiters.push(waiter);
+      else s.waiters.splice(at, 0, waiter);
     });
   }
 }
