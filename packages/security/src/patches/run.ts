@@ -237,8 +237,15 @@ export async function runPatchDraft(deps: PatchDraftDeps): Promise<PatchDraftRes
           ...(deps.root !== undefined ? { root: deps.root } : {}),
         });
 
+        // A hunk re-anchored by content (its header named another line) or
+        // matched ignoring edge whitespace is said so on the row, after the
+        // verdict's own reason; the verdict itself is unchanged.
+        const reason =
+          applied.notes.length > 0
+            ? `${verdict.reason} Applied by content: ${applied.notes.join(' ')}`
+            : verdict.reason;
         return finish(
-          { status: verdict.status, code: verdict.code, reason: verdict.reason },
+          { status: verdict.status, code: verdict.code, reason },
           {
             ...drafted,
             diff: applied.canonicalDiff,

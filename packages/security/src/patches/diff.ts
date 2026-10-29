@@ -164,7 +164,7 @@ export function parseUnifiedDiff(text: string): ParsedDiff {
     if (line === '') {
       // A context line whose single leading space was trimmed by whatever
       // carried the text. Treated as the blank line it almost always is; if it
-      // was not, the strict content match in applyPatch refuses the hunk.
+      // was not, the content match in applyPatch refuses the hunk.
       current.lines.push({ kind: ' ', text: '' });
     } else if (kind === ' ' || kind === '-' || kind === '+') {
       current.lines.push({ kind, text: line.slice(1) });
@@ -222,12 +222,61 @@ function splitSource(source: string): { lines: string[]; trailingNewline: boolea
   return { lines: body === '' ? [] : body.split('\n'), trailingNewline };
 }
 
-function matchesAt(lines: readonly string[], at: number, expected: readonly string[]): boolean {
+function matchesAt(
+  lines: readonly string[],
+  at: number,
+  expected: readonly string[],
+  same: (a: string, b: string) => boolean,
+): boolean {
   if (at < 0 || at + expected.length > lines.length) return false;
   for (let i = 0; i < expected.length; i++) {
-    if (lines[at + i] !== expected[i]) return false;
+    if (!same(lines[at + i]!, expected[i]!)) return false;
   }
   return true;
+}
+
+const exact = (a: string, b: string): boolean => a === b;
+/**
+ * Equal apart from leading and trailing whitespace. Whitespace INSIDE a line is
+ * still compared exactly, and nothing else is forgiven: this tolerates a model
+ * that copied a line from the gutter with a space of indentation too many or
+ * too few, or with trailing blanks — not one that paraphrased the code.
+ */
+const sameIgnoringEdgeWhitespace = (a: string, b: string): boolean => a.trim() === b.trim();
+
+function leadingWhitespace(line: string): string {
+  return /^[ \t]*/.exec(line)![0];
+}
+
+type Reindent = { add: string } | { remove: string } | null;
+
+/**
+ * How the hunk's indentation differs from the file's, when it differs the same
+ * way on every non-blank old line (e.g. the model dropped one space from each).
+ * Null when there is no difference or it is inconsistent: added lines are then
+ * left as the model wrote them and the re-scan judges the result.
+ */
+function consistentReindent(fileLines: readonly string[], hunkLines: readonly string[]): Reindent {
+  let found: Reindent | undefined;
+  for (let i = 0; i < hunkLines.length; i++) {
+    if (hunkLines[i]!.trim() === '') continue;
+    const fw = leadingWhitespace(fileLines[i]!);
+    const hw = leadingWhitespace(hunkLines[i]!);
+    let here: Reindent;
+    if (fw.startsWith(hw)) here = { add: fw.slice(hw.length) };
+    else if (hw.startsWith(fw)) here = { remove: hw.slice(fw.length) };
+    else return null;
+    if (found === undefined) found = here;
+    else if (JSON.stringify(found) !== JSON.stringify(here)) return null;
+  }
+  if (!found) return null;
+  return ('add' in found ? found.add : found.remove) === '' ? null : found;
+}
+
+function reindent(line: string, how: Reindent): string {
+  if (how === null || line.trim() === '') return line;
+  if ('add' in how) return how.add + line;
+  return line.startsWith(how.remove) ? line.slice(how.remove.length) : line;
 }
 
 export interface AppliedPatch {
@@ -235,54 +284,95 @@ export interface AppliedPatch {
   after: string;
   /**
    * The diff re-rendered from what was actually applied: real line numbers,
-   * correct counts, `a/` `b/` paths. This — not the model's text — is what is
-   * stored and handed to the developer, so `git apply` takes it as-is.
+   * correct counts, `a/` `b/` paths, and context/removed lines exactly as the
+   * file has them. This — not the model's text — is what is stored and handed
+   * to the developer, so `git apply` takes it as-is.
    */
   canonicalDiff: string;
+  /** True when any hunk was applied at a different line than its header named. */
+  reanchored: boolean;
+  /** True when any hunk matched only after ignoring edge whitespace. */
+  whitespaceTolerant: boolean;
+  /** One short sentence per adjustment, recorded on the patch row's reason. */
+  notes: string[];
 }
 
 /**
- * Applies a parsed diff to the file's content.
+ * Where a hunk's old text (context + removed lines) sits, under a line
+ * comparison: searched from `cursor` (after the previous hunk), with the
+ * header's start line used only to choose between several matches.
+ * -1 when it matches nowhere; throws when two matches are equally near.
+ */
+function locate(
+  lines: readonly string[],
+  cursor: number,
+  oldBlock: readonly string[],
+  hint: number,
+  oldStart: number,
+  same: (a: string, b: string) => boolean,
+): number {
+  const candidates: number[] = [];
+  for (let i = cursor; i + oldBlock.length <= lines.length; i++) {
+    if (matchesAt(lines, i, oldBlock, same)) candidates.push(i);
+  }
+  if (candidates.length === 0) return -1;
+  candidates.sort((a, b) => Math.abs(a - hint) - Math.abs(b - hint));
+  const best = candidates[0]!;
+  const tie = candidates[1];
+  if (tie !== undefined && Math.abs(tie - hint) === Math.abs(best - hint)) {
+    throw new PatchRejectedError(
+      'does_not_apply',
+      `A hunk near line ${oldStart} matches more than one place in the file.`,
+    );
+  }
+  return best;
+}
+
+/**
+ * Applies a parsed diff to the file's content, anchoring each hunk by CONTENT.
  *
- * Content must match EXACTLY — no whitespace fuzz, no partial context. A hunk
- * may sit at a different line than its header says (models get line numbers
- * wrong far more often than content), so each hunk is searched for, nearest
- * the stated line first, in the region after the previous hunk. An ambiguous
- * hunk (its old text appears twice at equal distance) is refused rather than
+ * Local models get hunk headers wrong far more often than content, so neither
+ * the header's line numbers nor its counts are trusted. Each hunk's old text
+ * (context + removed lines) is searched for in the region after the previous
+ * hunk — exact match first; only when it appears nowhere exactly, again with
+ * each line compared ignoring leading/trailing whitespace (indentation copied
+ * off by a space, trailing blanks). Nothing beyond edge whitespace is forgiven.
+ * Between several matches the one nearest the header's line wins; an
+ * ambiguous hunk (two matches at equal distance) is refused rather than
  * guessed: applying a fix to the wrong copy of a repeated block is how a patch
  * "clears" a finding by editing something else.
+ *
+ * A whitespace-tolerant match keeps the file's own text for context and
+ * removed lines, and shifts added lines by the hunk's indentation offset when
+ * that offset is the same on every line.
  */
 export function applyPatch(source: string, parsed: ParsedDiff): AppliedPatch {
   const { lines, trailingNewline } = splitSource(source);
   const out: string[] = [];
   const rendered: string[] = [`--- a/${parsed.oldPath}`, `+++ b/${parsed.newPath}`];
+  const notes: string[] = [];
+  let reanchored = false;
+  let whitespaceTolerant = false;
   let cursor = 0; // next unconsumed index in `lines`
   let delta = 0; // new-file line offset accumulated by earlier hunks
 
-  for (const hunk of parsed.hunks) {
+  for (const [index, hunk] of parsed.hunks.entries()) {
     const oldBlock = hunk.lines.filter((l) => l.kind !== '+').map((l) => l.text);
     const hint = Math.max(0, hunk.oldStart - 1);
+    const label = parsed.hunks.length > 1 ? `Hunk ${index + 1}` : 'The hunk';
 
     let at = -1;
+    let tolerant = false;
     if (oldBlock.length === 0) {
       // Pure insertion with no context: only the stated position is honest.
       at = Math.min(Math.max(hint, cursor), lines.length);
     } else {
-      const candidates: number[] = [];
-      for (let i = cursor; i + oldBlock.length <= lines.length; i++) {
-        if (matchesAt(lines, i, oldBlock)) candidates.push(i);
-      }
-      if (candidates.length > 0) {
-        candidates.sort((a, b) => Math.abs(a - hint) - Math.abs(b - hint));
-        const best = candidates[0]!;
-        const tie = candidates[1];
-        if (tie !== undefined && Math.abs(tie - hint) === Math.abs(best - hint)) {
-          throw new PatchRejectedError(
-            'does_not_apply',
-            `A hunk near line ${hunk.oldStart} matches more than one place in the file.`,
-          );
-        }
-        at = best;
+      at = locate(lines, cursor, oldBlock, hint, hunk.oldStart, exact);
+      // The tolerant pass needs a non-blank line to anchor on: an all-blank
+      // block would match any run of whitespace-only lines.
+      if (at < 0 && oldBlock.some((l) => l.trim() !== '')) {
+        at = locate(lines, cursor, oldBlock, hint, hunk.oldStart, sameIgnoringEdgeWhitespace);
+        tolerant = at >= 0;
       }
     }
     if (at < 0) {
@@ -292,18 +382,43 @@ export function applyPatch(source: string, parsed: ParsedDiff): AppliedPatch {
       );
     }
 
+    // Context and removed lines are the file's own text; added lines are the
+    // model's, shifted by the hunk's consistent indentation offset if any.
+    const how = tolerant
+      ? consistentReindent(lines.slice(at, at + oldBlock.length), oldBlock)
+      : null;
+    const body: DiffLine[] = [];
+    let k = at;
+    for (const l of hunk.lines) {
+      if (l.kind === '+') body.push({ kind: '+', text: reindent(l.text, how) });
+      else body.push({ kind: l.kind, text: lines[k++]! });
+    }
+
     // Loops, not push(...slice): one argument per line throws RangeError
     // (call stack) at about 125k lines, and generated files get that long.
     for (let i = cursor; i < at; i++) out.push(lines[i]!);
-    const newBlock = hunk.lines.filter((l) => l.kind !== '-').map((l) => l.text);
+    const newBlock = body.filter((l) => l.kind !== '-').map((l) => l.text);
     for (const line of newBlock) out.push(line);
 
     const oldStartLine = oldBlock.length === 0 ? at : at + 1;
     const newStartLine = newBlock.length === 0 ? at + delta : at + delta + 1;
     rendered.push(
       `@@ -${oldStartLine},${oldBlock.length} +${newStartLine},${newBlock.length} @@`,
-      ...hunk.lines.map((l) => `${l.kind}${l.text}`),
+      ...body.map((l) => `${l.kind}${l.text}`),
     );
+
+    if (oldBlock.length > 0 && oldStartLine !== hunk.oldStart) {
+      reanchored = true;
+      notes.push(
+        `${label}'s header named line ${hunk.oldStart}; it was applied at line ${oldStartLine}, where its context matched.`,
+      );
+    }
+    if (tolerant) {
+      whitespaceTolerant = true;
+      notes.push(
+        `${label} matched the file only when leading/trailing whitespace was ignored${how ? '; its added lines were re-indented to match' : ''}.`,
+      );
+    }
 
     cursor = at + oldBlock.length;
     delta += newBlock.length - oldBlock.length;
@@ -314,7 +429,13 @@ export function applyPatch(source: string, parsed: ParsedDiff): AppliedPatch {
   if (after === source) {
     throw new PatchRejectedError('no_change', 'The diff leaves the file unchanged.');
   }
-  return { after, canonicalDiff: rendered.join('\n') + '\n' };
+  return {
+    after,
+    canonicalDiff: rendered.join('\n') + '\n',
+    reanchored,
+    whitespaceTolerant,
+    notes,
+  };
 }
 
 /** Parse, check the target, apply — the whole shape gate in one call. */
