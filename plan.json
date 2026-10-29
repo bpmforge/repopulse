@@ -11854,9 +11854,12 @@
         "Nothing in the path can promote a rule or change an existing one (tested)"
       ],
       "points": 8,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
-        "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md."
+        "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md.",
+        "FIRST SLICE 2026-10-29, acceptance 2 and 3; stays in_progress. runStoredVerdictTweakPass (packages/security/src/rules/triage-clusters.ts) reads this workspace's stored ai_triage_verdicts (30 days, newest first opinion per finding; a verdict a person dismissed, a superseded one and second opinions are left out) and runs runTriageTweakPass on them. The worker's weekly rule_draft_pass job (workspace-scoped, same AI-paused check, same workspace gateway, Tier 2) now runs it right after the dismissal drafter; combineLearningPasses writes one run row for both. A timeout or provider error on one call is recorded on the row and the next cluster still runs; failed only when every call failed. No new scanner key, no migration.",
+        "NOTHING CAN PROMOTE OR CHANGE A RULE, and a hole was closed on the way: a registry row overrides a shipped rule's status BY ID (shadow.ts effectiveStatus), so a proposal named after a live pack rule would have put that live rule back in shadow. A proposal now never takes a reserved id: the cluster's source rule, any shipped pack id (shipped-ids.ts reads the rulepack YAML), any registry row in the workspace, or any rule that has raised a finding there; a collision is counted as `collided` and nothing is written. DB test: existing live and shadow rows equal before and after (both workspaces), the one new row is status proposed with llm_draft:ai_triage provenance and no shadow start, the rulepacks tree hashes the same, findings stay open, another workspace's verdicts never reach the prompt, and a second week changes nothing. The dismissal drafter (draft-run.ts) has the same id hole and is NOT changed here.",
+        "LEFT FOR LATER: acceptance 1 (drafting a new rule from a confirmed AI-found issue plus similar code through the index, proven on the snapshot and its fix). It needs the code index (W22-01) and AI-found issues from the hunt (W22-04), neither landed."
       ]
     },
     {

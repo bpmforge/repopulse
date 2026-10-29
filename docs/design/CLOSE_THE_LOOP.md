@@ -129,6 +129,27 @@ bar for rules with no public benchmark); every model call goes through the gatew
   checklist rejected) is not retried for 24 hours. Five errors in a row, or local-only refusing
   the route, stop the run with the reason in words.
 
+### W22-06 first slice (2026-10-29): AI false-positive verdicts feed the rule tweaks
+
+- **When.** The weekly `rule_draft_pass` job (one per workspace) runs the dismissal drafter
+  and then `runStoredVerdictTweakPass` (`packages/security/src/rules/triage-clusters.ts`) with
+  the same workspace gateway, skipped by name when AI is paused or no model is set. One run
+  row for both (`combineLearningPasses`): counts add up, errors carry the pass they came from.
+- **What.** This workspace's `ai_triage_verdicts` from the last 30 days, newest first opinion
+  per finding; verdicts a person dismissed, superseded ones and second opinions are left out.
+  `runTriageTweakPass` clusters them (W19-06's guards unchanged) and asks for at most three
+  narrower rules, Tier 2, triage role.
+- **Nothing promotes or changes a rule.** A draft lands `proposed` with provenance
+  `llm_draft:ai_triage`, set by `acceptDraft`, never by the model. It may not take an existing
+  id: the source rule, any shipped pack id (read from the rulepack YAML), any registry row in
+  the workspace or any rule that has raised a finding there. That matters because a registry
+  row re-statuses a shipped rule by id (`effectiveStatus`), so a proposal named after a live
+  rule would have put it back in shadow. A collision is counted and nothing is written.
+- **Failures.** A timeout or provider error on one call is recorded on the run row and the
+  next cluster runs; the pass reads `failed` only when every call failed.
+- **Not yet.** Drafting a rule from a confirmed AI-found issue plus similar code (acceptance
+  1) waits for the code index (W22-01) and the hunt (W22-04).
+
 Embeddings (pgvector, Qwen3-Embedding-0.6B or CodeRankEmbed) are deliberately not a
 ticket yet: the research found graph and fact tools help local models more than vectors,
 and vectors need decision 4's follow-up.

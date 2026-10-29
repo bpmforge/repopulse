@@ -1,7 +1,10 @@
-import { security, type Database, safeErrorText } from '@repopulse/shared';
+import { and, desc, eq, gte, isNotNull, isNull, or } from 'drizzle-orm';
+import { read, security, type Database, safeErrorText } from '@repopulse/shared';
 import type { AnalysisGateway } from '@repopulse/analysis';
-import type { TriageVerdict } from '../triage/types.js';
+import { TRIAGE_VERDICTS, type TriageVerdict } from '../triage/types.js';
+import type { DraftPassResult } from './draft-run.js';
 import { acceptDraft, type FpCluster } from './intake.js';
+import { shippedRuleIds } from './shipped-ids.js';
 
 // Rule-tweak proposals from AI-judged false positives (W19-06).
 //
@@ -136,6 +139,14 @@ export interface TweakPassDeps {
   maxProposals?: number;
   minClusterSize?: number;
   minConfidence?: number;
+  /**
+   * Ids a proposal may not take (W22-06): shipped pack rules, this workspace's
+   * registry and every rule that has raised a finding here. A registry row
+   * overrides a rule's status BY ID (shadow.ts), so a proposal named after a
+   * live rule would put it back in shadow. The cluster's own source rule is
+   * always reserved.
+   */
+  reservedRuleIds?: ReadonlySet<string>;
 }
 
 export interface TweakPassResult {
@@ -144,11 +155,23 @@ export interface TweakPassResult {
   clusters: number;
   proposed: number;
   rejected: number;
+  /** Drafts that named an existing rule: thrown away, the existing rule untouched. */
+  collided: number;
+  /** Calls that timed out or failed; each recorded, and the pass went on. */
+  errors: number;
   error?: string;
 }
 
+/**
+ * One proposal per cluster, never more than `maxProposals` model calls.
+ *
+ * A timeout or provider error on one cluster is recorded and the next cluster
+ * still runs (W22-06): a weekly pass that gave up on the first slow answer
+ * would, on a local model under load, never propose anything. Only when EVERY
+ * call failed does the pass report `failed`.
+ */
 export async function runTriageTweakPass(deps: TweakPassDeps): Promise<TweakPassResult> {
-  const empty = { clusters: 0, proposed: 0, rejected: 0 };
+  const empty = { clusters: 0, proposed: 0, rejected: 0, collided: 0, errors: 0 };
   if (!deps.gateway) return { status: 'skipped', skippedReason: 'no_gateway', ...empty };
 
   const clusters = clusterTriageFalsePositives(deps.judgements, {
@@ -158,10 +181,14 @@ export async function runTriageTweakPass(deps: TweakPassDeps): Promise<TweakPass
   if (clusters.length === 0) return { status: 'skipped', skippedReason: 'no_clusters', ...empty };
 
   const now = deps.now ?? new Date();
+  const reserved = deps.reservedRuleIds ?? new Set<string>();
   let proposed = 0;
   let rejected = 0;
-  try {
-    for (const cluster of clusters.slice(0, deps.maxProposals ?? 3)) {
+  let collided = 0;
+  const errors: string[] = [];
+  const attempted = clusters.slice(0, deps.maxProposals ?? 3);
+  for (const cluster of attempted) {
+    try {
       const result = await deps.gateway.complete(buildTweakPrompt(cluster), {
         tier: 'T2',
         maxTokens: 45_000,
@@ -188,7 +215,13 @@ export async function runTriageTweakPass(deps: TweakPassDeps): Promise<TweakPass
         rejected += 1;
         continue;
       }
-      await deps.db
+      // A NEW id or nothing: a proposal never takes the name of a rule that
+      // exists, because a registry row with that name would re-status it.
+      if (draft.rule.id === cluster.sourceRuleId || reserved.has(draft.rule.id)) {
+        collided += 1;
+        continue;
+      }
+      const inserted = await deps.db
         .insert(security.ruleRegistry)
         .values({
           workspaceId: deps.workspaceId,
@@ -196,17 +229,200 @@ export async function runTriageTweakPass(deps: TweakPassDeps): Promise<TweakPass
           status: 'proposed',
           provenance: draft.rule.provenance as unknown as Record<string, unknown>,
         })
-        .onConflictDoNothing();
+        // An existing row of that id, whatever its status, is left exactly as it was.
+        .onConflictDoNothing()
+        .returning({ id: security.ruleRegistry.id });
+      if (inserted.length === 0) {
+        collided += 1;
+        continue;
+      }
       proposed += 1;
+    } catch (error) {
+      errors.push(`${cluster.sourceRuleId ?? '(no rule)'}: ${safeErrorText(error)}`);
     }
+  }
+  const error = errors.length > 0 ? errors.slice(0, 3).join('; ') : undefined;
+  return {
+    status: errors.length === attempted.length ? 'failed' : 'succeeded',
+    clusters: clusters.length,
+    proposed,
+    rejected,
+    collided,
+    errors: errors.length,
+    ...(error !== undefined ? { error } : {}),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// The scheduled pass over STORED verdicts (W22-06).
+//
+// W22-03's judge writes an `ai_triage_verdicts` row for every rule hit after a
+// scan; until now nothing read them back for learning. The weekly
+// `rule_draft_pass` job runs this beside the dismissal drafter: same
+// workspace-scoped job, same workspace gateway, same Tier 2.
+// ---------------------------------------------------------------------------
+
+/** Verdicts older than this say less about the rule as it is now. */
+export const TWEAK_WINDOW_DAYS = 30;
+
+/**
+ * This workspace's AI verdicts on rule hits, newest per finding.
+ *
+ * Left out: a verdict a PERSON dismissed (they disagreed with the model, so it
+ * is not evidence), one a newer pass superseded, and second opinions (they
+ * check a verdict already counted; counting both would vote twice).
+ */
+export async function loadTriageJudgements(
+  db: Database,
+  workspaceId: number,
+  now: Date = new Date(),
+  windowDays: number = TWEAK_WINDOW_DAYS,
+): Promise<TriageJudgement[]> {
+  const since = new Date(now.getTime() - windowDays * 86_400_000);
+  const rows = await db
+    .select({
+      findingId: read.aiTriageVerdicts.findingId,
+      verdict: read.aiTriageVerdicts.verdict,
+      confidence: read.aiTriageVerdicts.confidence,
+      rationale: read.aiTriageVerdicts.rationale,
+      citations: read.aiTriageVerdicts.citations,
+      ruleId: read.findings.ruleId,
+      file: read.findings.file,
+      evidence: read.findings.evidence,
+    })
+    .from(read.aiTriageVerdicts)
+    .innerJoin(
+      read.findings,
+      and(
+        eq(read.findings.id, read.aiTriageVerdicts.findingId),
+        eq(read.findings.workspaceId, workspaceId),
+      ),
+    )
+    .where(
+      and(
+        eq(read.aiTriageVerdicts.workspaceId, workspaceId),
+        isNull(read.aiTriageVerdicts.secondOpinionOf),
+        or(isNull(read.aiTriageVerdicts.decision), eq(read.aiTriageVerdicts.decision, 'accepted')),
+        gte(read.aiTriageVerdicts.createdAt, since),
+        isNotNull(read.findings.ruleId),
+      ),
+    )
+    .orderBy(desc(read.aiTriageVerdicts.createdAt), desc(read.aiTriageVerdicts.id))
+    .limit(2000);
+
+  const seen = new Set<number>();
+  const out: TriageJudgement[] = [];
+  for (const r of rows) {
+    if (seen.has(r.findingId)) continue;
+    seen.add(r.findingId);
+    if (!(TRIAGE_VERDICTS as readonly string[]).includes(r.verdict)) continue;
+    out.push({
+      ruleId: r.ruleId,
+      file: r.file,
+      evidence: r.evidence,
+      verdict: r.verdict as TriageVerdict,
+      confidence: r.confidence,
+      citedLines: r.citations.map((c) => c.text),
+      rationale: r.rationale,
+    });
+  }
+  return out;
+}
+
+/** Shipped pack ids, this workspace's registry ids, and every rule that raised a finding here. */
+export async function reservedRuleIds(db: Database, workspaceId: number): Promise<Set<string>> {
+  const out = new Set<string>(shippedRuleIds());
+  const registry = await db
+    .select({ ruleId: security.ruleRegistry.ruleId })
+    .from(security.ruleRegistry)
+    .where(eq(security.ruleRegistry.workspaceId, workspaceId));
+  for (const r of registry) out.add(r.ruleId);
+  const fired = await db
+    .selectDistinct({ ruleId: read.findings.ruleId })
+    .from(read.findings)
+    .where(and(eq(read.findings.workspaceId, workspaceId), isNotNull(read.findings.ruleId)));
+  for (const r of fired) if (r.ruleId) out.add(r.ruleId);
+  return out;
+}
+
+export interface StoredTweakPassDeps {
+  db: Database;
+  workspaceId: number;
+  gateway?: AnalysisGateway | undefined;
+  now?: Date;
+  maxProposals?: number;
+}
+
+/** The weekly pass: stored verdicts in, `proposed` rows out, nothing else written. */
+export async function runStoredVerdictTweakPass(
+  deps: StoredTweakPassDeps,
+): Promise<TweakPassResult> {
+  // No gateway: skipped by name, before a single query.
+  if (!deps.gateway) {
+    return runTriageTweakPass({ db: deps.db, workspaceId: deps.workspaceId, judgements: [] });
+  }
+  const now = deps.now ?? new Date();
+  try {
+    const judgements = await loadTriageJudgements(deps.db, deps.workspaceId, now);
+    const reserved = await reservedRuleIds(deps.db, deps.workspaceId);
+    return await runTriageTweakPass({
+      db: deps.db,
+      workspaceId: deps.workspaceId,
+      gateway: deps.gateway,
+      judgements,
+      now,
+      reservedRuleIds: reserved,
+      ...(deps.maxProposals !== undefined ? { maxProposals: deps.maxProposals } : {}),
+    });
   } catch (error) {
     return {
       status: 'failed',
-      clusters: clusters.length,
-      proposed,
-      rejected,
+      clusters: 0,
+      proposed: 0,
+      rejected: 0,
+      collided: 0,
+      errors: 1,
       error: safeErrorText(error),
     };
   }
-  return { status: 'succeeded', clusters: clusters.length, proposed, rejected };
+}
+
+export interface LearningRunSummary {
+  scanned: number;
+  findingsCreated: number;
+  deferred: number;
+  skipped?: string;
+  error?: string;
+}
+
+/**
+ * The weekly `rule_draft_pass` run row, from BOTH learning passes.
+ *
+ * One row because they share one job: the counts add up, an error from either
+ * is carried with the name of the pass it came from, and `skipped` is stated
+ * only when neither pass had anything to look at.
+ */
+export function combineLearningPasses(
+  draft: DraftPassResult,
+  tweak: TweakPassResult,
+): LearningRunSummary {
+  const errors = [
+    ...(draft.error ? [`dismissal drafts: ${draft.error}`] : []),
+    ...(tweak.error ? [`AI verdict tweaks: ${tweak.error}`] : []),
+  ];
+  let skipped: string | undefined;
+  if (draft.status === 'skipped' && tweak.status === 'skipped') {
+    skipped =
+      draft.skippedReason === 'no_gateway' || tweak.skippedReason === 'no_gateway'
+        ? 'no_gateway'
+        : 'no_clusters';
+  }
+  return {
+    scanned: draft.clusters + tweak.clusters,
+    findingsCreated: draft.drafted + tweak.proposed,
+    // Thrown-out drafts and name collisions, carried rather than logged.
+    deferred: draft.rejected + tweak.rejected + tweak.collided,
+    ...(skipped ? { skipped } : {}),
+    ...(errors.length > 0 ? { error: errors.join(' | ') } : {}),
+  };
 }

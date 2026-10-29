@@ -2,9 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   buildTweakPrompt,
   clusterTriageFalsePositives,
+  combineLearningPasses,
   runTriageTweakPass,
   type TriageJudgement,
+  type TweakPassResult,
 } from './triage-clusters.js';
+import type { DraftPassResult } from './draft-run.js';
+import { shippedRuleIds } from './shipped-ids.js';
 
 // W19-06. AI-judged false positives become PROPOSALS for a person: a cluster
 // needs enough confident verdicts, more false positives than real ones, and the
@@ -105,13 +109,17 @@ describe('runTriageTweakPass', () => {
     checklistItem: "Is this console output the tool's interface?",
     fixtures: { trigger: ['console.log(secret)'], clean: ['console.log(report)'] },
   };
-  function harness(text: string) {
+  function harness(text: string, opts: { conflict?: boolean } = {}) {
     const inserted: Record<string, unknown>[] = [];
     const db = {
       insert: () => ({
         values: (v: Record<string, unknown>) => (
           inserted.push(v),
-          { onConflictDoNothing: async () => undefined }
+          {
+            onConflictDoNothing: () => ({
+              returning: async () => (opts.conflict ? [] : [{ id: inserted.length }]),
+            }),
+          }
         ),
       }),
     } as never;
@@ -220,5 +228,129 @@ describe('runTriageTweakPass', () => {
       judgements: many(4),
     });
     expect(r.status).toBe('succeeded');
+  });
+
+  // W22-06.
+  it("never takes an existing rule's name: the source rule, a reserved id, or a row already there", async () => {
+    const own = harness(JSON.stringify({ ...VALID, id: 'slop.noisy' }));
+    expect(
+      await runTriageTweakPass({
+        db: own.db,
+        workspaceId: 1,
+        gateway: own.gateway,
+        judgements: many(4, { ruleId: 'slop.noisy' }),
+      }),
+    ).toMatchObject({ status: 'succeeded', proposed: 0, collided: 1 });
+    expect(own.inserted).toEqual([]);
+
+    const shipped = harness(JSON.stringify({ ...VALID, id: 'architecture.cycle' }));
+    expect(
+      await runTriageTweakPass({
+        db: shipped.db,
+        workspaceId: 1,
+        gateway: shipped.gateway,
+        judgements: many(4),
+        reservedRuleIds: shippedRuleIds(),
+      }),
+    ).toMatchObject({ proposed: 0, collided: 1 });
+    expect(shipped.inserted).toEqual([]);
+
+    const taken = harness(JSON.stringify(VALID), { conflict: true });
+    expect(
+      await runTriageTweakPass({
+        db: taken.db,
+        workspaceId: 1,
+        gateway: taken.gateway,
+        judgements: many(4),
+      }),
+    ).toMatchObject({ proposed: 0, collided: 1 });
+  });
+
+  it('records a timeout on one call and goes on to the next cluster', async () => {
+    const h = harness(JSON.stringify(VALID));
+    h.complete.mockImplementationOnce(async () => {
+      throw new Error('The model did not answer within 300 s');
+    });
+    const r = await runTriageTweakPass({
+      db: h.db,
+      workspaceId: 1,
+      gateway: h.gateway,
+      judgements: [...many(5, { ruleId: 'a' }), ...many(4, { ruleId: 'b' })],
+    });
+    expect(h.complete).toHaveBeenCalledTimes(2);
+    expect(r).toMatchObject({ status: 'succeeded', clusters: 2, proposed: 1, errors: 1 });
+    expect(r.error).toMatch(/^a: .*300 s/);
+  });
+
+  it('reports failed only when every call failed', async () => {
+    const h = harness('{}');
+    h.complete.mockRejectedValue(new Error('provider 503'));
+    const r = await runTriageTweakPass({
+      db: h.db,
+      workspaceId: 1,
+      gateway: h.gateway,
+      judgements: [...many(5, { ruleId: 'a' }), ...many(4, { ruleId: 'b' })],
+    });
+    expect(r).toMatchObject({ status: 'failed', errors: 2, proposed: 0 });
+    expect(h.inserted).toEqual([]);
+  });
+});
+
+describe('shippedRuleIds', () => {
+  it('reads the pack ids on disk', () => {
+    const ids = shippedRuleIds();
+    expect(ids.size).toBeGreaterThan(500);
+    expect(ids.has('architecture.cycle')).toBe(true);
+  });
+});
+
+describe('combineLearningPasses (one weekly run row for both learning passes)', () => {
+  const draft = (over: Partial<DraftPassResult> = {}): DraftPassResult => ({
+    status: 'succeeded',
+    clusters: 2,
+    drafted: 1,
+    rejected: 1,
+    ...over,
+  });
+  const tweak = (over: Partial<TweakPassResult> = {}): TweakPassResult => ({
+    status: 'succeeded',
+    clusters: 3,
+    proposed: 1,
+    rejected: 0,
+    collided: 1,
+    errors: 0,
+    ...over,
+  });
+
+  it('adds the counts and names the pass an error came from', () => {
+    expect(combineLearningPasses(draft(), tweak({ errors: 1, error: 'a: timeout' }))).toEqual({
+      scanned: 5,
+      findingsCreated: 2,
+      deferred: 2,
+      error: 'AI verdict tweaks: a: timeout',
+    });
+  });
+
+  it('says skipped only when neither pass had anything, no_gateway first', () => {
+    const none = { clusters: 0, drafted: 0, rejected: 0 };
+    const noneT = { clusters: 0, proposed: 0, rejected: 0, collided: 0, errors: 0 };
+    expect(
+      combineLearningPasses(
+        draft({ status: 'skipped', skippedReason: 'no_gateway', ...none }),
+        tweak({ status: 'skipped', skippedReason: 'no_gateway', ...noneT }),
+      ).skipped,
+    ).toBe('no_gateway');
+    expect(
+      combineLearningPasses(
+        draft({ status: 'skipped', skippedReason: 'no_clusters', ...none }),
+        tweak({ status: 'skipped', skippedReason: 'no_clusters', ...noneT }),
+      ),
+    ).toEqual({ scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_clusters' });
+    expect(
+      combineLearningPasses(
+        draft({ status: 'skipped', skippedReason: 'no_clusters', ...none }),
+        tweak(),
+      ).skipped,
+    ).toBeUndefined();
   });
 });
