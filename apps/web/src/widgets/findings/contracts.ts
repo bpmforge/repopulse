@@ -389,10 +389,14 @@ export interface FindingFacets {
   shadow_total: number;
 }
 
-/** Paired glyph + word — a badge that relies on colour says nothing in print. */
+/**
+ * Paired glyph + word — a badge that relies on colour says nothing in print.
+ * "AI review" since W22-03: the after-scan judge writes these as well as the
+ * second-model pass, and "verified by a second model" read like a separate step.
+ */
 export const VERIFY_LABEL: Record<string, string> = {
-  confirmed: '✓✓ verified by a second model',
-  contradicted: '✕ contradicted on review',
+  confirmed: '✓✓ confirmed on AI review',
+  contradicted: '✕ contradicted on AI review',
   unverified: '· not independently verified',
 };
 

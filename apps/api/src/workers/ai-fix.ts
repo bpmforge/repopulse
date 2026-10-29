@@ -155,8 +155,8 @@ export async function pickFixTargets(
   repoId: number,
   top: number,
   now: Date,
-): Promise<{ targets: FixTarget[]; confirmed: number }> {
-  if (top < 1) return { targets: [], confirmed: 0 };
+): Promise<{ targets: FixTarget[]; confirmed: number; passedOver: PassedOver[] }> {
+  if (top < 1) return { targets: [], confirmed: 0, passedOver: [] };
   const rows = await db
     .select({
       id: read.findings.id,
@@ -179,12 +179,24 @@ export async function pickFixTargets(
     .orderBy(sql`${read.findings.effectiveRisk} desc nulls last`, read.findings.id)
     .limit(FIX_MAX_CANDIDATES);
   const rerunnable = rows.filter((r) => isRerunnable(r.scannerKey, r.ruleId));
+  // Every confirmed finding passed over says why, on the run (plan.fixes): found
+  // on the first live run (gin, 2026-10-29), where one of two confirmed findings
+  // got no draft and nothing on the run said which rule had excluded it.
+  const passedOver: PassedOver[] = rows
+    .filter((r) => !isRerunnable(r.scannerKey, r.ruleId))
+    .map((r) => ({ finding_id: r.id, code: 'not_rerunnable' }));
 
   const targets: FixTarget[] = [];
   for (const r of rerunnable) {
-    if (targets.length >= top) break;
+    if (targets.length >= top) {
+      passedOver.push({ finding_id: r.id, code: 'over_top' });
+      continue;
+    }
     const t = await resolvePatchTarget(db, workspaceId, r.id);
-    if (!t.ok) continue;
+    if (!t.ok) {
+      passedOver.push({ finding_id: r.id, code: t.code });
+      continue;
+    }
     const [existing] = await db
       .select({
         id: read.verifiedPatches.id,
@@ -205,7 +217,10 @@ export async function pickFixTargets(
         existing.status === 'failed' &&
         (existing.finishedAt === null ||
           now.getTime() - existing.finishedAt.getTime() >= RETRY_FAILED_AFTER_MS);
-      if (!stale) continue;
+      if (!stale) {
+        passedOver.push({ finding_id: r.id, code: `answered_${existing.status}` });
+        continue;
+      }
     }
     targets.push({
       findingId: r.id,
@@ -215,7 +230,13 @@ export async function pickFixTargets(
       retryPatchId: existing?.id ?? null,
     });
   }
-  return { targets, confirmed: rerunnable.length };
+  return { targets, confirmed: rerunnable.length, passedOver };
+}
+
+/** A confirmed finding no draft was attempted for, and why (an eligibility code). */
+export interface PassedOver {
+  finding_id: number;
+  code: string;
 }
 
 /** What the drafting step did, stored on the judge run's row (plan.fixes). */
@@ -234,6 +255,8 @@ export interface FixSummary {
   /** The attempt could not be made (timeout, provider error, forge down). */
   failed: number;
   attempts: { finding_id: number; patch_id: number; status: string; code: string }[];
+  /** Confirmed findings not attempted, with why (not re-runnable, already answered, ...). */
+  passed_over: PassedOver[];
   not_reached: number;
   stopped: 'done' | 'time_budget' | 'call_cap' | 'errors' | 'ai_paused' | 'skipped';
   elapsed_ms: number;
@@ -250,6 +273,7 @@ export function emptyFixSummary(top: number, skipped: string | null = null): Fix
     rejected: 0,
     failed: 0,
     attempts: [],
+    passed_over: [],
     not_reached: 0,
     stopped: skipped ? 'skipped' : 'done',
     elapsed_ms: 0,
@@ -295,9 +319,16 @@ export async function runFixes(a: {
   });
   if (!ok.ok) return { summary: emptyFixSummary(deps.config.top, ok.code), calls: 0 };
 
-  const { targets, confirmed } = await pickFixTargets(db, ws, repoId, deps.config.top, started);
+  const { targets, confirmed, passedOver } = await pickFixTargets(
+    db,
+    ws,
+    repoId,
+    deps.config.top,
+    started,
+  );
   const summary = emptyFixSummary(deps.config.top);
   summary.confirmed = confirmed;
+  summary.passed_over = passedOver;
   summary.targets = targets.length;
   if (targets.length === 0) return { summary, calls: 0 };
 

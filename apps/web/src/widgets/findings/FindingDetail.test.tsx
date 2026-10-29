@@ -132,7 +132,7 @@ describe('the verify pass outcome is in the panel (W21-01)', () => {
         invalidate={[]}
       />,
     );
-    expect(screen.getByTestId('finding-verify-status')).toHaveTextContent(/second model/i);
+    expect(screen.getByTestId('finding-verify-status')).toHaveTextContent(/confirmed on AI review/i);
     rerender(<FindingDetail finding={hostile()} onClose={vi.fn()} invalidate={[]} />);
     expect(screen.queryByTestId('finding-verify-status')).toBeNull();
     // Once the pass names its model (W21-03), "verified by <model>" says it.

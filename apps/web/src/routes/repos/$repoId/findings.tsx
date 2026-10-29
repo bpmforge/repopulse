@@ -3,6 +3,7 @@ import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { WidgetFrame, frameState } from '../../../components/index.js';
 import { useApiQuery, queryKeyFor } from '../../../api/useApiQuery.js';
 import { FindingDetail } from '../../../widgets/findings/FindingDetail.js';
+import { ReadyFixes } from '../../../widgets/findings/ReadyFixes.js';
 import { FindingSeverityBadge } from '../../../widgets/findings/FindingSeverity.js';
 import { ShadowBadge } from '../../../widgets/findings/ShadowBadge.js';
 import { useOverlayLayout } from '../../../widgets/findings/layout.js';
@@ -203,6 +204,9 @@ function RepoFindings() {
           Open in Findings, with every filter
         </Link>
       </div>
+      {/* W22-09: the fixes drafted after a scan, where a person reviewing this
+          repository looks first, not only on the workspace Findings page. */}
+      <ReadyFixes repos={repoId} onOpen={(id) => setOpenId(id)} />
       {/* W20-13 (UX_TODO FND-37): never hidden silently, as on Findings. */}
       {!withShadow && shadowHidden > 0 && (
         <p
