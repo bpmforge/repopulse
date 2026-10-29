@@ -5,7 +5,13 @@ import { core, createDb, read, security } from '@repopulse/shared';
 import { credentials } from '@repopulse/auth';
 import type { AnalysisGateway, CompleteOpts, CompleteResult, T2Host } from '@repopulse/analysis';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { aiPassProcessor, type AiPassDeps, type AiPassJobData } from './ai-pass-processor.js';
+import {
+  aiPassProcessor,
+  JUDGE_SCAN_WAIT_MAX_MS,
+  JUDGE_SCAN_WAIT_POLL_MS,
+  type AiPassDeps,
+  type AiPassJobData,
+} from './ai-pass-processor.js';
 import {
   judgeConfigFromEnv,
   judgeEligibility,
@@ -323,6 +329,8 @@ describeIfLiveInfra('the AI judge after a scan (W22-03)', () => {
       egress?: EgressOf;
       now?: () => Date;
       afterVerdicts?: () => Promise<void>;
+      scansPending?: () => Promise<boolean>;
+      requeue?: (data: AiPassJobData, delayMs: number) => Promise<void>;
     } = {},
   ) {
     const d: AiPassDeps = {
@@ -343,6 +351,8 @@ describeIfLiveInfra('the AI judge after a scan (W22-03)', () => {
         config: over.config ?? CFG,
         egress: over.egress ?? egressOf(false),
         ...(over.afterVerdicts ? { afterVerdicts: over.afterVerdicts } : {}),
+        ...(over.scansPending ? { scansPending: over.scansPending } : {}),
+        ...(over.requeue ? { requeue: over.requeue } : {}),
       },
     };
     return aiPassProcessor(d);
@@ -384,6 +394,47 @@ describeIfLiveInfra('the AI judge after a scan (W22-03)', () => {
     expect(await queue()).toMatchObject({ queued: false, code: 'already_queued' });
     // A person's pass is not blocked by it (its own one-active index).
     await db.insert(read.aiPassRuns).values({ workspaceId: WS, repoId: REPO, paths: ['src'] });
+  });
+
+  it("waits while the repo's scans are still running, then judges once they are done", async () => {
+    // Each scanner is its own job and queues the judge when it ends; on outline
+    // the run started after the first one and judged the previous scan.
+    await ruleHit();
+    const { runId } = await queue();
+    let pending = true;
+    const requeued: number[] = [];
+    const gw = scripted({ verdictFor: () => 'real' });
+    const p = processor(gw, {
+      scansPending: async () => pending,
+      requeue: async (_data, delayMs) => {
+        requeued.push(delayMs);
+      },
+    });
+    expect(await p(job(runId!))).toMatchObject({ status: 'skipped', code: 'waiting_for_scans' });
+    expect(requeued).toEqual([JUDGE_SCAN_WAIT_POLL_MS]);
+    expect(await runOf(runId!)).toMatchObject({ status: 'pending' });
+    expect(gw.prompts).toHaveLength(0);
+
+    pending = false;
+    expect((await p(job(runId!))).status).toBe('succeeded');
+    expect(gw.prompts).toHaveLength(1);
+    expect(requeued).toHaveLength(1);
+  });
+
+  it('stops waiting for scans after the cap and judges what is there', async () => {
+    await ruleHit();
+    const { runId } = await queue();
+    const gw = scripted({ verdictFor: () => 'real' });
+    const later = new Date(Date.now() + JUDGE_SCAN_WAIT_MAX_MS + 60_000);
+    const result = await processor(gw, {
+      now: () => later,
+      scansPending: async () => true,
+      requeue: async () => {
+        throw new Error('should not wait again');
+      },
+    })(job(runId!));
+    expect(result.status).not.toBe('skipped');
+    expect(gw.prompts.length).toBeGreaterThan(0);
   });
 
   it('writes no run when there is nothing to judge, AI is off, or the server switch is off', async () => {

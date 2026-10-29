@@ -136,8 +136,27 @@ export interface AiPassDeps {
      * in the same run and budget (ai-fix.ts). Absent = no drafting here.
      */
     fixes?: FixDeps;
+    /**
+     * 2026-10-29: each scanner is its own job and every one queues the judge
+     * when it ends, so the run used to start after the FIRST scanner and judge
+     * the previous scan's findings (seen live on outline: semgrep and anti-slop
+     * were still running). True while scan jobs for the repo are still queued
+     * or running; the run then waits (`requeue`) instead of starting.
+     */
+    scansPending?: (target: { workspaceId: number; repoId: number }) => Promise<boolean>;
+    /** Puts the run's job back on the queue after `delayMs`; the row stays pending. */
+    requeue?: (data: AiPassJobData, delayMs: number) => Promise<void>;
   };
 }
+
+/** How often a judge run waiting for its repo's scans looks again. */
+export const JUDGE_SCAN_WAIT_POLL_MS = 60_000;
+/**
+ * The longest a judge run waits for scans before judging what is there. Under
+ * the stale-run cutoff in queueJudgeAfterScan (per-scan minutes + 60), so a
+ * waiting run is never closed as stalled.
+ */
+export const JUDGE_SCAN_WAIT_MAX_MS = 45 * 60_000;
 
 export type AiPassResult = {
   status: 'succeeded' | 'failed' | 'skipped';
@@ -276,6 +295,24 @@ export function aiPassProcessor(deps: AiPassDeps) {
         reason:
           'AI analysis was switched off for this workspace before this pass started, so nothing was sent to a model.',
       });
+    }
+
+    // A judge run waits until its repo's scans are done, so it judges the
+    // findings (and evidence packets) of this scan, not the last one.
+    const j = deps.judge;
+    if (
+      run.mode === 'judge' &&
+      j?.scansPending &&
+      j.requeue &&
+      now().getTime() - run.createdAt.getTime() < JUDGE_SCAN_WAIT_MAX_MS &&
+      (await j.scansPending({ workspaceId, repoId: run.repoId }))
+    ) {
+      await j.requeue(job.data, JUDGE_SCAN_WAIT_POLL_MS);
+      return {
+        status: 'skipped',
+        code: 'waiting_for_scans',
+        reason: "Waiting for this repository's scans to finish.",
+      };
     }
 
     // Compare-and-set on `pending` (W20-21, AI-33): a pass cancelled while it
