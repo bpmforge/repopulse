@@ -215,7 +215,7 @@ export function FindingDetail({
             <span data-testid="finding-verified-by">{verifiedByText(finding.verified_by)}</span>
           ) : null}
           {finding.verify_reason ? (
-            <span data-testid="finding-verify-reason">Second opinion: {finding.verify_reason}</span>
+            <span data-testid="finding-verify-reason">AI review: {finding.verify_reason}</span>
           ) : null}
           {/* W21-01: a verify verdict with no model to name. Since W21-03 the
               second-model pass records its model and verified_by names it; a

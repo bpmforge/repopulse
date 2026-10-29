@@ -104,14 +104,14 @@ test('the verification facet separates confirmed, unverified and contradicted (W
 
   // A finding a second model confirmed carries a badge that says so — and one
   // nobody re-judged says THAT, rather than nothing.
-  await expect(page.getByTestId('finding-rows')).toContainText(/verified by a second model/i);
+  await expect(page.getByTestId('finding-rows')).toContainText(/confirmed on AI review/i);
 
   await page.getByTestId('filter-verify').selectOption('contradicted');
   await expect
     .poll(async () => (await page.getByTestId('finding-rows').allInnerTexts()).join(' '))
-    .toMatch(/contradicted on review/i);
+    .toMatch(/contradicted on AI review/i);
   // A contradicted finding must not still claim to be verified.
-  await expect(page.getByTestId('finding-rows')).not.toContainText(/verified by a second model/i);
+  await expect(page.getByTestId('finding-rows')).not.toContainText(/confirmed on AI review/i);
 });
 
 test('the triage queue steps with the keyboard and reports its own FP count (W6-06)', async ({

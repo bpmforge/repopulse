@@ -943,7 +943,7 @@ function FindingsExplorer() {
             onChange={(e) => setFilters({ verify_status: e.target.value })}
           >
             <option value="">Any</option>
-            <option value="confirmed">Verified by a second model</option>
+            <option value="confirmed">Confirmed on AI review</option>
             <option value="unverified">Not independently verified</option>
             <option value="contradicted">Contradicted on review</option>
           </select>

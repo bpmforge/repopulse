@@ -23,7 +23,7 @@ import {
   type JudgeConfig,
   type JudgeSummary,
 } from './ai-judge.js';
-import { fixConfigFor, type FixConfig, type FixSummary } from './ai-fix.js';
+import { fixConfigFor, pickFixTargets, type FixConfig, type FixSummary } from './ai-fix.js';
 import type { PassEgress } from '../lib/ai-pass-egress.js';
 
 // W22-09. After judging, verified fixes are drafted for the top confirmed
@@ -491,6 +491,13 @@ describeIfLiveInfra('verified fixes after judging (W22-09)', () => {
 
     // A rejection is a verdict: only a person's Try again asks the model again.
     expect(await queue()).toMatchObject({ queued: false, code: 'nothing_to_judge' });
+    const { passedOver } = await pickFixTargets(db, WS, REPO, 5, new Date());
+    expect(passedOver).toEqual(
+      expect.arrayContaining([
+        { finding_id: bad, code: 'answered_rejected' },
+        { finding_id: good, code: 'answered_verified' },
+      ]),
+    );
   });
 
   it('a model timeout or forge failure on one draft is recorded on its row and the loop goes on', async () => {
@@ -533,6 +540,15 @@ describeIfLiveInfra('verified fixes after judging (W22-09)', () => {
     await processor(gw, { fix: { enabled: true, top: 2 } })(job(runId!));
     expect(gw.calls.filter((c) => c.role === 'patch')).toHaveLength(2);
     expect(await patchesOf(llm)).toHaveLength(0);
+    // Every confirmed finding not attempted says why on the run.
+    const picked = ((await runOf(runId!)).plan as { fixes: FixSummary }).fixes;
+    expect(picked.passed_over).toEqual(
+      expect.arrayContaining([
+        { finding_id: llm, code: 'not_rerunnable' },
+        expect.objectContaining({ code: 'over_top' }),
+      ]),
+    );
+    expect(picked.passed_over).toHaveLength(3);
 
     // Time: each draft takes 40 s and the run may spend one minute.
     await clear();
