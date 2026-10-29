@@ -1122,6 +1122,28 @@ async function main(): Promise<void> {
             config: fixConfig,
             forgeFor: (workspaceId, repoId) => providerForRepo(scanForgeDeps, workspaceId, repoId),
           },
+          scansPending: async ({ workspaceId, repoId }) => {
+            const jobs = await securityScanQueue.getJobs([
+              'active',
+              'waiting',
+              'delayed',
+              'prioritized',
+              'waiting-children',
+            ]);
+            return jobs.some(
+              (sj) =>
+                sj?.data?.workspaceId === workspaceId &&
+                sj.data.repoId === repoId &&
+                sj.data.mode !== 'weekly_sweep' &&
+                sj.data.mode !== 'history_sweep',
+            );
+          },
+          requeue: async (data, delayMs) => {
+            await judgeQueue.add('ai.pass', data, {
+              jobId: `ai-pass-${data.runId}-wait-${Date.now()}`,
+              delay: delayMs,
+            });
+          },
           afterVerdicts: async ({ workspaceId, repoId, runId }) => {
             await snapshotQueue.add(
               'reprice',
