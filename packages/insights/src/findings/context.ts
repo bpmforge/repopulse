@@ -38,7 +38,8 @@ export async function pruneClosedFindingContext(
   const cutoff = new Date((opts.nowMs ?? Date.now()) - days * DAY_MS);
   await db
     .update(read.findings)
-    .set({ contextLines: null, contextStartLine: null })
+    // W22-02: the judge's evidence packet is customer code too, and goes with the lines.
+    .set({ contextLines: null, contextStartLine: null, contextPacket: null })
     .where(
       and(
         eq(read.findings.workspaceId, opts.workspaceId),

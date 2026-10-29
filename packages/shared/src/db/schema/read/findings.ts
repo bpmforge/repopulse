@@ -143,6 +143,15 @@ export const findings = pgTable(
     contextLines: text('context_lines'),
     contextStartLine: integer('context_start_line'),
     /**
+     * W22-02. The AI judge's evidence packet, captured beside context_lines
+     * while the snapshot exists: the enclosing function, where the names on the
+     * flagged lines are defined (path:line + the definition lines), and its
+     * callers with the crossFileGraphReliable flag. Customer code, so it follows
+     * context_lines exactly: set and replaced with it, NULL when it is NULL, and
+     * cleared by the same retention sweep. Shape: security/triage/packet.ts.
+     */
+    contextPacket: jsonb('context_packet').$type<Record<string, unknown>>(),
+    /**
      * W20-18 (UX_TODO X-08): the issue tracking this finding in another tool
      * (Jira, Linear, ...), as a link. Optional; http/https only (the CHECK and
      * the API both say so), so it is always safe to render as a link.

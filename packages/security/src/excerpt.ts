@@ -1,6 +1,7 @@
 import { readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import type { IncomingFinding } from '@repopulse/insights';
+import { capturePackets } from './index/capture.js';
 
 // Code excerpts for findings (W18-32).
 //
@@ -78,9 +79,11 @@ export async function readExcerpt(params: {
 
     const first = Math.max(1, lineStart - radius);
     const last = Math.min(all.length, lineEnd + radius, first + EXCERPT_MAX_LINES - 1);
-    const picked = all.slice(first - 1, last).map((l) =>
-      l.length > EXCERPT_MAX_LINE_CHARS ? `${l.slice(0, EXCERPT_MAX_LINE_CHARS)}…` : l,
-    );
+    const picked = all
+      .slice(first - 1, last)
+      .map((l) =>
+        l.length > EXCERPT_MAX_LINE_CHARS ? `${l.slice(0, EXCERPT_MAX_LINE_CHARS)}…` : l,
+      );
     const lines = picked.join('\n');
     if (looksLikeSecret(lines)) return null;
     return { startLine: first, lines };
@@ -94,17 +97,24 @@ export async function readExcerpt(params: {
  * Adds `context` to every finding that has a file and a line and is not about a
  * secret. Findings it leaves alone keep `context` absent, so an existing row's
  * stored lines are not erased by a scanner that merely has nothing to say.
+ *
+ * W22-02: a finding that gets context also gets `contextPacket` — the
+ * enclosing function, where the names on its lines are defined, and its
+ * callers (index/capture.ts) — for the AI judge, which sees nothing of the code
+ * once the snapshot is gone. It is stated exactly when `context` is, and null
+ * when context is null, so the two describe the same sighting and are cleared
+ * together.
  */
 export async function attachExcerpts(
   dir: string | null | undefined,
   findings: readonly IncomingFinding[],
 ): Promise<IncomingFinding[]> {
   if (!dir) return [...findings];
-  return Promise.all(
-    findings.map(async (f) => {
+  const withContext = await Promise.all(
+    findings.map(async (f): Promise<IncomingFinding> => {
       if (f.file === null || f.lineStart === null) return f;
       if (f.scannerKey === 'secrets' || (f.ruleId && SECRET_RULE.test(f.ruleId))) {
-        return { ...f, context: null };
+        return { ...f, context: null, contextPacket: null };
       }
       const ex = await readExcerpt({
         dir,
@@ -114,5 +124,18 @@ export async function attachExcerpts(
       });
       return { ...f, context: ex };
     }),
+  );
+  const packets = await capturePackets(
+    dir,
+    withContext.map((f) =>
+      f.context && f.file !== null && f.lineStart !== null
+        ? { file: f.file, lineStart: f.lineStart, lineEnd: f.lineEnd ?? f.lineStart }
+        : null,
+    ),
+  );
+  return withContext.map((f, i) =>
+    f.context === undefined || f.contextPacket !== undefined
+      ? f
+      : { ...f, contextPacket: packets[i] ?? null },
   );
 }

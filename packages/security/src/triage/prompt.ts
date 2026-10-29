@@ -32,6 +32,12 @@ const REQUIRED_JSON = `Respond ONLY with JSON of this exact shape, and nothing e
 
 Use null for vex_justification, vex_statement and patch unless the rules above allow them.`;
 
+/** With an evidence packet, a citation may name a numbered line from another file. */
+const REQUIRED_JSON_WITH_PACKET = REQUIRED_JSON.replace(
+  '{"line":<a line number printed in the left margin above>,"quote":"the text of that line"}',
+  '{"line":<a line number printed in a left margin above>,"quote":"the text of that line","file":"only for a line from a file other than the flagged one: the path shown with it"}',
+);
+
 export interface TriagePrompt {
   text: string;
   tokens: number;
@@ -43,6 +49,8 @@ export function buildTriagePrompt(args: {
   reachability: TriageReachability;
   slice: CodeSlice;
   checklist?: string;
+  /** W22-02: the rendered evidence packet (packet.ts), already cut to its budget. */
+  packetText?: string;
 }): TriagePrompt {
   const { finding, reachability, slice } = args;
   const reach =
@@ -68,7 +76,7 @@ export function buildTriagePrompt(args: {
     slice.text,
     '```',
     '',
-    REQUIRED_JSON,
+    ...(args.packetText ? [args.packetText, '', REQUIRED_JSON_WITH_PACKET] : [REQUIRED_JSON]),
   ]
     .filter((l, i, a) => !(l === '' && a[i - 1] === ''))
     .join('\n');

@@ -19,6 +19,8 @@ import type { VexJustification } from '../validation/types.js';
 const citationSchema = z.object({
   line: z.number().int(),
   quote: z.string().max(400).optional(),
+  /** W22-02: a line from another file shown in the evidence packet. */
+  file: z.string().max(400).nullable().optional(),
 });
 
 const answerSchema = z.object({
@@ -51,7 +53,16 @@ export type AnswerResult =
 
 const norm = (s: string): string => s.replace(/\s+/g, ' ').trim().toLowerCase();
 
-export function validateTriageAnswer(raw: unknown, slice: CodeSlice): AnswerResult {
+/**
+ * `shown` (W22-02): the evidence packet's numbered lines, keyed `file:line`
+ * (packet.ts renderContextPacket). A citation may name one of them; it is
+ * checked and recorded from OUR copy exactly like a slice line.
+ */
+export function validateTriageAnswer(
+  raw: unknown,
+  slice: CodeSlice,
+  shown: ReadonlyMap<string, string> = new Map(),
+): AnswerResult {
   const parsed = answerSchema.safeParse(raw);
   if (!parsed.success) {
     return {
@@ -72,14 +83,20 @@ export function validateTriageAnswer(raw: unknown, slice: CodeSlice): AnswerResu
 
   const citations: CitedLine[] = [];
   for (const c of a.citations) {
-    if (c.line < slice.startLine || c.line > slice.endLine) {
+    const file = c.file && c.file.trim() !== '' ? c.file.trim() : slice.file;
+    const inSlice = file === slice.file && c.line >= slice.startLine && c.line <= slice.endLine;
+    const fromPacket = shown.get(`${file}:${c.line}`);
+    if (!inSlice && fromPacket === undefined) {
       return {
         ok: false,
         reason: 'citation_not_found',
-        detail: `cites line ${c.line}, outside the lines shown (${slice.startLine}-${slice.endLine})`,
+        detail:
+          file === slice.file
+            ? `cites line ${c.line}, outside the lines shown (${slice.startLine}-${slice.endLine}${shown.size > 0 ? ' and the evidence lines' : ''})`
+            : `cites ${file} line ${c.line}, which was not shown`,
       };
     }
-    const ours = slice.lines[c.line - slice.startLine] ?? '';
+    const ours = inSlice ? (slice.lines[c.line - slice.startLine] ?? '') : (fromPacket as string);
     // A quote that is not on the line it names means the model is describing
     // code it cannot see. Substring either way: models trim and reflow.
     if (c.quote !== undefined && c.quote.trim() !== '') {
@@ -93,7 +110,7 @@ export function validateTriageAnswer(raw: unknown, slice: CodeSlice): AnswerResu
         };
       }
     }
-    citations.push({ file: slice.file, line: c.line, text: ours });
+    citations.push({ file, line: c.line, text: ours });
   }
 
   const notes: string[] = [];

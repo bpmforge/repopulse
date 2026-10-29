@@ -5,6 +5,7 @@ import {
   type AnalysisGateway,
 } from '@repopulse/analysis';
 import { proveTriagePatch, type PatchProofDeps } from './patch.js';
+import { renderContextPacket, type RenderedPacket } from './packet.js';
 import { buildTriagePrompt, loadTriageChecklist } from './prompt.js';
 import { validateTriageAnswer } from './schema.js';
 import { sliceAround } from './slice.js';
@@ -24,6 +25,14 @@ import {
 /** Default and ceiling for calls per run. A cap config cannot lift is a cap (V5's rule). */
 export const TRIAGE_TOP_N = 10;
 export const TRIAGE_MAX_CALLS = 25;
+/**
+ * Ceiling on the evidence packet's share of the prompt (W22-02), whatever the
+ * window: a few definitions, one function and a handful of callers. More is
+ * noise the judge has to read past, and time on a local model.
+ */
+export const PACKET_MAX_TOKENS = 4_000;
+/** Kept back from the window for estimate error: estimateTokens is a byte ratio, not a tokenizer. */
+const PROMPT_MARGIN_TOKENS = 64;
 
 export interface TriageDeps {
   gateway: AnalysisGateway;
@@ -93,12 +102,34 @@ export async function runTriage(
       undefined,
       candidate.sourceStartLine ?? 1,
     );
-    const prompt = buildTriagePrompt({
+    let prompt = buildTriagePrompt({
       finding,
       reachability: candidate.reachability,
       slice,
       checklist,
     });
+    // W22-02: the evidence packet gets what the window leaves after the
+    // prompt as it stands, never more than its own ceiling; what does not fit
+    // is named in the prompt, never silently dropped.
+    let packet: RenderedPacket | null = null;
+    if (candidate.packet) {
+      const room = Math.min(
+        PACKET_MAX_TOKENS,
+        window.promptTokens - prompt.tokens - PROMPT_MARGIN_TOKENS,
+      );
+      if (room > 0) {
+        packet = renderContextPacket(candidate.packet, finding.file, room);
+        if (packet.text) {
+          prompt = buildTriagePrompt({
+            finding,
+            reachability: candidate.reachability,
+            slice,
+            checklist,
+            packetText: packet.text,
+          });
+        }
+      }
+    }
     funnel.triaged += 1;
 
     let attemptPrompt = prompt.text;
@@ -134,7 +165,7 @@ export async function runTriage(
         continue;
       }
 
-      const checked = validateTriageAnswer(raw, slice);
+      const checked = validateTriageAnswer(raw, slice, packet?.lines);
       if (!checked.ok) {
         lastFailure = { reason: checked.reason, detail: checked.detail };
         // Malformed and uncited answers get one corrective retry; a model that

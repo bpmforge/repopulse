@@ -128,6 +128,59 @@ bar for rules with no public benchmark); every model call goes through the gatew
   checklist rejected) is not retried for 24 hours. Five errors in a row, or local-only refusing
   the route, stop the run with the reason in words.
 
+### W22-02 slice 1 (2026-10-29): evidence packets captured at scan time
+
+- **Why.** Live judge run on outline with a local 27B model: 6 verdicts in 31 minutes, all
+  "needs a human", each saying the same thing: the ±8-line stored window around
+  ``sequelize.query(`... ${this.workingTable} ... LIMIT ${BATCH_SIZE}`)`` did not show that
+  `workingTable` is a class field set to a constant string and `BATCH_SIZE` a module constant.
+  The snapshot is deleted after the scan (C1a), so the extra context has to be captured then.
+- **What.** `attachExcerpts` (every scanner's excerpt hook) now also calls `capturePackets`
+  (`packages/security/src/index/capture.ts`) for each finding that got context lines. The
+  packet holds: the enclosing function (whole up to 80 lines, else its head plus ±20 lines
+  around the hit); where each name on the flagged lines is defined (class field via
+  `this.x`/`self.x`, module constant, local, parameter of the enclosing function, callee
+  function, and one hop through a relative TS import, a Python `from`/`import`, or a Go
+  package inside the module), each as path:line plus the definition line(s); names that
+  could not be followed and why (a package or path alias); and the enclosing function's
+  callers (8 shown, same file then product code then tests, total counted) with
+  `crossFileGraphReliable: false` and `method: 'name-match'`. Capped at 12 KB per packet;
+  what capture cut is listed in `omitted`. Lines that look like a credential are dropped
+  (same check as the excerpt). Measured on this repository: 1,000 random hits over 1,430
+  files in 2.9 s, 1.4 KB average, 4.6 KB largest.
+- **Stored** on `findings.context_packet` (jsonb, migration 0061): customer code like
+  `context_lines`, so it is set and replaced with it, NULL whenever it is NULL, and cleared by
+  the same retention sweep (`insights/findings/context.ts`). The row is workspace-scoped
+  already; no index of names/spans/edges is persisted yet (decision 4 is W22-01's).
+- **Used.** `triageCandidateOf` reads it back (`parseContextPacket`; unknown shape = none) and
+  `runTriage` renders it after the slice inside what the probed window leaves
+  (`renderContextPacket`, at most 4,000 tokens): definitions first, then the function, then
+  callers with the reliability flag spelled out; whatever does not fit is named under
+  "Left out to fit". The model may cite a packet line (with `file` for another file); it is
+  checked against and recorded from our copy, as slice lines are. A finding without a packet
+  gets byte-for-byte the prompt it got before.
+- **Lodestone, and why not yet.** This slice does not depend on Lodestone, and does not
+  build an index: it reads the one file a hit is in (plus the files its imports name) on the
+  masked text the in-process checks already share (`anti-slop/source-graph.ts`,
+  `go-graph.ts`, `rust-graph.ts`), and makes one name-match pass over the snapshot for
+  callers. Reasons, checked on Lodestone main 8cc1dff: (1) it is a private GitHub repository
+  with no published package and an unbuilt `dist/` (`prepare` runs tsup), so
+  `pnpm install --frozen-lockfile` in a Docker build without GitHub credentials cannot fetch
+  it, and vendoring means committing a built tarball; (2) its runtime dependencies are
+  better-sqlite3 (a native addon: a prebuilt download or a node-gyp toolchain in the worker
+  image), sqlite-vec (a per-platform native extension) and the MCP SDK, all for a packet;
+  (3) `evidencePacket` needs a `CodeSearchDb` its indexer builds, and (4) even wired, its
+  symbol table (`src/symbols/extractor.ts`, a regex tier) records neither class fields nor
+  non-exported module constants, Python module constants or Go `const (...)` groups, which are
+  exactly the definitions the outline verdicts lacked. **What remains for W22-01/02:** add
+  field/constant definitions to Lodestone's tree-sitter symbol table; ship it as a vendored
+  tarball or a tagged release (W22-13) built in the worker image; run it in the scan-runner
+  and swap it in behind `capturePackets` keeping the `ContextPacket` shape, so callers come
+  from its graph (`crossFileGraphReliable` true where its refs are tree-sitter) and callees
+  are listed; TS path aliases (tsconfig `paths`, e.g. outline's `@server/...`) followed; the
+  route and middleware chain and the Opengrep dataflow trace added; and the before/after
+  accuracy on the labelled eval set recorded (needs a live model run).
+
 ### W22-06 first slice (2026-10-29): AI false-positive verdicts feed the rule tweaks
 
 - **When.** The weekly `rule_draft_pass` job (one per workspace) runs the dismissal drafter

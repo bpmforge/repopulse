@@ -18,6 +18,16 @@ beforeAll(async () => {
   await writeFile(path.join(dir, 'src/bin.dat'), Buffer.from([1, 2, 0, 3]));
   await writeFile(path.join(dir, 'src/long.ts'), 'x'.repeat(1000));
   await writeFile(path.join(dir, 'src/creds.ts'), 'a\nconst k = "AKIAABCDEFGHIJKLMNOP";\nb');
+  await writeFile(
+    path.join(dir, 'src/q.ts'),
+    [
+      'const LIMIT = 50;',
+      '',
+      'export function list(db: Db) {',
+      '  return db.query(`SELECT * FROM t LIMIT ${LIMIT}`);',
+      '}',
+    ].join('\n'),
+  );
   await writeFile(path.join(outside, 'secret.txt'), 'outside the snapshot');
   await symlink(path.join(outside, 'secret.txt'), path.join(dir, 'src/link.txt'));
 });
@@ -113,6 +123,26 @@ describe('attachExcerpts', () => {
       { ...base, ruleId: 'hardcoded-password' },
     ]);
     expect(out.every((f) => f.context === null)).toBe(true);
+  });
+
+  it('W22-02: a finding with context also carries its evidence packet; one without context, none', async () => {
+    const [a, b, c] = await attachExcerpts(dir, [
+      { ...base, file: 'src/q.ts', lineStart: 4, lineEnd: 4 },
+      { ...base, file: 'src/missing.ts', lineStart: 4, lineEnd: 4 },
+      { ...base, file: 'src/q.ts', lineStart: 4, lineEnd: 4, scannerKey: 'secrets' },
+    ]);
+    expect(a!.context?.startLine).toBe(1);
+    expect(a!.contextPacket).toMatchObject({
+      v: 1,
+      enclosing: { name: 'list', startLine: 3, endLine: 5 },
+      definitions: expect.arrayContaining([
+        expect.objectContaining({ name: 'LIMIT', kind: 'module_const', line: 1 }),
+        expect.objectContaining({ name: 'db', kind: 'parameter', line: 3 }),
+      ]),
+    });
+    expect(b!.context).toBeNull();
+    expect(b!.contextPacket).toBeNull();
+    expect(c!.contextPacket).toBeNull();
   });
 
   it('does nothing without a directory', async () => {

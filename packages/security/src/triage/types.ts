@@ -1,4 +1,5 @@
 import type { VexJustification } from '../validation/types.js';
+import type { ContextPacket } from './packet.js';
 
 // Evidence-fed triage of mechanical findings (W19-04, AI_LAYER.md).
 //
@@ -55,6 +56,12 @@ export interface TriageCandidate {
    * window of the file (the stored context) and not the whole of it. Default 1.
    */
   sourceStartLine?: number;
+  /**
+   * W22-02: the evidence captured at scan time (enclosing function, where the
+   * flagged names are defined, callers). Absent or null = the slice alone, as
+   * before packets existed.
+   */
+  packet?: ContextPacket | null;
   /** The price the finding was given; the sort key, taken rather than recomputed. */
   effectiveRisk: number;
 }
