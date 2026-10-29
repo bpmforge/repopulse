@@ -230,3 +230,177 @@ describe('validateAndApply', () => {
     expect(validateAndApply({ modelText: diff, file: FILE, source: src }).after).toBe('a\nc');
   });
 });
+
+describe('applyPatch — anchored by content, not by the header (W22-09)', () => {
+  // The outline shape from the live run: an empty catch with a comment in a
+  // TSX file; the model's fix was right but its hunk header was ~10 lines off.
+  const TSX = 'app/components/DocumentMenu.tsx';
+  const MENU = [
+    ...Array.from({ length: 40 }, (_, i) => `// header line ${i + 1}`),
+    'function DocumentMenu({ document }: Props) {',
+    '  const { t } = useTranslation();',
+    '',
+    '  const handleCopy = React.useCallback(async () => {',
+    '    try {',
+    '      await navigator.clipboard.writeText(document.url);',
+    '      toast.success(t("Copied"));',
+    '    } catch (err) {',
+    '      // ignore — clipboard may be unavailable',
+    '    }',
+    '  }, [document, t]);',
+    '',
+    '  return <Menu onCopy={handleCopy} />;',
+    '}',
+    '',
+  ].join('\n');
+  // Line 48 is "    } catch (err) {", 49 the comment (the finding), 50 "    }".
+  const fix = (header: string, body: string[]): string =>
+    [`--- a/${TSX}`, `+++ b/${TSX}`, header, ...body].join('\n');
+  const EXPECTED = MENU.replace(
+    '      // ignore — clipboard may be unavailable\n',
+    '      // clipboard may be unavailable\n      console.error(err);\n',
+  );
+
+  it('applies the outline fix whose header is 10 lines off, and records the re-anchor', () => {
+    const body = [
+      '       toast.success(t("Copied"));',
+      '     } catch (err) {',
+      '-      // ignore — clipboard may be unavailable',
+      '+      // clipboard may be unavailable',
+      '+      console.error(err);',
+      '     }',
+    ];
+    const applied = applyPatch(MENU, parseUnifiedDiff(fix('@@ -37,4 +37,5 @@', body)));
+    expect(applied.after).toBe(EXPECTED);
+    expect(applied.reanchored).toBe(true);
+    expect(applied.whitespaceTolerant).toBe(false);
+    expect(applied.notes.join(' ')).toContain('header named line 37');
+    expect(applied.canonicalDiff).toContain('@@ -47,4 +47,5 @@');
+    // The canonical diff applies exactly where it says, with no re-anchoring.
+    const again = applyPatch(MENU, parseUnifiedDiff(applied.canonicalDiff));
+    expect(again.after).toBe(EXPECTED);
+    expect(again.reanchored).toBe(false);
+    expect(again.notes).toEqual([]);
+  });
+
+  it('tolerates header counts that disagree with the body', () => {
+    const body = [
+      '     } catch (err) {',
+      '-      // ignore — clipboard may be unavailable',
+      '+      // clipboard may be unavailable',
+      '+      console.error(err);',
+      '     }',
+    ];
+    const applied = applyPatch(MENU, parseUnifiedDiff(fix('@@ -48,17 +48,2 @@', body)));
+    expect(applied.after).toBe(EXPECTED);
+    expect(applied.reanchored).toBe(false);
+    expect(applied.canonicalDiff).toContain('@@ -48,3 +48,4 @@');
+  });
+
+  it('applies when context indentation is off by a space, re-indenting added lines', () => {
+    // The model dropped one space of indentation on every line it copied.
+    const body = [
+      '    } catch (err) {',
+      '-     // ignore — clipboard may be unavailable',
+      '+     // clipboard may be unavailable',
+      '+     console.error(err);',
+      '    }',
+    ];
+    const applied = applyPatch(MENU, parseUnifiedDiff(fix('@@ -38,3 +38,4 @@', body)));
+    expect(applied.after).toBe(EXPECTED);
+    expect(applied.whitespaceTolerant).toBe(true);
+    expect(applied.reanchored).toBe(true);
+    expect(applied.notes.join(' ')).toContain('re-indented');
+    // Context and removed lines in the stored diff are the file's own text.
+    expect(applied.canonicalDiff).toContain('\n     } catch (err) {\n');
+    expect(applyPatch(MENU, parseUnifiedDiff(applied.canonicalDiff)).whitespaceTolerant).toBe(
+      false,
+    );
+  });
+
+  it('applies when context lines carry trailing whitespace the file does not', () => {
+    const body = [
+      '     } catch (err) {  ',
+      '-      // ignore — clipboard may be unavailable\t',
+      '+      // clipboard may be unavailable',
+      '+      console.error(err);',
+      '     } ',
+    ];
+    const applied = applyPatch(MENU, parseUnifiedDiff(fix('@@ -48,3 +48,4 @@', body)));
+    expect(applied.after).toBe(EXPECTED);
+    expect(applied.whitespaceTolerant).toBe(true);
+    expect(applied.reanchored).toBe(false);
+    expect(applied.notes.join(' ')).not.toContain('re-indented');
+  });
+
+  it('never forgives more than whitespace: changed text inside a line is refused', () => {
+    const body = [
+      '     } catch (error) {',
+      '-      // ignore — clipboard may be unavailable',
+      '+      console.error(error);',
+      '     }',
+    ];
+    expect(code(() => applyPatch(MENU, parseUnifiedDiff(fix('@@ -48,3 +48,3 @@', body))))).toBe(
+      'does_not_apply',
+    );
+    // Whitespace INSIDE a line is still compared exactly.
+    const inner = body.map((l, i) => (i === 0 ? '     }  catch (err) {' : l));
+    expect(code(() => applyPatch(MENU, parseUnifiedDiff(fix('@@ -48,3 +48,3 @@', inner))))).toBe(
+      'does_not_apply',
+    );
+  });
+
+  it('refuses context that is not in the file at all', () => {
+    const body = [' } finally {', '-  release();', '+  release(true);', ' }'];
+    expect(code(() => applyPatch(MENU, parseUnifiedDiff(fix('@@ -48,3 +48,3 @@', body))))).toBe(
+      'does_not_apply',
+    );
+  });
+
+  it('refuses a whitespace-tolerant match the header cannot disambiguate', () => {
+    const src = ['a', '  try {', '  } catch {}', 'm', 'm', '  try {', '  } catch {}', ''].join(
+      '\n',
+    );
+    // Indented differently from both copies; the header points midway (line 4).
+    const diff = [
+      `--- a/${FILE}`,
+      `+++ b/${FILE}`,
+      '@@ -4,2 +4,2 @@',
+      ' try {',
+      '-} catch {}',
+      '+} catch (e) { console.error(e); }',
+    ].join('\n');
+    expect(code(() => applyPatch(src, parseUnifiedDiff(diff)))).toBe('does_not_apply');
+    // The same hunk with a header nearer the second copy applies there only.
+    const second = applyPatch(src, parseUnifiedDiff(diff.replace('@@ -4,2', '@@ -6,2')));
+    expect(second.after.split('\n')[6]).toBe('  } catch (e) { console.error(e); }');
+    expect(second.after.split('\n')[2]).toBe('  } catch {}');
+  });
+
+  it('prefers an exact match over a nearer whitespace-tolerant one', () => {
+    const src = ['    x();', 'm', 'm', 'm', 'x();', ''].join('\n');
+    const diff = [`--- a/${FILE}`, `+++ b/${FILE}`, '@@ -1,1 +1,1 @@', '-x();', '+y();'].join('\n');
+    const applied = applyPatch(src, parseUnifiedDiff(diff));
+    expect(applied.after).toBe(['    x();', 'm', 'm', 'm', 'y();', ''].join('\n'));
+    expect(applied.whitespaceTolerant).toBe(false);
+  });
+
+  it('leaves a correct diff exactly as before', () => {
+    const applied = validateAndApply({ modelText: GOOD, file: FILE, source: SOURCE });
+    expect(applied.reanchored).toBe(false);
+    expect(applied.whitespaceTolerant).toBe(false);
+    expect(applied.notes).toEqual([]);
+    expect(applied.canonicalDiff).toBe(
+      [
+        `--- a/${FILE}`,
+        `+++ b/${FILE}`,
+        '@@ -3,3 +3,3 @@',
+        ' function run(cmd) {',
+        '-  return eval(cmd);',
+        '+  return JSON.parse(cmd);',
+        ' }',
+        '',
+      ].join('\n'),
+    );
+  });
+});
