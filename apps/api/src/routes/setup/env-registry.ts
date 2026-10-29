@@ -527,6 +527,16 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     default: '30',
   },
   {
+    name: 'AI_JUDGE_FAST_MIN_CONFIDENCE',
+    scope: 'shared',
+    required: false,
+    purpose:
+      "Used only when a workspace routes the optional quick first look (Settings → Models → Routing, triage_fast): the least confidence, as a share of the 1-5 scale (0.8 = 4 of 5), at which the smaller model's 'likely false positive' is stored without asking the main triage model (W22-03). Any other answer, an error or a lower confidence goes on to the triage route. Above 0 up to 1.",
+    ifWrong:
+      'Too low and more rule hits are cleared by the smaller model alone (a real issue may be marked a likely false positive, though its status never changes); too high and almost every hit is asked twice, so judging is slower than with no quick first look.',
+    default: '0.8',
+  },
+  {
     name: 'RECONCILE_CRON',
     scope: 'worker',
     required: false,

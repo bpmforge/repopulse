@@ -6,8 +6,10 @@ import type { T2Host } from '../t2/client.js';
 import {
   LLM_ROLES,
   LocalOnlyViolationError,
+  OPTIONAL_LLM_ROLES,
   contextWindowForRole,
   defaultPool,
+  isRoleRouted,
   localOnlyViolations,
   roleForDimension,
   type RouteLink,
@@ -100,6 +102,7 @@ describe('roles', () => {
       'test_coverage',
       'triage',
       'patch',
+      'triage_fast',
     ]);
   });
   it('maps an analysis dimension to its role, and knows when it cannot', () => {
@@ -186,6 +189,33 @@ describe('a routed role with no usable connection (W19-02)', () => {
       /Role "security" is routed.*none of them is usable/s,
     );
     expect(f.impl).not.toHaveBeenCalled();
+  });
+});
+
+describe('an optional role (W22-03: triage_fast)', () => {
+  it('is never sent to the shared pool: with no chain the gateway refuses and sends nothing', async () => {
+    expect(OPTIONAL_LLM_ROLES).toEqual(['triage_fast']);
+    const f = fakeFetch({});
+    const policy: RoutingPolicy = { localOnly: false, chains: {} };
+    expect(isRoleRouted(policy, 'triage_fast')).toBe(false);
+    const gw = gatewayFor([lan(1)], policy, f.impl);
+    await expect(
+      gw.complete('p', { ...opts, meta: { ...meta, role: 'triage_fast' } }),
+    ).rejects.toThrow(/optional and not routed/);
+    expect(f.impl).not.toHaveBeenCalled();
+  });
+
+  it('uses its own chain when routed', async () => {
+    const f = fakeFetch({});
+    const policy: RoutingPolicy = {
+      localOnly: false,
+      chains: { triage_fast: [link(lan(2))] },
+    };
+    expect(isRoleRouted(policy, 'triage_fast')).toBe(true);
+    const gw = gatewayFor([lan(1), lan(2)], policy, f.impl);
+    const r = await gw.complete('p', { ...opts, meta: { ...meta, role: 'triage_fast' } });
+    expect(r.model).toBe('lan-2');
+    expect(r.route?.role).toBe('triage_fast');
   });
 });
 

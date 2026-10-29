@@ -406,6 +406,13 @@
       "when": 1794500000000,
       "tag": "0062_triage_impact",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1794600000000,
+      "tag": "0063_judge_fast_pass",
+      "breakpoints": true
     }
   ]
 }

@@ -35,6 +35,7 @@ describe('verifiedByOf (W21-03)', () => {
       verdict: 'contradicted',
       at: '2026-10-26T10:00:00.000Z',
       impact: null,
+      pass: null,
     });
   });
 
@@ -65,6 +66,19 @@ describe('verifiedByOf (W21-03)', () => {
     };
     expect(verifiedByOf(judged)?.impact).toBe('negligible');
     expect(verifiedByOf({ ...judged, verifiedImpact: null })?.impact).toBeNull();
+  });
+
+  it('says when the quick first look gave the verdict (W22-03, 2026-10-29)', () => {
+    const judged = {
+      ...none,
+      verifiedModel: 'small',
+      verifiedConnection: 'LM Studio',
+      verifiedVerdict: 'likely_false_positive',
+      verifiedAt: '2026-10-29T10:00:00Z',
+      verifiedPass: 'fast',
+    };
+    expect(verifiedByOf(judged)?.pass).toBe('fast');
+    expect(verifiedByOf({ ...judged, verifiedPass: null })?.pass).toBeNull();
   });
 
   it('a reason with no verdict (no second opinion could be had) is not a verifier', () => {

@@ -95,6 +95,14 @@ mode or tool use is recorded, not fatal.
 A pass is routed by `meta.role` when it names one, otherwise by its
 `dimension`; anything else uses the shared pool.
 
+W22-03 (2026-10-29) added one OPTIONAL role, `triage_fast` (migration 0063
+widens the `llm_role_routes` role check): the AI judge's quick first look on a
+smaller, faster model. An optional role is called only when it has a chain: it
+never falls to the shared pool (the gateway refuses, nothing is sent), the
+pass egress summary and digest leave it out until it is routed, and "Use one
+connection for every role" on the Routing screen leaves it as it is. See
+CLOSE_THE_LOOP.md, "W22-03 as built".
+
 **Storage** (migration 0040, both tables workspace-scoped): `llm_role_routes`
 (one row per link, ordered by `position`, optional per-link model override,
 cascade on connection delete) and `llm_routing_policy` (`local_only`).

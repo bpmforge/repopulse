@@ -13,6 +13,7 @@ import {
   defaultPool,
   hostIsLocal,
   hostOf,
+  isOptionalRole,
   roleForDimension,
   type RouteRecord,
   type RoutingPolicy,
@@ -308,6 +309,13 @@ export function createAnalysisGateway(deps: GatewayDeps): AnalysisGateway {
 
       const role = opts.meta.role ?? roleForDimension(opts.meta.dimension);
       const chain = role ? deps.routing?.chains[role] : undefined;
+
+      // W22-03: an optional role (triage_fast) is only ever its own chain.
+      if (chain === undefined && isOptionalRole(role)) {
+        throw new Error(
+          `Role "${role}" is optional and not routed, so nothing was sent. Route it in Settings → Models → Routing.`,
+        );
+      }
 
       // No chain for this role: the shared pool, exactly as before W19-02.
       if (chain === undefined) {

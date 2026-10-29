@@ -3,7 +3,13 @@ import type { Job } from 'bullmq';
 import { and, eq, inArray } from 'drizzle-orm';
 import { core, createDb, read, security } from '@repopulse/shared';
 import { credentials } from '@repopulse/auth';
-import type { AnalysisGateway, CompleteOpts, CompleteResult, T2Host } from '@repopulse/analysis';
+import type {
+  AnalysisGateway,
+  CompleteOpts,
+  CompleteResult,
+  RoutingPolicy,
+  T2Host,
+} from '@repopulse/analysis';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   aiPassProcessor,
@@ -64,7 +70,12 @@ describe('orderJudgeQueue (risk order, grouped by rule)', () => {
 
 describe('judgeConfigFromEnv', () => {
   it('defaults to on, 240 minutes a day and 30 a run', () => {
-    expect(judgeConfigFromEnv({})).toEqual({ enabled: true, minutesPerDay: 240, scanMinutes: 30 });
+    expect(judgeConfigFromEnv({})).toEqual({
+      enabled: true,
+      minutesPerDay: 240,
+      scanMinutes: 30,
+      fastMinConfidence: 0.8,
+    });
   });
   it("reads 'off' and whole minutes, and ignores nonsense", () => {
     expect(
@@ -72,9 +83,13 @@ describe('judgeConfigFromEnv', () => {
         AI_JUDGE: 'off',
         AI_JUDGE_MINUTES_PER_DAY: '60',
         AI_JUDGE_SCAN_MINUTES: 'lots',
+        AI_JUDGE_FAST_MIN_CONFIDENCE: '0.6',
       }),
-    ).toEqual({ enabled: false, minutesPerDay: 60, scanMinutes: 30 });
+    ).toEqual({ enabled: false, minutesPerDay: 60, scanMinutes: 30, fastMinConfidence: 0.6 });
     expect(judgeConfigFromEnv({ AI_JUDGE_MINUTES_PER_DAY: '5000' }).minutesPerDay).toBe(240);
+    for (const bad of ['0', '1.5', 'high', '-1']) {
+      expect(judgeConfigFromEnv({ AI_JUDGE_FAST_MIN_CONFIDENCE: bad }).fastMinConfidence).toBe(0.8);
+    }
   });
 });
 
@@ -115,28 +130,47 @@ const egressOf =
  */
 function scripted(
   opts: {
-    verdictFor?: (prompt: string) => string;
-    throwFor?: (prompt: string) => boolean;
-    onCall?: () => void;
+    verdictFor?: (prompt: string, role: string) => string;
+    throwFor?: (prompt: string, role: string) => boolean;
+    onCall?: (role: string) => void;
     /** Extra answer fields (W22-03: impact on a performance hit). */
     extraFor?: (prompt: string) => Record<string, unknown>;
+    /** W22-03 quick first look: the confidence (1-5) a role answers with. */
+    confidenceFor?: (prompt: string, role: string) => number;
+    /** W22-03: an answer that fails the checklist (not JSON) for a role. */
+    garbleFor?: (prompt: string, role: string) => boolean;
   } = {},
 ) {
   const prompts: string[] = [];
+  /** The role of every call, in order. */
+  const roles: string[] = [];
   const gateway: AnalysisGateway = {
     async complete(prompt: string, o: CompleteOpts): Promise<CompleteResult> {
+      const role = String(o.meta.role);
       prompts.push(prompt);
-      opts.onCall?.();
-      expect(o.meta.role).toBe('triage');
+      roles.push(role);
+      opts.onCall?.(role);
+      expect(['triage', 'triage_fast']).toContain(role);
       expect(o.meta.initiator).toBe('ai-judge');
-      if (opts.throwFor?.(prompt)) throw new Error('The model did not answer within 300 s');
+      if (opts.throwFor?.(prompt, role)) throw new Error('The model did not answer within 300 s');
       const flagged = /Flagged lines: (\d+)-/.exec(prompt)?.[1] ?? '1';
       const line = new RegExp(`^\\s*${flagged}\\| (.*)$`, 'm').exec(prompt)?.[1] ?? '';
-      const verdict = opts.verdictFor?.(prompt) ?? 'real';
+      const verdict = opts.verdictFor?.(prompt, role) ?? 'real';
+      const model = role === 'triage_fast' ? 'scripted-small' : 'scripted-model';
+      if (opts.garbleFor?.(prompt, role)) {
+        return {
+          text: 'I think it is fine.',
+          model,
+          tokensIn: 100,
+          tokensOut: 5,
+          costUsd: null,
+          durationMs: 1,
+        };
+      }
       return {
         text: JSON.stringify({
           verdict,
-          confidence: 4,
+          confidence: opts.confidenceFor?.(prompt, role) ?? 4,
           citations: [{ line: Number(flagged), quote: line.trim().slice(0, 30) }],
           rationale: `judged ${verdict} from the cited line`,
           vex_justification:
@@ -145,16 +179,16 @@ function scripted(
           patch: null,
           ...(opts.extraFor?.(prompt) ?? {}),
         }),
-        model: 'scripted-model',
+        model,
         tokensIn: 100,
         tokensOut: 20,
         costUsd: null,
         durationMs: 1,
         route: {
-          role: 'triage',
+          role: role as 'triage',
           providerId: 1,
           providerName: 'LM Studio',
-          model: 'scripted-model',
+          model,
           linkIndex: 0,
           failedLinks: [],
         },
@@ -164,7 +198,7 @@ function scripted(
       return { ok: true };
     },
   };
-  return { gateway, prompts };
+  return { gateway, prompts, roles };
 }
 
 describeIfLiveInfra('the AI judge after a scan (W22-03)', () => {
@@ -334,6 +368,8 @@ describeIfLiveInfra('the AI judge after a scan (W22-03)', () => {
       afterVerdicts?: () => Promise<void>;
       scansPending?: () => Promise<boolean>;
       requeue?: (data: AiPassJobData, delayMs: number) => Promise<void>;
+      /** W22-03: the workspace's routing (a triage_fast chain turns the quick first look on). */
+      routing?: RoutingPolicy;
     } = {},
   ) {
     const d: AiPassDeps = {
@@ -347,6 +383,7 @@ describeIfLiveInfra('the AI judge after a scan (W22-03)', () => {
             contextWindow: 32768,
           } as T2Host,
         ],
+        ...(over.routing ? { routing: over.routing } : {}),
       }),
       loadSources: async () => ({ ok: false, code: 'unused', reason: 'unused' }),
       ...(over.now ? { now: over.now } : {}),
@@ -762,5 +799,197 @@ describeIfLiveInfra('the AI judge after a scan (W22-03)', () => {
     ).toHaveLength(0);
     // A job naming this run under the other workspace finds nothing.
     expect((await processor(gw)(job(runId!, OTHER))).code).toBe('not_found');
+  });
+
+  // W22-03 (2026-10-29): a quick first look by a smaller model, confirmed by
+  // the main one. Measured on outline: about 7 minutes per verdict on a local
+  // 27B model, while most graded rule hits are false positives.
+  describe('the quick first look (optional triage_fast route)', () => {
+    const FAST: RoutingPolicy = {
+      localOnly: false,
+      chains: {
+        triage_fast: [
+          {
+            host: {
+              baseUrl: 'http://10.0.0.6:1234/v1',
+              modelSlot: 'scripted-small',
+              contextWindow: 16384,
+            } as T2Host,
+            providerName: 'LM Studio small',
+          },
+        ],
+      },
+    };
+    const verdictsOf = async (id: number) =>
+      db.select().from(read.aiTriageVerdicts).where(eq(read.aiTriageVerdicts.findingId, id));
+
+    it('with no triage_fast chain, judges exactly as before: one triage call per hit', async () => {
+      const a = await ruleHit({ ruleId: 'n1', effectiveRisk: '90.00', title: 'N fp' });
+      const b = await ruleHit({ ruleId: 'n2', effectiveRisk: '80.00', title: 'N real' });
+      const c = await ruleHit({ ruleId: 'n3', effectiveRisk: '70.00', title: 'N unsure' });
+      const gw = scripted({
+        verdictFor: (p) =>
+          p.includes('N fp')
+            ? 'likely_false_positive'
+            : p.includes('N unsure')
+              ? 'needs_human'
+              : 'real',
+        confidenceFor: () => 5,
+      });
+      const { runId } = await queue();
+      await processor(gw)(job(runId!));
+      expect(gw.roles).toEqual(['triage', 'triage', 'triage']);
+      const run = await runOf(runId!);
+      expect(run.calls).toBe(3);
+      expect((run.plan as { judge: JudgeSummary }).judge).toMatchObject({
+        judged: 3,
+        confirmed: 1,
+        contradicted: 1,
+        needs_human: 1,
+        fast_pass: false,
+        fast_cleared: 0,
+        escalated: 0,
+        fast_errors: 0,
+        fast_ms: 0,
+      });
+      expect((await verdictsOf(a))[0]).toMatchObject({ pass: 'full', model: 'scripted-model' });
+      expect(await finding(a)).toMatchObject({ verifyStatus: 'contradicted', status: 'open' });
+      expect((await finding(a)).verifyReason).not.toMatch(/quick first look/);
+      expect(await finding(b)).toMatchObject({ verifyStatus: 'confirmed' });
+      expect(await finding(c)).toMatchObject({ verifyStatus: 'unverified' });
+    });
+
+    it('a confident likely false positive stops at the quick first look; everything else goes on to triage', async () => {
+      const cleared = await ruleHit({ ruleId: 'f1', effectiveRisk: '90.00', title: 'F clear' });
+      const real = await ruleHit({ ruleId: 'f2', effectiveRisk: '80.00', title: 'F real' });
+      const unsure = await ruleHit({ ruleId: 'f3', effectiveRisk: '70.00', title: 'F unsure' });
+      const shaky = await ruleHit({ ruleId: 'f4', effectiveRisk: '60.00', title: 'F shaky' });
+      const garbled = await ruleHit({ ruleId: 'f5', effectiveRisk: '50.00', title: 'F garbled' });
+      const gw = scripted({
+        // The small model's answers; the main model calls them all real.
+        verdictFor: (p, role) =>
+          role !== 'triage_fast'
+            ? 'real'
+            : p.includes('F real')
+              ? 'real'
+              : p.includes('F unsure')
+                ? 'needs_human'
+                : 'likely_false_positive',
+        // 'F shaky' is a false positive at 3 of 5: under the 0.8 default.
+        confidenceFor: (p, role) => (role === 'triage_fast' && p.includes('F shaky') ? 3 : 5),
+        garbleFor: (p, role) => role === 'triage_fast' && p.includes('F garbled'),
+      });
+      const { runId } = await queue();
+      expect((await processor(gw, { routing: FAST })(job(runId!))).status).toBe('succeeded');
+
+      // F clear: 1 fast call. F real / unsure / shaky: fast then triage.
+      // F garbled: 2 fast calls (a corrective retry), then triage.
+      expect(gw.roles).toEqual([
+        'triage_fast',
+        'triage_fast',
+        'triage',
+        'triage_fast',
+        'triage',
+        'triage_fast',
+        'triage',
+        'triage_fast',
+        'triage_fast',
+        'triage',
+      ]);
+      const run = await runOf(runId!);
+      expect(run.calls).toBe(10);
+      expect((run.plan as { judge: JudgeSummary }).judge).toMatchObject({
+        judged: 5,
+        contradicted: 1,
+        confirmed: 4,
+        rejected: 0,
+        fast_pass: true,
+        fast_cleared: 1,
+        escalated: 4,
+        fast_errors: 0,
+        stopped: 'done',
+      });
+
+      // The fast verdict is stored as the verdict, and says so; status untouched.
+      expect(await verdictsOf(cleared)).toHaveLength(1);
+      expect((await verdictsOf(cleared))[0]).toMatchObject({
+        verdict: 'likely_false_positive',
+        pass: 'fast',
+        model: 'scripted-small',
+      });
+      const c = await finding(cleared);
+      expect(c).toMatchObject({ verifyStatus: 'contradicted', status: 'open' });
+      expect(c.verifyReason).toMatch(/^On a quick first look \(a smaller, faster model\)/);
+      // Escalated: one stored verdict each, the main model's.
+      for (const id of [real, unsure, shaky, garbled]) {
+        const vs = await verdictsOf(id);
+        expect(vs).toHaveLength(1);
+        expect(vs[0]).toMatchObject({ verdict: 'real', pass: 'full', model: 'scripted-model' });
+        expect(await finding(id)).toMatchObject({ verifyStatus: 'confirmed', status: 'open' });
+      }
+    });
+
+    it('a quick-first-look provider error escalates to triage, and is counted apart', async () => {
+      const id = await ruleHit({ ruleId: 'e1', title: 'E hit' });
+      const gw = scripted({
+        throwFor: (_p, role) => role === 'triage_fast',
+        verdictFor: () => 'likely_false_positive',
+      });
+      const { runId } = await queue();
+      await processor(gw, { routing: FAST })(job(runId!));
+      expect(gw.roles).toEqual(['triage_fast', 'triage']);
+      const run = await runOf(runId!);
+      expect(run.calls).toBe(2);
+      const summary = (run.plan as { judge: JudgeSummary }).judge;
+      expect(summary).toMatchObject({
+        judged: 1,
+        contradicted: 1,
+        errors: 0,
+        failed_finding_ids: [],
+        fast_errors: 1,
+        escalated: 1,
+        fast_cleared: 0,
+      });
+      expect(summary.error_samples[0]!.error).toMatch(/^quick first look: .*did not answer/);
+      expect((await verdictsOf(id))[0]).toMatchObject({ pass: 'full', model: 'scripted-model' });
+      expect((await finding(id)).verifyReason).not.toMatch(/quick first look/);
+    });
+
+    it('both passes spend the same run minutes: no triage call once the fast pass used them up', async () => {
+      for (let i = 0; i < 2; i++) await ruleHit({ ruleId: `b${i}`, effectiveRisk: String(90 - i) });
+      let clock = new Date('2026-10-29T10:00:00Z').getTime();
+      const now = () => new Date(clock);
+      // The small model takes 70 s; the run may spend 1 minute.
+      const gw = scripted({
+        onCall: (role) => (clock += role === 'triage_fast' ? 70_000 : 10_000),
+      });
+      const config = { ...CFG, scanMinutes: 1 };
+      const { runId } = await queue({ config });
+      await processor(gw, { config, now, routing: FAST })(job(runId!));
+      expect(gw.roles).toEqual(['triage_fast']);
+      const run = await runOf(runId!);
+      expect(run.reasonCode).toBe('time_budget');
+      expect((run.plan as { judge: JudgeSummary }).judge).toMatchObject({
+        stopped: 'time_budget',
+        judged: 0,
+        escalated: 1,
+        not_reached: 2,
+        fast_ms: 70_000,
+        full_ms: 0,
+      });
+    });
+
+    it('the threshold is a setting: at 0.6 a 3-of-5 likely false positive stands', async () => {
+      const id = await ruleHit({ ruleId: 't1', title: 'T hit' });
+      const gw = scripted({
+        verdictFor: () => 'likely_false_positive',
+        confidenceFor: () => 3,
+      });
+      const config = { ...CFG, fastMinConfidence: 0.6 };
+      const { runId } = await queue({ config });
+      await processor(gw, { config, routing: FAST })(job(runId!));
+      expect(gw.roles).toEqual(['triage_fast']);
+      expect((await verdictsOf(id))[0]).toMatchObject({ pass: 'fast' });
+    });
   });
 });

@@ -1,6 +1,7 @@
 import { and, desc, eq, gte, inArray, isNotNull, lt, sql } from 'drizzle-orm';
 import {
   contextWindowForRole,
+  isRoleRouted,
   LocalOnlyViolationError,
   type AnalysisGateway,
   type RoutingPolicy,
@@ -40,6 +41,14 @@ import { fixEligibility, pickFixTargets, type FixConfig } from './ai-fix.js';
 //     the monthly call cap (budget 'calls').
 //   - AI off (AI-77) stops it; AI_JUDGE=off removes it from the server.
 //
+// QUICK FIRST LOOK (2026-10-29). When the workspace routes the optional
+// `triage_fast` role (a smaller, faster model), each hit goes to it first with
+// the same prompt and evidence packet. A likely false positive at or above
+// AI_JUDGE_FAST_MIN_CONFIDENCE is stored as the verdict (pass 'fast'); every
+// other answer, a rejected answer or a model error goes on to the `triage`
+// route, whose answer is the stored one (pass 'full'). Both passes spend the
+// same run's minutes and calls. With no triage_fast chain nothing changes.
+//
 // WHAT IT NEVER DOES. It never dismisses, resolves or suppresses a finding:
 // recordVerdicts writes only the verify columns, and the verdict row is a
 // suggestion a person answers (D9a). A model timeout or provider error on one
@@ -58,6 +67,12 @@ export const JUDGE_MAX_CANDIDATES = 2000;
 export const JUDGE_MAX_CALLS_HOSTED = 30;
 /** Consecutive model errors after which the run stops (the model is down, not one finding). */
 export const JUDGE_MAX_CONSECUTIVE_ERRORS = 5;
+/**
+ * Quick first look (W22-03): the least confidence, as a share of the checklist's
+ * 1-5 scale, at which a likely false positive from the triage_fast route is kept
+ * without asking the main model. 0.8 = 4 of 5.
+ */
+export const JUDGE_DEFAULT_FAST_MIN_CONFIDENCE = 0.8;
 /** Calls one finding may take: the answer and one corrective retry (runTriage's own rule). */
 const CALLS_PER_FINDING = 2;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -69,6 +84,11 @@ export interface JudgeConfig {
   minutesPerDay: number;
   /** Most minutes one judge run may spend. */
   scanMinutes: number;
+  /**
+   * Quick first look: least confidence (0-1 share of the 1-5 scale) at which a
+   * triage_fast "likely false positive" stands. Absent = the default, 0.8.
+   */
+  fastMinConfidence?: number;
 }
 
 function wholeMinutes(raw: string | undefined, fallback: number, max: number): number {
@@ -82,7 +102,14 @@ export function judgeConfigFromEnv(env: Record<string, string | undefined>): Jud
     enabled: (env.AI_JUDGE ?? 'on') !== 'off',
     minutesPerDay: wholeMinutes(env.AI_JUDGE_MINUTES_PER_DAY, JUDGE_DEFAULT_MINUTES_PER_DAY, 1440),
     scanMinutes: wholeMinutes(env.AI_JUDGE_SCAN_MINUTES, JUDGE_DEFAULT_SCAN_MINUTES, 1440),
+    fastMinConfidence: shareOf(env.AI_JUDGE_FAST_MIN_CONFIDENCE, JUDGE_DEFAULT_FAST_MIN_CONFIDENCE),
   };
+}
+
+function shareOf(raw: string | undefined, fallback: number): number {
+  if (raw === undefined || raw.trim() === '') return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 && n <= 1 ? n : fallback;
 }
 
 /** The workspace's daily judge minutes: its own setting, or the server default. */
@@ -157,7 +184,9 @@ export async function judgeEligibility(args: {
       reason: 'AI analysis is switched off for this workspace, so no rule hit was judged.',
     };
   }
-  const triage = await egressOf(db, ws, ['triage']);
+  // The quick first look's route counts too, but only when it is routed
+  // (passEgress leaves an unrouted optional role out).
+  const triage = await egressOf(db, ws, ['triage', 'triage_fast']);
   if (triage.destinations.length === 0) {
     return { ok: false, code: 'no_gateway', reason: triage.sentence };
   }
@@ -458,6 +487,17 @@ export interface JudgeSummary {
   failed_finding_ids: number[];
   /** Left for a later run: the budget ran out first. */
   not_reached: number;
+  /** Quick first look (triage_fast) routed for this run. */
+  fast_pass: boolean;
+  /** Stored from the quick first look: a confident likely false positive (pass 'fast'). */
+  fast_cleared: number;
+  /** Sent on to the main triage route after the quick first look (any other answer or an error). */
+  escalated: number;
+  /** Quick-first-look calls that threw; each of those hits was escalated. */
+  fast_errors: number;
+  /** Wall-clock milliseconds spent in each pass (the per-verdict cost of each model). */
+  fast_ms: number;
+  full_ms: number;
   stopped: 'done' | 'time_budget' | 'call_cap' | 'errors' | 'local_only';
   elapsed_ms: number;
 }
@@ -469,9 +509,18 @@ export function verifyOf(p: {
   connection: string | null;
   impact?: string | null;
   impactReason?: string | null;
+  /** W22-03: 'fast' when the quick first look produced the verdict. */
+  pass?: 'fast' | 'full' | null;
 }): FindingVerify {
   const base = { model: p.model, providerId: null, connection: p.connection };
   const why = p.rationale.slice(0, 900);
+  if (p.verdict === 'likely_false_positive' && p.pass === 'fast') {
+    return {
+      ...base,
+      status: 'contradicted',
+      reason: `On a quick first look (a smaller, faster model), the AI judged this rule hit a likely false positive: ${why}`,
+    };
+  }
   // Still confirmed (the hit is real); the reason says it is small, and why.
   if (p.verdict === 'real' && p.impact === 'negligible') {
     const small = p.impactReason ? ` ${p.impactReason.slice(0, 300)}` : '';
@@ -593,6 +642,12 @@ export async function runJudge(a: {
     error_samples: [],
     failed_finding_ids: [],
     not_reached: 0,
+    fast_pass: isRoleRouted(a.wg.routing, 'triage_fast'),
+    fast_cleared: 0,
+    escalated: 0,
+    fast_errors: 0,
+    fast_ms: 0,
+    full_ms: 0,
     stopped: 'done',
     elapsed_ms: 0,
   };
@@ -611,6 +666,13 @@ export async function runJudge(a: {
   }
 
   const contextWindow = contextWindowForRole(a.wg.routing, 'triage', a.wg.hosts);
+  const fastWindow = summary.fast_pass
+    ? contextWindowForRole(a.wg.routing, 'triage_fast', a.wg.hosts)
+    : null;
+  const fastMin = a.config.fastMinConfidence ?? JUDGE_DEFAULT_FAST_MIN_CONFIDENCE;
+  // Local-only refusing the fast route refuses every later call the same way.
+  let fastOff = false;
+  const meta = { repoId: String(run.repoId), prNumber: 0, initiator: INITIATOR };
   const funnel = emptyTriageFunnel();
   let fixable = a.fixReserve?.pending ?? false;
   const reserveMs = a.fixReserve ? Math.floor(ok.minutes * 60_000 * a.fixReserve.share) : 0;
@@ -631,47 +693,102 @@ export async function runJudge(a: {
       break;
     }
     const rule = `${f.scannerKey}:${f.ruleId}`;
-    let result: Awaited<ReturnType<typeof runTriage>>;
-    try {
-      result = await runTriage([triageCandidateOf(f)], {
-        gateway: a.wg.gateway,
-        contextWindow,
-        limit: 1,
-        maxCalls: Math.min(CALLS_PER_FINDING, maxCalls - calls),
-        meta: { repoId: String(run.repoId), prNumber: 0, initiator: INITIATOR },
-      });
-    } catch (err) {
-      // A cancelled run stops here (the processor records it).
-      if (err instanceof Error && err.name === 'PassCancelledError') throw err;
-      calls += 1;
-      summary.errors += 1;
-      summary.failed_finding_ids.push(f.id);
-      if (summary.error_samples.length < 10) {
-        summary.error_samples.push({
-          finding_id: f.id,
-          rule,
-          error: safeErrorText(err).slice(0, 300),
+    let result: Awaited<ReturnType<typeof runTriage>> | undefined;
+    let pass: 'fast' | 'full' = 'full';
+
+    // Quick first look: only a confident likely false positive stops here.
+    if (summary.fast_pass && !fastOff) {
+      const t0 = a.now().getTime();
+      try {
+        const fast = await runTriage([triageCandidateOf(f)], {
+          gateway: a.wg.gateway,
+          contextWindow: fastWindow,
+          limit: 1,
+          maxCalls: Math.min(CALLS_PER_FINDING, maxCalls - calls),
+          meta,
+          role: 'triage_fast',
         });
+        calls += fast.calls;
+        const fp = fast.proposals[0];
+        if (fp && fp.verdict === 'likely_false_positive' && fp.confidence / 5 >= fastMin) {
+          result = fast;
+          pass = 'fast';
+        }
+      } catch (err) {
+        if (err instanceof Error && err.name === 'PassCancelledError') throw err;
+        calls += 1;
+        summary.fast_errors += 1;
+        if (summary.error_samples.length < 10) {
+          summary.error_samples.push({
+            finding_id: f.id,
+            rule,
+            error: `quick first look: ${safeErrorText(err)}`.slice(0, 300),
+          });
+        }
+        if (err instanceof LocalOnlyViolationError) fastOff = true;
       }
-      // Local-only refusing the route is not one finding's problem: every
-      // later call would be refused the same way.
-      if (err instanceof LocalOnlyViolationError) {
-        summary.stopped = 'local_only';
-        summary.not_reached = queue.length - i - 1;
-        fatal = err.message;
-        break;
+      summary.fast_ms += a.now().getTime() - t0;
+      if (!result) {
+        summary.escalated += 1;
+        // The main model's call spends the same run's minutes and calls.
+        if (a.now().getTime() >= judgeDeadline()) {
+          summary.stopped = 'time_budget';
+          summary.not_reached = queue.length - i;
+          break;
+        }
+        if (calls >= maxCalls) {
+          summary.stopped = 'call_cap';
+          summary.not_reached = queue.length - i;
+          break;
+        }
       }
-      consecutiveErrors += 1;
-      if (consecutiveErrors >= JUDGE_MAX_CONSECUTIVE_ERRORS) {
-        summary.stopped = 'errors';
-        summary.not_reached = queue.length - i - 1;
-        fatal = `The model failed ${consecutiveErrors} times in a row (last: ${safeErrorText(err).slice(0, 300)}), so judging stopped for this run.`;
-        break;
-      }
-      continue;
     }
-    consecutiveErrors = 0;
-    calls += result.calls;
+
+    if (!result) {
+      const t1 = a.now().getTime();
+      try {
+        result = await runTriage([triageCandidateOf(f)], {
+          gateway: a.wg.gateway,
+          contextWindow,
+          limit: 1,
+          maxCalls: Math.min(CALLS_PER_FINDING, maxCalls - calls),
+          meta,
+        });
+        calls += result.calls;
+      } catch (err) {
+        summary.full_ms += a.now().getTime() - t1;
+        // A cancelled run stops here (the processor records it).
+        if (err instanceof Error && err.name === 'PassCancelledError') throw err;
+        calls += 1;
+        summary.errors += 1;
+        summary.failed_finding_ids.push(f.id);
+        if (summary.error_samples.length < 10) {
+          summary.error_samples.push({
+            finding_id: f.id,
+            rule,
+            error: safeErrorText(err).slice(0, 300),
+          });
+        }
+        // Local-only refusing the route is not one finding's problem: every
+        // later call would be refused the same way.
+        if (err instanceof LocalOnlyViolationError) {
+          summary.stopped = 'local_only';
+          summary.not_reached = queue.length - i - 1;
+          fatal = err.message;
+          break;
+        }
+        consecutiveErrors += 1;
+        if (consecutiveErrors >= JUDGE_MAX_CONSECUTIVE_ERRORS) {
+          summary.stopped = 'errors';
+          summary.not_reached = queue.length - i - 1;
+          fatal = `The model failed ${consecutiveErrors} times in a row (last: ${safeErrorText(err).slice(0, 300)}), so judging stopped for this run.`;
+          break;
+        }
+        continue;
+      }
+      summary.full_ms += a.now().getTime() - t1;
+      consecutiveErrors = 0;
+    }
     addFunnel(funnel, result.funnel);
     const p = result.proposals[0];
     if (!p) {
@@ -702,12 +819,15 @@ export async function runJudge(a: {
         route: p.route as Record<string, unknown> | null,
         llmProviderId: null,
         connectionName: connection,
+        // W22-03: which pass produced it, so the quick first look is measurable.
+        pass,
       })
       .onConflictDoNothing()
       .returning({ id: read.aiTriageVerdicts.id });
     // Another pass answered this finding meanwhile: its suggestion stands.
     if (!stored) continue;
     summary.judged += 1;
+    if (pass === 'fast') summary.fast_cleared += 1;
     if (p.verdict === 'real' && p.impact === 'negligible') {
       // Real, but too small to matter: no fix is drafted for it (ai-fix.ts),
       // so it does not hold back time for one either.
@@ -731,6 +851,7 @@ export async function runJudge(a: {
             connection,
             impact: p.impact ?? null,
             impactReason: p.impactReason ?? null,
+            pass,
           }),
         },
       ],

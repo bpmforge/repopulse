@@ -3,6 +3,7 @@ import {
   estimateTokens,
   extractJson,
   type AnalysisGateway,
+  type LlmRole,
 } from '@repopulse/analysis';
 import { proveTriagePatch, type PatchProofDeps } from './patch.js';
 import { renderContextPacket, type RenderedPacket } from './packet.js';
@@ -45,6 +46,11 @@ export interface TriageDeps {
   /** Rule runners for proving a proposed patch. Absent = no patch is ever offered. */
   patchProof?: PatchProofDeps;
   meta: { repoId: string; prNumber: number; initiator: string };
+  /**
+   * The routing role the calls declare. Default 'triage'; the AI judge's quick
+   * first look asks 'triage_fast' (W22-03) with the same prompt and packet.
+   */
+  role?: Extract<LlmRole, 'triage' | 'triage_fast'>;
 }
 
 export interface TriageResult {
@@ -149,7 +155,7 @@ export async function runTriage(
           dimension: 'security',
           checklistVersion: TRIAGE_CHECKLIST_VERSION,
           initiator: deps.meta.initiator,
-          role: 'triage',
+          role: deps.role ?? 'triage',
         },
       });
       calls += 1;

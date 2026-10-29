@@ -71,6 +71,19 @@ describe('reviewSummary (W17-23)', () => {
     expect(verifiedByText({ ...small.verified_by, impact: 'material' })).toBe(
       'verified by m: judged real',
     );
+    // W22-03: the quick first look (a smaller model) is named as such.
+    expect(
+      verifiedByText({
+        model: 'small',
+        connection: 'LM Studio',
+        verdict: 'likely_false_positive',
+        at: null,
+        pass: 'fast',
+      }),
+    ).toBe('verified by small (LM Studio): judged a likely false positive on a quick first look');
+    expect(
+      verifiedByText({ model: 'm', connection: null, verdict: 'real', at: null, pass: 'full' }),
+    ).toBe('verified by m: judged real');
   });
 
   it('carries the dismiss reason and the history with who and why', () => {

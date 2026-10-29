@@ -185,6 +185,9 @@ export const LLM_ROLES = [
   'test_coverage',
   'triage',
   'patch',
+  // W22-03 (2026-10-29): optional. A smaller, faster model the AI judge asks
+  // first; with no chain it is not called at all (never the shared pool).
+  'triage_fast',
 ] as const;
 
 export const llmRoleRoutes = pgTable(

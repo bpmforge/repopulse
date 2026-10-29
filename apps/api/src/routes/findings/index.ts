@@ -322,6 +322,10 @@ function findingsQuery(db: Database) {
         verifiedImpact: sql<
           string | null
         >`(select v.impact from ${read.aiTriageVerdicts} v where v.finding_id = ${read.findings.id} and v.workspace_id = ${read.findings.workspaceId} and v.second_opinion_of is null order by v.created_at desc, v.id desc limit 1)`,
+        // W22-03 (2026-10-29): which judge pass gave it ('fast' = the quick first look).
+        verifiedPass: sql<
+          string | null
+        >`(select v.pass from ${read.aiTriageVerdicts} v where v.finding_id = ${read.findings.id} and v.workspace_id = ${read.findings.workspaceId} and v.second_opinion_of is null order by v.created_at desc, v.id desc limit 1)`,
         verifiedAt: sql<
           string | null
         >`(select v.created_at from ${read.aiTriageVerdicts} v where v.finding_id = ${read.findings.id} and v.workspace_id = ${read.findings.workspaceId} and v.second_opinion_of is null order by v.created_at desc, v.id desc limit 1)`,
@@ -506,6 +510,7 @@ export function verifiedByOf(r: {
   verifiedVerdict?: string | null;
   verifiedAt?: string | Date | null;
   verifiedImpact?: string | null;
+  verifiedPass?: string | null;
   secondModel: string | null;
   secondConnection: string | null;
   secondAt: Date | null;
@@ -517,6 +522,8 @@ export function verifiedByOf(r: {
   at: string | null;
   /** W22-03: a real performance hit's impact; null otherwise, and on a second-model verify. */
   impact: string | null;
+  /** W22-03: 'fast' when the judge's quick first look gave it; null otherwise. */
+  pass: string | null;
 } | null {
   const triageAt = r.verifiedAt ? new Date(r.verifiedAt) : null;
   const triage =
@@ -528,6 +535,7 @@ export function verifiedByOf(r: {
           verdict: r.verifiedVerdict ?? null,
           at: triageAt ? triageAt.toISOString() : null,
           impact: r.verifiedImpact ?? null,
+          pass: r.verifiedPass ?? null,
         };
   const second =
     r.secondModel === null || r.verifyStatus === 'unverified'
@@ -538,6 +546,7 @@ export function verifiedByOf(r: {
           verdict: r.verifyStatus,
           at: r.secondAt ? r.secondAt.toISOString() : null,
           impact: null,
+          pass: null,
         };
   if (!second) return triage;
   if (!triage) return second;

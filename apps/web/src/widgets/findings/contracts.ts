@@ -254,6 +254,8 @@ export interface VerifiedBy {
   at: string | null;
   /** W22-03: a real performance hit's impact (material / negligible / unknown). */
   impact?: string | null;
+  /** W22-03: 'fast' when the AI judge's quick first look (a smaller model) gave it. */
+  pass?: string | null;
 }
 
 const VERDICT_WORDS: Record<string, string> = {
@@ -278,7 +280,8 @@ export function verifiedByText(v: VerifiedBy | null | undefined): string | null 
       : v.verdict
         ? (VERDICT_WORDS[v.verdict] ?? v.verdict.replace(/_/g, ' '))
         : null;
-  const said = words ? `: ${words}` : '';
+  const quick = v.pass === 'fast' ? ' on a quick first look' : '';
+  const said = words ? `: ${words}${quick}` : '';
   return `verified by ${v.model}${via}${said}`;
 }
 

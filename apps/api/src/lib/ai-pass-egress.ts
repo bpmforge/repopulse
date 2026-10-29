@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { Database } from '@repopulse/shared';
-import type { LlmRole } from '@repopulse/analysis';
+import { isOptionalRole, type LlmRole } from '@repopulse/analysis';
 import { describeEndpoint, loadStoredRouting, providersFor } from './llm-routing.js';
 
 // Where a scheduled AI pass would send source code, said from the SERVER's own
@@ -14,7 +14,12 @@ import { describeEndpoint, loadStoredRouting, providersFor } from './llm-routing
 // digest no longer matches and the schedule refuses to run - recorded, with the
 // reason - until an admin acknowledges the new destinations.
 
-/** The roles an AI pass calls: the specialists and triage. Patch drafting is its own flow. */
+/**
+ * The roles an AI pass calls: the specialists and triage. Patch drafting is its
+ * own flow. W22-03: plus the judge's optional quick first look (triage_fast),
+ * which counts only when it is routed, so a workspace that does not route it
+ * keeps the digest it acknowledged.
+ */
 export const PASS_ROLES: readonly LlmRole[] = [
   'security',
   'performance',
@@ -23,6 +28,7 @@ export const PASS_ROLES: readonly LlmRole[] = [
   'ai_slop',
   'test_coverage',
   'triage',
+  'triage_fast',
 ];
 
 /** What is sent, in one place, so the screen and the audit say the same thing. */
@@ -117,6 +123,9 @@ export async function passEgress(
     const chain = stored.routes.filter((r) => r.role === role);
     if (chain.length > 0) {
       for (const link of chain) add(link.providerId, role, link.model);
+    } else if (isOptionalRole(role)) {
+      // W22-03: an optional role with no chain is not called at all.
+      continue;
     } else {
       // No chain: the shared pool. Under local-only only local connections serve it.
       for (const p of providers) {

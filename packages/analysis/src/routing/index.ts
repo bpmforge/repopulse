@@ -33,9 +33,28 @@ export const LLM_ROLES = [
   'test_coverage',
   'triage',
   'patch',
+  // W22-03 (2026-10-29): optional. A smaller, faster model the AI judge asks
+  // first; with no chain it is not called at all (never the shared pool).
+  'triage_fast',
 ] as const;
 
 export type LlmRole = (typeof LLM_ROLES)[number];
+
+/**
+ * W22-03 (2026-10-29): roles that are called only when a workspace routes
+ * them. With no chain they are skipped by their caller and never fall to the
+ * shared pool (the gateway refuses), and an egress summary leaves them out.
+ */
+export const OPTIONAL_LLM_ROLES: readonly LlmRole[] = ['triage_fast'];
+
+export function isOptionalRole(role: LlmRole | null | undefined): boolean {
+  return role !== null && role !== undefined && OPTIONAL_LLM_ROLES.includes(role);
+}
+
+/** Is this optional role routed in the policy (a chain exists, even an empty one)? */
+export function isRoleRouted(policy: RoutingPolicy | undefined, role: LlmRole): boolean {
+  return policy?.chains[role] !== undefined;
+}
 
 export function isLlmRole(v: unknown): v is LlmRole {
   return typeof v === 'string' && (LLM_ROLES as readonly string[]).includes(v);
