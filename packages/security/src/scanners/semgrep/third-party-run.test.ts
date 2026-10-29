@@ -22,6 +22,14 @@ vi.mock('../../../sandbox/run.js', () => ({
   stderrTail: (s: string) => s,
 }));
 
+// The engine-version probe is a real `podman run` of the scan image, about 3 s
+// where the image is present: three runs in one test passed the 5 s timeout.
+vi.mock('node:child_process', () => ({
+  execFileSync: vi.fn(() => {
+    throw new Error('no container runtime in this test');
+  }),
+}));
+
 const { runSemgrepScan, SEMGREP_RULEPACK_DIR } = await import('./scanner.js');
 const { readThirdPartyPack, THIRD_PARTY_MOUNT_PATH } = await import('../../rules/third-party.js');
 
