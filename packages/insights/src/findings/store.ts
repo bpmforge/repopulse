@@ -50,6 +50,13 @@ export interface IncomingFinding {
    */
   context?: { startLine: number; lines: string } | null;
   /**
+   * W22-02: the evidence packet for the AI judge (security/index/capture.ts):
+   * enclosing function, definitions of the flagged names, callers. Customer
+   * code like `context`, stated with it and cleared with it (context.ts).
+   * Absent = keep what the row has.
+   */
+  contextPacket?: Record<string, unknown> | null;
+  /**
    * W18-24: the external tool's own stable identity for this result (SARIF
    * partialFingerprints, a code-scanning alert number). Keys the finding in
    * place of evidence + line bucket — see dedupKey. Our own scanners do not
@@ -318,6 +325,7 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
         experimental: finding.experimental ?? false,
         contextLines: finding.context?.lines ?? null,
         contextStartLine: finding.context?.startLine ?? null,
+        contextPacket: finding.context ? (finding.contextPacket ?? null) : null,
         ...(finding.verify ? verifyColumns(finding.verify, now, null) : {}),
         dedupKey: key,
         status: 'open',
@@ -374,6 +382,8 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
           ? {
               contextLines: finding.context?.lines ?? null,
               contextStartLine: finding.context?.startLine ?? null,
+              // Same sighting, same lifetime: no stale packet beside new lines.
+              contextPacket: finding.context ? (finding.contextPacket ?? null) : null,
             }
           : {}),
         // W21-05: a fingerprinted finding is keyed independently of its line,

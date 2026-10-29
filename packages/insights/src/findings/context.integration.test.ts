@@ -12,7 +12,10 @@ const databaseUrl = process.env.DATABASE_URL;
 const describeIfLiveInfra = databaseUrl ? describe : describe.skip;
 const FP = 'w18-32-fp';
 
-function finding(context?: IncomingFinding['context']): IncomingFinding {
+function finding(
+  context?: IncomingFinding['context'],
+  contextPacket?: IncomingFinding['contextPacket'],
+): IncomingFinding {
   return {
     dimension: 'logging',
     severity: 2,
@@ -28,6 +31,7 @@ function finding(context?: IncomingFinding['context']): IncomingFinding {
     ruleId: 'bpm-log-console-log',
     yields: null,
     ...(context !== undefined ? { context } : {}),
+    ...(contextPacket !== undefined ? { contextPacket } : {}),
   };
 }
 
@@ -152,8 +156,27 @@ describeIfLiveInfra('stored finding context (W18-32)', () => {
     expect((await row()).contextStartLine).toBeNull();
   });
 
+  it('W22-02: the evidence packet is stored, replaced and cleared with the lines', async () => {
+    const packet = { v: 1, definitions: [{ name: 'BATCH_SIZE', line: 3 }] };
+    await persistFindings(db, params([finding({ startLine: 5, lines: 'x' }, packet)]));
+    expect((await row()).contextPacket).toEqual(packet);
+    // A sighting without context keeps both.
+    await persistFindings(db, params([finding()]));
+    expect((await row()).contextPacket).toEqual(packet);
+    // New lines without a packet: no stale packet beside them.
+    await persistFindings(db, params([finding({ startLine: 6, lines: 'y' })]));
+    expect((await row()).contextPacket).toBeNull();
+    // A packet never outlives null context.
+    await persistFindings(db, params([finding(null, packet)]));
+    expect((await row()).contextPacket).toBeNull();
+  });
+
   it('clears lines on findings closed past the window, and only those', async () => {
-    await persistFindings(db, params([finding({ startLine: 1, lines: 'keep me' })]));
+    await persistFindings(
+      db,
+      params([finding({ startLine: 1, lines: 'keep me' }, { v: 1, definitions: [] })]),
+    );
+    expect((await row()).contextPacket).toEqual({ v: 1, definitions: [] });
     const id = (await row()).id;
     const day = 24 * 60 * 60 * 1000;
     // Closed 100 days ago: past the 90-day default.
@@ -163,6 +186,8 @@ describeIfLiveInfra('stored finding context (W18-32)', () => {
       .where(eq(read.findings.id, id));
     await pruneClosedFindingContext(db, { workspaceId, repoId, days: 90 });
     expect((await row()).contextLines).toBeNull();
+    // The judge's packet is customer code too: same retention (W22-02).
+    expect((await row()).contextPacket).toBeNull();
 
     // Closed 10 days ago: kept. Open: kept.
     await db

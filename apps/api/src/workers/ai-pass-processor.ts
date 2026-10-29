@@ -16,7 +16,12 @@ import {
   type T2Host,
 } from '@repopulse/analysis';
 import { dedupKey, persistFindings, recordVerdicts, type FindingVerify } from '@repopulse/insights';
-import { TRIAGE_TOP_N, runTriage, type TriageCandidate } from '@repopulse/security';
+import {
+  TRIAGE_TOP_N,
+  parseContextPacket,
+  runTriage,
+  type TriageCandidate,
+} from '@repopulse/security';
 import { overlaps, rangesByFile, type DiffRequest, type LoadedDiff } from './ai-pass-diff.js';
 import { isAiPaused } from '../lib/ai-pause.js';
 import { withAiPass } from './ai-pass-context.js';
@@ -914,6 +919,9 @@ export function triageCandidateOf(r: typeof read.findings.$inferSelect): TriageC
     reachability: { tier: null },
     source: r.contextLines!,
     sourceStartLine: r.contextStartLine ?? 1,
+    // W22-02: the evidence captured at scan time; null (old rows, unknown
+    // shape) leaves the judge with the stored lines alone, as before.
+    packet: parseContextPacket(r.contextPacket),
     effectiveRisk: Number(r.effectiveRisk ?? 0),
   };
 }

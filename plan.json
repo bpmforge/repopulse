@@ -11711,6 +11711,13 @@
       "write_scope": [
         "packages/security/src/triage/**",
         "packages/security/src/index/**",
+        "packages/security/src/excerpt.ts",
+        "packages/security/src/excerpt.test.ts",
+        "packages/insights/src/findings/store.ts",
+        "packages/insights/src/findings/context.ts",
+        "packages/insights/src/findings/context.integration.test.ts",
+        "packages/shared/src/db/schema/read/findings.ts",
+        "packages/shared/drizzle/**",
         "apps/api/src/workers/ai-pass-processor.ts",
         "docs/design/CLOSE_THE_LOOP.md",
         "plan.json"
@@ -11724,10 +11731,12 @@
         "Before/after triage accuracy on the labelled eval set is recorded; the packer never sends more than the window allows and says what it left out"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
         "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md.",
-        "2026-10-28: builds on Lodestone evidencePacket; see CLOSE_THE_LOOP.md \"Build on what we own\"."
+        "2026-10-28: builds on Lodestone evidencePacket; see CLOSE_THE_LOOP.md \"Build on what we own\".",
+        "Slice 1 (2026-10-29), ahead of W22-01 (owner: 'complete our loops'; outline judge run: 6 verdicts in 31 minutes, all needs-a-human because the stored window did not show where this.workingTable and BATCH_SIZE were defined): the scan-runner captures an evidence packet per rule hit while the snapshot exists (security/index/capture.ts, called from attachExcerpts): the enclosing function (bounded), the definitions of the names on the flagged lines (class fields, module constants, parameters, callees, one hop through relative TS imports, Python imports and in-module Go packages) as path:line + lines, names not followed and why, and the callers of the enclosing function (name-matched, capped, crossFileGraphReliable=false). Stored on findings.context_packet (migration 0061), set/replaced/cleared with context_lines and by the same retention sweep; triageCandidateOf passes it to runTriage, which renders it within the probed window (at most 4,000 tokens) and names what it left out; citations of packet lines are checked against our copy. Findings without a packet get the prompt they got before. Write scope widened to the excerpt hook, the findings store/retention, the findings schema and the migration folder that this needed.",
+        "Slice 1 does not consume Lodestone (reasons in CLOSE_THE_LOOP.md 'W22-02 slice 1'): private repo with no published package or built dist (no install without GitHub credentials in a Docker build), native better-sqlite3/sqlite-vec deps, and its regex symbol table does not record class fields or non-exported/module constants, the very definitions the outline judge needed. Left for W22-02: Lodestone behind capturePackets (same ContextPacket shape) once W22-01 runs it in the scan-runner, reliable callers and a callee list from its graph, TS path aliases, route + middleware chain, Opengrep dataflow trace, and the before/after accuracy on the labelled eval set (needs a live model)."
       ]
     },
     {
