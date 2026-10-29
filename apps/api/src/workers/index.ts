@@ -53,6 +53,8 @@ import {
   runSecretsStreamScan,
   runArchitectureScan,
   runRuleDraftPass,
+  runStoredVerdictTweakPass,
+  combineLearningPasses,
   runSemgrepFull,
   registerBuiltinScanners,
   runSupplyChainRegisters,
@@ -931,20 +933,16 @@ async function main(): Promise<void> {
             const analysisGateway = (await isAiPaused(db, workspaceId))
               ? null
               : await gateways.for(workspaceId);
-            const result = await runRuleDraftPass({
-              db,
-              workspaceId,
-              ...(analysisGateway ? { gateway: analysisGateway.gateway } : {}),
-            });
-            return {
-              scanned: result.clusters,
-              findingsCreated: result.drafted,
-              // Drafts the validator threw out, carried rather than logged:
-              // a pass that rejected everything must not read as a quiet one.
-              deferred: result.rejected,
-              ...(result.error ? { error: result.error } : {}),
-              ...(result.skippedReason ? { skipped: result.skippedReason } : {}),
-            };
+            const gatewayDep = analysisGateway ? { gateway: analysisGateway.gateway } : {};
+            const drafts = await runRuleDraftPass({ db, workspaceId, ...gatewayDep });
+            // W22-06. Beside it, the same week and the same gateway: rule-tweak
+            // PROPOSALS from the AI judge's stored false-positive verdicts
+            // (W22-03). It writes `proposed` registry rows with new ids and
+            // nothing else; one failed call is recorded and the rest still run.
+            const tweaks = await runStoredVerdictTweakPass({ db, workspaceId, ...gatewayDep });
+            // Thrown-out drafts and name collisions land in `deferred`: a pass
+            // that rejected everything must not read as a quiet one.
+            return combineLearningPasses(drafts, tweaks);
           },
           // W10-04. Warehouse-only, so it needs neither a connection nor a
           // snapshot — it reads the commits we already have.
@@ -1287,7 +1285,8 @@ async function main(): Promise<void> {
       ['test_gap_register', registersCron],
       // Weekly, not nightly: it drafts from a 30-day window of dismissals, and
       // a nightly pass would re-draft the same clusters six times before
-      // anyone had opened the workbench.
+      // anyone had opened the workbench. W22-06: the same job also turns the
+      // AI judge's stored false-positive verdicts into rule-tweak proposals.
       ['rule_draft_pass', weeklyCron],
       ['knowledge_register', registersCron],
       // W18-24. Nightly with the registers: alerts change when someone's CI
