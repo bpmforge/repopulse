@@ -27,7 +27,7 @@ rules:
     # Primary source: Fastify docs (reply.send) + OWASP Unsafe Reflection
     # guidance.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [79, 116]
       framework: fastify

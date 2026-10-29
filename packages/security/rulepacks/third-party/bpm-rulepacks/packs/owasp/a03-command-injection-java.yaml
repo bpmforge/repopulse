@@ -24,7 +24,7 @@ rules:
       unavoidable, pass a fixed executable with a strict allowlist of
       arguments and no shell interpretation.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [78]
       owasp: "A03:2021"

@@ -5,10 +5,20 @@ rules:
     message: >
       Empty catch block swallows the error (ANTI_SLOP R-01). Handle it, log it with
       context, or rethrow — a silent catch hides failures the audit must surface.
-    pattern: |
-      try { ... } catch ($ERR) { }
+    # Narrowed 2026-10-28 after grading outline (RepoPulse
+    # docs/benchmarks/rule-grade-w22-07): 42 of 42 hits were empty catches
+    # whose comment states why the failure is acceptable (storage disabled,
+    # already closed, fall back to the cache). A stated reason makes it a
+    # decision. A comment that defers or admits the problem (TODO, FIXME,
+    # "handle error", "swallowed", "silently") still fires: mastodon-ios's
+    # `// TODO: handle error` catches were the real ones, and sampleco's
+    # corpus defect is annotated "error silently swallowed".
+    patterns:
+      - pattern: |
+          try { ... } catch ($ERR) { }
+      - pattern-not-regex: catch\s*(?:\([^)]*\))?\s*\{\s*(?://|/\*)(?![^\n]*(?i:todo|fixme|xxx|hack|handle|swallow|silent))
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: ported:bpm-opencode-experts/ANTI_SLOP_RULES R-01
       cwe: [390]
       confidence: high
@@ -21,10 +31,13 @@ rules:
     message: >
       Empty catch block swallows the error (ANTI_SLOP R-01). Handle it, log it with
       context, or rethrow — a silent catch hides failures the audit must surface.
-    pattern: |
-      do { ... } catch { }
+    # Narrowed 2026-10-28, same evidence and same line as the JS rule above.
+    patterns:
+      - pattern: |
+          do { ... } catch { }
+      - pattern-not-regex: catch\s*(?:\([^)]*\))?\s*\{\s*(?://|/\*)(?![^\n]*(?i:todo|fixme|xxx|hack|handle|swallow|silent))
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: ported:bpm-opencode-experts/ANTI_SLOP_RULES R-01
       cwe: [390]
       confidence: high

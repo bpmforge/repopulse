@@ -20,7 +20,7 @@ rules:
       - pattern: $RESP.append_header(("Access-Control-Allow-Origin", "*"))
       - pattern: $RESP.header("Access-Control-Allow-Origin", "*")
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [942]
       owasp: "A05:2021"

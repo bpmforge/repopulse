@@ -13,7 +13,7 @@ rules:
       - pattern-not: 'multer({ ..., fileFilter: $FF, ... })'
       - pattern-not: 'multer({ ..., limits: $LIM, ... })'
     metadata:
-      license: proprietary
+      license: MIT
       provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A04"
       cwe: [434]
       owasp: "A04:2021"

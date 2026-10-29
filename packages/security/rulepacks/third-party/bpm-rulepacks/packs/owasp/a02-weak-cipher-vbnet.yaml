@@ -12,7 +12,7 @@ rules:
       - pattern: New DESCryptoServiceProvider()
       - pattern: New TripleDESCryptoServiceProvider()
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [327]
       owasp: "A02:2021"

@@ -29,7 +29,7 @@ rules:
       whole command in escapeshellcmd()) or use a fixed-argument API
       with no shell interpretation.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [78]
       owasp: "A03:2021"

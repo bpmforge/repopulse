@@ -37,7 +37,7 @@ rules:
       (os.path.realpath) still starts with that base directory before any
       filesystem call.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [22]
       owasp: "A03:2021"

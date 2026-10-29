@@ -12,8 +12,13 @@ rules:
       - pattern: <a target="_blank" ...></a>
       - pattern-not: <a target="_blank" rel="noopener noreferrer" ...></a>
       - pattern-not: <a target="_blank" rel="noreferrer noopener" ...></a>
+      # Any rel holding noopener or noreferrer (noreferrer implies noopener in
+      # the HTML spec), in any order, with other tokens, on any line.
+      # Added 2026-10-28 (RepoPulse docs/benchmarks/rule-grade-w22-07): 10 of
+      # 11 outline hits had rel="noreferrer" or "noopener noreferrer nofollow".
+      - pattern-not-regex: rel=["'{`][^"'}`]*\bno(opener|referrer)\b
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [1022]
       framework: react

@@ -14,7 +14,7 @@ rules:
       - pattern-regex: '/(?:[^/\n\\]|\\.)*\\[ZA](?:[^/\n\\]|\\.)*/[dgimsuvy]*'
       - pattern-regex: '\(\?P<'
     metadata:
-      license: proprietary
+      license: MIT
       provenance: "derived:quarry/SLOP-nonjs-regex-anchor"
       cwe: [1041]
       confidence: high

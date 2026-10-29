@@ -26,7 +26,7 @@ rules:
       include/require directly), or at minimum reduce it to a bare
       filename with basename() before building the include path.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [98]
       owasp: "A03:2021"

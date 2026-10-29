@@ -21,7 +21,7 @@ rules:
       pass each argument via the ArgumentList collection (never a single
       concatenated Arguments string) against a strict allowlist.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [78]
       owasp: "A03:2021"

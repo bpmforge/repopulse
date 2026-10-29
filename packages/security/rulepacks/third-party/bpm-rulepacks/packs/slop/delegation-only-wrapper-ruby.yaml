@@ -38,7 +38,7 @@ rules:
           metavariable: $RECEIVER
           regex: ^@[A-Za-z_]\w*$
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-06"
       cwe: [710]
       confidence: medium

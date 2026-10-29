@@ -24,7 +24,7 @@ rules:
       a server-side allowlist of known filenames instead of using it as a
       path directly.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [22]
       owasp: "A03:2021"

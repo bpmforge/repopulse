@@ -31,7 +31,7 @@ rules:
       allowlist check that never runs) still leaves this rule flagging the
       call, by design.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [918]
       owasp: "A10:2021"

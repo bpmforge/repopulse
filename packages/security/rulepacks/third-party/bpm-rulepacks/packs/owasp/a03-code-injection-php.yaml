@@ -21,7 +21,7 @@ rules:
       handlers (e.g. a lookup table of closures keyed by a validated
       action name) instead of evaluating dynamic code.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [94]
       owasp: "A03:2021"

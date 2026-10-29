@@ -23,7 +23,7 @@ rules:
           rescue $EXC => $ERR
           end
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-01"
       cwe: [390]
       confidence: high

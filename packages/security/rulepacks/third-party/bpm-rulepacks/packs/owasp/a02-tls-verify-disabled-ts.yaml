@@ -9,7 +9,7 @@ rules:
       fix the underlying certificate/CA problem instead of bypassing validation.
     pattern: '{ ..., rejectUnauthorized: false, ... }'
     metadata:
-      license: proprietary
+      license: MIT
       provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A02"
       cwe: [295]
       owasp: "A02:2021"

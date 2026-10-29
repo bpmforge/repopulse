@@ -27,7 +27,7 @@ rules:
     # Control / "Restricting bean and class access") + CVE-2022-22963
     # (Spring Cloud Function SpEL injection RCE).
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [917]
       owasp: "A03:2021"

@@ -55,7 +55,7 @@ rules:
           - pattern: std::fs::read($X).unwrap_or_default()
           - pattern: fs::read($X).unwrap_or_default()
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-10"
       cwe: [390]
       confidence: medium

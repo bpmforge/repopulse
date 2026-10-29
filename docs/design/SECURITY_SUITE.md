@@ -390,14 +390,15 @@ Commons Clause and EE folders, and only the first two are taken.
 | 0xdea/semgrep-rules | e0121ac | MIT | 49 / 49 | C, C++ (memory safety) |
 | elttam/semgrep-rules (`rules-audit/`) | 2442685 | MIT | 60 / 73 (2 files excluded) | Java, Go, C#, JS, Python, Kotlin, C, generic |
 | gitlab-org/security-products/sast-rules | 705c083 | MIT, Apache-2.0 | 270 / 270 | Java, Scala, Python, C#, Go, JS/TS |
-| bpmforge/bpm-rulepacks (`packs/`, ours) | f32aebf | Apache-2.0 (grant written by the importer) | 219 / 232 | framework, house, OWASP, secrets, slop |
+| bpmforge/bpm-rulepacks (`packs/`, ours) | 8448116 | MIT | 219 / 232 | framework, house, OWASP, secrets, slop |
 
 bpm-rulepacks is our own, not third-party, but it was a separate private repo marked
 "All rights reserved". The owner opened it into Repo Pulse on 2026-10-28 ("open the
-rules"), so it goes through the same ledger, shadow status and flag. Its repo LICENSE
-is still the old one, so the importer writes the Apache-2.0 grant beside the files
-instead of copying it, and the source is private, so it imports with `--src` only. The
-first live look (gin, 7 hits, none real) is why it stays shadow until graded per rule.
+rules"), so it goes through the same ledger, shadow status and flag. It was relicensed
+MIT in its own repository (bpm-rulepacks#45) and re-imported at 8448116, which also
+carries the 16 rules narrowed by the grading below (bpm-rulepacks#46: 674 -> 254 hits on
+the walkthrough repos, 29 of 30 true hits kept). The source is private until release
+day (W22-13), so it imports with `--src` only.
 
 **Graded and excluded (2026-10-28).** All 629 imported rules pass `opengrep --validate`.
 On the six walkthrough repos they made 975 hits outside test paths, and a seeded sample of

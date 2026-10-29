@@ -3,13 +3,31 @@ rules:
     languages: [javascript, typescript]
     severity: WARNING
     message: >
-      try/catch inside a tight loop (ANTI_SLOP R-02) — JIT compilers cannot
-      optimize functions with try/catch in hot loops (5-20x slowdown measured
-      in production). Wrap the loop, not each iteration; validate before the
-      loop if items can be invalid.
+      A catch inside a loop that never looks at the error (ANTI_SLOP R-02):
+      it does not rethrow, log or inspect it, so every failure, including
+      bugs in the loop body, turns into a silent substitute value and the loop
+      carries on. Check the error you expect and rethrow the rest, or log it
+      with the item.
+    # Narrowed 2026-10-28 after grading the walkthrough repos (RepoPulse
+    # docs/benchmarks/rule-grade-w22-07): 30 of 30 sampled outline hits were
+    # per-item handling that inspects, logs or rethrows the error, or a bounded
+    # retry. The old premise (V8 cannot optimize try/catch, 5-20x) has not been
+    # true since TurboFan. What remains is the shape R-02 names: a catch that
+    # swallows. A catch with no statements at all is bpm-slop-empty-catch's.
     patterns:
-      - pattern: |
-          try { ... } catch ($ERR) { ... }
+      - pattern-either:
+          - pattern: |
+              try { ... } catch ($ERR) { $FIRST; ... }
+          - pattern: |
+              try { ... } catch { $FIRST; ... }
+      - pattern-not: |
+          try { ... } catch ($ERR) { ... <... $ERR ...>; ... }
+      - pattern-not: |
+          try { ... } catch ($ERR) { ... throw $THROWN; ... }
+      - pattern-not: |
+          try { ... } catch { ... throw $THROWN; ... }
+      - pattern-not: |
+          try { ... } catch ($ERR) { ... if (<... $ERR ...>) { ... } ... }
       - pattern-either:
           - pattern-inside: |
               for (...) { ... }
@@ -26,7 +44,7 @@ rules:
           - pattern-inside: |
               do { ... } while ($COND)
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-02"
       cwe: [1050]
       confidence: medium
@@ -37,14 +55,40 @@ rules:
     languages: [swift]
     severity: WARNING
     message: >
-      do/catch inside a tight loop (ANTI_SLOP R-02) — JIT-less Swift still pays
-      per-iteration setup cost for each do/catch, and the shape usually means
-      one bad element aborts handling for the rest of the batch silently.
-      Wrap the loop in a single do/catch, not each iteration; validate before
-      the loop if items can be invalid.
+      A catch inside a loop that never looks at the error (ANTI_SLOP R-02):
+      no rethrow, no log, no use of `error`, so each failure becomes a silent
+      substitute and the loop carries on. Catch the error you expect, or log
+      it with the element, or let it throw.
+    # Narrowed 2026-10-28 (RepoPulse docs/benchmarks/rule-grade-w22-07): the
+    # 6 mastodon-ios hits were poll loops and per-attachment uploads with their
+    # own error paths.
     patterns:
       - pattern: |
           do { ... } catch { ... }
+      - pattern-not: |
+          do { ... } catch {
+            ...
+            <... error ...>
+            ...
+          }
+      - pattern-not: |
+          do { ... } catch {
+            ...
+            throw $THROWN
+            ...
+          }
+      - pattern-not: |
+          do { ... } catch {
+            ...
+            $LOG.warning(...)
+            ...
+          }
+      - pattern-not: |
+          do { ... } catch {
+            ...
+            $LOG.error(...)
+            ...
+          }
       - pattern-either:
           - pattern-inside: |
               for $X in $Y { ... }
@@ -53,7 +97,7 @@ rules:
           - pattern-inside: |
               repeat { ... } while $COND
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-02"
       cwe: [1050]
       confidence: medium

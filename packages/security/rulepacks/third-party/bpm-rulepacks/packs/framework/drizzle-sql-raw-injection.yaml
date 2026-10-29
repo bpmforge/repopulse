@@ -15,7 +15,7 @@ rules:
       - pattern: sql.raw($X)
       - pattern-not: sql.raw("...")
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [89]
       owasp: "A03:2021"

@@ -27,7 +27,7 @@ rules:
       component, or use `XPath.setXPathVariableResolver()` to bind the value
       as a variable rather than concatenating it into the expression string.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [643]
       owasp: "A03:2021"

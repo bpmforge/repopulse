@@ -15,7 +15,7 @@ rules:
       NSExceptionDomains for that one domain instead of disabling ATS
       entirely.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [319]
       owasp: "A05:2021"

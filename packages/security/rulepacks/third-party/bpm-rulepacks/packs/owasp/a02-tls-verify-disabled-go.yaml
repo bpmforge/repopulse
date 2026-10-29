@@ -12,7 +12,7 @@ rules:
       private CA to a custom RootCAs pool) instead of bypassing validation.
     pattern: 'tls.Config{..., InsecureSkipVerify: true, ...}'
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [295]
       owasp: "A02:2021"

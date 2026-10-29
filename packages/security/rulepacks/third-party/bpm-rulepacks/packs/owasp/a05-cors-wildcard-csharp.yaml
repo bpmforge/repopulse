@@ -12,7 +12,7 @@ rules:
       trusted.example.com")` and an explicit, minimal allowlist.
     pattern: $BUILDER.AllowAnyOrigin()
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [942]
       owasp: "A05:2021"

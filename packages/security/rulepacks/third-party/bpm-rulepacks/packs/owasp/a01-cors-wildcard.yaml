@@ -11,7 +11,7 @@ rules:
       - pattern: $RES.setHeader("Access-Control-Allow-Origin", "*")
       - pattern: $RES.header("Access-Control-Allow-Origin", "*")
     metadata:
-      license: proprietary
+      license: MIT
       provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A01"
       cwe: [942]
       owasp: "A01:2021"

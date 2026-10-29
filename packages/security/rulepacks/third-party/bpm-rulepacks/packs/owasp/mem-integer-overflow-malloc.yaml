@@ -41,7 +41,7 @@ rules:
                 metavariable: $B
                 regex: '^[0-9]+$'
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [190]
       confidence: low

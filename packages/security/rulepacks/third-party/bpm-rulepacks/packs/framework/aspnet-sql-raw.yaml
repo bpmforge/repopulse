@@ -35,7 +35,7 @@ rules:
     # counterpart to FromSqlRaw for the exact same $"..." syntax) +
     # CWE-89.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [89]
       owasp: "A03:2021"

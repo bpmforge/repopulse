@@ -23,7 +23,7 @@ rules:
       explicit allowlist resolved *after* DNS lookup, and reject
       private/link-local IP ranges before issuing the request.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [918]
       owasp: "A10:2021"

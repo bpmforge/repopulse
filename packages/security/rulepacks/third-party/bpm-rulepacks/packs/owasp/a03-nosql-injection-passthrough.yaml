@@ -14,7 +14,7 @@ rules:
       - pattern: $MODEL.findOne($REQ.body)
       - pattern: $MODEL.findOne($REQ.query)
     metadata:
-      license: proprietary
+      license: MIT
       provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A03"
       cwe: [943]
       owasp: "A03:2021"

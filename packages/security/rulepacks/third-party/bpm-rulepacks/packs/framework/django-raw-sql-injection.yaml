@@ -26,7 +26,7 @@ rules:
     # Primary source: Django docs (QuerySet.raw, QuerySet.extra — "SQL
     # injection protection") + OWASP SQL Injection Prevention Cheat Sheet.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [89]
       owasp: "A03:2021"

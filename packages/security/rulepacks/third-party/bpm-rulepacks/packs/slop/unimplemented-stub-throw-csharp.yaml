@@ -12,7 +12,7 @@ rules:
       completed feature.
     pattern: new NotImplementedException(...)
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-27"
       cwe: [1078]
       confidence: high

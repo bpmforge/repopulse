@@ -10,7 +10,7 @@ rules:
       name the actual standard/source if citing one.
     pattern-regex: (?im)^\s*(//|\*(?!/)).*\b(it'?s worth noting that|it should be mentioned that|one might consider|it is important to note that|industry best practices|modern approaches|established patterns)\b
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-29"
       cwe: [1078]
       confidence: medium

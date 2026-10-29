@@ -41,7 +41,7 @@ rules:
       second, unchecked request-derived path used later in the same
       function still fires.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [22]
       owasp: "A03:2021"

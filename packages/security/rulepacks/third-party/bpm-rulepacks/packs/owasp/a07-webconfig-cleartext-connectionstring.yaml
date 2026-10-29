@@ -15,7 +15,7 @@ rules:
       rotate the exposed credential.
     pattern-regex: (?i)(password|pwd)\s*=\s*[^;"']{6,}
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [798]
       owasp: "A07:2021"

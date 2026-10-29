@@ -34,7 +34,7 @@ rules:
           patterns:
             - pattern-not: '"..."'
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [20]
       framework: fastify
@@ -75,7 +75,7 @@ rules:
           patterns:
             - pattern-not: '{ ..., schema: $S, ... }'
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [20]
       framework: fastify

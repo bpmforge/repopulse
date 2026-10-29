@@ -37,7 +37,7 @@ rules:
           if $REQ.GET.get("is_admin"):
               ...
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [602]
       owasp: "A01:2021"

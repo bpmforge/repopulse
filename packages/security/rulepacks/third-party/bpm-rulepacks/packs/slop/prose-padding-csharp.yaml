@@ -10,7 +10,7 @@ rules:
       Document a non-obvious constraint, or delete the tag.
     pattern-regex: (?i)<param\s+name="(\w+)">\s*the\s+\1\s*</param>
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-24/R-29"
       cwe: [1078]
       confidence: medium

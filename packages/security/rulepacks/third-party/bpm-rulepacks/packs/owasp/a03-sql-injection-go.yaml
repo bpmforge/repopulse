@@ -27,7 +27,7 @@ rules:
       (`?`/`$1` placeholders passed as separate Query/Exec arguments) instead
       of building the SQL string from request data.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [89]
       owasp: "A03:2021"

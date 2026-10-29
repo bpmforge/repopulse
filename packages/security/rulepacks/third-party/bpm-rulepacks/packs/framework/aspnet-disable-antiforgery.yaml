@@ -28,7 +28,7 @@ rules:
     # opt-out from [AutoValidateAntiforgeryToken]) + OWASP CSRF
     # Prevention Cheat Sheet + CWE-352.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [352]
       owasp: "A01:2021"

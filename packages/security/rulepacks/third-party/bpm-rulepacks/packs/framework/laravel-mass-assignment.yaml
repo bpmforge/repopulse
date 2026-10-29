@@ -35,7 +35,7 @@ rules:
     # Primary source: Laravel docs (Eloquent "Mass Assignment" §) + CWE-915 +
     # OWASP A04:2021 Insecure Design.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [915]
       owasp: "A04:2021"

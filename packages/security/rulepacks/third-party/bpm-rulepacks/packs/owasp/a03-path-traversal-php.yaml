@@ -22,7 +22,7 @@ rules:
       to a fixed base directory, or verify the resolved realpath() still
       starts with that base directory before reading.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [22]
       owasp: "A03:2021"

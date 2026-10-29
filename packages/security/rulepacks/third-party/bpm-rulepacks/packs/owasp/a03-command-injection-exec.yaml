@@ -26,7 +26,7 @@ rules:
       - pattern-not: child_process.exec("...", $OPTS, $CB)
       - pattern-not: exec("...", $OPTS, $CB)
     metadata:
-      license: proprietary
+      license: MIT
       provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A03"
       cwe: [78]
       owasp: "A03:2021"

@@ -21,7 +21,7 @@ rules:
       explicit allowlist resolved *after* DNS lookup, and reject
       private/link-local IP ranges.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A10"
       cwe: [918]
       owasp: "A10:2021"

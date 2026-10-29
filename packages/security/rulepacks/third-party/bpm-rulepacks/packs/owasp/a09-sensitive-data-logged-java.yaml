@@ -29,7 +29,7 @@ rules:
       identifier (user id, a masked/last-4 form, or omit the value
       entirely) instead of the raw sensitive field.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [532]
       owasp: "A09:2021"

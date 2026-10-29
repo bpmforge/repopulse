@@ -12,7 +12,7 @@ rules:
       - pattern: 'stripe.charges.create({ amount: $REQ.body.$FIELD, ... })'
       - pattern: 'stripe.paymentIntents.create({ amount: $REQ.body.$FIELD, ... })'
     metadata:
-      license: proprietary
+      license: MIT
       provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A04"
       cwe: [807]
       owasp: "A04:2021"

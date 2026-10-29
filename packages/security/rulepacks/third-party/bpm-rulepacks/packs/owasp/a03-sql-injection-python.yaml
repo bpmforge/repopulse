@@ -35,7 +35,7 @@ rules:
       (value,)) or text(sql).bindparams(value=value) — never interpolate it
       into the SQL string.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [89]
       owasp: "A03:2021"

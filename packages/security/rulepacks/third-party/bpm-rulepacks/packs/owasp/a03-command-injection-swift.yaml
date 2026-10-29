@@ -20,7 +20,7 @@ rules:
       switch/dictionary mapping the input to a known-safe literal) before
       it reaches Process.arguments, and avoid invoking a shell at all.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [78]
       owasp: "A03:2021"

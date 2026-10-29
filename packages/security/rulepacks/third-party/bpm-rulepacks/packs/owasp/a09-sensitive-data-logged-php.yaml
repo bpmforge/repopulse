@@ -30,7 +30,7 @@ rules:
                 - pattern: '[..., "secret" => $P, ...]'
                 - pattern: "[..., 'secret' => $P, ...]"
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [532]
       owasp: "A09:2021"

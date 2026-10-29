@@ -23,7 +23,7 @@ rules:
       raw SQLite, or FMDB's `?` placeholders with `withArgumentsIn:` — and
       never build the SQL string itself from tainted input.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [89]
       owasp: "A03:2021"

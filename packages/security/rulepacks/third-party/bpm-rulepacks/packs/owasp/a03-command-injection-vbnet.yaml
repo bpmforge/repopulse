@@ -22,7 +22,7 @@ rules:
       ProcessStartInfo with a fixed executable path and pass each argument
       via the ArgumentList collection against a strict allowlist.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [78]
       owasp: "A03:2021"

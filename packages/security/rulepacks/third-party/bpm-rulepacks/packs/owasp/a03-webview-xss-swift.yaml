@@ -23,7 +23,7 @@ rules:
       bundled HTML template and inject the value only via a
       properly-escaped JS call / WKUserScript, not string concatenation).
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [79]
       owasp: "A03:2021"

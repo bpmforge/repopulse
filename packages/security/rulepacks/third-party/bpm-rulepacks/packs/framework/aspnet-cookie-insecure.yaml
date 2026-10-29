@@ -23,7 +23,7 @@ rules:
     # Secure/HttpOnly properties) + OWASP Session Management Cheat
     # Sheet + CWE-614/CWE-1004.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [614, 1004]
       owasp: "A05:2021"

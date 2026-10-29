@@ -19,7 +19,7 @@ rules:
       resolved path still starts with that base before opening it, or
       validate the input against a strict allowlist of expected filenames.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [22]
       owasp: "A03:2021"

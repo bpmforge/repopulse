@@ -31,7 +31,7 @@ rules:
       # sprintf with a format string and no arguments writes a constant.
       - pattern-not: sprintf($DST, $FMT)
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [120, 787]
       confidence: low

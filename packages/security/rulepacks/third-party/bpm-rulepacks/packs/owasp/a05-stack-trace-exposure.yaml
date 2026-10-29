@@ -12,7 +12,7 @@ rules:
       - pattern: $RES.send($ERR.stack)
       - pattern: 'res.json({ error: $ERR.stack, ... })'
     metadata:
-      license: proprietary
+      license: MIT
       provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A05"
       cwe: [209]
       owasp: "A05:2021"

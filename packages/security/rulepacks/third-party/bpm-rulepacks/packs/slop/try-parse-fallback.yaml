@@ -25,7 +25,7 @@ rules:
             return $VAL;
           }
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-03"
       cwe: [390]
       confidence: medium

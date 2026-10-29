@@ -11,7 +11,7 @@ rules:
       - pattern: $X === null || $X === undefined
       - pattern: $X === undefined || $X === null
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-09"
       cwe: [1164]
       confidence: medium

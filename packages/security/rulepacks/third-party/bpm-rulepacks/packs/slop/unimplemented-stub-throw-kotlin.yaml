@@ -14,7 +14,7 @@ rules:
       - pattern: TODO()
       - pattern: TODO($MSG)
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-27"
       cwe: [1078]
       confidence: high
@@ -32,7 +32,7 @@ rules:
       it as done.
     pattern: throw NotImplementedError(...)
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-27"
       cwe: [1078]
       confidence: high

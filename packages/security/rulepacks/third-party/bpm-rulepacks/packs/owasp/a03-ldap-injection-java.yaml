@@ -28,7 +28,7 @@ rules:
       (javax.naming.directory's `filterExpr`/`filterArgs` form) instead of
       string concatenation.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [90]
       owasp: "A03:2021"

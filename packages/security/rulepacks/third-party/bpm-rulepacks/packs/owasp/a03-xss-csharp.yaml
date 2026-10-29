@@ -21,7 +21,7 @@ rules:
       output (`@value`, which auto-encodes) instead of `@Html.Raw(value)`
       for anything that isn't a fixed, trusted string.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [79]
       owasp: "A03:2021"

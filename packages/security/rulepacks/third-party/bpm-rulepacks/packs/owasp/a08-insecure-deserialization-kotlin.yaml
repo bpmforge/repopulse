@@ -20,7 +20,7 @@ rules:
       entirely with kotlinx.serialization / Jackson binding to a fixed,
       known target type.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [502]
       owasp: "A08:2021"

@@ -23,7 +23,7 @@ rules:
       on the factory (and, for defense in depth, disable
       external-general-entities/external-parameter-entities too).
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [611]
       owasp: "A05:2021"

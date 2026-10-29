@@ -46,7 +46,7 @@ rules:
                 ...
               end
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-02"
       cwe: [1050]
       confidence: medium

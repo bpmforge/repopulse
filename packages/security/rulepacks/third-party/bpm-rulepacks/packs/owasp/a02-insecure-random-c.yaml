@@ -18,7 +18,7 @@ rules:
       any other security-sensitive value. Use a CSPRNG instead: getrandom()
       (Linux), arc4random_buf() (BSD/macOS), or OpenSSL's RAND_bytes().
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [330]
       owasp: "A02:2021"

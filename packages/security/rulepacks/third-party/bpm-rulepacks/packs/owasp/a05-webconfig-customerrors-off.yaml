@@ -14,7 +14,7 @@ rules:
       - pattern: <customErrors mode="Off" ... />
       - pattern: <customErrors mode="Off" ...></customErrors>
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [209]
       owasp: "A05:2021"

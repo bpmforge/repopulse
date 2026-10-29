@@ -11,7 +11,7 @@ rules:
       - pattern: '{ __html: $VAR }'
       - pattern-not: '{ __html: $SANITIZE.sanitize(...) }'
     metadata:
-      license: proprietary
+      license: MIT
       provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A03"
       cwe: [79]
       owasp: "A03:2021"

@@ -15,7 +15,7 @@ rules:
       - pattern: <compilation debug="true" ... />
       - pattern: <compilation debug="true" ...></compilation>
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [489]
       owasp: "A05:2021"

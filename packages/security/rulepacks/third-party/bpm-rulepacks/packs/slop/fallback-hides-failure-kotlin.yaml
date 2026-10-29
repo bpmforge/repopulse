@@ -22,7 +22,7 @@ rules:
       - pattern: |
           try { ... } catch ($ERR: $EXC) { return emptyList() }
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-10"
       cwe: [390]
       confidence: high

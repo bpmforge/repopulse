@@ -20,7 +20,7 @@ rules:
     # Primary source: Spring Security Reference (CSRF §) + OWASP CSRF
     # Prevention Cheat Sheet.
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [352]
       owasp: "A01:2021"

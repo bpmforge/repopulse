@@ -30,7 +30,16 @@ rules:
       # work in that position; pattern-regex does not. Verified by direct
       # experiment, not assumed. The specificity that keyword matching would
       # have provided is carried by the sink list below instead.
-      - pattern: '`...${$VAR}...`'
+      # A template whose interpolations are the object's own fields
+      # (`${this.workingTable}`) is not input (2026-10-28, RepoPulse
+      # docs/benchmarks/rule-grade-w22-07: 7 outline hits, all internal
+      # table names). A template that also interpolates a parameter still taints.
+      - patterns:
+          - pattern: '`...${$VAR}...`'
+          # pattern-not-regex, because it works in a taint source here (see
+          # above). A template that also interpolates a this-field is dropped
+          # with it; none of the corpus defects is that shape.
+          - pattern-not-regex: '\$\{\s*this\.'
     pattern-sinks:
       # focus-metavariable pins taint to the QUERY-TEXT argument. Without it,
       # opengrep flags a multi-argument sink when ANY captured metavariable is
@@ -52,6 +61,11 @@ rules:
               # invisible to it — the gap that let SampleCo's D2 through.
               - pattern: $DB.exec($SINK)
               - pattern: $DB.prepare($SINK)
+          # RegExp.prototype.exec is not a driver call: a regex literal, or a
+          # receiver named like one (SLUG_URL_REGEX, re, pattern), is excluded.
+          - metavariable-regex:
+              metavariable: $DB
+              regex: '^(?!/)(?![\s\S]*(?i:regex|regexp|pattern)$)(?![\s\S]*(^|\.)re$)'
           - focus-metavariable: $SINK
       # Group 2 — `get` and `run` are far too common to accept on any receiver
       # (cache.get(`user:${id}`), router.run(...), map.get(...)). Gated on a
@@ -99,7 +113,7 @@ rules:
               regex: '^(?![\s\S]*\.prepare)(?:[\s\S]*(?:(^|[^a-zA-Z])(db|conn|tx|pool|client|knex|database|sqlite|sequelize)|[a-z0-9](Db|DB|Conn|Tx|Pool|Client|Knex|Database|Sqlite|Sequelize)))'
           - focus-metavariable: $SINK
     metadata:
-      license: proprietary
+      license: MIT
       provenance: "ported:bpm-opencode-experts/OWASP_METHODOLOGY A03"
       cwe: [89]
       owasp: "A03:2021"

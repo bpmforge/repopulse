@@ -7,6 +7,12 @@ rules:
       cannot distinguish "no data" from "the call failed." Monitoring misses
       the failure. Return a typed error result or re-raise; never return a
       value that looks like success.
+    # Only a catch-all is a hidden failure (narrowed 2026-10-28, RepoPulse
+    # docs/benchmarks/rule-grade-w22-07): 20 of 23 saleor hits caught ONE
+    # expected exception (Model.DoesNotExist, ValueError, IndexError) and
+    # returned None by contract, the find-or-None idiom. A bare except, or
+    # Exception / BaseException, also swallows bugs and outages, which is
+    # what makes "no data" indistinguishable from "the call failed".
     pattern-either:
       - pattern: |
           try:
@@ -16,45 +22,50 @@ rules:
       - pattern: |
           try:
               ...
-          except $ERR:
-              return None
-      - pattern: |
-          try:
-              ...
-          except $ERR as $NAME:
-              return None
-      - pattern: |
-          try:
-              ...
           except:
-              return []
-      - pattern: |
-          try:
-              ...
-          except $ERR:
-              return []
-      - pattern: |
-          try:
-              ...
-          except $ERR as $NAME:
               return []
       - pattern: |
           try:
               ...
           except:
               return ""
-      - pattern: |
-          try:
-              ...
-          except $ERR:
-              return ""
-      - pattern: |
-          try:
-              ...
-          except $ERR as $NAME:
-              return ""
+      - patterns:
+          - pattern-either:
+              - pattern: |
+                  try:
+                      ...
+                  except $ERR:
+                      return None
+              - pattern: |
+                  try:
+                      ...
+                  except $ERR as $NAME:
+                      return None
+              - pattern: |
+                  try:
+                      ...
+                  except $ERR:
+                      return []
+              - pattern: |
+                  try:
+                      ...
+                  except $ERR as $NAME:
+                      return []
+              - pattern: |
+                  try:
+                      ...
+                  except $ERR:
+                      return ""
+              - pattern: |
+                  try:
+                      ...
+                  except $ERR as $NAME:
+                      return ""
+          - metavariable-regex:
+              metavariable: $ERR
+              regex: ^(Exception|BaseException)$
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-10"
       cwe: [390]
       confidence: high

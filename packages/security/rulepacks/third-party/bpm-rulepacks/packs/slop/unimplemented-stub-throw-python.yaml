@@ -28,8 +28,20 @@ rules:
           @abc.abstractmethod
           def $FUNC(...):
               ...
+      # A method on a class is the base-class contract (2026-10-28, RepoPulse
+      # docs/benchmarks/rule-grade-w22-07): 15 of 16 saleor hits were methods
+      # of a base class whose subclasses implement them, often a Django model
+      # or queryset where ABCMeta is not an option. A module-level function
+      # that only raises is still a stub shipped as a feature (saleor's
+      # email_resent_event, the one true hit, still fires).
+      - pattern-not-inside: |
+          class $CLASS:
+              ...
+      - pattern-not-inside: |
+          class $CLASS(...):
+              ...
     metadata:
-      license: public-teaser
+      license: MIT
       provenance: "ported:bpm-opencode-experts/ANTI_SLOP_RULES R-27"
       cwe: [1078]
       confidence: medium

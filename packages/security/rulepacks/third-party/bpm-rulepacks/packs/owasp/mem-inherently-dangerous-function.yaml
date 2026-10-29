@@ -20,7 +20,7 @@ rules:
               metavariable: $FMT
               regex: '^"%s"$'
     metadata:
-      license: proprietary
+      license: MIT
       provenance: authored
       cwe: [242]
       confidence: high
