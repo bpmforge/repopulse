@@ -139,6 +139,26 @@ bar for rules with no public benchmark); every model call goes through the gatew
   it over (`negligible_impact`), and the finding reads "judged real, but small input" — the
   hand-check sheets' `small` mark.
 
+- **Quick first look (2026-10-29).** Measured on outline: about 7 minutes per verdict on a
+  local 27B model, so a 30-minute run judged 3 hits while 162 waited, and the W22-07 grading
+  sheet put proposed precision near 4% (most rule hits are false positives). A workspace may
+  now route the optional role `triage_fast` (Settings → Models → Routing, "Quick first look at
+  rule hits (optional, a smaller faster model)"; migration 0063 widens the role check). Not
+  routed by default and no env fallback: with no chain the judge is unchanged (same calls,
+  same verdicts). With one, each hit goes first to that route through the same `runTriage`
+  (same packet and prompt, `role: 'triage_fast'`); a `likely_false_positive` at confidence
+  ≥ `AI_JUDGE_FAST_MIN_CONFIDENCE` (default 0.8 of the 1-5 scale, i.e. 4 of 5) is stored and
+  the judge moves on. Anything else — real, needs a human, a less confident false positive, an
+  answer the checklist rejects, a provider error — goes on to the `triage` route, whose answer
+  is the stored verdict. Both passes spend the same run minutes and call cap (the triage call
+  is skipped when the fast pass used them up), through the same background gateway. The verdict
+  row records `pass` (`fast` / `full`; null on AI-pass rows), the finding's AI review line and
+  "verified by" say "on a quick first look" for a fast one, and `plan.judge` counts
+  `fast_cleared`, `escalated`, `fast_errors` and the wall clock of each pass (`fast_ms`,
+  `full_ms`). The verify mapping is unchanged (contradicted, ×0.15) and no status moves.
+  The fast route counts in the judge's egress check and in the pass egress digest only when
+  routed, so existing acknowledgements stay valid.
+
 ### W22-02 slice 1 (2026-10-29): evidence packets captured at scan time
 
 - **Why.** Live judge run on outline with a local 27B model: 6 verdicts in 31 minutes, all

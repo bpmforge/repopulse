@@ -72,6 +72,7 @@ export default async function scheduleRoutes(
     AI_JUDGE: process.env.AI_JUDGE,
     AI_JUDGE_MINUTES_PER_DAY: process.env.AI_JUDGE_MINUTES_PER_DAY,
     AI_JUDGE_SCAN_MINUTES: process.env.AI_JUDGE_SCAN_MINUTES,
+    AI_JUDGE_FAST_MIN_CONFIDENCE: process.env.AI_JUDGE_FAST_MIN_CONFIDENCE,
   });
 
   async function ownRepo(workspaceId: number, repoId: number): Promise<boolean> {

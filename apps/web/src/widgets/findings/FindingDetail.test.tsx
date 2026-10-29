@@ -181,4 +181,36 @@ describe('the verify pass outcome is in the panel (W21-01)', () => {
       /judged real, but small input/,
     );
   });
+
+  // W22-03 (2026-10-29): a verdict from the judge's quick first look says so,
+  // beside the model and on the AI review line (the server's reason).
+  it('says when the verdict came from the quick first look', () => {
+    render(
+      <FindingDetail
+        finding={
+          {
+            ...hostile(),
+            verify_status: 'contradicted',
+            verify_reason:
+              'On a quick first look (a smaller, faster model), the AI judged this rule hit a likely false positive: constant input',
+            verified_by: {
+              model: 'small',
+              connection: 'LM Studio',
+              verdict: 'likely_false_positive',
+              at: null,
+              pass: 'fast',
+            },
+          } as Finding
+        }
+        onClose={vi.fn()}
+        invalidate={[]}
+      />,
+    );
+    expect(screen.getByTestId('finding-verified-by')).toHaveTextContent(
+      /likely false positive on a quick first look/,
+    );
+    expect(screen.getByTestId('finding-verify-reason')).toHaveTextContent(
+      /^AI review: On a quick first look/,
+    );
+  });
 });

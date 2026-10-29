@@ -282,6 +282,24 @@ describeIfLiveInfra('scheduled AI pass routes (W19-12)', () => {
     expect((await get()).json().acknowledgement_stale).toBe(false);
   });
 
+  it('W22-03: the optional triage_fast role is not sent anywhere until routed, so the digest stays', async () => {
+    await provider('LM Studio', 'http://10.0.0.5:1234/v1');
+    const fast = await provider('LM Studio small', 'http://10.0.0.6:1234/v1');
+    const before = (await get()).json().egress;
+    const roles = (e: { destinations: { roles: string[] }[] }) =>
+      e.destinations.flatMap((d) => d.roles);
+    // Unrouted: the shared pool serves every pass role, never triage_fast.
+    expect(roles(before)).not.toContain('triage_fast');
+    await db
+      .insert(core.llmRoleRoutes)
+      .values({ workspaceId: WS, role: 'triage_fast', position: 0, providerId: fast });
+    const after = (await get()).json().egress;
+    expect(
+      after.destinations.find((d: { provider_id: number }) => d.provider_id === fast).roles,
+    ).toContain('triage_fast');
+    expect(after.digest).not.toBe(before.digest);
+  });
+
   it('validates frequency and scope, and bounds the paths like a manual pass', async () => {
     await provider('LM Studio', 'http://10.0.0.5:1234/v1');
     for (const over of [

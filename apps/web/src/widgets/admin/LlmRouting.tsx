@@ -57,7 +57,16 @@ const ROLE_LABEL: Record<string, string> = {
   test_coverage: 'Test coverage',
   triage: 'Triage',
   patch: 'Patch',
+  triage_fast: 'Quick first look at rule hits (optional, a smaller faster model)',
 };
+
+/**
+ * W22-03: roles used only when routed. With no chain nothing is sent for them
+ * (never the shared pool), and "one connection for every role" leaves them be.
+ */
+const OPTIONAL_ROLES = new Set(['triage_fast']);
+const OPTIONAL_UNROUTED_TEXT =
+  'Not used: with no chain, rule hits go straight to Triage. Add a smaller, faster model here and it looks at each rule hit first; only its confident "likely false positive" answers are kept, everything else goes on to Triage.';
 
 /**
  * What will actually happen for a role, in one sentence (from what is on screen, not
@@ -333,11 +342,15 @@ export function LlmRouting() {
               onChange={(e) => {
                 const p = providers.find((x) => x.id === Number(e.target.value));
                 if (!p) return;
-                setChains(
+                // An optional role keeps its own chain (W22-03): routing it to
+                // the same model as Triage would only ask that model twice.
+                setChains((c) =>
                   Object.fromEntries(
                     roles.map(({ role }) => [
                       role,
-                      [{ provider_id: p.id, provider_name: p.name, model: null }],
+                      OPTIONAL_ROLES.has(role)
+                        ? (c[role] ?? [])
+                        : [{ provider_id: p.id, provider_name: p.name, model: null }],
                     ]),
                   ),
                 );
@@ -352,7 +365,8 @@ export function LlmRouting() {
               ))}
             </select>
             <span className="text-fg-faint">
-              Replaces every chain with that one connection; nothing is saved until Save routing.
+              Replaces every chain with that one connection (the optional quick first look is left
+              as it is); nothing is saved until Save routing.
             </span>
           </label>
         ) : null}
@@ -467,11 +481,25 @@ export function LlmRouting() {
                       className="mt-1 text-xs text-fg-muted"
                       data-testid={`routing-effective-${role}`}
                     >
-                      {effectiveChainText(chain, providers, localOnly)}
+                      {chain.length === 0 && OPTIONAL_ROLES.has(role)
+                        ? OPTIONAL_UNROUTED_TEXT
+                        : effectiveChainText(chain, providers, localOnly)}
                     </p>
                     {/* W20-06 (UX_TODO AI-05): whether code leaves the network,
                         from the same summary the wizard's review uses. */}
                     {(() => {
+                      if (chain.length === 0 && OPTIONAL_ROLES.has(role)) {
+                        return (
+                          <p
+                            className="mt-0.5 text-xs text-fg"
+                            data-testid={`routing-egress-${role}`}
+                            data-tone="unavailable"
+                          >
+                            <span className="font-semibold">{EGRESS_MARK.unavailable}</span> Nothing
+                            is sent for this role.
+                          </p>
+                        );
+                      }
                       const e = summarizeRole({
                         chain: egressLinks(chain, providers),
                         providers: egressProviders,

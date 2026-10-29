@@ -181,6 +181,8 @@ export const AI_VERDICTS = ['real', 'likely_false_positive', 'needs_human'] as c
 export const AI_DECISIONS = ['accepted', 'dismissed', 'superseded'] as const;
 /** W22-03 (2026-10-29): how much a real performance hit matters (triage TRIAGE_IMPACTS). */
 export const AI_IMPACTS = ['material', 'negligible', 'unknown'] as const;
+/** W22-03 (2026-10-29): which judge pass produced a verdict (the quick first look, or the main route). */
+export const AI_JUDGE_PASSES = ['fast', 'full'] as const;
 const VEX = [
   'component_not_present',
   'vulnerable_code_not_present',
@@ -262,6 +264,12 @@ export const aiTriageVerdicts = pgTable(
      */
     impact: text('impact'),
     impactReason: text('impact_reason'),
+    /**
+     * W22-03 (2026-10-29): which AI judge pass produced this verdict: 'fast'
+     * (the optional triage_fast route cleared it as a likely false positive)
+     * or 'full' (the triage route). NULL on AI-pass rows and older rows.
+     */
+    pass: text('pass'),
   },
   (t) => [
     index('ai_triage_verdicts_workspace_finding_idx').on(
@@ -294,6 +302,10 @@ export const aiTriageVerdicts = pgTable(
     check(
       'ai_triage_verdicts_impact_check',
       sql`${t.impact} is null or ${t.impact} in (${sql.raw(AI_IMPACTS.map((v) => `'${v}'`).join(', '))})`,
+    ),
+    check(
+      'ai_triage_verdicts_pass_check',
+      sql`${t.pass} is null or ${t.pass} in (${sql.raw(AI_JUDGE_PASSES.map((v) => `'${v}'`).join(', '))})`,
     ),
     check(
       'ai_triage_verdicts_patch_check',

@@ -25,6 +25,7 @@ const ROLES = [
   'test_coverage',
   'triage',
   'patch',
+  'triage_fast',
 ];
 const STATE = {
   local_only: false,
@@ -260,8 +261,36 @@ describe('Routing friction (W20-11)', () => {
     await userEvent.click(screen.getByTestId('routing-save'));
     await waitFor(() => expect(requests.some((r) => r.init?.method === 'PUT')).toBe(true));
     const roles = putBody().roles;
-    expect(Object.keys(roles).sort()).toEqual([...ROLES].sort());
-    for (const r of ROLES) expect(roles[r]).toEqual([{ provider_id: 1, model: null }]);
+    // W22-03: the optional quick first look is left unrouted.
+    const main = ROLES.filter((r) => r !== 'triage_fast');
+    expect(Object.keys(roles).sort()).toEqual([...main].sort());
+    for (const r of main) expect(roles[r]).toEqual([{ provider_id: 1, model: null }]);
+  });
+
+  // W22-03 (2026-10-29): the judge's optional quick first look.
+  it('lists the quick first look in plain words, not used until routed, and routes it on its own', async () => {
+    renderScreen();
+    const row = await screen.findByTestId('routing-row-triage_fast');
+    expect(row).toHaveTextContent(
+      'Quick first look at rule hits (optional, a smaller faster model)',
+    );
+    expect(screen.getByTestId('routing-effective-triage_fast')).toHaveTextContent(
+      /Not used: with no chain, rule hits go straight to Triage/,
+    );
+    expect(screen.getByTestId('routing-effective-triage_fast')).not.toHaveTextContent(
+      /shared pool/,
+    );
+    expect(screen.getByTestId('routing-egress-triage_fast')).toHaveTextContent(
+      /Nothing is sent for this role/,
+    );
+    await userEvent.selectOptions(screen.getByTestId('routing-add-triage_fast'), '1');
+    expect(screen.getByTestId('routing-effective-triage_fast')).toHaveTextContent(/Uses LAN/);
+    await userEvent.click(screen.getByTestId('routing-save'));
+    await waitFor(() => expect(requests.some((r) => r.init?.method === 'PUT')).toBe(true));
+    expect(putBody().roles).toEqual({
+      security: [{ provider_id: 1, model: null }],
+      triage_fast: [{ provider_id: 1, model: null }],
+    });
   });
 
   // UX_TODO AI-76: ticking Local only with an off-network link says which, and
