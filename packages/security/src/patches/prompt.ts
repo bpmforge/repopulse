@@ -103,6 +103,10 @@ export const FALLBACK_FIX_RULE = [
   'value it returns on failure, and make the failure visible inside it — log the error with the',
   "file's existing logger, rethrow it, or return/raise a typed error the callers already handle.",
   'Removing the handler so the error propagates is NOT a fix.',
+  'Log through the logger the file or repository already uses (import it if needed); never add',
+  'console.* — a patch that does is rejected. When the empty value is the expected, documented',
+  'answer (a permission check returning false, a parser returning null for invalid input), the',
+  `code is already right: answer {"no_safe_fix": "<why>"} instead of a diff.`,
 ];
 
 /** What the model answers when the only way to clear the rule would remove handling. */

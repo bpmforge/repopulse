@@ -39,4 +39,18 @@ async function follow(api, account) {
   }
 }
 
-module.exports = { loadRows, findUser, exportReport, start, follow };
+// A long computation whose every failure, including a bug, becomes "no diff"
+// (outline's ChangesetHelper.ts:298 shape). No I/O, but too much work to hide.
+function diffDocuments(before, after) {
+  try {
+    const schema = buildSchema(before.extensions);
+    const oldDoc = schema.nodeFromJSON(before.content);
+    const newDoc = schema.nodeFromJSON(after.content);
+    const steps = recreateTransform(oldDoc, newDoc, { wordDiffs: true });
+    return simplifyChanges(steps, { maxComplexity: 5000 });
+  } catch (err) {
+    return null;
+  }
+}
+
+module.exports = { loadRows, findUser, exportReport, start, follow, diffDocuments };

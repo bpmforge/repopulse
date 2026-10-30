@@ -55,6 +55,51 @@ describe('checkErrorHandling — the outline shape', () => {
   });
 });
 
+describe('checkErrorHandling — console logging (2026-10-30)', () => {
+  const PERMS_BEFORE = [
+    'export const canRead = async (user, id) => {',
+    '  try {',
+    '    authorize(user, "read", await Document.findByPk(id));',
+    '    return true;',
+    '  } catch (_err) {',
+    '    return false;',
+    '  }',
+    '};',
+    '',
+  ].join('\n');
+
+  it('rejects the outline draft that added console.error(_err) to a permission check', () => {
+    const after = PERMS_BEFORE.replace(
+      '  } catch (_err) {\n',
+      '  } catch (_err) {\n    console.error(_err);\n',
+    );
+    expect(check('server/utils/permissions.ts', PERMS_BEFORE, after)).toMatchObject({
+      ok: false,
+      code: 'adds_console_logging',
+    });
+  });
+
+  it("allows the repository's logger, and a console call already in the file", () => {
+    const logged = PERMS_BEFORE.replace(
+      '  } catch (_err) {\n',
+      '  } catch (_err) {\n    Logger.warn("permissions", _err);\n',
+    );
+    expect(check('permissions.ts', PERMS_BEFORE, logged)).toEqual({ ok: true });
+    const withConsole = `console.log("boot");\n${PERMS_BEFORE}`;
+    expect(
+      check('permissions.js', withConsole, withConsole.replace('return true;', 'return !!user;')),
+    ).toEqual({ ok: true });
+  });
+
+  it('does not count console in a string or a comment', () => {
+    const after = PERMS_BEFORE.replace(
+      'return false;',
+      'return false; // console.error(x) would spam',
+    );
+    expect(check('permissions.ts', PERMS_BEFORE, after)).toEqual({ ok: true });
+  });
+});
+
 describe('checkErrorHandling — TypeScript / JavaScript', () => {
   const before = lines(
     'async function load(id) {',
