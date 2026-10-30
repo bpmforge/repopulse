@@ -18,6 +18,13 @@ export const TRIAGE_VERDICTS = ['real', 'likely_false_positive', 'needs_human'] 
 export type TriageVerdict = (typeof TRIAGE_VERDICTS)[number];
 
 export const TRIAGE_CHECKLIST_VERSION = 'triage.v1';
+/**
+ * W22-14 (2026-10-30): the same checklist asked of several hits of one rule in
+ * one call (prompt.ts buildTriageBatchPrompt). Recorded on a verdict a batched
+ * call produced, so a stored verdict says which prompt asked; a hit asked on
+ * its own keeps TRIAGE_CHECKLIST_VERSION.
+ */
+export const TRIAGE_BATCH_PROMPT_VERSION = `${TRIAGE_CHECKLIST_VERSION}+batch`;
 
 /**
  * How much a REAL performance hit matters (W22-03, 2026-10-29). A copy in a

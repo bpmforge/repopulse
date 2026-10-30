@@ -176,6 +176,33 @@ bar for rules with no public benchmark); every model call goes through the gatew
   `AI_JUDGE_FAST_MIN_CONFIDENCE`, how often the main model agreed. That is the evidence for
   lowering the threshold; hits cleared at or above it are never checked by the main model, so
   their precision is not measured (sample them by hand, or route a run with the threshold at 1).
+- **Several hits of one rule per call (W22-14, 2026-10-30).** Live on outline each call was
+  about 5 minutes on a local 27B model, much of it reading the same checklist, rule and answer
+  shape, so a 30-minute run judged 3–4 hits with 160+ waiting. The judge now puts up to
+  `AI_JUDGE_BATCH_SIZE` (default 4, 1–8; 1 = one hit per call, the same calls as before)
+  consecutive queue entries of one rule (same scanner, rule and dimension) into one prompt
+  (`buildTriageBatchPrompt`, recorded as `checklist_version` `triage.v1+batch`; a hit asked
+  alone keeps `triage.v1`). The checklist, the rule and the answer shape are written once;
+  each hit keeps its id (`H1`…), flagged lines, numbered file lines and evidence packet,
+  prepared exactly as its single-hit call would be (`prepareTriageHit`). `packTriageBatch`
+  adds whole hits while the prompt fits the probed window (`contextWindowForRole`); a hit
+  that does not fit waits for the next call, and no hit's evidence is cut to make room for
+  another. The model answers a JSON array, one object per hit id with the same fields as
+  before; each item is checked on its own (`validateTriageAnswer` against that hit's own
+  slice and packet lines, so a citation of another hit's lines is `citation_not_found`).
+  A missing, doubled or failing item rejects that hit only: there is no batch-level retry,
+  and the hit is asked again **alone** (today's single-hit call, with its corrective retry)
+  in the same run, next in line, when the run's minutes and calls allow; only that answer
+  is final (a rejection then is counted and the hit waits a day, as before). A batched call
+  that throws re-asks its hits alone the same way; local-only refusing it stops the run.
+  The quick first look batches the same way: per hit a confident false positive stands
+  (`pass` `fast`) and the others escalate together to one main-model batch; a hit missing
+  from the fast answer escalates with `fast_pass.reason` `rejected`, and `fast_pass.ms` is
+  the batch's time divided by its hits. Time and calls are checked between calls: a call
+  that would start after the deadline does not start. `plan.judge` adds `batch_size`,
+  `batches` (`{pass, hits, rejected, ms}` per call, at most 200) and `batch_retried`. The
+  stored verdict, verify_status mapping and finding status are unchanged. Still to measure
+  on outline and saleor: verdicts per run at batch size 4, and agreement with one hit per call.
 
 ### W22-02 slice 1 (2026-10-29): evidence packets captured at scan time
 

@@ -187,6 +187,7 @@ async function main(): Promise<void> {
     AI_JUDGE_MINUTES_PER_DAY: process.env.AI_JUDGE_MINUTES_PER_DAY,
     AI_JUDGE_SCAN_MINUTES: process.env.AI_JUDGE_SCAN_MINUTES,
     AI_JUDGE_FAST_MIN_CONFIDENCE: process.env.AI_JUDGE_FAST_MIN_CONFIDENCE,
+    AI_JUDGE_BATCH_SIZE: process.env.AI_JUDGE_BATCH_SIZE,
   });
   // W22-09: verified fixes for the top confirmed findings, drafted in the
   // judge run after judging and within its budget.

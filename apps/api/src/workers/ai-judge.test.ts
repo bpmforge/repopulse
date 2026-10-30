@@ -75,6 +75,7 @@ describe('judgeConfigFromEnv', () => {
       minutesPerDay: 240,
       scanMinutes: 30,
       fastMinConfidence: 0.8,
+      batchSize: 4,
     });
   });
   it("reads 'off' and whole minutes, and ignores nonsense", () => {
@@ -84,11 +85,23 @@ describe('judgeConfigFromEnv', () => {
         AI_JUDGE_MINUTES_PER_DAY: '60',
         AI_JUDGE_SCAN_MINUTES: 'lots',
         AI_JUDGE_FAST_MIN_CONFIDENCE: '0.6',
+        AI_JUDGE_BATCH_SIZE: '1',
       }),
-    ).toEqual({ enabled: false, minutesPerDay: 60, scanMinutes: 30, fastMinConfidence: 0.6 });
+    ).toEqual({
+      enabled: false,
+      minutesPerDay: 60,
+      scanMinutes: 30,
+      fastMinConfidence: 0.6,
+      batchSize: 1,
+    });
     expect(judgeConfigFromEnv({ AI_JUDGE_MINUTES_PER_DAY: '5000' }).minutesPerDay).toBe(240);
     for (const bad of ['0', '1.5', 'high', '-1']) {
       expect(judgeConfigFromEnv({ AI_JUDGE_FAST_MIN_CONFIDENCE: bad }).fastMinConfidence).toBe(0.8);
+    }
+    // W22-14: 1-8 hits a call; anything else is the default.
+    expect(judgeConfigFromEnv({ AI_JUDGE_BATCH_SIZE: '8' }).batchSize).toBe(8);
+    for (const bad of ['0', '9', '2.5', 'many', '-1']) {
+      expect(judgeConfigFromEnv({ AI_JUDGE_BATCH_SIZE: bad }).batchSize).toBe(4);
     }
   });
 });
@@ -139,20 +152,67 @@ function scripted(
     confidenceFor?: (prompt: string, role: string) => number;
     /** W22-03: an answer that fails the checklist (not JSON) for a role. */
     garbleFor?: (prompt: string, role: string) => boolean;
+    /** W22-14: in a batched answer, leave out the item for a hit (by its section). */
+    omitFor?: (section: string, role: string) => boolean;
   } = {},
 ) {
   const prompts: string[] = [];
   /** The role of every call, in order. */
   const roles: string[] = [];
+  /** W22-14: hits asked by each call (1 = a single-hit call) and the prompt version. */
+  const hits: number[] = [];
+  const versions: string[] = [];
+  const answerFor = (text: string, role: string) => {
+    const flagged = /Flagged lines: (\d+)-/.exec(text)?.[1] ?? '1';
+    const line = new RegExp(`^\\s*${flagged}\\| (.*)$`, 'm').exec(text)?.[1] ?? '';
+    const verdict = opts.verdictFor?.(text, role) ?? 'real';
+    return {
+      verdict,
+      confidence: opts.confidenceFor?.(text, role) ?? 4,
+      citations: [{ line: Number(flagged), quote: line.trim().slice(0, 30) }],
+      rationale: `judged ${verdict} from the cited line`,
+      vex_justification:
+        verdict === 'likely_false_positive' ? 'inline_mitigations_already_exist' : null,
+      vex_statement: verdict === 'likely_false_positive' ? 'validated upstream' : null,
+      patch: null,
+      ...(opts.extraFor?.(text) ?? {}),
+    };
+  };
   const gateway: AnalysisGateway = {
     async complete(prompt: string, o: CompleteOpts): Promise<CompleteResult> {
       const role = String(o.meta.role);
       prompts.push(prompt);
       roles.push(role);
+      versions.push(o.meta.checklistVersion);
       opts.onCall?.(role);
       expect(['triage', 'triage_fast']).toContain(role);
       expect(o.meta.initiator).toBe('ai-judge');
+      // W22-14: a batched prompt is answered with one item per hit section.
+      const sections = prompt.split(/^## Hit (?=H\d+$)/m).slice(1);
+      hits.push(Math.max(1, sections.length));
       if (opts.throwFor?.(prompt, role)) throw new Error('The model did not answer within 300 s');
+      if (sections.length > 0) {
+        const model = role === 'triage_fast' ? 'scripted-small' : 'scripted-model';
+        const items = sections
+          .filter((s) => !opts.omitFor?.(s, role))
+          .map((s) => ({ hit: /^(H\d+)/.exec(s)![1], ...answerFor(s, role) }));
+        return {
+          text: JSON.stringify(items),
+          model,
+          tokensIn: 100,
+          tokensOut: 20,
+          costUsd: null,
+          durationMs: 1,
+          route: {
+            role: role as 'triage',
+            providerId: 1,
+            providerName: 'LM Studio',
+            model,
+            linkIndex: 0,
+            failedLinks: [],
+          },
+        };
+      }
       const flagged = /Flagged lines: (\d+)-/.exec(prompt)?.[1] ?? '1';
       const line = new RegExp(`^\\s*${flagged}\\| (.*)$`, 'm').exec(prompt)?.[1] ?? '';
       const verdict = opts.verdictFor?.(prompt, role) ?? 'real';
@@ -198,7 +258,7 @@ function scripted(
       return { ok: true };
     },
   };
-  return { gateway, prompts, roles };
+  return { gateway, prompts, roles, hits, versions };
 }
 
 describeIfLiveInfra('the AI judge after a scan (W22-03)', () => {
@@ -1032,6 +1092,232 @@ describeIfLiveInfra('the AI judge after a scan (W22-03)', () => {
       await processor(gw, { config, routing: FAST })(job(runId!));
       expect(gw.roles).toEqual(['triage_fast']);
       expect((await verdictsOf(id))[0]).toMatchObject({ pass: 'fast' });
+    });
+  });
+
+  // W22-14: several hits of one rule per call, each with its own verdict.
+  describe('several hits of one rule per call (AI_JUDGE_BATCH_SIZE)', () => {
+    const FAST_ROUTE: RoutingPolicy = {
+      localOnly: false,
+      chains: {
+        triage_fast: [
+          {
+            host: {
+              baseUrl: 'http://10.0.0.6:1234/v1',
+              modelSlot: 'scripted-small',
+              contextWindow: 16384,
+            } as T2Host,
+            providerName: 'LM Studio small',
+          },
+        ],
+      },
+    };
+    const verdictsOf = async (id: number) =>
+      db.select().from(read.aiTriageVerdicts).where(eq(read.aiTriageVerdicts.findingId, id));
+    const judgeOf = async (runId: number) =>
+      ((await runOf(runId)).plan as { judge: JudgeSummary }).judge;
+
+    it('batch size 1 makes exactly the calls of one hit per call', async () => {
+      const ids: number[] = [];
+      for (let i = 0; i < 3; i++) {
+        ids.push(await ruleHit({ effectiveRisk: String(90 - i), title: `One ${i}` }));
+      }
+      const config = { ...CFG, batchSize: 1 };
+      const gw = scripted();
+      const { runId } = await queue({ config });
+      await processor(gw, { config })(job(runId!));
+      expect(gw.roles).toEqual(['triage', 'triage', 'triage']);
+      expect(gw.hits).toEqual([1, 1, 1]);
+      expect(gw.versions).toEqual(['triage.v1', 'triage.v1', 'triage.v1']);
+      gw.prompts.forEach((p, i) => {
+        expect(p).toContain('## The finding');
+        expect(p).toContain(`Title: One ${i}`);
+        expect(p).not.toMatch(/^## Hit /m);
+      });
+      // The same three calls as a server with no batch setting at all.
+      await clear();
+      for (let i = 0; i < 3; i++)
+        await ruleHit({ effectiveRisk: String(90 - i), title: `One ${i}` });
+      const before = scripted();
+      const q2 = await queue();
+      await processor(before)(job(q2.runId!));
+      expect(before.prompts).toEqual(gw.prompts);
+      const judge = await judgeOf(q2.runId!);
+      expect(judge).toMatchObject({ judged: 3, batch_size: 1, batch_retried: 0 });
+      expect(judge.batches.map((b) => [b.pass, b.hits])).toEqual([
+        ['full', 1],
+        ['full', 1],
+        ['full', 1],
+      ]);
+    });
+
+    it('batch size 4: 6 hits of one rule and 2 of another make 3 calls (4, 2, 2) and 8 verdicts', async () => {
+      const x: number[] = [];
+      const y: number[] = [];
+      for (let i = 0; i < 6; i++) {
+        x.push(await ruleHit({ ruleId: 'rule-x', effectiveRisk: String(90 - i), title: `X ${i}` }));
+      }
+      for (let i = 0; i < 2; i++) {
+        y.push(await ruleHit({ ruleId: 'rule-y', effectiveRisk: String(40 - i), title: `Y ${i}` }));
+      }
+      const config = { ...CFG, batchSize: 4 };
+      const gw = scripted({
+        verdictFor: (s) =>
+          s.includes('Title: X 1')
+            ? 'likely_false_positive'
+            : s.includes('Title: Y')
+              ? 'needs_human'
+              : 'real',
+      });
+      const { runId } = await queue({ config });
+      await processor(gw, { config })(job(runId!));
+      expect(gw.hits).toEqual([4, 2, 2]);
+      expect(gw.versions).toEqual(['triage.v1+batch', 'triage.v1+batch', 'triage.v1+batch']);
+      // Each call holds one rule only.
+      expect(gw.prompts[0]).toContain('Rule: rule-x');
+      expect(gw.prompts[2]).toContain('Rule: rule-y');
+      expect(gw.prompts[2]).not.toContain('Rule: rule-x');
+      const run = await runOf(runId!);
+      expect(run.calls).toBe(3);
+      const judge = await judgeOf(runId!);
+      expect(judge).toMatchObject({
+        judged: 8,
+        confirmed: 5,
+        contradicted: 1,
+        needs_human: 2,
+        rejected: 0,
+        batch_size: 4,
+        batch_retried: 0,
+        stopped: 'done',
+      });
+      expect(judge.batches.map((b) => [b.pass, b.hits, b.rejected])).toEqual([
+        ['full', 4, 0],
+        ['full', 2, 0],
+        ['full', 2, 0],
+      ]);
+      for (const b of judge.batches) expect(typeof b.ms).toBe('number');
+      expect(run.triageFunnel).toMatchObject({ candidates: 8, triaged: 8, accepted: 8 });
+      // Each hit its own verdict, from its own lines; the version says a batch asked.
+      for (const id of [...x, ...y]) {
+        const vs = await verdictsOf(id);
+        expect(vs).toHaveLength(1);
+        expect(vs[0]).toMatchObject({ checklistVersion: 'triage.v1+batch', pass: 'full' });
+        expect(vs[0]!.citations).toEqual([
+          expect.objectContaining({ file: 'src/routes/users.ts', line: 3 }),
+        ]);
+      }
+      expect((await verdictsOf(x[1]!))[0]!.verdict).toBe('likely_false_positive');
+      // Same verify mapping as one hit per call; no status moves.
+      expect(await finding(x[1]!)).toMatchObject({ verifyStatus: 'contradicted', status: 'open' });
+      expect(await finding(x[0]!)).toMatchObject({ verifyStatus: 'confirmed', status: 'open' });
+      expect(await finding(y[0]!)).toMatchObject({ verifyStatus: 'unverified', status: 'open' });
+    });
+
+    it('a hit missing from a batched answer is asked again alone; the others stand', async () => {
+      const ids: number[] = [];
+      for (let i = 0; i < 3; i++) {
+        ids.push(await ruleHit({ effectiveRisk: String(90 - i), title: `M ${i}` }));
+      }
+      const config = { ...CFG, batchSize: 4 };
+      // The batched answer leaves out "M 1"; asked alone, it is answered.
+      const gw = scripted({ omitFor: (s) => s.includes('Title: M 1') });
+      const { runId } = await queue({ config });
+      await processor(gw, { config })(job(runId!));
+      expect(gw.hits).toEqual([3, 1]);
+      expect(gw.versions).toEqual(['triage.v1+batch', 'triage.v1']);
+      expect(gw.prompts[1]).toContain('Title: M 1');
+      const judge = await judgeOf(runId!);
+      expect(judge).toMatchObject({ judged: 3, rejected: 0, batch_retried: 1 });
+      expect(judge.batches.map((b) => [b.hits, b.rejected])).toEqual([
+        [3, 1],
+        [1, 0],
+      ]);
+      expect((await verdictsOf(ids[1]!))[0]!.checklistVersion).toBe('triage.v1');
+      expect((await verdictsOf(ids[0]!))[0]!.checklistVersion).toBe('triage.v1+batch');
+    });
+
+    it('with the quick first look: the fast pass batches too, and only the right hits escalate (re-batched)', async () => {
+      const clear1 = await ruleHit({ effectiveRisk: '90.00', title: 'Q clear' });
+      const real = await ruleHit({ effectiveRisk: '80.00', title: 'Q real' });
+      const shaky = await ruleHit({ effectiveRisk: '70.00', title: 'Q shaky' });
+      const lost = await ruleHit({ effectiveRisk: '60.00', title: 'Q lost' });
+      const clear2 = await ruleHit({ effectiveRisk: '50.00', title: 'Q also clear' });
+      const config = { ...CFG, batchSize: 4 };
+      const gw = scripted({
+        verdictFor: (s, role) =>
+          role !== 'triage_fast' ? 'real' : s.includes('Q real') ? 'real' : 'likely_false_positive',
+        confidenceFor: (s, role) => (role === 'triage_fast' && s.includes('Q shaky') ? 3 : 5),
+        // The small model's batched answer leaves "Q lost" out.
+        omitFor: (s, role) => role === 'triage_fast' && s.includes('Q lost'),
+      });
+      const { runId } = await queue({ config });
+      await processor(gw, { config, routing: FAST_ROUTE })(job(runId!));
+      // Fast: a batch of 4 then the 5th alone (a single-hit call). The three
+      // escalations of the first batch go to the main model together.
+      expect(gw.roles).toEqual(['triage_fast', 'triage', 'triage_fast']);
+      expect(gw.hits).toEqual([4, 3, 1]);
+      const judge = await judgeOf(runId!);
+      expect(judge).toMatchObject({
+        judged: 5,
+        fast_cleared: 2,
+        escalated: 3,
+        contradicted: 2,
+        confirmed: 3,
+        fast_vs_full: { 'real->real': 1, 'likely_false_positive->real': 1 },
+      });
+      expect(judge.batches.map((b) => [b.pass, b.hits, b.rejected])).toEqual([
+        ['fast', 4, 1],
+        ['full', 3, 0],
+        ['fast', 1, 0],
+      ]);
+      for (const id of [clear1, clear2]) {
+        expect((await verdictsOf(id))[0]).toMatchObject({
+          pass: 'fast',
+          verdict: 'likely_false_positive',
+          fastPass: null,
+        });
+      }
+      expect((await verdictsOf(clear1))[0]!.checklistVersion).toBe('triage.v1+batch');
+      expect((await verdictsOf(clear2))[0]!.checklistVersion).toBe('triage.v1');
+      // Each escalation keeps its own fast answer, stored per hit.
+      const fastOf = async (id: number) => (await verdictsOf(id))[0]!;
+      expect(await fastOf(real)).toMatchObject({
+        pass: 'full',
+        verdict: 'real',
+        fastPass: { verdict: 'real', reason: 'not_false_positive', model: 'scripted-small' },
+      });
+      expect(await fastOf(shaky)).toMatchObject({
+        pass: 'full',
+        fastPass: { verdict: 'likely_false_positive', confidence: 3, reason: 'low_confidence' },
+      });
+      expect(await fastOf(lost)).toMatchObject({
+        pass: 'full',
+        fastPass: { verdict: null, reason: 'rejected', model: null },
+      });
+      expect(typeof (await fastOf(shaky)).fastPass!.ms).toBe('number');
+      expect(await finding(clear1)).toMatchObject({ verifyStatus: 'contradicted', status: 'open' });
+      expect(await finding(real)).toMatchObject({ verifyStatus: 'confirmed', status: 'open' });
+    });
+
+    it('the deadline is checked between batches: a batch that would start after it does not start', async () => {
+      for (let i = 0; i < 5; i++) await ruleHit({ effectiveRisk: String(90 - i), title: `D ${i}` });
+      let clock = new Date('2026-10-29T10:00:00Z').getTime();
+      const now = () => new Date(clock);
+      // Each call takes 40 s; the run may spend 1 minute.
+      const gw = scripted({ onCall: () => (clock += 40_000) });
+      const config = { ...CFG, scanMinutes: 1, batchSize: 2 };
+      const { runId } = await queue({ config });
+      await processor(gw, { config, now })(job(runId!));
+      // 0 s: batch of 2; 40 s: batch of 2; 80 s: past the minute, no third call.
+      expect(gw.hits).toEqual([2, 2]);
+      const run = await runOf(runId!);
+      expect(run.reasonCode).toBe('time_budget');
+      expect(await judgeOf(runId!)).toMatchObject({
+        stopped: 'time_budget',
+        judged: 4,
+        not_reached: 1,
+        full_ms: 80_000,
+      });
     });
   });
 });

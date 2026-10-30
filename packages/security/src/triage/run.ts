@@ -3,13 +3,14 @@ import {
   estimateTokens,
   extractJson,
   type AnalysisGateway,
+  type CompleteResult,
   type LlmRole,
 } from '@repopulse/analysis';
 import { proveTriagePatch, type PatchProofDeps } from './patch.js';
 import { renderContextPacket, type RenderedPacket } from './packet.js';
-import { buildTriagePrompt, loadTriageChecklist } from './prompt.js';
-import { validateTriageAnswer } from './schema.js';
-import { sliceAround } from './slice.js';
+import { buildTriagePrompt, loadTriageChecklist, type TriagePrompt } from './prompt.js';
+import { validateTriageAnswer, type AcceptedAnswer } from './schema.js';
+import { sliceAround, type CodeSlice } from './slice.js';
 import {
   IMPACT_DIMENSION,
   TRIAGE_CHECKLIST_VERSION,
@@ -34,7 +35,7 @@ export const TRIAGE_MAX_CALLS = 25;
  */
 export const PACKET_MAX_TOKENS = 4_000;
 /** Kept back from the window for estimate error: estimateTokens is a byte ratio, not a tokenizer. */
-const PROMPT_MARGIN_TOKENS = 64;
+export const PROMPT_MARGIN_TOKENS = 64;
 
 export interface TriageDeps {
   gateway: AnalysisGateway;
@@ -66,6 +67,67 @@ function overheadTokens(checklist: string): number {
   return estimateTokens(checklist) + 700;
 }
 
+/** What one hit's single-hit call is shown: its slice, its evidence packet and the prompt. */
+export interface PreparedTriageHit {
+  slice: CodeSlice;
+  /** The rendered packet; `text` is in the prompt only when non-empty. */
+  packet: RenderedPacket | null;
+  prompt: TriagePrompt;
+}
+
+/** The slice budget a hit gets: what the window leaves after the fixed prompt. */
+export function triageSliceBudget(promptTokens: number, checklist: string): number {
+  return Math.max(400, promptTokens - overheadTokens(checklist));
+}
+
+/**
+ * One hit as its single-hit call shows it. A batched prompt (batch.ts) reuses
+ * exactly this slice and packet, so batching never shows a hit less.
+ */
+export function prepareTriageHit(
+  candidate: TriageCandidate,
+  promptTokens: number,
+  checklist: string,
+  sliceBudget: number = triageSliceBudget(promptTokens, checklist),
+): PreparedTriageHit {
+  const { finding } = candidate;
+  const slice = sliceAround(
+    candidate.source,
+    finding.file,
+    finding.lineStart,
+    finding.lineEnd,
+    sliceBudget,
+    undefined,
+    candidate.sourceStartLine ?? 1,
+  );
+  let prompt = buildTriagePrompt({
+    finding,
+    reachability: candidate.reachability,
+    slice,
+    checklist,
+  });
+  // W22-02: the evidence packet gets what the window leaves after the
+  // prompt as it stands, never more than its own ceiling; what does not fit
+  // is named in the prompt, never silently dropped.
+  let packet: RenderedPacket | null = null;
+  if (candidate.packet) {
+    const room = Math.min(PACKET_MAX_TOKENS, promptTokens - prompt.tokens - PROMPT_MARGIN_TOKENS);
+    if (room > 0) {
+      packet = renderContextPacket(candidate.packet, finding.file, room);
+      if (packet.text) {
+        prompt = buildTriagePrompt({
+          finding,
+          reachability: candidate.reachability,
+          slice,
+          checklist,
+          packetText: packet.text,
+        });
+      }
+    }
+  }
+  return { slice, packet, prompt };
+}
+
 export async function runTriage(
   candidates: readonly TriageCandidate[],
   deps: TriageDeps,
@@ -90,7 +152,7 @@ export async function runTriage(
   // The slice may use what the window leaves after the fixed prompt and the
   // answer; unknown window keeps the Tier-2 default budget.
   const window = budgetForContext(deps.contextWindow ?? null);
-  const sliceBudget = Math.max(400, window.promptTokens - overheadTokens(checklist));
+  const sliceBudget = triageSliceBudget(window.promptTokens, checklist);
   const maxCalls = deps.maxCalls ?? Number.POSITIVE_INFINITY;
   let calls = 0;
 
@@ -100,43 +162,12 @@ export async function runTriage(
       continue;
     }
     const { finding } = candidate;
-    const slice = sliceAround(
-      candidate.source,
-      finding.file,
-      finding.lineStart,
-      finding.lineEnd,
-      sliceBudget,
-      undefined,
-      candidate.sourceStartLine ?? 1,
-    );
-    let prompt = buildTriagePrompt({
-      finding,
-      reachability: candidate.reachability,
-      slice,
+    const { slice, packet, prompt } = prepareTriageHit(
+      candidate,
+      window.promptTokens,
       checklist,
-    });
-    // W22-02: the evidence packet gets what the window leaves after the
-    // prompt as it stands, never more than its own ceiling; what does not fit
-    // is named in the prompt, never silently dropped.
-    let packet: RenderedPacket | null = null;
-    if (candidate.packet) {
-      const room = Math.min(
-        PACKET_MAX_TOKENS,
-        window.promptTokens - prompt.tokens - PROMPT_MARGIN_TOKENS,
-      );
-      if (room > 0) {
-        packet = renderContextPacket(candidate.packet, finding.file, room);
-        if (packet.text) {
-          prompt = buildTriagePrompt({
-            finding,
-            reachability: candidate.reachability,
-            slice,
-            checklist,
-            packetText: packet.text,
-          });
-        }
-      }
-    }
+      sliceBudget,
+    );
     funnel.triaged += 1;
 
     let attemptPrompt = prompt.text;
@@ -186,32 +217,9 @@ export async function runTriage(
       }
 
       const a = checked.answer;
-      // Impact is asked of performance hits only; one offered elsewhere is not kept.
-      const impactAsked = finding.dimension === IMPACT_DIMENSION;
-      const patch =
-        a.patchText !== null
-          ? await proveTriagePatch(candidate, a.patchText, deps.patchProof)
-          : null;
-      proposals.push({
-        dedupKey: finding.dedupKey,
-        verdict: a.verdict,
-        confidence: a.confidence,
-        model: answer.model,
-        checklistVersion: TRIAGE_CHECKLIST_VERSION,
-        rationale: a.rationale,
-        citations: a.citations,
-        vex: a.vex,
-        patch,
-        impact: impactAsked ? a.impact : null,
-        impactReason: impactAsked ? a.impactReason : null,
-        route: answer.route
-          ? {
-              providerName: answer.route.providerName,
-              model: answer.route.model,
-              linkIndex: answer.route.linkIndex,
-            }
-          : null,
-      });
+      proposals.push(
+        await triageProposalOf(candidate, a, answer, TRIAGE_CHECKLIST_VERSION, deps.patchProof),
+      );
       funnel.accepted += 1;
       funnel.verdicts[a.verdict] += 1;
       done = true;
@@ -228,6 +236,41 @@ export async function runTriage(
   }
 
   return { proposals, rejections, funnel, calls };
+}
+
+/** An accepted answer as a proposal (shared by the single-hit and batched calls). */
+export async function triageProposalOf(
+  candidate: TriageCandidate,
+  a: AcceptedAnswer,
+  answer: Pick<CompleteResult, 'model' | 'route'>,
+  checklistVersion: string,
+  patchProof?: PatchProofDeps,
+): Promise<TriageProposal> {
+  const { finding } = candidate;
+  // Impact is asked of performance hits only; one offered elsewhere is not kept.
+  const impactAsked = finding.dimension === IMPACT_DIMENSION;
+  const patch =
+    a.patchText !== null ? await proveTriagePatch(candidate, a.patchText, patchProof) : null;
+  return {
+    dedupKey: finding.dedupKey,
+    verdict: a.verdict,
+    confidence: a.confidence,
+    model: answer.model,
+    checklistVersion,
+    rationale: a.rationale,
+    citations: a.citations,
+    vex: a.vex,
+    patch,
+    impact: impactAsked ? a.impact : null,
+    impactReason: impactAsked ? a.impactReason : null,
+    route: answer.route
+      ? {
+          providerName: answer.route.providerName,
+          model: answer.route.model,
+          linkIndex: answer.route.linkIndex,
+        }
+      : null,
+  };
 }
 
 function retryPrompt(original: string, problem: string): string {

@@ -6,6 +6,7 @@ import { CHECKLIST_DIR } from '../scanners/owasp/checklist.js';
 import type { CodeSlice } from './slice.js';
 import {
   IMPACT_DIMENSION,
+  TRIAGE_BATCH_PROMPT_VERSION,
   TRIAGE_CHECKLIST_VERSION,
   type TriageFinding,
   type TriageReachability,
@@ -25,17 +26,22 @@ export function loadTriageChecklist(dir: string = CHECKLIST_DIR): string {
  * like <verdict> invites the model to invent a label (W19-03 found a real model
  * answering `"dimension":"slop"` to a `<dimension>` placeholder).
  */
-const REQUIRED_JSON = `Respond ONLY with JSON of this exact shape, and nothing else:
-
-{"verdict":"real" or "likely_false_positive" or "needs_human",
+const ANSWER_FIELDS = `"verdict":"real" or "likely_false_positive" or "needs_human",
 "confidence":1-5,
 "citations":[{"line":<a line number printed in the left margin above>,"quote":"the text of that line"}],
 "rationale":"<=600 chars, naming what in the cited lines decides it",
 "vex_justification":null or one of ${VEX_JUSTIFICATIONS.map((j) => `"${j}"`).join(' or ')},
 "vex_statement":null or "<=300 chars",
-"patch":null or "a unified diff against this file"}
+"patch":null or "a unified diff against this file"}`;
 
-Use null for vex_justification, vex_statement and patch unless the rules above allow them.`;
+const USE_NULL =
+  'Use null for vex_justification, vex_statement and patch unless the rules above allow them.';
+
+const REQUIRED_JSON = `Respond ONLY with JSON of this exact shape, and nothing else:
+
+{${ANSWER_FIELDS}
+
+${USE_NULL}`;
 
 /** With an evidence packet, a citation may name a numbered line from another file. */
 const REQUIRED_JSON_WITH_PACKET = REQUIRED_JSON.replace(
@@ -114,4 +120,103 @@ export function buildTriagePrompt(args: {
     .join('\n');
 
   return { text, tokens: estimateTokens(text), checklistVersion: TRIAGE_CHECKLIST_VERSION };
+}
+
+/** One hit of a batched prompt: its id, and what its single-hit call would have been shown. */
+export interface TriageBatchPromptHit {
+  /** "H1", "H2", ...: the id the model answers by. */
+  id: string;
+  finding: TriageFinding;
+  reachability: TriageReachability;
+  slice: CodeSlice;
+  /** The rendered evidence packet, at the budget its single-hit call would give it. */
+  packetText?: string;
+}
+
+/** A citation in a batched answer names a line shown under the same hit. */
+const BATCH_CITATION =
+  '{"line":<a line number printed in a left margin under this hit>,"quote":"the text of that line"}';
+const BATCH_CITATION_WITH_PACKET =
+  '{"line":<a line number printed in a left margin under this hit>,"quote":"the text of that line","file":"only for a line from a file other than this hit\'s flagged file: the path shown with it"}';
+
+function batchJson(withPacket: boolean, asksImpact: boolean): string {
+  let fields = ANSWER_FIELDS.replace(
+    '{"line":<a line number printed in the left margin above>,"quote":"the text of that line"}',
+    withPacket ? BATCH_CITATION_WITH_PACKET : BATCH_CITATION,
+  );
+  if (asksImpact) fields = withImpactFields(fields);
+  return `Respond ONLY with a JSON array holding one object per hit, in the order the hits are listed, and nothing else. Each object names its hit by its id and has this exact shape:
+
+[{"hit":"H1",
+${fields},
+{"hit":"H2", ...}]
+
+Answer every hit exactly once. ${USE_NULL}`;
+}
+
+/**
+ * W22-14 (2026-10-30): several hits of ONE rule in one call. The checklist,
+ * the rule's provenance and the answer shape are written once; each hit keeps
+ * its own id, flagged lines, numbered file lines and evidence packet, exactly
+ * as its single-hit call would show them (never cut to make room for another
+ * hit: the caller packs whole hits). Recorded as TRIAGE_BATCH_PROMPT_VERSION.
+ */
+export function buildTriageBatchPrompt(args: {
+  hits: readonly TriageBatchPromptHit[];
+  checklist?: string;
+}): TriagePrompt {
+  const { hits } = args;
+  const first = hits[0];
+  if (!first) throw new Error('a batched triage prompt needs at least one hit');
+  const rule = first.finding;
+  const asksImpact = rule.dimension === IMPACT_DIMENSION;
+  const withPacket = hits.some((h) => h.packetText);
+  const reachOf = (r: TriageReachability): string =>
+    r.tier === null
+      ? 'not computed for this scanner'
+      : `${r.tier}${r.detail ? ` — ${r.detail}` : ''}`;
+
+  const sections = hits.flatMap((h) => [
+    `## Hit ${h.id}`,
+    `Title: ${h.finding.title}`,
+    `Flagged lines: ${h.finding.lineStart}-${h.finding.lineEnd} of ${h.finding.file}`,
+    `Flagged text: ${h.finding.evidenceQuote}`,
+    `Reachability: ${reachOf(h.reachability)}`,
+    '',
+    `### ${h.id}: ${h.slice.file}, lines ${h.slice.startLine}-${h.slice.endLine}${h.slice.truncated ? ' (cut short to fit)' : ''}`,
+    '```',
+    h.slice.text,
+    '```',
+    '',
+    ...(h.packetText ? [`### ${h.id}: evidence`, h.packetText, ''] : []),
+  ]);
+
+  const text = [
+    args.checklist ?? loadTriageChecklist(),
+    '',
+    `## ${hits.length} hits of one rule, judged in one answer`,
+    `Below are ${hits.length} hits of the same rule, each with an id (${hits.map((h) => h.id).join(', ')}). Treat each hit as a separate finding and judge it on its own, exactly as the checklist above says for one finding. A citation for a hit must name a line shown under THAT hit (its file lines or its evidence); a line shown only under another hit does not count for it, even where the line numbers look alike.`,
+    '',
+    '## The rule',
+    `Rule: ${rule.ruleId}  (scanner: ${rule.scannerKey}${rule.packVersion ? `, pack ${rule.packVersion}` : ''})`,
+    ...(rule.ruleDescription ? [`What the rule looks for: ${rule.ruleDescription}`] : []),
+    ...(rule.cwe ? [`CWE: ${rule.cwe}`] : []),
+    `Dimension: ${rule.dimension}`,
+    '',
+    ...sections,
+    ...(asksImpact
+      ? [
+          IMPACT_QUESTION.replace(
+            'If your verdict is "real"',
+            'For each hit whose verdict is "real"',
+          ),
+          '',
+        ]
+      : []),
+    batchJson(withPacket, asksImpact),
+  ]
+    .filter((l, i, a) => !(l === '' && a[i - 1] === ''))
+    .join('\n');
+
+  return { text, tokens: estimateTokens(text), checklistVersion: TRIAGE_BATCH_PROMPT_VERSION };
 }

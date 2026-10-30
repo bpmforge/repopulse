@@ -537,6 +537,16 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     default: '0.8',
   },
   {
+    name: 'AI_JUDGE_BATCH_SIZE',
+    scope: 'shared',
+    required: false,
+    purpose:
+      "Most rule hits of ONE rule the AI judge asks in one model call (W22-14), 1 to 8. Each hit still gets its own verdict, citations and evidence, checked against its own lines; a hit whose part of the answer is missing or fails the checklist is asked again alone. Fewer hits go in when the model's context window cannot hold them whole. 1 = one hit per call.",
+    ifWrong:
+      'Too low and a slow local model spends most of each run re-reading the same instructions (about 5 minutes a hit on a 27B model); too high and one call takes long enough to reach the model timeout (LMSTUDIO_REQUEST_TIMEOUT_MS), and a smaller model may mix up hits. Outside 1-8 the default is used.',
+    default: '4',
+  },
+  {
     name: 'RECONCILE_CRON',
     scope: 'worker',
     required: false,
