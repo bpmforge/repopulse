@@ -30,4 +30,39 @@ function rememberPath(key, path) {
   }
 }
 
-module.exports = { loadRows, findUser, LookupFailed, rememberPath };
+// Parse-or-fallback over a value already in hand: the parser's error only
+// says "this is not a URL", which the fallback already means. 21 of 28 AI
+// judge verdicts on outline called this shape a false positive (2026-10-30).
+function hostOf(url) {
+  try {
+    return new URL(url).host;
+  } catch (err) {
+    return null;
+  }
+}
+
+// A validator that starts by parsing: "not a URL" is the answer false gives.
+function isSafeUrl(text) {
+  try {
+    const url = new URL(text);
+    const blocked = ['javascript:', 'file:', 'vbscript:', 'data:'];
+    if (blocked.includes(url.protocol)) {
+      return false;
+    }
+    return url.protocol === 'https:' || url.protocol === 'http:' || url.protocol === 'mailto:';
+  } catch (err) {
+    return false;
+  }
+}
+
+// A best-effort probe whose catch says why the fallback is right.
+async function waitingCount(queue) {
+  try {
+    return await queue.getWaitingCount();
+  } catch (err) {
+    // The probe runs on its own connection; a failure means Redis is down, which the caller reports.
+    return 0;
+  }
+}
+
+module.exports = { loadRows, findUser, LookupFailed, rememberPath, hostOf, isSafeUrl, waitingCount };

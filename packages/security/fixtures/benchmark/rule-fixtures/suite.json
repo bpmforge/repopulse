@@ -164,6 +164,16 @@
       "note": "catch that returns null."
     },
     {
+      "id": "ch-silent-fallback-long",
+      "tree": "code-health/triggering",
+      "file": "slop.js",
+      "lines": [45, 53],
+      "rule": "bpm-ch-silent-fallback-return",
+      "dimension": "slop",
+      "expect": "finding",
+      "note": "A long computation returning null on any failure still fires; a short parse-or-fallback does not (2026-10-30)."
+    },
+    {
       "id": "ch-stub",
       "tree": "code-health/triggering",
       "file": "slop.js",

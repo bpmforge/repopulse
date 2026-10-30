@@ -118,20 +118,42 @@ rules:
       source: R-10
       category: code_health
       provenance: written for RepoPulse; not derived from any registry pack
+      # Narrowed 2026-10-30 after the AI judge's outline verdicts: 21 of 28 were
+      # likely false positives, nearly all parse-or-fallback over a value
+      # already in hand (new URL(s), JSON.parse(cookie), view.posAtDOM()),
+      # where "could not parse" is exactly what the empty value means. The
+      # shape this rule exists for is an OPERATION that can fail for reasons
+      # the caller must know about: a database read returning false on an
+      # outage reads as "no permission" (permissions.ts:36, still fires).
+      # So it fires when the try block does I/O (await, a *Sync( call, fetch(,
+      # a data-access method) OR is long enough to hide real work (ChangesetHelper
+      # .ts:298 computes a whole diff and returns null on any bug: still fires).
+      # It does not fire on a try that starts with a parse (new URL, JSON.parse,
+      # decodeURI*), nor on a catch whose comment gives the reason (owner,
+      # 2026-10-30, as for empty catches). Outline: 36 -> 12; of the judge's 7
+      # "real" it keeps the 4 above and drops 3 short posAtDOM/new URL fallbacks;
+      # of its 21 false positives it drops 17.
     patterns:
       - pattern-either:
           - pattern: |
-              try { ... } catch($E) { return null; }
+              try { $...BODY } catch($E) { return null; }
           - pattern: |
-              try { ... } catch($E) { return []; }
+              try { $...BODY } catch($E) { return []; }
           - pattern: |
-              try { ... } catch($E) { return {}; }
+              try { $...BODY } catch($E) { return {}; }
           - pattern: |
-              try { ... } catch($E) { return 0; }
+              try { $...BODY } catch($E) { return 0; }
           - pattern: |
-              try { ... } catch($E) { return false; }
+              try { $...BODY } catch($E) { return false; }
           - pattern: |
-              try { ... } catch($E) { return ''; }
+              try { $...BODY } catch($E) { return ''; }
+      - metavariable-regex:
+          metavariable: $...BODY
+          regex: (?s)(?:.*(?:\bawait\b|\w+Sync\s*\(|\bfetch\s*\(|\.(?:query|execute|find\w*|read\w*|load\w*|request|send)\s*\().*|.{240,})
+      - metavariable-regex:
+          metavariable: $...BODY
+          regex: (?s)(?!\s*(?:(?:const|let|var)\s+\w+\s*=\s*|return\s+)?(?:new URL\(|JSON\.parse\(|decodeURI(?:Component)?\()).*
+      - pattern-not-regex: catch\s*(?:\([^)]*\))?\s*\{\s*(?://|/\*)(?![^\n]*(?i:todo|fixme|xxx|hack|handle|swallow|silent))
 
   - id: bpm-ch-stub-as-feature
     languages: [javascript, typescript]

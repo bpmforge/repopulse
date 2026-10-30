@@ -26,7 +26,8 @@
 // "catch" counts for nothing. Files of a language not listed here are not
 // checked: the guard only says no where it understands the language.
 
-export type PatchGuardCode = 'removes_error_handling' | 'adds_force_unwrap';
+export type PatchGuardCode =
+  'removes_error_handling' | 'adds_force_unwrap' | 'adds_console_logging';
 
 export type PatchGuardResult = { ok: true } | { ok: false; code: PatchGuardCode; reason: string };
 
@@ -54,6 +55,10 @@ const POSTFIX_BANG = /(?<=[\w)\]])(?<!\btry)(?<!\bas)!(?=[.)\],;:\s]|$)/g;
 const NON_NULL_ASSERTION = /(?<=[\w)\]])!(?=[.)\],;])/g;
 
 const CATCH: Marker = { label: 'catch', re: /\bcatch\b/g };
+const CONSOLE: Marker = {
+  label: 'console',
+  re: /\bconsole\.(?:log|error|warn|info|debug|trace)\s*\(/g,
+};
 
 const JS: Family = { name: 'JavaScript', comment: '//', handlers: [CATCH], forced: [] };
 const TS: Family = {
@@ -236,6 +241,26 @@ export function checkErrorHandling(args: {
       code: 'adds_force_unwrap',
       reason: `The patch adds ${list(added)}, which crashes when the value is missing or the call fails; a fix must handle that case instead.`,
     };
+  }
+
+  // JS/TS only: a fix that makes a failure visible with `console.*` instead of
+  // the repository's logger (2026-10-30, outline: drafts for
+  // bpm-ch-silent-fallback-return added `console.error(_err)` to a permission
+  // check whose `false` is the normal answer, spamming every denied read).
+  // console output is unstructured, unlevelled and often stripped; the
+  // prompt asks for the existing logger, or no_safe_fix when the fallback is
+  // the expected outcome.
+  if (family === JS || family === TS) {
+    const cb = sum(count(args.before, family, [CONSOLE]));
+    const ca = sum(count(args.after, family, [CONSOLE]));
+    if (ca > cb) {
+      return {
+        ok: false,
+        code: 'adds_console_logging',
+        reason:
+          "The patch adds console logging; a fix must log through the repository's own logger, and leave a fallback alone when the empty value is the expected answer.",
+      };
+    }
   }
   return { ok: true };
 }
