@@ -8,7 +8,15 @@ import {
   type T2Host,
 } from '@repopulse/analysis';
 import { recordVerdicts, type FindingVerify } from '@repopulse/insights';
-import { emptyTriageFunnel, isRerunnable, runTriage, type TriageFunnel } from '@repopulse/security';
+import {
+  emptyTriageFunnel,
+  isRerunnable,
+  packTriageBatch,
+  runTriageBatch,
+  TRIAGE_BATCH_MAX,
+  type TriageFunnel,
+  type TriageProposal,
+} from '@repopulse/security';
 import { isConstraintViolation, read, safeErrorText, type Database } from '@repopulse/shared';
 import { passEgress, PASS_ROLES, type PassEgress } from '../lib/ai-pass-egress.js';
 import { isAiPaused } from '../lib/ai-pause.js';
@@ -22,8 +30,11 @@ import { fixEligibility, pickFixTargets, type FixConfig } from './ai-fix.js';
 // WHAT IT DOES. When a scan finishes, the worker queues a judge run for the
 // repository: the open security (SAST), performance and slop findings a RULE
 // raised, with stored code context and no AI verdict yet, ranked by effective
-// risk and grouped by rule, are put to the triage checklist one at a time
-// until the budget is spent. Each answer is stored as an ai_triage_verdicts
+// risk and grouped by rule, are put to the triage checklist until the budget
+// is spent: several hits of one rule per call (W22-14, AI_JUDGE_BATCH_SIZE,
+// default 4; 1 = one hit per call), each answered, validated and stored on its
+// own, and a hit whose part of a batched answer is missing or rejected asked
+// again alone in the same run. Each answer is stored as an ai_triage_verdicts
 // row (rationale and OUR copy of each cited line) and sets the finding's
 // verify_status: real -> confirmed (x1.0), likely_false_positive ->
 // contradicted (x0.15), needs_human -> left unverified with the reason.
@@ -73,6 +84,13 @@ export const JUDGE_MAX_CONSECUTIVE_ERRORS = 5;
  * without asking the main model. 0.8 = 4 of 5.
  */
 export const JUDGE_DEFAULT_FAST_MIN_CONFIDENCE = 0.8;
+/**
+ * W22-14: hits of one rule per model call on this server unless
+ * AI_JUDGE_BATCH_SIZE says otherwise (1 = one per call, as before batching).
+ */
+export const JUDGE_DEFAULT_BATCH_SIZE = 4;
+/** Most entries of plan.judge.batches kept on the run row (the counts stay whole). */
+const JUDGE_BATCH_LOG_MAX = 200;
 /** Calls one finding may take: the answer and one corrective retry (runTriage's own rule). */
 const CALLS_PER_FINDING = 2;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -89,6 +107,12 @@ export interface JudgeConfig {
    * triage_fast "likely false positive" stands. Absent = the default, 0.8.
    */
   fastMinConfidence?: number;
+  /**
+   * W22-14: most hits of one rule asked in one model call (1-8). Absent or 1 =
+   * one hit per call, exactly as before batching. The server reads
+   * AI_JUDGE_BATCH_SIZE (default 4).
+   */
+  batchSize?: number;
 }
 
 function wholeMinutes(raw: string | undefined, fallback: number, max: number): number {
@@ -103,7 +127,14 @@ export function judgeConfigFromEnv(env: Record<string, string | undefined>): Jud
     minutesPerDay: wholeMinutes(env.AI_JUDGE_MINUTES_PER_DAY, JUDGE_DEFAULT_MINUTES_PER_DAY, 1440),
     scanMinutes: wholeMinutes(env.AI_JUDGE_SCAN_MINUTES, JUDGE_DEFAULT_SCAN_MINUTES, 1440),
     fastMinConfidence: shareOf(env.AI_JUDGE_FAST_MIN_CONFIDENCE, JUDGE_DEFAULT_FAST_MIN_CONFIDENCE),
+    batchSize: batchSizeOf(env.AI_JUDGE_BATCH_SIZE),
   };
+}
+
+function batchSizeOf(raw: string | undefined): number {
+  if (raw === undefined || raw.trim() === '') return JUDGE_DEFAULT_BATCH_SIZE;
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 1 && n <= TRIAGE_BATCH_MAX ? n : JUDGE_DEFAULT_BATCH_SIZE;
 }
 
 function shareOf(raw: string | undefined, fallback: number): number {
@@ -504,6 +535,16 @@ export interface JudgeSummary {
    * keyed "<fast verdict>-><full verdict>" (e.g. "needs_human->real").
    */
   fast_vs_full: Record<string, number>;
+  /** W22-14: most hits of one rule per call this run was allowed (1 = one per call). */
+  batch_size: number;
+  /**
+   * W22-14: every model call (or single-hit call with its retry) in order:
+   * which pass, how many hits it asked, how many came back without an
+   * accepted answer, and its wall clock. At most JUDGE_BATCH_LOG_MAX kept.
+   */
+  batches: { pass: 'fast' | 'full'; hits: number; rejected: number; ms: number }[];
+  /** W22-14: hits a batched main-model call did not answer acceptably, asked again alone. */
+  batch_retried: number;
   stopped: 'done' | 'time_budget' | 'call_cap' | 'errors' | 'local_only';
   elapsed_ms: number;
 }
@@ -655,6 +696,9 @@ export async function runJudge(a: {
     fast_ms: 0,
     full_ms: 0,
     fast_vs_full: {},
+    batch_size: Math.max(1, Math.min(Math.floor(a.config.batchSize ?? 1), TRIAGE_BATCH_MAX)),
+    batches: [],
+    batch_retried: 0,
     stopped: 'done',
     elapsed_ms: 0,
   };
@@ -688,143 +732,39 @@ export async function runJudge(a: {
   let verdicts = 0;
   let fatal: string | null = null;
 
-  for (const [i, f] of queue.entries()) {
-    if (a.now().getTime() >= judgeDeadline()) {
-      summary.stopped = 'time_budget';
-      summary.not_reached = queue.length - i;
-      break;
+  // W22-14: hits of one rule go to the model together, up to batch_size a
+  // call and as many as fit the window whole (packTriageBatch). Two queues:
+  // `pending` holds hits no pass has seen yet, in queue order; `fullQueue`
+  // holds hits waiting for the main model (escalated by the quick first look,
+  // left over when a batch did not fit, or asked again ALONE after a batched
+  // answer failed the checklist for them). The main model's queue goes first,
+  // so an escalation is answered before the next rule's hits start.
+  type FullItem = { row: FindingRow; fastPass: read.AiJudgeFastPass | null; alone: boolean };
+  const pending: FindingRow[] = [...queue];
+  const fullQueue: FullItem[] = [];
+  const ruleKey = (r: FindingRow) => `${r.scannerKey}\u0000${r.ruleId}\u0000${r.dimension}`;
+  const remaining = () => pending.length + fullQueue.length;
+  const logBatch = (pass: 'fast' | 'full', hits: number, rejected: number, ms: number) => {
+    if (summary.batches.length < JUDGE_BATCH_LOG_MAX) {
+      summary.batches.push({ pass, hits, rejected, ms });
     }
-    if (calls >= maxCalls) {
-      summary.stopped = 'call_cap';
-      summary.not_reached = queue.length - i;
-      break;
-    }
-    const rule = `${f.scannerKey}:${f.ruleId}`;
-    let result: Awaited<ReturnType<typeof runTriage>> | undefined;
-    let pass: 'fast' | 'full' = 'full';
-    // W22-14: the quick first look's answer on an escalation, kept beside the
-    // main verdict so the two can be compared (it never changes the verdict).
-    let fastPass: read.AiJudgeFastPass | null = null;
+  };
+  /** Adds one hit's final outcome to the run's funnel (a batched call's hits, one by one). */
+  const countOne = (verdict: TriageProposal['verdict']) => {
+    funnel.candidates += 1;
+    funnel.selected += 1;
+    funnel.triaged += 1;
+    funnel.accepted += 1;
+    funnel.verdicts[verdict] += 1;
+  };
 
-    // Quick first look: only a confident likely false positive stops here.
-    if (summary.fast_pass && !fastOff) {
-      const t0 = a.now().getTime();
-      try {
-        const fast = await runTriage([triageCandidateOf(f)], {
-          gateway: a.wg.gateway,
-          contextWindow: fastWindow,
-          limit: 1,
-          maxCalls: Math.min(CALLS_PER_FINDING, maxCalls - calls),
-          meta,
-          role: 'triage_fast',
-        });
-        calls += fast.calls;
-        const fp = fast.proposals[0];
-        if (fp && fp.verdict === 'likely_false_positive' && fp.confidence / 5 >= fastMin) {
-          result = fast;
-          pass = 'fast';
-        } else {
-          fastPass = {
-            verdict: (fp?.verdict ?? null) as read.AiJudgeFastPass['verdict'],
-            confidence: fp?.confidence ?? null,
-            reason: !fp
-              ? 'rejected'
-              : fp.verdict === 'likely_false_positive'
-                ? 'low_confidence'
-                : 'not_false_positive',
-            model: fp?.model ?? null,
-            ms: a.now().getTime() - t0,
-          };
-        }
-      } catch (err) {
-        if (err instanceof Error && err.name === 'PassCancelledError') throw err;
-        calls += 1;
-        summary.fast_errors += 1;
-        if (summary.error_samples.length < 10) {
-          summary.error_samples.push({
-            finding_id: f.id,
-            rule,
-            error: `quick first look: ${safeErrorText(err)}`.slice(0, 300),
-          });
-        }
-        if (err instanceof LocalOnlyViolationError) fastOff = true;
-        fastPass = {
-          verdict: null,
-          confidence: null,
-          reason: 'provider_error',
-          model: null,
-          ms: a.now().getTime() - t0,
-        };
-      }
-      summary.fast_ms += a.now().getTime() - t0;
-      if (!result) {
-        summary.escalated += 1;
-        // The main model's call spends the same run's minutes and calls.
-        if (a.now().getTime() >= judgeDeadline()) {
-          summary.stopped = 'time_budget';
-          summary.not_reached = queue.length - i;
-          break;
-        }
-        if (calls >= maxCalls) {
-          summary.stopped = 'call_cap';
-          summary.not_reached = queue.length - i;
-          break;
-        }
-      }
-    }
-
-    if (!result) {
-      const t1 = a.now().getTime();
-      try {
-        result = await runTriage([triageCandidateOf(f)], {
-          gateway: a.wg.gateway,
-          contextWindow,
-          limit: 1,
-          maxCalls: Math.min(CALLS_PER_FINDING, maxCalls - calls),
-          meta,
-        });
-        calls += result.calls;
-      } catch (err) {
-        summary.full_ms += a.now().getTime() - t1;
-        // A cancelled run stops here (the processor records it).
-        if (err instanceof Error && err.name === 'PassCancelledError') throw err;
-        calls += 1;
-        summary.errors += 1;
-        summary.failed_finding_ids.push(f.id);
-        if (summary.error_samples.length < 10) {
-          summary.error_samples.push({
-            finding_id: f.id,
-            rule,
-            error: safeErrorText(err).slice(0, 300),
-          });
-        }
-        // Local-only refusing the route is not one finding's problem: every
-        // later call would be refused the same way.
-        if (err instanceof LocalOnlyViolationError) {
-          summary.stopped = 'local_only';
-          summary.not_reached = queue.length - i - 1;
-          fatal = err.message;
-          break;
-        }
-        consecutiveErrors += 1;
-        if (consecutiveErrors >= JUDGE_MAX_CONSECUTIVE_ERRORS) {
-          summary.stopped = 'errors';
-          summary.not_reached = queue.length - i - 1;
-          fatal = `The model failed ${consecutiveErrors} times in a row (last: ${safeErrorText(err).slice(0, 300)}), so judging stopped for this run.`;
-          break;
-        }
-        continue;
-      }
-      summary.full_ms += a.now().getTime() - t1;
-      consecutiveErrors = 0;
-    }
-    addFunnel(funnel, result.funnel);
-    const p = result.proposals[0];
-    if (!p) {
-      summary.rejected += 1;
-      summary.failed_finding_ids.push(f.id);
-      continue;
-    }
+  /** Stores one verdict and marks its finding (verify columns only, never its status). */
+  async function store(
+    f: FindingRow,
+    p: TriageProposal,
+    pass: 'fast' | 'full',
+    fastPass: read.AiJudgeFastPass | null,
+  ): Promise<void> {
     const route = (p.route ?? null) as { providerName?: string } | null;
     const connection = route?.providerName ? route.providerName.slice(0, 200) : null;
     const [stored] = await db
@@ -836,6 +776,7 @@ export async function runJudge(a: {
         verdict: p.verdict,
         confidence: p.confidence,
         model: p.model,
+        // triage.v1, or triage.v1+batch when a batched call asked (W22-14).
         checklistVersion: p.checklistVersion,
         rationale: p.rationale,
         citations: p.citations,
@@ -856,7 +797,7 @@ export async function runJudge(a: {
       .onConflictDoNothing()
       .returning({ id: read.aiTriageVerdicts.id });
     // Another pass answered this finding meanwhile: its suggestion stands.
-    if (!stored) continue;
+    if (!stored) return;
     summary.judged += 1;
     if (pass === 'fast') summary.fast_cleared += 1;
     else if (fastPass?.verdict) {
@@ -892,6 +833,234 @@ export async function runJudge(a: {
       ],
     });
     verdicts += 1;
+  }
+
+  while (remaining() > 0) {
+    // Budget and time are checked between calls: a call that would start
+    // after the deadline does not start.
+    if (a.now().getTime() >= judgeDeadline()) {
+      summary.stopped = 'time_budget';
+      summary.not_reached = remaining();
+      break;
+    }
+    if (calls >= maxCalls) {
+      summary.stopped = 'call_cap';
+      summary.not_reached = remaining();
+      break;
+    }
+
+    // The next unit: the main model's queue first, else the next hits of one rule.
+    let stage: 'fast' | 'full';
+    let unit: FindingRow[];
+    const fastOf = new Map<number, read.AiJudgeFastPass | null>();
+    let alone = false;
+    if (fullQueue.length > 0) {
+      stage = 'full';
+      const head = fullQueue[0]!;
+      alone = head.alone;
+      let n = 1;
+      while (
+        !alone &&
+        n < summary.batch_size &&
+        n < fullQueue.length &&
+        !fullQueue[n]!.alone &&
+        ruleKey(fullQueue[n]!.row) === ruleKey(head.row)
+      ) {
+        n += 1;
+      }
+      const items = fullQueue.splice(0, n);
+      unit = items.map((it) => it.row);
+      for (const it of items) fastOf.set(it.row.id, it.fastPass);
+    } else {
+      stage = summary.fast_pass && !fastOff ? 'fast' : 'full';
+      let n = 1;
+      while (
+        n < summary.batch_size &&
+        n < pending.length &&
+        ruleKey(pending[n]!) === ruleKey(pending[0]!)
+      ) {
+        n += 1;
+      }
+      unit = pending.splice(0, n);
+    }
+
+    const plan = packTriageBatch(unit.map(triageCandidateOf), {
+      contextWindow: stage === 'fast' ? fastWindow : contextWindow,
+      maxHits: alone ? 1 : summary.batch_size,
+    });
+    const asked = unit.slice(0, plan.hits.length);
+    // What did not fit the window goes back to the front, in order.
+    const left = unit.slice(plan.hits.length);
+    if (stage === 'full') {
+      fullQueue.unshift(
+        ...left.map((row) => ({ row, fastPass: fastOf.get(row.id) ?? null, alone: false })),
+      );
+    } else {
+      pending.unshift(...left);
+    }
+    const rule = `${asked[0]!.scannerKey}:${asked[0]!.ruleId}`;
+    const batchCalls = Math.min(CALLS_PER_FINDING, maxCalls - calls);
+
+    if (stage === 'fast') {
+      // Quick first look: only a confident likely false positive stops here.
+      const t0 = a.now().getTime();
+      const escalate: FullItem[] = [];
+      try {
+        const fast = await runTriageBatch(plan, {
+          gateway: a.wg.gateway,
+          maxCalls: batchCalls,
+          meta,
+          role: 'triage_fast',
+        });
+        calls += fast.calls;
+        const ms = a.now().getTime() - t0;
+        // A batched call's time is shared by its hits.
+        const perHit = Math.round(ms / asked.length);
+        const byKey = new Map(fast.proposals.map((p) => [p.dedupKey, p]));
+        const cleared: [FindingRow, TriageProposal][] = [];
+        for (const f of asked) {
+          const fp = byKey.get(f.dedupKey);
+          if (fp && fp.verdict === 'likely_false_positive' && fp.confidence / 5 >= fastMin) {
+            cleared.push([f, fp]);
+          } else {
+            escalate.push({
+              row: f,
+              alone: false,
+              fastPass: {
+                verdict: (fp?.verdict ?? null) as read.AiJudgeFastPass['verdict'],
+                confidence: fp?.confidence ?? null,
+                reason: !fp
+                  ? 'rejected'
+                  : fp.verdict === 'likely_false_positive'
+                    ? 'low_confidence'
+                    : 'not_false_positive',
+                model: fp?.model ?? null,
+                ms: perHit,
+              },
+            });
+          }
+        }
+        summary.fast_ms += ms;
+        logBatch('fast', asked.length, fast.rejections.length, ms);
+        if (!fast.batched && cleared.length > 0) addFunnel(funnel, fast.funnel);
+        for (const [f, fp] of cleared) {
+          if (fast.batched) countOne(fp.verdict);
+          await store(f, fp, 'fast', null);
+        }
+      } catch (err) {
+        if (err instanceof Error && err.name === 'PassCancelledError') throw err;
+        calls += 1;
+        summary.fast_errors += 1;
+        if (summary.error_samples.length < 10) {
+          summary.error_samples.push({
+            finding_id: asked[0]!.id,
+            rule,
+            error: `quick first look: ${safeErrorText(err)}`.slice(0, 300),
+          });
+        }
+        if (err instanceof LocalOnlyViolationError) fastOff = true;
+        const ms = a.now().getTime() - t0;
+        summary.fast_ms += ms;
+        logBatch('fast', asked.length, asked.length, ms);
+        const perHit = Math.round(ms / asked.length);
+        for (const f of asked) {
+          escalate.push({
+            row: f,
+            alone: false,
+            fastPass: {
+              verdict: null,
+              confidence: null,
+              reason: 'provider_error',
+              model: null,
+              ms: perHit,
+            },
+          });
+        }
+      }
+      // Escalations go on to the main model, together (one rule), next: the
+      // same run's minutes and calls, checked before that call starts.
+      summary.escalated += escalate.length;
+      fullQueue.unshift(...escalate);
+      continue;
+    }
+
+    const t1 = a.now().getTime();
+    let result: Awaited<ReturnType<typeof runTriageBatch>>;
+    try {
+      result = await runTriageBatch(plan, {
+        gateway: a.wg.gateway,
+        maxCalls: batchCalls,
+        meta,
+      });
+      calls += result.calls;
+    } catch (err) {
+      const ms = a.now().getTime() - t1;
+      summary.full_ms += ms;
+      // A cancelled run stops here (the processor records it).
+      if (err instanceof Error && err.name === 'PassCancelledError') throw err;
+      logBatch('full', asked.length, asked.length, ms);
+      calls += 1;
+      summary.errors += 1;
+      if (summary.error_samples.length < 10) {
+        summary.error_samples.push({
+          finding_id: asked[0]!.id,
+          rule,
+          error: safeErrorText(err).slice(0, 300),
+        });
+      }
+      // Local-only refusing the route is not one finding's problem: every
+      // later call would be refused the same way.
+      if (err instanceof LocalOnlyViolationError) {
+        summary.failed_finding_ids.push(...asked.map((f) => f.id));
+        summary.stopped = 'local_only';
+        summary.not_reached = remaining();
+        fatal = err.message;
+        break;
+      }
+      if (plan.prompt !== null) {
+        // A batched call that failed (a timeout on a long answer, say): each
+        // of its hits is asked again alone before it is given up on.
+        summary.batch_retried += asked.length;
+        fullQueue.unshift(
+          ...asked.map((row) => ({ row, fastPass: fastOf.get(row.id) ?? null, alone: true })),
+        );
+      } else {
+        summary.failed_finding_ids.push(asked[0]!.id);
+      }
+      consecutiveErrors += 1;
+      if (consecutiveErrors >= JUDGE_MAX_CONSECUTIVE_ERRORS) {
+        summary.stopped = 'errors';
+        summary.not_reached = remaining();
+        fatal = `The model failed ${consecutiveErrors} times in a row (last: ${safeErrorText(err).slice(0, 300)}), so judging stopped for this run.`;
+        break;
+      }
+      continue;
+    }
+    const ms = a.now().getTime() - t1;
+    summary.full_ms += ms;
+    logBatch('full', asked.length, result.rejections.length, ms);
+    consecutiveErrors = 0;
+    if (!result.batched) addFunnel(funnel, result.funnel);
+
+    const byKey = new Map(result.proposals.map((p) => [p.dedupKey, p]));
+    const again: FullItem[] = [];
+    for (const f of asked) {
+      const p = byKey.get(f.dedupKey);
+      if (p) {
+        if (result.batched) countOne(p.verdict);
+        await store(f, p, 'full', fastOf.get(f.id) ?? null);
+      } else if (result.batched) {
+        // Rejected in a batched answer (missing, answered twice, or failing
+        // the checklist): asked again alone, as a single-hit call, in this
+        // run when its minutes and calls allow; only that answer is final.
+        again.push({ row: f, fastPass: fastOf.get(f.id) ?? null, alone: true });
+      } else {
+        summary.rejected += 1;
+        summary.failed_finding_ids.push(f.id);
+      }
+    }
+    summary.batch_retried += again.length;
+    fullQueue.unshift(...again);
   }
 
   summary.elapsed_ms = a.now().getTime() - started.getTime();
