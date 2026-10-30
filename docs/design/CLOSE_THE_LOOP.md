@@ -204,6 +204,18 @@ bar for rules with no public benchmark); every model call goes through the gatew
   stored verdict, verify_status mapping and finding status are unchanged. Still to measure
   on outline and saleor: verdicts per run at batch size 4, and agreement with one hit per call.
 
+### W22-09: a verified fix never removes error handling (2026-10-30)
+
+- On outline a "verified" fix for `bpm-ch-silent-fallback-return` (DragTarget.ts:130) deleted
+  the try/catch around ProseMirror's `view.posAtDOM()`, which throws outside the document: the
+  rule stopped firing, nothing new fired, and the function now threw. `verifyPatch` now runs a
+  mechanical guard first (`patches/guard.ts`): a patch whose file has fewer error-handler sites
+  after than before (catch / except / rescue / `if err != nil` / Rust `?` and `Err(..)` arms /
+  Swift `try?` ...) is rejected `removes_error_handling`, and one that adds a force-unwrap
+  (`.unwrap()`, `.expect(`, `!!`, `try!`, `as!`, `x!`, Go `panic(`) `adds_force_unwrap`; the
+  drafting prompt forbids both, gives fallback-family rules "add handling, keep behaviour", and
+  offers `{"no_safe_fix": "..."}` (rejected `no_safe_fix`, not re-asked).
+
 ### W22-02 slice 1 (2026-10-29): evidence packets captured at scan time
 
 - **Why.** Live judge run on outline with a local 27B model: 6 verdicts in 31 minutes, all

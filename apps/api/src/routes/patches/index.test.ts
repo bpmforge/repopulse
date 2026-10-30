@@ -4,6 +4,9 @@ import { eq } from 'drizzle-orm';
 import { core, createDb, read, security } from '@repopulse/shared';
 import { credentials } from '@repopulse/auth';
 import type { Queue } from 'bullmq';
+import type { AnalysisGateway } from '@repopulse/analysis';
+import type { ForgeProvider } from '@repopulse/forge';
+import { runPatchDraft, type FileRuleRunner } from '@repopulse/security';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import patchRoutes, { PATCH_DRAFTS_PER_DAY } from './index.js';
 import errorEnvelopePlugin from '../../plugins/error-envelope.js';
@@ -621,6 +624,97 @@ describeIfLiveInfra('verified-patch routes (W18-19)', () => {
       // Verified, but for a commit the finding is no longer seen at.
       await setRow({ status: 'verified', commitSha: 'c'.repeat(40) });
       expect((await ready()).json().items).toEqual([]);
+    });
+
+    // 2026-10-30, the outline case: a draft that clears a fallback rule by
+    // deleting the try/catch must end rejected, with its code, and never be
+    // offered as a fix. Drafted by the real job (run.ts) with a stub model and
+    // forge; rules that would clear the finding, so only the guard says no.
+    describe('a draft that removes error handling', () => {
+      const SOURCE =
+        'function run(cmd) {\n  try {\n    return view.posAtDOM(cmd, 0);\n  } catch {\n    return null;\n  }\n}\n';
+      const REMOVES = JSON.stringify({
+        diff: [
+          '--- a/src/run.js',
+          '+++ b/src/run.js',
+          '@@ -1,7 +1,3 @@',
+          ' function run(cmd) {',
+          '-  try {',
+          '-    return view.posAtDOM(cmd, 0);',
+          '-  } catch {',
+          '-    return null;',
+          '-  }',
+          '+  return view.posAtDOM(cmd, 0);',
+          ' }',
+        ].join('\n'),
+      });
+      const gatewayAnswering = (text: string): AnalysisGateway => ({
+        async complete() {
+          return { text, model: 'stub', tokensIn: 1, tokensOut: 1, costUsd: null, durationMs: 1 };
+        },
+        async health() {
+          return { ok: true };
+        },
+      });
+      const forge = {
+        provider: {
+          kind: 'github',
+          capabilities: { supportsTarball: false },
+          async getFileContent(_c: unknown, _r: string, p: string, ref: string) {
+            return { path: p, ref, sizeBytes: SOURCE.length, content: SOURCE, truncated: false };
+          },
+        } as unknown as ForgeProvider,
+        repoFullName: 'w18-19/patches',
+      };
+      let ran = 0;
+      const clears: FileRuleRunner = {
+        key: 'stub',
+        scannerKeys: ['semgrep'],
+        async run() {
+          ran++;
+          return { status: 'succeeded', hits: [] };
+        },
+      };
+      const draft = async (text: string) => {
+        const row = await setRow({ status: 'pending' });
+        await runPatchDraft({
+          db,
+          workspaceId,
+          patchId: row.id,
+          gateway: gatewayAnswering(text),
+          forge,
+          runners: [clears],
+        });
+        return (
+          await db.select().from(read.verifiedPatches).where(eq(read.verifiedPatches.id, row.id))
+        )[0]!;
+      };
+
+      it('ends rejected as removes_error_handling, before any rule runs, and is not ready to apply', async () => {
+        ran = 0;
+        const row = await draft(REMOVES);
+        expect(row).toMatchObject({ status: 'rejected', reasonCode: 'removes_error_handling' });
+        expect(row.reason).toMatch(/removes error handling \(catch\)/);
+        expect(ran).toBe(0);
+        expect((await ready()).json().items).toEqual([]);
+        // An admin reads the reason like any other rejection.
+        const admin = await app.inject({
+          method: 'GET',
+          url: `/findings/${findingId}/patch`,
+          headers: as('admin'),
+        });
+        expect(admin.json().patch).toMatchObject({
+          status: 'rejected',
+          reason_code: 'removes_error_handling',
+        });
+      });
+
+      it('a "no safe fix" answer is recorded as rejected, with no diff, and is not ready to apply', async () => {
+        const row = await draft('{"no_safe_fix":"Only removing the catch would clear the rule."}');
+        expect(row).toMatchObject({ status: 'rejected', reasonCode: 'no_safe_fix', diff: null });
+        expect(row.reason).toContain('Only removing the catch would clear the rule.');
+        expect((await ready()).json().items).toEqual([]);
+      });
     });
 
     it('drops a fix whose finding is no longer open, and never another workspace’s', async () => {
