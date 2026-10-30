@@ -67,7 +67,8 @@ describe('what the catalogue claims can be started', () => {
     'architecture_register',
     'test_gap_register',
     'knowledge_register',
-    'rule_draft_pass',
+    // rule_draft_pass is wired but schedule-only since 2026-10-30: started by
+    // "Run scan" it took the one model slot from anti-slop.
     // W16-36 wired runDependencyScan, which had no caller for eight waves.
     'dependency_cve',
     // W16-33 wired runOwaspChecklist, which had none either. Manual only —

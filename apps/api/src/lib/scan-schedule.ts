@@ -37,7 +37,8 @@ export function scheduledScanners(env: NodeJS.ProcessEnv = process.env): [string
     ['architecture_register', c.registers],
     ['test_gap_register', c.registers],
     // Weekly, not nightly: it drafts from a 30-day window of dismissals.
-    ['rule_draft_pass', c.weekly],
+    // On the chain slot, an hour after the sweep: it shares the sweep's model.
+    ['rule_draft_pass', c.chain],
     ['knowledge_register', c.registers],
     // W18-24. Nightly with the registers: alerts change when someone's CI runs.
     ['code_scanning_pull', c.registers],

@@ -6,6 +6,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { core, createDb, read, security, type Database } from '@repopulse/shared';
 import {
   buildVerifyPrompt,
+  HostUnavailableError,
   pickVerifierHost,
   type AnalysisGateway,
   type CompleteOpts,
@@ -313,6 +314,40 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
     expect(row?.severity).toBe(3);
     expect(row?.tier).toBe(2);
     expect(row?.yields).toBeNull();
+  });
+
+  it('a busy model skips only the judgement: the run succeeds, partial, and keeps the rule findings', async () => {
+    // 2026-10-30, outline: the weekly rule-tweak pass held LM Studio's one
+    // slot, the gateway answered HostUnavailableError, and anti-slop failed
+    // the whole run, throwing away its deterministic findings with it.
+    const busy: AnalysisGateway = {
+      async complete() {
+        throw new HostUnavailableError();
+      },
+      async health() {
+        return { ok: true };
+      },
+    };
+    const result = await runAntiSlopScan({
+      db,
+      gateway: busy,
+      workspaceId,
+      repoId,
+      commitSha: 'w9-03-model-busy',
+      files,
+      sources: SOURCES,
+      trigger: 'pr_synced',
+    });
+    expect(result.status).toBe('succeeded');
+    expect(result.judgment).toBe(0);
+    expect(result.deterministic).toBeGreaterThan(0);
+    const [run] = await db
+      .select()
+      .from(security.scanRuns)
+      .where(eq(security.scanRuns.id, result.scanRunId!));
+    expect(run?.status).toBe('succeeded');
+    expect(run?.partial).toBe(true);
+    expect(run?.error).toMatch(/model was busy/);
   });
 
   it('with NO verifier available, the finding is stored as unverified', async () => {

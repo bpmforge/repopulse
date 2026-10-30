@@ -12,6 +12,7 @@ import {
 import {
   validateFindings,
   FindingParseError,
+  HostUnavailableError,
   mayBeSurfacedLoudly,
   needsVerification,
   findingVerdict,
@@ -898,8 +899,7 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
     // scanner's runs can ever own or sweep them.
     if (deps.targetDir) {
       const globs = deps.excludedGlobs ?? DEFAULT_EXCLUDED_GLOBS;
-      const rulepackFiles = (file: string): boolean =>
-        file.startsWith(ANTI_SLOP_PACK_FILE_PREFIX);
+      const rulepackFiles = (file: string): boolean => file.startsWith(ANTI_SLOP_PACK_FILE_PREFIX);
       const result = await (deps.runPack ?? runSemgrepScan)({
         targetDir: deps.targetDir,
         rulepackDir: CODE_HEALTH_PACK_DIR,
@@ -983,27 +983,40 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
       graph ? PROMPT_BUDGET_TOKENS - REPO_CONTEXT_MAX_TOKENS : PROMPT_BUDGET_TOKENS,
     );
     let judgment = 0;
+    // The model was busy (another caller holds every slot). The judgement half
+    // is skipped and said so; the deterministic and pack findings above are
+    // still saved and still close what they no longer see. Before this, one
+    // busy model failed the whole run and threw them away (outline, 2026-10-30:
+    // two scans in a row, while the weekly rule-tweak pass held LM Studio).
+    let modelBusy = false;
 
     for (const batch of batches) {
       const bare = buildCandidatePrompt(checklist, batch);
       const context = repoContextForCandidates(graph, batch, estimateTokens(bare)).text;
-      const result = await deps.gateway!.complete(buildCandidatePrompt(checklist, batch, context), {
-        tier: 'T2',
-        maxTokens: 45_000,
-        expectJson: true,
-        meta: {
-          repoId: String(deps.repoId),
-          prNumber: 0,
-          // NOT 'slop' (W9-16). This is the GATEWAY's dimension — which Tier-2
-          // checklist family the model is being asked to apply — and its union
-          // is the four review dimensions, not the finding taxonomy. The
-          // findings this call produces are stored as `slop`; the checklist
-          // driving it is the code-health one.
-          dimension: 'code_health',
-          checklistVersion: checklist.version,
-          initiator: `scanner:${ANTI_SLOP_SCANNER_KEY}`,
-        },
-      });
+      let result;
+      try {
+        result = await deps.gateway!.complete(buildCandidatePrompt(checklist, batch, context), {
+          tier: 'T2',
+          maxTokens: 45_000,
+          expectJson: true,
+          meta: {
+            repoId: String(deps.repoId),
+            prNumber: 0,
+            // NOT 'slop' (W9-16). This is the GATEWAY's dimension — which Tier-2
+            // checklist family the model is being asked to apply — and its union
+            // is the four review dimensions, not the finding taxonomy. The
+            // findings this call produces are stored as `slop`; the checklist
+            // driving it is the code-health one.
+            dimension: 'code_health',
+            checklistVersion: checklist.version,
+            initiator: `scanner:${ANTI_SLOP_SCANNER_KEY}`,
+          },
+        });
+      } catch (err) {
+        if (!(err instanceof HostUnavailableError)) throw err;
+        modelBusy = true;
+        break;
+      }
 
       let parsed;
       try {
@@ -1102,6 +1115,13 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
         findingCount: findings.length,
         finishedAt: new Date(),
         ...(toolVersions ? { toolVersions } : {}),
+        ...(modelBusy
+          ? {
+              partial: true,
+              error:
+                'The model was busy, so the AI review of slop candidates was skipped this run; the rule-based findings were saved.',
+            }
+          : {}),
       })
       .where(eq(security.scanRuns.id, runId));
 
