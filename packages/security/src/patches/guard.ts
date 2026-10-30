@@ -57,7 +57,9 @@ const NON_NULL_ASSERTION = /(?<=[\w)\]])!(?=[.)\],;])/g;
 const CATCH: Marker = { label: 'catch', re: /\bcatch\b/g };
 const CONSOLE: Marker = {
   label: 'console',
-  re: /\bconsole\.(?:log|error|warn|info|debug|trace)\s*\(/g,
+  // process.stdout/stderr.write too: the 2026-10-30 outline ssl.ts draft
+  // dodged the console check with process.stderr.write.
+  re: /\bconsole\.(?:log|error|warn|info|debug|trace)\s*\(|\bprocess\.(?:stdout|stderr)\.write\s*\(/g,
 };
 
 const JS: Family = { name: 'JavaScript', comment: '//', handlers: [CATCH], forced: [] };
@@ -258,7 +260,7 @@ export function checkErrorHandling(args: {
         ok: false,
         code: 'adds_console_logging',
         reason:
-          "The patch adds console logging; a fix must log through the repository's own logger, and leave a fallback alone when the empty value is the expected answer.",
+          "The patch adds console or raw stdout/stderr output; a fix must log through the repository's own logger, and leave a fallback alone when the empty value is the expected answer.",
       };
     }
   }
