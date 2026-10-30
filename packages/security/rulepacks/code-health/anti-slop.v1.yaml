@@ -21,20 +21,29 @@ rules:
     languages: [javascript, typescript]
     severity: WARNING
     message: >-
-      An empty or comment-only catch block. The failure still happened; the only
-      thing removed was anyone's chance of knowing. If the error genuinely does
-      not matter, say so by handling it — a logged line, a fallback with a
-      comment explaining why it is safe.
+      An empty catch block, or one whose only comment defers the handling
+      (TODO, FIXME, "handle this"). The failure still happened; the only thing
+      removed was anyone's chance of knowing. If the error genuinely does not
+      matter, say why in the catch, or log it.
     metadata:
       source: R-01
       category: code_health
       provenance: written for RepoPulse; not derived from any registry pack
+      # Owner decision 2026-10-30: a catch whose comment states why the failure
+      # is acceptable is a decision, not a swallowed error. The AI judge had
+      # called four such outline catches "real" because this rule's message
+      # said comment-only counted; bpm-rulepacks' empty-catch already exempted
+      # them (outline 42 -> 0, its corpus defect kept). A comment that defers
+      # or admits the problem (TODO, FIXME, XXX, HACK, "handle", "swallow",
+      # "silent") still fires: mastodon-ios's `// TODO: handle error` catches
+      # were the real ones in the 2026-10-28 grading.
     patterns:
       - pattern-either:
           - pattern: |
               try { ... } catch ($E) { }
           - pattern: |
               try { ... } catch { }
+      - pattern-not-regex: catch\s*(?:\([^)]*\))?\s*\{\s*(?://|/\*)(?![^\n]*(?i:todo|fixme|xxx|hack|handle|swallow|silent))
 
   - id: bpm-ch-try-catch-in-loop
     languages: [javascript, typescript]
