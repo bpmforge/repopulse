@@ -19,4 +19,15 @@ function findUser(db, id) {
 
 class LookupFailed extends Error {}
 
-module.exports = { loadRows, findUser, LookupFailed };
+// An empty catch whose comment says why the failure is acceptable is a
+// decision, not a swallowed error (owner, 2026-10-30: exempt commented empty
+// catches). 42 of 42 outline hits were this shape.
+function rememberPath(key, path) {
+  try {
+    sessionStorage.setItem(key, path);
+  } catch (_err) {
+    // Storage is disabled in private mode; the cookie set by the caller still works.
+  }
+}
+
+module.exports = { loadRows, findUser, LookupFailed, rememberPath };

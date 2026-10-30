@@ -30,4 +30,13 @@ function start() {
   return counter;
 }
 
-module.exports = { loadRows, findUser, exportReport, start };
+// A comment that defers the handling is not a reason, so this still fires.
+async function follow(api, account) {
+  try {
+    await api.follow(account);
+  } catch (_err) {
+    // TODO: handle error
+  }
+}
+
+module.exports = { loadRows, findUser, exportReport, start, follow };

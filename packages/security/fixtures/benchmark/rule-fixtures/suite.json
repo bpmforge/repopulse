@@ -124,6 +124,16 @@
       "note": "Empty catch."
     },
     {
+      "id": "ch-empty-catch-todo",
+      "tree": "code-health/triggering",
+      "file": "slop.js",
+      "lines": [35, 39],
+      "rule": "bpm-ch-empty-catch",
+      "dimension": "slop",
+      "expect": "finding",
+      "note": "A catch whose only comment defers the handling (TODO) still fires; a comment giving a reason does not (owner, 2026-10-30)."
+    },
+    {
       "id": "ch-await-in-loop",
       "tree": "code-health/triggering",
       "file": "slop.js",
