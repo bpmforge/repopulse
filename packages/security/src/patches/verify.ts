@@ -4,6 +4,7 @@ import path from 'node:path';
 import { dedupKey } from '@repopulse/insights';
 import { shred, snapshotRoot, SNAPSHOT_PREFIX } from '../snapshot/snapshot.js';
 import type { SourceFile } from '../snapshot/sources.js';
+import { checkErrorHandling, type PatchGuardCode } from './guard.js';
 
 // Verification for model-drafted patches (W18-19, D16).
 //
@@ -95,7 +96,8 @@ export type PatchVerdictCode =
   | 'target_still_present'
   | 'target_moved'
   | 'new_finding'
-  | 'rule_run_failed';
+  | 'rule_run_failed'
+  | PatchGuardCode;
 
 export interface PatchVerdict {
   status: 'verified' | 'rejected' | 'failed';
@@ -278,6 +280,19 @@ export interface VerifyPatchResult extends PatchVerdict {
  * in a `finally`, swept if that never runs.
  */
 export async function verifyPatch(args: VerifyPatchArgs): Promise<VerifyPatchResult> {
+  // The error-handling guard first (guard.ts, 2026-10-30): a patch that takes
+  // error handling away or adds a force-unwrap is rejected whatever the rules
+  // say — clearing a lint hit by making the code crash is not a fix. Checked
+  // before the re-scan, so a refused patch costs no sandbox run.
+  const guard = checkErrorHandling({
+    file: args.target.file,
+    before: args.before,
+    after: args.after,
+  });
+  if (!guard.ok) {
+    return { status: 'rejected', code: guard.code, reason: guard.reason, runs: [] };
+  }
+
   const root = snapshotRoot(args.root !== undefined ? { root: args.root } : {});
   await mkdir(root, { recursive: true, mode: 0o700 });
   // One snap-* directory PER STATE, each directly under the root (2026-10-28).

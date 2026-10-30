@@ -11,7 +11,7 @@ import type { ForgeProvider } from '@repopulse/forge';
 import { snapshotForScan } from '../snapshot/fetch.js';
 import { readSnapshotSources, type SourceFile } from '../snapshot/sources.js';
 import { MAX_DIFF_BYTES, PatchRejectedError, validateAndApply } from './diff.js';
-import { buildPatchPrompt, PATCH_PROMPT_VERSION } from './prompt.js';
+import { buildPatchPrompt, extractNoSafeFix, PATCH_PROMPT_VERSION } from './prompt.js';
 import { productionRunners } from './runners.js';
 import { resolvePatchTarget } from './target.js';
 import { safeJoin, verifyPatch, type FileRuleRunner } from './verify.js';
@@ -21,9 +21,10 @@ import { safeJoin, verifyPatch, type FileRuleRunner } from './verify.js';
 //   1. the configured model drafts a unified diff for one finding;
 //   2. the diff's shape is checked and it is applied to the file AT THE SCAN'S
 //      COMMIT (diff.ts);
-//   3. the file is re-scanned before and after inside the sandbox flow, and the
-//      patch is verified only if the finding clears and nothing new fires
-//      (verify.ts);
+//   3. a patch that removes error handling or adds a force-unwrap is rejected
+//      (guard.ts); otherwise the file is re-scanned before and after inside the
+//      sandbox flow, and the patch is verified only if the finding clears and
+//      nothing new fires (verify.ts);
 //   4. the row is updated with the verdict.
 //
 // READ-ONLY TOWARDS THE FORGE (D9a). The only forge calls on this path are the
@@ -204,6 +205,22 @@ export async function runPatchDraft(deps: PatchDraftDeps): Promise<PatchDraftRes
           tokensIn: completion.tokensIn,
           tokensOut: completion.tokensOut,
         };
+
+        // The prompt's way out (2026-10-30): when the only way to clear the
+        // rule would remove or weaken error handling, the model says so
+        // instead of drafting. That is a verdict like a rejected draft (the
+        // after-judge loop does not ask again); there is no diff to keep.
+        const noSafeFix = extractNoSafeFix(completion.text);
+        if (noSafeFix !== null) {
+          return finish(
+            {
+              status: 'rejected',
+              code: 'no_safe_fix',
+              reason: `The model found no fix that keeps the error handling: ${noSafeFix}`,
+            },
+            drafted,
+          );
+        }
 
         let applied;
         try {
