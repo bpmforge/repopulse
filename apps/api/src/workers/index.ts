@@ -1331,7 +1331,10 @@ async function main(): Promise<void> {
       // a nightly pass would re-draft the same clusters six times before
       // anyone had opened the workbench. W22-06: the same job also turns the
       // AI judge's stored false-positive verdicts into rule-tweak proposals.
-      ['rule_draft_pass', weeklyCron],
+      // On the chain slot, an hour after the weekly sweep: it calls the same
+      // model as anti-slop's judgement, and starting with the sweep it took
+      // the model first (2026-10-30). It reads stored findings, so later is fine.
+      ['rule_draft_pass', chainCron],
       ['knowledge_register', registersCron],
       // W18-24. Nightly with the registers: alerts change when someone's CI
       // runs, not on our weekly cadence, and the pull is one read per repo.

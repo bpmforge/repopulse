@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { HostUnavailableError } from '@repopulse/analysis';
 import {
   buildTweakPrompt,
   clusterTriageFalsePositives,
@@ -148,6 +149,26 @@ describe('runTriageTweakPass', () => {
       }),
     ).toMatchObject({ status: 'skipped', skippedReason: 'no_clusters' });
     expect(h.complete).not.toHaveBeenCalled();
+  });
+
+  it('stops and waits for the next run when the model is busy, proposing nothing', async () => {
+    // Background learning must not queue behind a scan for the one model slot.
+    const h = harness('{}');
+    h.complete.mockRejectedValue(new HostUnavailableError());
+    const r = await runTriageTweakPass({
+      db: h.db,
+      workspaceId: 1,
+      gateway: h.gateway,
+      judgements: many(4),
+    });
+    expect(r).toMatchObject({
+      status: 'skipped',
+      skippedReason: 'model_busy',
+      proposed: 0,
+      errors: 0,
+    });
+    expect(h.complete).toHaveBeenCalledTimes(1);
+    expect(h.inserted).toEqual([]);
   });
 
   it('stores a PROPOSED rule with ai_triage provenance, calls the triage role, and nothing else', async () => {

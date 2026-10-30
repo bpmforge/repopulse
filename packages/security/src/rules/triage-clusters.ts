@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, isNotNull, isNull, or } from 'drizzle-orm';
 import { read, security, type Database, safeErrorText } from '@repopulse/shared';
-import type { AnalysisGateway } from '@repopulse/analysis';
+import { HostUnavailableError, type AnalysisGateway } from '@repopulse/analysis';
 import { TRIAGE_VERDICTS, type TriageVerdict } from '../triage/types.js';
 import type { DraftPassResult } from './draft-run.js';
 import { acceptDraft, type FpCluster } from './intake.js';
@@ -151,7 +151,7 @@ export interface TweakPassDeps {
 
 export interface TweakPassResult {
   status: 'succeeded' | 'skipped' | 'failed';
-  skippedReason?: 'no_gateway' | 'no_clusters';
+  skippedReason?: 'no_gateway' | 'no_clusters' | 'model_busy';
   clusters: number;
   proposed: number;
   rejected: number;
@@ -186,6 +186,7 @@ export async function runTriageTweakPass(deps: TweakPassDeps): Promise<TweakPass
   let rejected = 0;
   let collided = 0;
   const errors: string[] = [];
+  let modelBusy = false;
   const attempted = clusters.slice(0, deps.maxProposals ?? 3);
   for (const cluster of attempted) {
     try {
@@ -238,8 +239,17 @@ export async function runTriageTweakPass(deps: TweakPassDeps): Promise<TweakPass
       }
       proposed += 1;
     } catch (error) {
+      // Another caller holds the model. This is background work: stop and let
+      // the next run propose, rather than queue behind a scan.
+      if (error instanceof HostUnavailableError) {
+        modelBusy = true;
+        break;
+      }
       errors.push(`${cluster.sourceRuleId ?? '(no rule)'}: ${safeErrorText(error)}`);
     }
+  }
+  if (modelBusy && proposed === 0 && rejected === 0 && collided === 0 && errors.length === 0) {
+    return { status: 'skipped', skippedReason: 'model_busy', ...empty, clusters: clusters.length };
   }
   const error = errors.length > 0 ? errors.slice(0, 3).join('; ') : undefined;
   return {
@@ -415,7 +425,9 @@ export function combineLearningPasses(
     skipped =
       draft.skippedReason === 'no_gateway' || tweak.skippedReason === 'no_gateway'
         ? 'no_gateway'
-        : 'no_clusters';
+        : tweak.skippedReason === 'model_busy'
+          ? 'model_busy'
+          : 'no_clusters';
   }
   return {
     scanned: draft.clusters + tweak.clusters,

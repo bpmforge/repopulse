@@ -130,7 +130,7 @@ describe('production wiring (regression gate)', () => {
     ]) {
       expect(worker, `${key} has no weekly/nightly runner`).toContain(`${key}: async`);
       expect(worker, `${key} is never enqueued on a schedule`).toMatch(
-        new RegExp(`\\['${key}', (registersCron|weeklyCron)\\]`),
+        new RegExp(`\\['${key}', (registersCron|weeklyCron|chainCron)\\]`),
       );
     }
     expect(worker).toContain('REGISTERS_NIGHTLY_CRON');

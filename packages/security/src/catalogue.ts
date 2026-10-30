@@ -142,7 +142,11 @@ export const BUILTIN_SCANNERS: readonly Scanner[] = [
     displayName: 'Rule draft pass',
     version: 'rule_draft.v1',
     inputs: 'findings',
-    triggers: ['schedule', 'manual'],
+    // Schedule only (2026-10-30). Started by "Run scan" beside every scanner,
+    // its 45,000-token rule-tweak proposals held LM Studio's one slot for 20
+    // minutes and anti-slop failed twice on outline. It is weekly learning
+    // over a 30-day window; a person pressing the button wants the scan.
+    triggers: ['schedule'],
   }),
   // W16-33 gave both of these a runner. MANUAL only, and not on the weekly
   // cron: a checklist is a gateway call per chunk, and their own defaults say
