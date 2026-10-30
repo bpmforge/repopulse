@@ -79,6 +79,17 @@ describe('checkErrorHandling — console logging (2026-10-30)', () => {
     });
   });
 
+  it('rejects the outline ssl.ts draft that wrote the error with process.stderr.write', () => {
+    const after = PERMS_BEFORE.replace(
+      '  } catch (_err) {\n',
+      '  } catch (_err) {\n    process.stderr.write(`read check failed: ${_err}\\n`);\n',
+    );
+    expect(check('server/utils/ssl.ts', PERMS_BEFORE, after)).toMatchObject({
+      ok: false,
+      code: 'adds_console_logging',
+    });
+  });
+
   it("allows the repository's logger, and a console call already in the file", () => {
     const logged = PERMS_BEFORE.replace(
       '  } catch (_err) {\n',
