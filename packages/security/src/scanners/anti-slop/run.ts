@@ -76,7 +76,7 @@ import {
   readDeclaredDependencies,
   type DeclaredSet,
 } from '../../validation/declared.js';
-import { runSemgrepScan, type SemgrepRunResult } from '../semgrep/scanner.js';
+import { readRulepack, runSemgrepScan, type SemgrepRunResult } from '../semgrep/scanner.js';
 import { listTreeFiles } from '../../snapshot/index.js';
 import {
   ANTI_SLOP_PACK_FILE_PREFIX,
@@ -221,6 +221,9 @@ async function shippedRuleStatus(
   return effectiveStatus('candidate', registry.get(ruleId));
 }
 
+/** The pack rules this scanner stores (W18-30); the rest belong to logging. */
+const PACK_RULE_PREFIX = 'bpm-ch-';
+
 /**
  * What a snapshot pass may close (W20-08, UX_TODO FND-58).
  *
@@ -232,6 +235,24 @@ async function shippedRuleStatus(
  * a capped read, and the dependency-hygiene rules nothing without manifests,
  * so a partial pass must not read their silence as a fix. The judgement half
  * is never swept: it samples candidates and may not have run at all.
+ *
+ * A PARTIAL tree pass (2026-10-30) still closes the PACK's findings. The pack
+ * runs over the snapshot on disk, not the capped source read, so the files it
+ * scanned are a fact of this run whatever the reader skipped. Before this, a
+ * large repository's read was always capped, nothing it found ever closed, and
+ * a rule fix (#199, outline's 42 commented empty catches) changed nothing. The
+ * close rule over a partial pass is exactly:
+ *
+ *   open/confirmed anti_slop finding, rule id in `packRuleIds` (the bpm-ch-*
+ *   rules this run loaded), file in the pack's scanned paths less the files an
+ *   engine error names, not reported again by this run => resolved, the same
+ *   transition and history row a full run writes.
+ *
+ * Everything else stays as it is: the source-read rules, the judgement half,
+ * repo-level rows, files the engine did not scan, and a rule id the pack no
+ * longer has (removed or renamed: its findings wait for a complete pass, which
+ * reviews every file and closes them as before; a partial pass did not run that
+ * rule, so it has not observed them gone).
  */
 export function antiSlopSweep(
   deps: Pick<
@@ -239,32 +260,46 @@ export function antiSlopSweep(
     'files' | 'sources' | 'sourcesComplete' | 'snapshotDir' | 'targetDir' | 'trigger'
   >,
   pack: Pick<SemgrepRunResult, 'scannedPaths' | 'erroredPaths' | 'pathlessErrors'> | null,
+  packRuleIds: readonly string[] = [],
 ): {
   reviewedFiles?: string[];
   fullSweep?: {
-    treeFiles: readonly string[];
+    treeFiles?: readonly string[];
     keepOpen: (row: { ruleId: string | null }) => boolean;
   };
 } {
+  // An error naming no file (a rule that failed to load) means the run cannot
+  // vouch for any rule it did not report.
   const treePass =
     deps.files.length === 0 &&
     deps.trigger !== 'pr_synced' &&
-    deps.sourcesComplete === true &&
-    deps.snapshotDir !== undefined &&
     deps.targetDir !== undefined &&
     pack !== null &&
     (pack.pathlessErrors ?? 0) === 0;
-  if (!treePass || !deps.snapshotDir) return {};
-  const errored = new Set(pack?.erroredPaths ?? []);
-  const reviewed = new Set((deps.sources ?? []).map((s) => s.path));
-  for (const p of pack?.scannedPaths ?? []) reviewed.add(p);
-  for (const p of errored) reviewed.delete(p);
+  if (!treePass) return {};
+  const errored = new Set(pack.erroredPaths ?? []);
+  if (deps.sourcesComplete === true && deps.snapshotDir !== undefined) {
+    const reviewed = new Set((deps.sources ?? []).map((s) => s.path));
+    for (const p of pack.scannedPaths ?? []) reviewed.add(p);
+    for (const p of errored) reviewed.delete(p);
+    return {
+      reviewedFiles: [...reviewed],
+      fullSweep: {
+        treeFiles: listTreeFiles(deps.snapshotDir),
+        keepOpen: (row) => row.ruleId === 'slop.judgment',
+      },
+    };
+  }
+  // Partial: the pack's own rules over the pack's own files, nothing more.
+  const ran = new Set(packRuleIds.filter((id) => id.startsWith(PACK_RULE_PREFIX)));
+  if (pack.scannedPaths === undefined || ran.size === 0) return {};
+  const scanned = pack.scannedPaths.filter((p) => !errored.has(p));
+  if (scanned.length === 0) return {};
   return {
-    reviewedFiles: [...reviewed],
-    fullSweep: {
-      treeFiles: listTreeFiles(deps.snapshotDir),
-      keepOpen: (row) => row.ruleId === 'slop.judgment',
-    },
+    reviewedFiles: scanned,
+    // No treeFiles and no repoLevel: a partial pass closes nothing on a file it
+    // did not scan, and never a file-less row.
+    fullSweep: { keepOpen: (row) => row.ruleId === null || !ran.has(row.ruleId) },
   };
 }
 
@@ -293,6 +328,8 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
   let toolVersions: Record<string, string> | null = null;
   /** The pack run, kept for the stale sweep (W20-08). */
   let packRun: SemgrepRunResult | null = null;
+  /** The rule ids that pack run loaded: what a partial pass may close. */
+  let packRuleIds: string[] = [];
 
   try {
     // ---- Deterministic layer -------------------------------------------
@@ -861,10 +898,12 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
     // scanner's runs can ever own or sweep them.
     if (deps.targetDir) {
       const globs = deps.excludedGlobs ?? DEFAULT_EXCLUDED_GLOBS;
+      const rulepackFiles = (file: string): boolean =>
+        file.startsWith(ANTI_SLOP_PACK_FILE_PREFIX);
       const result = await (deps.runPack ?? runSemgrepScan)({
         targetDir: deps.targetDir,
         rulepackDir: CODE_HEALTH_PACK_DIR,
-        rulepackFiles: (file) => file.startsWith(ANTI_SLOP_PACK_FILE_PREFIX),
+        rulepackFiles,
         budget: { wallClockMs: 10 * 60 * 1000 },
         ...(deps.image ? { image: deps.image } : {}),
       });
@@ -876,9 +915,11 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
       }
       toolVersions = result.toolVersions;
       packRun = result;
+      // The same files the engine was handed, read the same way it reads them.
+      packRuleIds = readRulepack(CODE_HEALTH_PACK_DIR, rulepackFiles).ruleIds;
 
       for (const finding of result.findings) {
-        if (!finding.ruleId.startsWith('bpm-ch-')) continue;
+        if (!finding.ruleId.startsWith(PACK_RULE_PREFIX)) continue;
         if (isExcluded(finding.file, globs)) {
           excluded += 1;
           continue;
@@ -1051,7 +1092,7 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
       tier: 2,
       findings: await attachExcerpts(deps.targetDir, findings),
       sweepScannerKey: ANTI_SLOP_SCANNER_KEY,
-      ...antiSlopSweep(deps, packRun),
+      ...antiSlopSweep(deps, packRun, packRuleIds),
     });
 
     await deps.db

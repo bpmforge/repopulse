@@ -1,10 +1,11 @@
 import 'dotenv/config';
-import { readdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { and, eq, inArray } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { core, createDb, read, security, type Database } from '@repopulse/shared';
-import { persistFindings } from '@repopulse/insights';
+import { persistFindings, type IncomingFinding } from '@repopulse/insights';
 import { ANTI_SLOP_SCANNER_KEY, runAntiSlopScan } from './run.js';
 import {
   ANTI_SLOP_PACK_FILE_PREFIX,
@@ -242,6 +243,8 @@ describeIfReady('bpm-ch-* findings reach the store (W18-30)', () => {
         await db.delete(read.findingEvents).where(inArray(read.findingEvents.findingId, ids));
       }
       await db.delete(read.findings).where(inArray(read.findings.repoId, repos));
+      // A pass with sources writes its import graph and densities here.
+      await db.delete(read.metricSnapshots).where(inArray(read.metricSnapshots.repoId, repos));
       await db.delete(security.scanRuns).where(inArray(security.scanRuns.repoId, repos));
       await db.delete(core.repos).where(inArray(core.repos.id, repos));
     }
@@ -367,4 +370,195 @@ describeIfReady('bpm-ch-* findings reach the store (W18-30)', () => {
     expect(await openCount(repoId, 'bpm-ch-')).toBe(0);
     expect(await openCount(repoId, 'bpm-log-')).toBe(log);
   }, 300_000);
+
+  // 2026-10-30: a capped source read marked the run partial, and a partial run
+  // closed NOTHING — so a rule fix (#199) never closed the findings it fixed on
+  // a large repository. The pack scanned the snapshot whatever the reader
+  // skipped, so its own rules close on the files it scanned.
+  describe('a partial pass closes pack findings by the files the pack scanned', () => {
+    const tree = mkdtempSync(path.join(tmpdir(), 'slop-partial-'));
+    for (const rel of ['src/a.ts', 'src/b.ts', 'src/c.ts']) {
+      mkdirSync(path.dirname(path.join(tree, rel)), { recursive: true });
+      writeFileSync(path.join(tree, rel), 'const value = 1;\nconsole.log(value);\n');
+    }
+
+    function seed(ruleId: string, file: string, line: number): IncomingFinding {
+      return {
+        dimension: 'slop',
+        severity: 2,
+        confidence: 4,
+        file,
+        lineStart: line,
+        lineEnd: line,
+        title: `${ruleId} at ${file}:${line}`,
+        evidenceQuote: `${file}:${line} — ${ruleId}`,
+        rationale: 'seeded',
+        suggestedFix: null,
+        scannerKey: ANTI_SLOP_SCANNER_KEY,
+        ruleId,
+        yields: null,
+      };
+    }
+
+    // Ten lines apart: the dedup key buckets by line / 10.
+    const SEEDS = {
+      fixed: seed('bpm-ch-empty-catch', 'src/a.ts', 3),
+      model: seed('slop.judgment', 'src/a.ts', 13),
+      dismissed: seed('bpm-ch-empty-catch', 'src/a.ts', 23),
+      retired: seed('bpm-ch-retired-rule', 'src/a.ts', 33),
+      unscanned: seed('bpm-ch-empty-catch', 'src/c.ts', 3),
+      stillThere: seed('bpm-ch-what-comment', 'src/b.ts', 2),
+    };
+
+    /** The pack scanned a.ts and b.ts (not c.ts) and still sees b.ts:2. */
+    async function packRunner(args: SemgrepRunArgs): Promise<SemgrepRunResult> {
+      const pack = readRulepack(args.rulepackDir ?? CODE_HEALTH_PACK_DIR, args.rulepackFiles);
+      return {
+        status: 'succeeded',
+        findings: [
+          {
+            ruleId: 'bpm-ch-what-comment',
+            file: 'src/b.ts',
+            lineStart: 2,
+            lineEnd: 2,
+            severity: 2,
+            title: SEEDS.stillThere.title,
+            message: 'seeded',
+            yields: [],
+            cwe: null,
+            shippedStatus: 'active',
+          },
+        ],
+        toolErrors: [],
+        scannedPaths: ['src/a.ts', 'src/b.ts'],
+        erroredPaths: [],
+        pathlessErrors: 0,
+        durationMs: 0,
+        toolVersions: { opengrep: 'fake', rulepack: pack.version },
+      };
+    }
+
+    async function seeded(name: string): Promise<{ repoId: number; ids: Record<string, number> }> {
+      const repoId = await newRepo(name);
+      const [run] = await db
+        .insert(security.scanRuns)
+        .values({
+          workspaceId,
+          repoId,
+          scannerKey: ANTI_SLOP_SCANNER_KEY,
+          scannerVersion: 'seed',
+          commitSha: `${name}-seed`,
+          trigger: 'schedule',
+          status: 'succeeded',
+        })
+        .returning();
+      await persistFindings(db, {
+        workspaceId,
+        repoId,
+        scanRunId: run!.id,
+        pullRequestId: null,
+        tier: 2,
+        findings: Object.values(SEEDS),
+      });
+      const rows = await rowsOf(repoId);
+      const ids: Record<string, number> = {};
+      for (const [key, f] of Object.entries(SEEDS)) {
+        const row = rows.find((r) => r.title === f.title);
+        expect(row, key).toBeDefined();
+        ids[key] = row!.id;
+      }
+      await db
+        .update(read.findings)
+        .set({ status: 'dismissed' })
+        .where(eq(read.findings.id, ids.dismissed!));
+      return { repoId, ids };
+    }
+
+    async function pass(repoId: number, sha: string, sourcesComplete: boolean) {
+      const result = await runAntiSlopScan({
+        db,
+        workspaceId,
+        repoId,
+        commitSha: sha,
+        files: [],
+        // The capped read saw only a.ts.
+        sources: [{ path: 'src/a.ts', source: 'const value = 1;\nconsole.log(value);\n' }],
+        sourcesComplete,
+        snapshotDir: tree,
+        targetDir: tree,
+        runPack: packRunner,
+        trigger: 'schedule',
+      });
+      expect(result.status, result.error ?? '').toBe('succeeded');
+      return result;
+    }
+
+    async function statusOf(ids: Record<string, number>): Promise<Record<string, string>> {
+      const rows = await db
+        .select({ id: read.findings.id, status: read.findings.status })
+        .from(read.findings)
+        .where(
+          and(
+            eq(read.findings.workspaceId, workspaceId),
+            inArray(read.findings.id, Object.values(ids)),
+          ),
+        );
+      const out: Record<string, string> = {};
+      for (const [key, id] of Object.entries(ids)) {
+        out[key] = rows.find((r) => r.id === id)!.status;
+      }
+      return out;
+    }
+
+    it('resolves a vanished pack finding on a scanned file and nothing else', async () => {
+      const { repoId, ids } = await seeded('partial');
+      const run = await pass(repoId, 'partial-1', false);
+
+      expect(await statusOf(ids)).toEqual({
+        fixed: 'resolved',
+        model: 'open',
+        dismissed: 'dismissed',
+        // A rule the pack no longer has did not run: not seen is not fixed.
+        retired: 'open',
+        // The engine never scanned c.ts.
+        unscanned: 'open',
+        stillThere: 'open',
+      });
+
+      // The same transition and history row a full run writes.
+      const events = await db
+        .select()
+        .from(read.findingEvents)
+        .where(
+          and(
+            eq(read.findingEvents.workspaceId, workspaceId),
+            inArray(read.findingEvents.findingId, Object.values(ids)),
+            eq(read.findingEvents.toStatus, 'resolved'),
+          ),
+        );
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({
+        findingId: ids.fixed,
+        fromStatus: 'open',
+        reason: 'outdated_diff',
+        actor: null,
+        scanRunId: run.scanRunId,
+      });
+    }, 300_000);
+
+    it('a complete pass behaves as before: every reviewed file, any rule but judgement', async () => {
+      const { repoId, ids } = await seeded('complete');
+      await pass(repoId, 'complete-1', true);
+      expect(await statusOf(ids)).toEqual({
+        fixed: 'resolved',
+        model: 'open',
+        dismissed: 'dismissed',
+        // A complete pass reviewed a.ts whole, as it always did.
+        retired: 'resolved',
+        // c.ts is in the tree but neither read nor scanned.
+        unscanned: 'open',
+        stillThere: 'open',
+      });
+    }, 300_000);
+  });
 });

@@ -49,16 +49,40 @@ describe('antiSlopSweep (W20-08)', () => {
     expect(sweep.fullSweep?.keepOpen({ ruleId: 'slop.dead-export' })).toBe(false);
   });
 
+  const ran = ['bpm-ch-empty-catch', 'bpm-ch-what-comment'];
+
   it.each([
     ['a PR pass', { trigger: 'pr_synced' as const }],
     ['a changed-files pass', { files: [{ path: 'src/a.ts' } as unknown as DiffFile] }],
-    ['a capped read', { sourcesComplete: false }],
   ])('%s sweeps nothing', (_label, over) => {
-    expect(antiSlopSweep({ ...deps, ...over }, pack)).toEqual({});
+    expect(antiSlopSweep({ ...deps, ...over }, pack, ran)).toEqual({});
   });
 
   it('a pack that failed to load, or never ran, sweeps nothing', () => {
-    expect(antiSlopSweep(deps, { ...pack, pathlessErrors: 1 })).toEqual({});
-    expect(antiSlopSweep(deps, null)).toEqual({});
+    expect(antiSlopSweep(deps, { ...pack, pathlessErrors: 1 }, ran)).toEqual({});
+    expect(antiSlopSweep(deps, null, ran)).toEqual({});
+    expect(antiSlopSweep({ ...deps, sourcesComplete: false }, null, ran)).toEqual({});
+  });
+
+  // 2026-10-30: a large repository's read is always capped, so nothing the
+  // pack found ever closed. The pack read the snapshot, not the capped sources.
+  it('a capped read closes only the pack rules that ran, on the files the pack scanned', () => {
+    const sweep = antiSlopSweep({ ...deps, sourcesComplete: false }, pack, ran);
+    // Not src/b.ts (the reader saw it, the pack did not), not the errored file.
+    expect(sweep.reviewedFiles).toEqual(['src/a.ts']);
+    expect(sweep.fullSweep?.treeFiles).toBeUndefined();
+    const keep = sweep.fullSweep!.keepOpen;
+    expect(keep({ ruleId: 'bpm-ch-empty-catch' })).toBe(false);
+    expect(keep({ ruleId: 'slop.judgment' })).toBe(true);
+    expect(keep({ ruleId: 'slop.dead-export' })).toBe(true);
+    expect(keep({ ruleId: 'bpm-ch-removed-rule' })).toBe(true);
+    expect(keep({ ruleId: null })).toBe(true);
+  });
+
+  it('a capped read with no rule ids, or no scanned paths, sweeps nothing', () => {
+    const capped = { ...deps, sourcesComplete: false };
+    expect(antiSlopSweep(capped, pack, [])).toEqual({});
+    expect(antiSlopSweep(capped, { pathlessErrors: 0 }, ran)).toEqual({});
+    expect(antiSlopSweep(capped, { ...pack, scannedPaths: ['src/broken.ts'] }, ran)).toEqual({});
   });
 });
