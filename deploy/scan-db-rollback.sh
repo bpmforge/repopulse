@@ -2,7 +2,7 @@
 # Goes back to the previous vulnerability database (W19-06).
 #
 # Only possible when the sync ran with SCAN_KEEP_PREVIOUS_DB=1, which keeps one
-# earlier copy as vuln-db.prev (it costs a third ~1.9 GiB copy of disk while the
+# earlier copy as vuln-db.prev (it costs a third ~3.2 GiB copy of disk while the
 # next sync stages: provision 8 GB, not 5). The two are SWAPPED rather than the
 # newer one deleted, so a rollback can itself be undone by running this again.
 #

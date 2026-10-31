@@ -63,3 +63,10 @@ ef5c718f74e7b265eebc04552d2da2d30bb688d5:packages/insights/src/score/health.ts:g
 adc466577b079467755608c2862ed58e495e5041:packages/security/src/excerpt.test.ts:aws-access-token:20
 adc466577b079467755608c2862ed58e495e5041:packages/security/src/excerpt.test.ts:aws-access-token:75
 adc466577b079467755608c2862ed58e495e5041:packages/security/src/excerpt.test.ts:jwt:78
+
+# W22-13 release-prep audit 2026-10-31: three generic-api-key hits on fixture identifiers
+# (metric key ch_complexity_p90, OIDC subject w20-10-oidc-person, dedup key w20-03-foreign).
+# Read one by one; none is a credential.
+da42923d52cc87973139578de453609a8d6c0b3d:apps/web/src/widgets/admin/settings/contracts.ts:generic-api-key:44
+3c92751e8ac142b25cacb976d20ae696692b3768:apps/api/src/routes/admin/identities/index.test.ts:generic-api-key:290
+5d5d979ad112110fc0df275a9153cc6ce068d7c7:apps/api/src/routes/findings/transitions.test.ts:generic-api-key:445

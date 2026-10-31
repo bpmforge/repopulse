@@ -157,3 +157,10 @@ TypeScript on Node 22 · pnpm monorepo · Fastify · PostgreSQL 16 with Drizzle 
 Redis with BullMQ · React 18, Vite, TanStack Router and Query · Tailwind 4 with
 shadcn/ui · ECharts · vitest and Playwright. Ships as container images for
 Podman or Docker Compose.
+
+## Licence
+
+Repo Pulse is licensed under the [Apache License 2.0](LICENSE). See
+[NOTICE](NOTICE) for attributions and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
+for the third-party rule packs, fixtures and tools the repository and its
+container images contain, and the licence each one is under.

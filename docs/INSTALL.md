@@ -11,22 +11,53 @@ run one script, sign in with the administrator account that script creates,
 and connect a forge later from inside the product. Until you do, the product
 runs; it just has nothing to measure yet.
 
-Every command in this document was run on **linux/arm64 under rootless Podman
-5.8** (`podman-compose` 1.6), in the Linux VM that `podman machine` runs on a
-Mac (see [Install on a Mac](#install-on-a-mac)). An **amd64** bundle has been built and
-installed only under emulation on that same arm64 host (2026-09-23; see
-`ARCHITECTURES.md` in the bundle for exactly what ran), never on real amd64
-hardware. **Docker is untested** — the scripts carry Docker code paths, but
-nothing has run on one. Substitute `docker` for `podman` at your own risk and
-tell us what happened.
+What has actually been run, all on **linux/arm64**:
+
+- **Install from a checkout**, followed literally from a fresh VM
+  (2026-10-31), on **Ubuntu 26.04 LTS with its own rootless Podman 5.7**
+  (`podman-compose` 1.5) and on **Ubuntu 24.04 LTS with its own Docker 29**
+  (`docker.io`, `docker-compose-v2`, `docker-buildx`): sign-in, a report PDF
+  and the scan-data sync all worked on both.
+- The bundle and everything else in this document, under **rootless Podman
+  5.8** (`podman-compose` 1.6) in the Linux VM that `podman machine` runs on a
+  Mac (see [Install on a Mac](#install-on-a-mac)).
+
+An **amd64** bundle has been built and installed only under emulation on an
+arm64 host (2026-09-23; see `ARCHITECTURES.md` in the bundle for exactly what
+ran), never on real amd64 hardware. The bundle path has not been run under
+Docker.
 
 ## What you need
 
-- A container runtime: Podman 5+ with `podman-compose`, or Docker 24+ with the
-  compose plugin
+- A container runtime, one of:
+  - **Podman 5 or newer with `podman-compose` 1.5 or newer.** These are hard
+    floors, and `deploy/up.sh` refuses anything older with a sentence. On
+    Podman 4 the services that wait for the database migration never start.
+    Older `podman-compose` lets blank lines in `deploy/.env` override the
+    paths `up.sh` sets, and prints every password it passes to a container
+    in its output. **Ubuntu 24.04's own packages (Podman 4.9.3,
+    podman-compose 1.0.6) do not qualify**; Ubuntu 26.04 LTS's (5.7 / 1.5) do.
+    Rootless Podman also needs its API socket, which a fresh Linux host does
+    not enable. The scan-runner uses it to start scans:
+
+    ```bash
+    systemctl --user enable --now podman.socket
+    ```
+
+  - **Docker 24 or newer with the compose plugin and buildx** (the images use
+    BuildKit; Ubuntu's `docker.io` comes without it):
+
+    ```bash
+    sudo apt-get install docker.io docker-compose-v2 docker-buildx   # Ubuntu/Debian
+    sudo usermod -aG docker "$(id -un)"   # then log out and back in: the group
+                                          # only applies to new login sessions
+    ```
+
+    With both runtimes installed, set `RUNTIME=docker` (or `podman`) for every
+    `deploy/` script; otherwise they pick Podman.
 - About 4 GB of disk for images, plus room for your warehouse (a few hundred MB
-  for most organizations), plus 5 GB under the scan-data directory if you want
-  dependency (CVE) scanning
+  for most organizations), plus **8 GB** under the scan-data directory if you
+  want dependency (CVE) scanning (see [Scan data](#scan-data))
 - Memory for six containers: plan on 4 GB free for the stack, more while
   scans run (a starting figure, not a measured minimum)
 - A hostname you will reach this install at, and a TLS terminator in front of
@@ -107,7 +138,7 @@ deploy/up.sh                                   # start (or restart) and verify; 
 podman compose -f deploy/compose.yaml down     # stop; data stays in the volumes
 deploy/backup.sh                               # dump the database beside a manifest
 deploy/scan-db-sync.sh                         # refresh scan rules + fetch the CVE database
-deploy/smoke-report-pdf.sh                     # generate one report and download its PDF
+SMOKE_PASSWORD=… deploy/smoke-report-pdf.sh    # generate one report and download its PDF (see Check that reports work)
 deploy/uninstall.sh                            # remove RepoPulse (webhooks first) — see Uninstall
 ```
 
@@ -176,7 +207,12 @@ curl -f http://127.0.0.1:8099/healthz && echo OK
 
 `configure.sh` writes `deploy/.env` exactly as `install.sh` does — every secret
 generated, mode `0600`, never rewritten on a rerun — and needs no Node on the
-host: when Node is absent it runs inside the migration image with no network.
+host: when Node is absent it runs inside the migration image with no network,
+building that one image from the checkout first (under a minute). `up.sh
+--build` then builds the rest, including the scanners' sandbox image
+(`Containerfile.scan`, a few minutes the first time), which no compose service
+builds on its own. The first `up.sh --build` took under three minutes in
+total on a 4-CPU VM.
 `deploy/.env.example` documents every line it writes and is the file to read
 before editing anything by hand.
 
@@ -697,11 +733,12 @@ the script refuses to run as root when `deploy/.env` belongs to another user
 (`REPOPULSE_ALLOW_ROOT=1` overrides that for a deliberately rootful install).
 The job also needs that user to linger — see *Start on boot*.
 
-> **Provision 5 GB of disk under the scan-data directory** (`deploy/scan-rules`
+> **Provision 8 GB of disk under the scan-data directory** (`deploy/scan-rules`
 > beside the compose file unless you set `SCAN_RULES_DIR`). The vulnerability
-> database is **about 1.9 GiB**, and a refresh stages the new copy beside the
-> live one before swapping them by rename, so a sync briefly holds two — which
-> a 4 GB volume cannot do. The script checks free space first and refuses to
+> database was **about 3.2 GiB** on 2026-10-31 (it was 1.9 GiB a month earlier,
+> and it grows), and a refresh stages the new copy beside the live one before
+> swapping them by rename, so a sync briefly holds two — which a 5 GB volume
+> cannot do. The first sync took under two minutes on a fast connection. The script checks free space first and refuses to
 > start if there is not enough, rather than filling the disk your database is
 > on at three in the morning.
 
@@ -803,7 +840,11 @@ SMOKE_EMAIL=you@example.com SMOKE_PASSWORD='…' deploy/smoke-report-pdf.sh
 
 With no `SMOKE_*` variables it signs in as `ADMIN_EMAIL` / `ADMIN_PASSWORD`
 from `deploy/.env`. The account must already have done its first-sign-in
-password change, because the script does not change anyone's password. It
+password change, because the script does not change anyone's password, and
+that change means the `ADMIN_PASSWORD` in `deploy/.env` is no longer the
+password. So right after an install: sign in once in the browser, set the new
+password, then pass it as `SMOKE_PASSWORD` as above. The script says which of
+the two it ran into. It
 generates one Repo Health report, waits for the worker, downloads the PDF
 through the api, and checks the PDF header and page count:
 

@@ -18,11 +18,12 @@
 # scanner running against a stale rulepack still reports findings and still
 # looks green.
 #
-# DISK: PROVISION 5 GB FOR THIS, NOT 2.
-# The grype vulnerability database is ~1.9 GiB unpacked, and the swap at the end
-# is deliberately non-destructive — the new copy is staged alongside the live
-# one and only then renamed into place — so a refresh briefly holds two of them,
-# ~3.9 GiB. A 4 GB volume does not fit that, which is why the number here is 5.
+# DISK: PROVISION 8 GB FOR THIS.
+# The grype vulnerability database is ~3.2 GiB unpacked (measured 2026-10-31; it
+# was ~1.9 GiB in 2026-09 and it grows), and the swap at the end is deliberately
+# non-destructive — the new copy is staged alongside the live one and only then
+# renamed into place — so a refresh briefly holds two of them, ~6.5 GiB, plus
+# ~150 MB of rules and indexes. The old 5 GB figure no longer fits that.
 # An operator who sized the volume for "some rule files" will otherwise meet
 # this as a full disk at 03:00. The check below refuses to start rather than
 # filling the filesystem the rest of the install is sitting on.
@@ -45,7 +46,7 @@ env_value() { # $1 name -> shell value, else the deploy/.env line, else empty
 DEST="$(env_value SCAN_RULES_DIR)"
 : "${DEST:=$SCRIPT_DIR/scan-rules}"
 SCAN_IMAGE="$(env_value SCAN_IMAGE)"
-: "${SCAN_IMAGE:=localhost/repopulse/scan:dev}"
+: "${SCAN_IMAGE:=repopulse/scan:dev}"
 FAILED=0
 
 # INS-67: the two fetching containers get the outbound proxy the api and worker
@@ -62,6 +63,32 @@ for proxy_var in HTTPS_PROXY NO_PROXY; do
 done
 
 log() { printf '[scan-db-sync] %s\n' "$*"; }
+
+# The runtime the install uses (W22-15, D3). RUNTIME is honoured the way up.sh
+# and configure.sh honour it; this used to take the first of podman and docker
+# on PATH, so on a host with both, RUNTIME=docker still ran podman against an
+# image store that held nothing.
+pick_runtime() {
+  case "${RUNTIME:-}" in
+    podman | docker) command -v "$RUNTIME" >/dev/null 2>&1 && printf '%s' "$RUNTIME" ;;
+    '') for candidate in podman docker; do
+          if command -v "$candidate" >/dev/null 2>&1; then printf '%s' "$candidate"; return; fi
+        done ;;
+  esac
+}
+# Who the fetch containers run as, so what they write into the scan-data
+# directory belongs to whoever runs this (W22-15). Rootless podman maps the
+# container's root to the invoking user, so 0:0 is that user. Docker's root is
+# the host's root: under 0:0 the staged database came out root-owned and the
+# chmod/swap below failed with "Operation not permitted" (fresh Ubuntu 24.04,
+# Docker 29), so Docker gets the invoking uid:gid instead.
+fetch_user() { # $1 runtime -> --user value
+  if [ "$1" = docker ]; then printf '%s:%s' "$(id -u)" "$(id -g)"; else printf '0:0'; fi
+}
+if [ -n "${RUNTIME:-}" ] && [ -z "$(pick_runtime)" ]; then
+  log "ERROR: RUNTIME=$RUNTIME was requested but '$RUNTIME' is not on PATH."
+  exit 1
+fi
 
 # INS-67 (W20-22): the internal CA the api and worker trust, for the two
 # fetching containers too. Behind a TLS-inspecting proxy grype and the feed
@@ -92,6 +119,14 @@ fi
 fetch_err="$(mktemp "${TMPDIR:-/tmp}/scan-db-sync.XXXXXX")"
 trap 'rm -f "$fetch_err"' EXIT
 show_fetch_error() {
+  # W22-15 (G5): a missing scan image fails as a pull from "localhost", which
+  # the pattern below read as a proxy error and sent the admin to their network.
+  if [ -n "${runtime:-}" ] && ! "$runtime" image exists "$SCAN_IMAGE" 2>/dev/null &&
+    ! "$runtime" image inspect "$SCAN_IMAGE" >/dev/null 2>&1; then
+    log "       The scan image $SCAN_IMAGE is not on this host ($runtime)."
+    log "       From a checkout, deploy/up.sh --build builds it; from a bundle, ./install.sh loads it."
+    return
+  fi
   if [ -s "$fetch_err" ]; then
     log "       its last output:"
     tail -n 5 "$fetch_err" | while IFS= read -r line; do log "         $line"; done
@@ -205,18 +240,15 @@ fi
 # customer source, rather than anywhere near the scan container.
 VULN_DB_DIR="$DEST/vuln-db"
 # Free space needed to RUN a sync, in the KiB blocks POSIX df -P reports. This
-# is 2.2 GiB, not the 5 GB the volume should be provisioned at, and the two
+# is 3.6 GiB, not the 8 GB the volume should be provisioned at, and the two
 # numbers are different on purpose: the swap below is a rename within $DEST,
 # not a copy, so a refresh only ever needs room for ONE more database beside
 # the one already there. Requiring the full provisioned size here would refuse
 # to run on exactly the volume the docs told the operator to build.
-REQUIRED_KB=2306867
+REQUIRED_KB=3774874
 
 if [ "${SCAN_SYNC_VULN_DB:-1}" = "1" ]; then
-  runtime=""
-  for candidate in podman docker; do
-    if command -v "$candidate" >/dev/null 2>&1; then runtime="$candidate"; break; fi
-  done
+  runtime="$(pick_runtime)"
 
   if [ -z "$runtime" ]; then
     log "ERROR: no podman or docker on PATH — the grype database is fetched by"
@@ -226,11 +258,11 @@ if [ "${SCAN_SYNC_VULN_DB:-1}" = "1" ]; then
     available_kb="$(df -Pk "$DEST" | awk 'NR==2 {print $4}')"
     if [ "${available_kb:-0}" -lt "$REQUIRED_KB" ]; then
       log "ERROR: $DEST has ${available_kb}KB free, and one sync needs ${REQUIRED_KB}KB"
-      log "       (~1.9GiB, staged beside the copy already in use). Provision 5GB for"
+      log "       (~3.2GiB, staged beside the copy already in use). Provision 8GB for"
       log "       this directory. Refusing to start rather than filling the disk."
       FAILED=1
     else
-      log "syncing grype vulnerability database (~1.9GB — this is not quick)"
+      log "syncing grype vulnerability database (~3.2GB — this is not quick)"
       stage="$DEST/vuln-db.stage"
       # A previous run killed mid-download leaves a stage directory behind, and
       # grype would then resume into a half-populated cache. Start clean; u+w
@@ -239,7 +271,7 @@ if [ "${SCAN_SYNC_VULN_DB:-1}" = "1" ]; then
       [ -e "$stage" ] && chmod -R u+w "$stage" && rm -rf "$stage"
       mkdir -p "$stage"
 
-      # --user 0:0: under rootless podman the container's root maps to the
+      # --user (fetch_user): 0:0 under rootless podman, where the container's root maps to the
       # invoking user, so the files land owned by whoever runs this cron entry
       # and are readable afterwards. The image's own user (65534) maps to a
       # subuid that does not own $stage and could not write into it.
@@ -272,7 +304,7 @@ if [ "${SCAN_SYNC_VULN_DB:-1}" = "1" ]; then
           db_mounts=(-v "$ARCHIVE:/import/db-archive:ro")
         fi
       fi
-      if [ -z "${ARCHIVE_BAD:-}" ] && "$runtime" run --rm --user 0:0 \
+      if [ -z "${ARCHIVE_BAD:-}" ] && "$runtime" run --rm --user "$(fetch_user "$runtime")" \
            -e GRYPE_DB_CACHE_DIR=/db \
            ${proxy_env[@]+"${proxy_env[@]}"} \
            ${grype_ca_env[@]+"${grype_ca_env[@]}"} \
@@ -303,8 +335,8 @@ if [ "${SCAN_SYNC_VULN_DB:-1}" = "1" ]; then
           mv "$stage" "$VULN_DB_DIR"
           # SCAN_KEEP_PREVIOUS_DB=1 keeps ONE earlier database as vuln-db.prev so
           # deploy/scan-db-rollback.sh can go back. Off by default: it holds a
-          # third ~1.9 GiB copy while the next sync stages, so provision 8 GB,
-          # not 5, if you turn it on.
+          # third ~3.2 GiB copy while the next sync stages, so provision 12 GB,
+          # not 8, if you turn it on.
           if [ "$(env_value SCAN_KEEP_PREVIOUS_DB)" = "1" ] && [ -e "$VULN_DB_DIR.old" ]; then
             rm -rf "$VULN_DB_DIR.prev"
             mv "$VULN_DB_DIR.old" "$VULN_DB_DIR.prev"
@@ -321,8 +353,8 @@ if [ "${SCAN_SYNC_VULN_DB:-1}" = "1" ]; then
         log "ERROR: 'grype ${db_fetch[*]}' failed inside $SCAN_IMAGE."
         show_fetch_error
         log "       It needs outbound HTTPS to grype.anchore.io (through HTTPS_PROXY if set),"
-        log "       and $SCAN_IMAGE must exist (podman compose ... build scan). With no"
-        log "       way out, set SCAN_VULN_DB_ARCHIVE (+ _SHA256) to import a database offline."
+        log "       and $SCAN_IMAGE must exist (deploy/up.sh --build builds it in a checkout)."
+        log "       With no way out, set SCAN_VULN_DB_ARCHIVE (+ _SHA256) to import a database offline."
         chmod -R u+w "$stage" 2>/dev/null || true
         rm -rf "$stage"
         FAILED=1
@@ -341,10 +373,7 @@ fi
 # writes a compact index the dependency scanner matches the SBOM against (tens of MB
 # for npm alone, built in seconds). SCAN_SYNC_MALICIOUS=0 turns it off.
 if [ "${SCAN_SYNC_MALICIOUS:-1}" != "0" ]; then
-  runtime=""
-  for candidate in podman docker; do
-    if command -v "$candidate" >/dev/null 2>&1; then runtime="$candidate"; break; fi
-  done
+  runtime="$(pick_runtime)"
   mal_dir="$DEST/malicious"
   if [ -z "$runtime" ]; then
     log "ERROR: no podman or docker on PATH — the malicious-package index is built in $SCAN_IMAGE"
@@ -359,7 +388,7 @@ if [ "${SCAN_SYNC_MALICIOUS:-1}" != "0" ]; then
     if [ -n "$CA_FILE" ]; then
       mal_cmd=(sh -c 'cat "$(python3 -c "import ssl; print(ssl.get_default_verify_paths().openssl_cafile)")" "$REPOPULSE_CA_FILE" > /tmp/ca-bundle.pem && SSL_CERT_FILE=/tmp/ca-bundle.pem REQUESTS_CA_BUNDLE=/tmp/ca-bundle.pem exec python3 /build.py /out')
     fi
-    if "$runtime" run --rm --user 0:0 \
+    if "$runtime" run --rm --user "$(fetch_user "$runtime")" \
          ${proxy_env[@]+"${proxy_env[@]}"} \
          -e "REPOPULSE_CA_FILE=$CA_FILE" \
          ${ca_mounts[@]+"${ca_mounts[@]}"} \
@@ -398,10 +427,7 @@ fi
 # SCAN_SYNC_PACKAGE_INDEX=0 turns the step off; the scanner then reports
 # existence as "not checked" and runs only its near-miss half.
 if [ "$(env_value SCAN_SYNC_PACKAGE_INDEX)" != "0" ] && [ "${SCAN_SYNC_PACKAGE_INDEX:-1}" != "0" ]; then
-  runtime=""
-  for candidate in podman docker; do
-    if command -v "$candidate" >/dev/null 2>&1; then runtime="$candidate"; break; fi
-  done
+  runtime="$(pick_runtime)"
   idx_dir="$DEST/package-index"
   if [ -z "$runtime" ]; then
     log "ERROR: no podman or docker on PATH — the package-name index is built in $SCAN_IMAGE"
@@ -429,7 +455,7 @@ if [ "$(env_value SCAN_SYNC_PACKAGE_INDEX)" != "0" ] && [ "${SCAN_SYNC_PACKAGE_I
     if [ -n "$CA_FILE" ]; then
       idx_cmd=(sh -c 'cat "$(python3 -c "import ssl; print(ssl.get_default_verify_paths().openssl_cafile)")" "$REPOPULSE_CA_FILE" > /tmp/ca-bundle.pem && SSL_CERT_FILE=/tmp/ca-bundle.pem exec python3 /build.py "$@"' sh "${idx_args[@]}")
     fi
-    if "$runtime" run --rm --user 0:0 \
+    if "$runtime" run --rm --user "$(fetch_user "$runtime")" \
          ${proxy_env[@]+"${proxy_env[@]}"} \
          -e "REPOPULSE_CA_FILE=$CA_FILE" \
          -e "SCAN_PACKAGE_INDEX_ECOSYSTEMS=$idx_ecos" \
