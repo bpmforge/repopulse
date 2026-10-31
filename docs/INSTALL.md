@@ -211,7 +211,7 @@ host: when Node is absent it runs inside the migration image with no network,
 building that one image from the checkout first (under a minute). `up.sh
 --build` then builds the rest, including the scanners' sandbox image
 (`Containerfile.scan`, a few minutes the first time), which no compose service
-builds on its own. The first `up.sh --build` took about four minutes in
+builds on its own. The first `up.sh --build` took under three minutes in
 total on a 4-CPU VM.
 `deploy/.env.example` documents every line it writes and is the file to read
 before editing anything by hand.
