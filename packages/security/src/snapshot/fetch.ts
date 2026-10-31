@@ -22,6 +22,20 @@ export interface SnapshotForScanArgs {
 }
 
 /**
+ * The tree a runner scans: the one a batch already fetched (W23-02), else its
+ * own bracket. A provided tree is NOT shredded here — whoever opened the
+ * bracket owns the deletion, which is what keeps "one snapshot per scan batch"
+ * from becoming "a directory nobody deletes".
+ */
+export async function snapshotOrProvided<T>(
+  provided: { dir: string; commitSha: string } | undefined,
+  args: SnapshotForScanArgs,
+  fn: (snapshot: { dir: string; commitSha: string }) => Promise<T>,
+): Promise<T> {
+  return provided ? await fn(provided) : await snapshotForScan(args, fn);
+}
+
+/**
  * Fetches a pinned archive and hands a bracketed snapshot to `fn`.
  *
  * The forge call goes out on the `scan` lane: a security scan must not be able

@@ -6,7 +6,8 @@ import { extractTarball, type ExtractResult } from './extract.js';
 // Snapshot lifecycle (W8-03, C1a, NFR-13).
 //
 // The C1a exception buys exactly one thing: source may exist on this machine
-// for the length of one scan. Everything here exists to make that "one scan"
+// for the length of one scan BATCH (W23-02: all enabled snapshot scanners over
+// one commit share one bracket). Everything here exists to make that window
 // literal - the directory is created inside a scratch root, handed to the
 // caller, and removed in a `finally` on every exit path including a throw.
 //

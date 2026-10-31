@@ -334,6 +334,8 @@ sequenceDiagram
     participant SB as sandbox (--network=none)
     participant PG as Postgres
     GH->>Q: pr_synced | push | daily | weekly (trigger matrix × enabled scanners, idempotency keys)
+    GH->>Q: Run scans now / first scan: ONE mode=batch job (sec-batch-repo-window[-force]) with scannerKeys[]
+    Note over Q: batch (W23-02, C1a "one scan batch"): resolve head once, isUpToDate per scanner,<br/>ONE snapshotForScan bracket (one tarball, scan lane) shared by every<br/>snapshot scanner, run sequentially, failure of one never stops the rest;<br/>dir deleted in finally; all up to date = zero fetches
     Q->>SB: scanner run (snapshot ro,noexec | diff stream | manifests)
     SB-->>Q: schema-valid findings JSON on stdout (only exit path)
     Q->>PG: upsert via dedup_key; candidate-rule findings stamped experimental=true

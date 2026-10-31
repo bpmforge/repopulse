@@ -18,6 +18,19 @@ and bpmforge house rules. Violations block phase gates.
 - Anything requiring a working tree (full-repo SAST, build, dependency resolution
   from lockfile graphs beyond API-fetched files) is out (NON_GOALS N-1/N-2).
 
+### C1a — Ephemeral source snapshots (exception, D8; amended 2026-10-31, D4(a))
+
+- W8+ security scanners may fetch the forge API **tarball** through the budgeted client
+  (`scan` lane) into an ephemeral, sandboxed scratch dir. Source may exist on disk
+  **for the length of one scan batch (all enabled snapshot scanners over one commit)** —
+  one tarball per (repo, sha) per Run-scans press or scheduled pass, shared by every
+  snapshot scanner in that batch — and no longer.
+- The directory is created and deleted by one bracket (`snapshotForScan`, deleted in
+  `finally` on every exit path); the hourly/boot sweeper still removes any `snap-*`
+  directory older than the longest allowed scan (NFR-13). Nothing persists but findings.
+- Still forbidden: `git clone`, persistent checkouts or working copies, a snapshot kept
+  across batches or commits, and any tarball call outside `snapshot/fetch.ts`.
+
 ## C2 — Local-LLM ops reality (hard; applies to Tier 2, v1.x)
 
 Lessons imported from prior bpmforge projects (ThreatForge, Jarvis):

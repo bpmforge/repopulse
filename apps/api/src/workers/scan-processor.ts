@@ -8,6 +8,7 @@ import {
   type ScanProbe,
   type ScanTrigger,
   type ScannerContext,
+  type SnapshotHandle,
 } from '@repopulse/security';
 import type { Job } from 'bullmq';
 
@@ -31,7 +32,13 @@ export interface ScanJobData {
    * commits to look at. `history_sweep` is the monthly fan-out that enqueues
    * one `history` job per repo.
    */
-  mode?: 'sha' | 'history' | 'history_sweep' | 'weekly' | 'weekly_sweep' | 'pr';
+  mode?: 'sha' | 'history' | 'history_sweep' | 'weekly' | 'weekly_sweep' | 'pr' | 'batch';
+  /**
+   * W23-02. `mode: 'batch'` only: every scanner one press (or one first scan)
+   * asked for, run over ONE commit and ONE snapshot. `scannerKey` is '' on such
+   * a job — the keys are here, and the job is about the repository.
+   */
+  scannerKeys?: string[];
   /**
    * W23-01 ("Full rescan"). Bypasses the up-to-date check: the runner is called
    * even when an earlier run at this commit with these tool and data versions
@@ -41,7 +48,15 @@ export interface ScanJobData {
 }
 
 export interface HistoryRunner {
-  (args: { workspaceId: number; repoId: number }): Promise<{
+  (
+    args: { workspaceId: number; repoId: number },
+    /**
+     * W23-02. A tree the batch already fetched. A runner that scans a snapshot
+     * uses it instead of fetching its own; every other runner ignores it, so
+     * the argument is additive and a runner called without it behaves as before.
+     */
+    opts?: { snapshot?: SnapshotHandle },
+  ): Promise<{
     scanned: number;
     findingsCreated: number;
     deferred: number;
@@ -157,6 +172,23 @@ export interface ScanProcessorDeps {
   probes?: Record<string, ScanProbe>;
   weeklySweep?: (scannerKey: string) => Promise<{ enqueued: number }>;
   /**
+   * W23-02 (WP-R2). What `mode: 'batch'` needs and the processor cannot know:
+   * which scanners read a source tree, the commit they will all pin to, and a
+   * bracket that fetches ONE archive for them. Injected, like the runners, so
+   * the framework still never branches on a scanner key. Absent, or
+   * `headSha` null (no connection, nothing ingested), and a batch degrades to
+   * each scanner on its own path — which records its own `no_connection` /
+   * `no_head_sha` row.
+   */
+  batch?: {
+    usesSnapshot: (scannerKey: string) => boolean;
+    headSha: (workspaceId: number, repoId: number) => Promise<string | null>;
+    withSnapshot: <T>(
+      args: { workspaceId: number; repoId: number; commitSha: string },
+      fn: (snapshot: SnapshotHandle) => Promise<T>,
+    ) => Promise<T>;
+  };
+  /**
    * W21-02. The pattern scanners over one pull-request head (`mode: 'pr'`,
    * `commitSha` the head, `prNumber` the PR). The runner records its own rows,
    * one per scanner, and never throws for a scanner's failure.
@@ -188,6 +220,8 @@ async function runSweep(
   deps: ScanProcessorDeps,
   data: ScanJobData,
   runner: HistoryRunner,
+  /** `snapshot`: the batch's tree. `upToDateChecked`: the batch already asked. */
+  opts: { snapshot?: SnapshotHandle; upToDateChecked?: boolean } = {},
 ): Promise<void> {
   const row = {
     workspaceId: data.workspaceId,
@@ -203,14 +237,17 @@ async function runSweep(
   // act is a tarball fetch. `force` skips the question. A probe that throws or
   // cannot say is treated as "unknown": run the scan — a skip must be earned by
   // evidence, never by a failure to look.
-  if (!data.force) {
+  if (!data.force && !opts.upToDateChecked) {
     const skipped = await skipIfUpToDate(deps, data, row);
     if (skipped) return;
   }
 
   let outcome;
   try {
-    outcome = await runner({ workspaceId: data.workspaceId, repoId: data.repoId });
+    outcome = await runner(
+      { workspaceId: data.workspaceId, repoId: data.repoId },
+      opts.snapshot ? { snapshot: opts.snapshot } : undefined,
+    );
   } catch (err) {
     // A THROW MUST REACH THE SCREEN (W16-28).
     //
@@ -341,6 +378,162 @@ async function skipIfUpToDate(
   return true;
 }
 
+/**
+ * One scanner's manual/history job (W16-28), shared by the single-scanner job
+ * and by a batch's non-snapshot scanners. `opts.snapshot` is set only by a batch.
+ */
+async function runHistoryJob(
+  deps: ScanProcessorDeps,
+  data: ScanJobData,
+  opts: { snapshot?: SnapshotHandle; upToDateChecked?: boolean } = {},
+): Promise<void> {
+  // A MANUAL RUN REACHES THE WEEKLY RUNNERS TOO (W16-28).
+  //
+  // "Run scans now" enqueues mode:'history' for every enabled scanner, and
+  // only `secrets` has a history runner — so pressing the button on a repo
+  // with the default posture reached real work for exactly one scanner and
+  // recorded "no history runner is wired" for the rest, which is honest and
+  // useless. The weekly runners answer the same question (sweep this repo)
+  // on a schedule instead of on a keypress; a person asking for it now is
+  // asking for that work, not for a different kind of it.
+  //
+  // Still a lookup rather than a branch on the key, so FR-SEC-1 holds.
+  const runner =
+    deps.historyRunners?.[data.scannerKey] ?? deps.weeklyRunners?.[data.scannerKey];
+  if (!runner) {
+    // NOT a silent return (W16-20).
+    //
+    // Only a subset of scanners has a runner wired in the worker. Returning
+    // quietly meant a job could be enqueued, consume its turn and finish
+    // "successfully" having done nothing — and the coverage table would
+    // still say "never run", with nothing anywhere saying why. That is the
+    // exact shape of failure this product's copy is otherwise very careful
+    // about: an absence that looks like a measurement.
+    //
+    // It is not an exception either: an unwired scanner is a deployment
+    // fact, not a fault, so it records a run that says so and returns.
+    await deps.db.insert(security.scanRuns).values({
+      workspaceId: data.workspaceId,
+      repoId: data.repoId,
+      scannerKey: data.scannerKey,
+      scannerVersion: getScanner(data.scannerKey)?.version ?? 'unregistered',
+      commitSha: data.commitSha,
+      trigger: data.trigger,
+      status: 'failed',
+      startedAt: new Date(),
+      finishedAt: new Date(),
+      error: `No history runner is wired for "${data.scannerKey}" on this server, so nothing was scanned.`,
+    });
+    return;
+  }
+  await runSweep(deps, data, runner, opts);
+  return;
+}
+
+/**
+ * W23-02 (WP-R2): one commit, one snapshot, every scanner the press asked for.
+ *
+ * Before this, "Run scans now" enqueued one job per scanner and each snapshot
+ * scanner fetched its own tarball of the same commit — five archives, five
+ * extractions, five charges on the `scan` lane for one tree. Here the head is
+ * resolved once, each scanner is asked "up to date?" (W23-01) and the ones that
+ * remain run SEQUENTIALLY inside one `withSnapshot` bracket, each through its
+ * existing runner with the tree handed in. Scanners that do not read a tree
+ * (registers, the OWASP checklists, the secrets history) keep their own path and
+ * run outside the bracket, so the directory exists no longer than it must.
+ *
+ * C1a, as amended: source on disk for the length of one scan BATCH. The bracket
+ * is the injected `withSnapshot` (snapshotForScan), so the directory is deleted
+ * in its `finally` on every path, and the hourly sweeper is unchanged.
+ *
+ * NFR-15: a scanner that throws is recorded failed (runSweep writes the row) and
+ * the batch goes on. Nothing here rethrows for one scanner's fault.
+ */
+async function runBatch(deps: ScanProcessorDeps, data: ScanJobData): Promise<void> {
+  const keys = [...new Set(data.scannerKeys ?? [])];
+  const asJob = (scannerKey: string): ScanJobData => ({
+    workspaceId: data.workspaceId,
+    repoId: data.repoId,
+    scannerKey,
+    commitSha: '',
+    trigger: data.trigger,
+    mode: 'history',
+    ...(data.force ? { force: true } : {}),
+  });
+  const runnerFor = (key: string): HistoryRunner | undefined =>
+    deps.historyRunners?.[key] ?? deps.weeklyRunners?.[key];
+  // A scanner's own failure must not end the batch. runSweep has already
+  // written the failed row before it rethrows; swallowing here is the point.
+  const alone = async (key: string, opts?: Parameters<typeof runHistoryJob>[2]) => {
+    try {
+      await runHistoryJob(deps, asJob(key), opts);
+    } catch {
+      /* recorded as a failed scan_run by runSweep */
+    }
+  };
+
+  const batch = deps.batch;
+  const treeKeys = batch ? keys.filter((k) => runnerFor(k) && batch.usesSnapshot(k)) : [];
+  const ownKeys = keys.filter((k) => !treeKeys.includes(k));
+
+  for (const key of ownKeys) await alone(key);
+  if (treeKeys.length === 0 || !batch) return;
+
+  const commitSha = await batch.headSha(data.workspaceId, data.repoId).catch(() => null);
+  if (!commitSha) {
+    // No connection or nothing ingested: each runner says so on its own row.
+    for (const key of treeKeys) await alone(key);
+    return;
+  }
+
+  // Up to date? asked per scanner BEFORE the one fetch; all answered = no fetch.
+  const remaining: string[] = [];
+  for (const key of treeKeys) {
+    if (!data.force) {
+      const skipped = await skipIfUpToDate(deps, asJob(key), {
+        workspaceId: data.workspaceId,
+        repoId: data.repoId,
+        scannerKey: key,
+        scannerVersion: getScanner(key)?.version ?? 'unregistered',
+        trigger: data.trigger,
+      }).catch(() => false);
+      if (skipped) continue;
+    }
+    remaining.push(key);
+  }
+  if (remaining.length === 0) return;
+
+  try {
+    await batch.withSnapshot(
+      { workspaceId: data.workspaceId, repoId: data.repoId, commitSha },
+      async (snapshot) => {
+        for (const key of remaining) {
+          await alone(key, { snapshot, upToDateChecked: true });
+        }
+      },
+    );
+  } catch (err) {
+    // The archive could not be had (forge refused, no tarball support, over the
+    // caps). Every scanner that needed it gets a failed row saying why — never a
+    // clean-looking nothing — and the job ends without a retry storm.
+    const now = new Date();
+    for (const key of remaining) {
+      await deps.db.insert(security.scanRuns).values({
+        workspaceId: data.workspaceId,
+        repoId: data.repoId,
+        scannerKey: key,
+        scannerVersion: getScanner(key)?.version ?? 'unregistered',
+        commitSha,
+        trigger: data.trigger,
+        status: 'failed',
+        startedAt: now,
+        finishedAt: now,
+        error: safeErrorText(err),
+      });
+    }
+  }
+}
+
 export function scanProcessor(deps: ScanProcessorDeps) {
   const scan = scanJob(deps);
   return async function process(job: Job<ScanJobData>): Promise<void> {
@@ -378,46 +571,12 @@ function scanJob(deps: ScanProcessorDeps) {
     }
 
     if (data.mode === 'history') {
-      // A MANUAL RUN REACHES THE WEEKLY RUNNERS TOO (W16-28).
-      //
-      // "Run scans now" enqueues mode:'history' for every enabled scanner, and
-      // only `secrets` has a history runner — so pressing the button on a repo
-      // with the default posture reached real work for exactly one scanner and
-      // recorded "no history runner is wired" for the rest, which is honest and
-      // useless. The weekly runners answer the same question (sweep this repo)
-      // on a schedule instead of on a keypress; a person asking for it now is
-      // asking for that work, not for a different kind of it.
-      //
-      // Still a lookup rather than a branch on the key, so FR-SEC-1 holds.
-      const runner =
-        deps.historyRunners?.[data.scannerKey] ?? deps.weeklyRunners?.[data.scannerKey];
-      if (!runner) {
-        // NOT a silent return (W16-20).
-        //
-        // Only a subset of scanners has a runner wired in the worker. Returning
-        // quietly meant a job could be enqueued, consume its turn and finish
-        // "successfully" having done nothing — and the coverage table would
-        // still say "never run", with nothing anywhere saying why. That is the
-        // exact shape of failure this product's copy is otherwise very careful
-        // about: an absence that looks like a measurement.
-        //
-        // It is not an exception either: an unwired scanner is a deployment
-        // fact, not a fault, so it records a run that says so and returns.
-        await deps.db.insert(security.scanRuns).values({
-          workspaceId: data.workspaceId,
-          repoId: data.repoId,
-          scannerKey: data.scannerKey,
-          scannerVersion: getScanner(data.scannerKey)?.version ?? 'unregistered',
-          commitSha: data.commitSha,
-          trigger: data.trigger,
-          status: 'failed',
-          startedAt: new Date(),
-          finishedAt: new Date(),
-          error: `No history runner is wired for "${data.scannerKey}" on this server, so nothing was scanned.`,
-        });
-        return;
-      }
-      await runSweep(deps, data, runner);
+      await runHistoryJob(deps, data);
+      return;
+    }
+
+    if (data.mode === 'batch') {
+      await runBatch(deps, data);
       return;
     }
 

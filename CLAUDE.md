@@ -18,6 +18,8 @@ Entry point for coding agents: `MASTER_PROMPT.md` → `plan.json` → `PLAYBOOK.
    C1a exception (D8): W8 security scanners may fetch the API **tarball**
    into an ephemeral sandboxed scratch dir (via the budgeted client),
    scan, and delete — never `git clone`, nothing persisted but findings.
+   Source may exist on disk for the length of one scan **batch** (all enabled
+   snapshot scanners over one commit, one tarball), amended 2026-10-31.
 5. **Tenancy invariant**: every tenant-scoped table has `workspace_id`;
    every query is workspace-filtered. Tenancy tests must stay green even
    though v1 runs one workspace.

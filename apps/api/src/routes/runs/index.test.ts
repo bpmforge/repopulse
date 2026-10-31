@@ -245,6 +245,24 @@ describeIfLiveInfra('run it now (W16-10)', () => {
     expect(added[0]?.data).toMatchObject({ repoId, trigger: 'manual' });
   });
 
+  it('enqueues ONE batch job for the whole press, not one per scanner (W23-02)', async () => {
+    // One job = one commit resolved, one archive fetched for every snapshot
+    // scanner. N jobs would be N tarballs of the same tree.
+    const res = await app.inject({
+      method: 'POST',
+      url: `/repos/${repoId}/scan`,
+      headers: CSRF,
+      payload: {},
+    });
+    expect(res.statusCode).toBe(202);
+    expect(res.json().started.length).toBeGreaterThan(1);
+    expect(added).toHaveLength(1);
+    expect(added[0]?.jobId).toMatch(new RegExp(`^sec-batch-${repoId}-\\d+$`));
+    const data = added[0]?.data as { mode: string; scannerKeys: string[] };
+    expect(data.mode).toBe('batch');
+    expect([...data.scannerKeys].sort()).toEqual([...res.json().started].sort());
+  });
+
   it('pressing twice does not start twice', async () => {
     // Absorbed by the queue's own id semantics rather than by a flag in the
     // route — a second API replica would not share such a flag.
@@ -472,7 +490,11 @@ describeIfLiveInfra('run it now (W16-10)', () => {
       expect(forced.json().up_to_date).toEqual([]);
       expect(forced.json().already_running).toEqual([]);
       expect(added).toHaveLength(2);
-      expect(added[1]?.data).toMatchObject({ repoId, scannerKey: 'semgrep', force: true });
+      expect(added[1]?.data).toMatchObject({
+        repoId,
+        scannerKeys: ['semgrep'],
+        force: true,
+      });
       expect(added[1]?.jobId).not.toBe(added[0]?.jobId);
       expect(added[1]?.jobId).toContain('force');
     });

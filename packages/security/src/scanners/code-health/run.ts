@@ -3,7 +3,7 @@ import { read, security, type Database, safeErrorText } from '@repopulse/shared'
 import { attachExcerpts } from '../../excerpt.js';
 import { persistFindings, type IncomingFinding } from '@repopulse/insights';
 import type { ForgeProvider } from '@repopulse/forge';
-import { listTreeFiles, snapshotForScan } from '../../snapshot/index.js';
+import { listTreeFiles, snapshotOrProvided } from '../../snapshot/index.js';
 import { runCodeHealthTools, CODE_HEALTH_SCANNER_KEY, type CodeHealthFinding } from './tools.js';
 import { dedupeAcrossTools, dedupeAgainstPack, listAdapters } from './adapters/registry.js';
 import type { AdapterFinding } from './adapters/types.js';
@@ -28,6 +28,8 @@ export interface CodeHealthRunDeps {
   thresholds?: Partial<CodeHealthThresholds>;
   trigger?: 'schedule' | 'manual';
   wallClockMs?: number;
+  /** W23-02. A tree the scan batch already fetched; absent = fetch our own. */
+  snapshot?: { dir: string; commitSha: string };
 }
 
 export interface CodeHealthRunResult {
@@ -251,7 +253,8 @@ export async function runCodeHealthScan(deps: CodeHealthRunDeps): Promise<CodeHe
   const runId = run!.id;
 
   try {
-    return await snapshotForScan(
+    return await snapshotOrProvided(
+      deps.snapshot,
       { provider: deps.provider, repo: deps.repo, commitSha: deps.commitSha },
       async (snapshot) => {
         const tools = await runCodeHealthTools({
