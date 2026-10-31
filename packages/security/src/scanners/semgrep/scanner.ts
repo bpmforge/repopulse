@@ -7,6 +7,8 @@ import { SCAN_MOUNT_PATH } from '../../../sandbox/profile.js';
 import { runInSandbox, stderrTail } from '../../../sandbox/run.js';
 import { rulepackMountDir } from '../../../sandbox/tooling.js';
 import type { ScanBudget } from '../../framework/types.js';
+import { dataStamp } from '../../framework/data-stamp.js';
+import { getScanner } from '../../registry.js';
 import { parseOpengrepOutput, type SemgrepFinding } from './output.js';
 import {
   THIRD_PARTY_MOUNT_PATH,
@@ -153,6 +155,45 @@ export function imageToolVersion(image: string, runtime = 'podman'): string {
     // Unknown is honest; a hard-coded fallback would stamp a version onto
     // findings that were produced by a different binary.
     return 'unknown';
+  }
+}
+
+/**
+ * The data stamp of a default full run (W23-09): what this scanner's answer
+ * stands on besides the commit. That is the rulepack; the scan image (the engine
+ * version is a function of the image, which is why the probe can reuse the one
+ * the last run read instead of starting podman to ask again); the third-party
+ * pack when it is on; the workspace's rule lifecycle state (shadow vs active
+ * changes what the same tree stores); and the registry's scanner version for the
+ * in-process code. The run stamps it on its row and the probe recomputes it,
+ * both through this one function.
+ *
+ * Null when an input that applies cannot be read: the caller then runs.
+ */
+export function semgrepDataVersion(
+  env: NodeJS.ProcessEnv | undefined,
+  image: string | undefined,
+  /** The workspace's rule lifecycle state (`ruleStateStamp`); null = unreadable. */
+  rules: string | null,
+): string | null {
+  try {
+    env ??= process.env;
+    const rulepack = readRulepack(rulepackMountDir(SEMGREP_RULEPACK_DIR)).version;
+    // Mirrors runSemgrepScan: the pack rides along only when the flag is on,
+    // and a missing ledger means the run used none (and stamped none).
+    const thirdParty =
+      env['SCAN_THIRD_PARTY_RULES'] === 'on'
+        ? readThirdPartyPack(rulepackMountDir(THIRD_PARTY_RULEPACK_DIR))?.version
+        : undefined;
+    return dataStamp({
+      rulepack,
+      image: image ?? DEFAULT_SCAN_IMAGE,
+      ...(thirdParty ? { thirdParty } : {}),
+      rules,
+      scanner: getScanner(SEMGREP_SCANNER_KEY)?.version,
+    });
+  } catch {
+    return null;
   }
 }
 

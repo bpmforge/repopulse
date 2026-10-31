@@ -8,9 +8,11 @@ import { persistFindings } from '@repopulse/insights';
 import type { CallCtx, ForgeProvider } from '@repopulse/forge';
 import { listTreeFiles, shred, snapshotForScan } from '../../snapshot/index.js';
 import { shadowFindings } from '../../rules/shadow.js';
+import { ruleStateStamp } from '../../framework/data-stamp.js';
 import {
   fullRunSweep,
   runSemgrepScan,
+  semgrepDataVersion,
   SEMGREP_SCANNER_KEY,
   toIncomingFindings,
   type SemgrepRunArgs,
@@ -87,6 +89,8 @@ async function closeRun(
     findingCount?: number;
     error?: string | null;
     toolVersions?: Record<string, string>;
+    /** W23-09: the data stamp the probe recomputes; set on a full run's success only. */
+    dataVersion?: string | null;
   },
 ): Promise<void> {
   await deps.db
@@ -96,6 +100,7 @@ async function closeRun(
       findingCount: patch.findingCount ?? 0,
       error: patch.error ?? null,
       finishedAt: new Date(),
+      ...(patch.dataVersion ? { dataVersion: patch.dataVersion } : {}),
       ...(patch.toolVersions
         ? {
             toolVersions: patch.toolVersions,
@@ -121,6 +126,13 @@ export async function runSemgrepFull(
   deps: SemgrepModeDeps & { trigger?: 'schedule' | 'manual' },
 ): Promise<SemgrepModeResult> {
   const runId = await openRun(deps, deps.trigger ?? 'schedule');
+  // Read BEFORE the scan: an input that changes mid-run then makes the next
+  // probe disagree (one re-scan), never agree with an answer built on the old one.
+  const dataVersion = semgrepDataVersion(
+    undefined,
+    deps.image,
+    await ruleStateStamp(deps.db, deps.workspaceId),
+  );
   try {
     return await snapshotForScan(
       { provider: deps.provider, repo: deps.repo, commitSha: deps.commitSha },
@@ -178,6 +190,7 @@ export async function runSemgrepFull(
           status: 'succeeded',
           findingCount: findings.length,
           toolVersions: scan.toolVersions,
+          dataVersion,
         });
 
         return {

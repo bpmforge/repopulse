@@ -461,14 +461,59 @@ generalises it.
 - **How the framework learns what the next run would stamp, without a key branch:** an
   injected map of probes by scanner key (`ScanProcessorDeps.probes`, built in
   `apps/api/src/routes/runs/probes.ts`, same shape as `weeklyRunners`) answers
-  `{commitSha, toolVersions}` for a repo; the data stamp comes from the optional
-  `Scanner.dataVersion()` in registry metadata. **A scanner with no probe always runs** —
-  today only `semgrep` has one (engine + rulepack version; declined when the engine version
-  cannot be read, e.g. no container runtime on the host, or when `SCAN_THIRD_PARTY_RULES`
-  is `on`). `code_health_tools`, `dependency_cve`, `anti_slop`, `container_image` and the
-  architecture register stamp versions that are known only after the run (adapters
-  detected in the tree, the SBOM, the image); each needs its own honest probe before it can
-  skip.
+  `{commitSha, toolVersions, dataVersion}` for a repo. **A scanner with no probe always
+  runs**; each one without is listed in `ALWAYS_RUN` with the reason, and a test fails when a
+  `weeklyRunners` key is in neither list (W23-09). See the table below.
+
+**Probe table (W23-09).** A probe never starts the scan, a container or a tarball fetch. The
+three fields come from:
+
+- `commitSha`: the newest ingested commit (`headShaFor`, workspace-filtered), except the supply
+  chain register, whose run row carries its newest SBOM's commit.
+- `toolVersions`: those of the newest succeeded, non-partial run at that commit
+  (`latestBaseline`). Everything the scanners stamp here is a function of the tree (the
+  adapters it triggers, the packages the SBOM holds) and of the scan image / registry that
+  `dataVersion` pins, so for an unchanged commit it cannot differ from what the last run read.
+  This is why the semgrep probe no longer needs podman: the engine version is the one the last
+  run read from the image, reused only while `dataVersion` (which names the image) is unchanged
+  and only when it is not `unknown`. No such run, or one that could not read the engine, means
+  "run".
+- `dataVersion`: everything else the answer stands on, recomputed from files and rows by the
+  same function the runner stamps with (one per scanner, beside its runner). It is a readable,
+  order-independent `name@value` string (`framework/data-stamp.ts`); any input that applies but
+  cannot be read makes the whole stamp, and so the probe, null: a probe never returns
+  `dataVersion: null`, because the framework reads that as "no data, skip the comparison".
+
+| runner key | probe | `dataVersion` stands on | stamped by |
+|---|---|---|---|
+| `semgrep` | yes | rulepack file list, scan image, third-party ledger when `SCAN_THIRD_PARTY_RULES=on`, workspace rule-lifecycle digest, scanner version | `runSemgrepFull` |
+| `code_health_tools` | yes | registered adapters + versions (a new adapter may apply to the same tree), lizard/jscpd pins, thresholds, scan image, rule-lifecycle digest, scanner version | `runCodeHealthScan` (not when an adapter reported an error) |
+| `dependency_cve` | yes | advisory data: grype DB build stamp (`import.json`, which carries the OSV/KEV/EPSS-enriched advisories), malicious-package index and package-name index signatures; scan image; scanner version. Null (run) when the DB is missing or older than grype's 5-day limit, so its named failure still surfaces | `runDependencyScan` |
+| `container_image` | yes | the same advisory data, scan image, scanner version and a **UTC day bucket**. A tag is a mutable pointer and its digest is known only after a pull (`pullImage` writes a docker-archive and reports none), so no pre-pull fact says the registry still holds what was scanned; the bucket bounds how stale an answer may be. Partial runs (an image failed to pull) never count | `runImageScan` |
+| `anti_slop` | yes, **worker only** | slop half of the code-health rulepack, scan image, rule-lifecycle digest, scanner version, and the **judgement state** (`off`, or `on:<hosts/models>`) so a run with AI off never stands in for one with a model on. The API route has no gateway, so there the probe says "cannot say" and the worker still skips | `runAntiSlopScan` (`dataVersion` dep, from the worker) |
+| `supply_chain_register` | yes | newest SBOM id (a regenerated SBOM is a new row), repository head (the EOL half snapshots Dockerfiles), license policy, scanner version and a **UTC day bucket**: the register refreshes npm/PyPI release metadata and endoflife.date from the network on every run, which has no stamp to read first. It does not read the grype database | worker runner, after `runSupplyChainRegisters` |
+| `architecture_register` | yes | registered adapters + versions, drift pack version, scan image, scanner version | worker runner, after `runArchitectureScan` |
+| `knowledge_register` | always runs | pure SQL over commits already in the warehouse, no tarball and no tool; its input is a rolling 90-day window, so the same head answers differently as the window moves | n/a |
+| `test_gap_register` | always runs | pure SQL over the warehouse, no tarball and no tool; costs nothing | n/a |
+| `attack_chainer` | always runs | reads the findings table, which every other scanner changes; no forge call; a skip would leave chains built on findings that have since closed | n/a |
+| `code_scanning_pull` | always runs | its input is live forge state (alerts opened or dismissed since); no tarball | n/a |
+| `owasp_web`, `owasp_llm` | always run | manual-only, model-judged over the newest diff; which model answers is known only after it does; a repeat press asks for a fresh judgement; no tarball | n/a |
+| `rule_draft_pass` | always runs | workspace-scoped learning pass through a model; no commit to compare; no tarball | n/a |
+
+`secrets` history is not in this map: its own `covered` filter already skips commits a
+succeeded or running secrets run holds, and `force` now bypasses it (below).
+
+**What the stamps still do not cover** (stated so a skip is not read as stronger than it is):
+a scan image rebuilt under the SAME tag is invisible (the image reference is stamped, not its
+digest); the dependency run's optional second-model CVE verification and the Go vulnerability
+database are not stamped, so toggling AI or refreshing only the Go DB does not re-run it; the
+registry `Scanner.dataVersion()` hook is not populated for these scanners (`catalogue.ts` is
+outside W23-09's write scope), so the probes carry the stamp explicitly and the processor's
+registry fallback has nothing to read; the probes read the rulepack and advisory directories
+from the process they run in, so a probe in a process that cannot see `SCAN_RULES_DIR` (an API
+container that does not mount it) answers "cannot say", and only the worker's check, which runs
+where the scanners run, can skip.
+
 - **`runSweep`** (weekly and manual/history jobs) asks before calling the runner. Up to
   date → one `scan_runs` row `{status: succeeded, scope: skipped, finding_count: <prior>,
   base_run_id: <prior id>, commit_sha: <the real head>}` whose `error` carries the
@@ -483,9 +528,15 @@ generalises it.
   enqueued so the worker records the skipped row, but are not in `started`). A forced job
   uses a distinct jobId (`...-force-<window>`) so it is not deduped against a non-forced
   press in the same five-minute window.
-- Real runs keep `scope = 'full'`; the runners write their own rows and do not yet stamp
-  `data_version`, so a scanner that declares `dataVersion()` must also stamp it in its
-  runner before it can ever match.
+- Real runs keep `scope = 'full'`. Since W23-09 the runners stamp `data_version` on their own
+  rows (semgrep, code health, dependency, container image and anti-slop in the security
+  package; the supply chain and architecture registers from the worker runner, which writes
+  the stamp onto the row the package created). A row without a stamp can never be matched.
+- **`force` and the secrets history sweep (W23-09):** `ScanJobData.force` is now passed to every
+  sweep runner, and `runSecretsHistoryScan({force: true})` bypasses the `covered` filter, so a
+  commit stuck in a `running` row (a worker that died mid-scan; `covered` counts `running`)
+  is swept again. It re-sweeps the window oldest-first up to the usual 200-commit cap through
+  the same budgeted `scan` lane.
 
 ## 5. Surfaces (FR-SEC-10)
 

@@ -77,7 +77,15 @@ import {
   readDeclaredDependencies,
   type DeclaredSet,
 } from '../../validation/declared.js';
-import { readRulepack, runSemgrepScan, type SemgrepRunResult } from '../semgrep/scanner.js';
+import {
+  DEFAULT_SCAN_IMAGE,
+  readRulepack,
+  runSemgrepScan,
+  type SemgrepRunResult,
+} from '../semgrep/scanner.js';
+import { rulepackMountDir } from '../../../sandbox/tooling.js';
+import { dataStamp } from '../../framework/data-stamp.js';
+import { getScanner } from '../../registry.js';
 import { listTreeFiles } from '../../snapshot/index.js';
 import {
   ANTI_SLOP_PACK_FILE_PREFIX,
@@ -102,8 +110,41 @@ import {
 
 export const ANTI_SLOP_SCANNER_KEY = 'anti_slop';
 
+/**
+ * The data stamp of a weekly anti-slop run (W23-09): the slop half of the
+ * code-health rulepack (the files the run hands the engine), the scan image,
+ * the workspace's rule lifecycle state, the in-process scanner version, and the
+ * JUDGEMENT state — whether a model reviews the candidates and which one. The
+ * last is the caller's to say (a gateway is per workspace and built in the
+ * worker), so the run takes the finished stamp as `dataVersion` and the probe
+ * builds the same one from the same function; a run done with AI off then does
+ * not stand in for a run with a model on. Null when the pack cannot be read.
+ */
+export function antiSlopDataVersion(judgement: string, rules: string | null): string | null {
+  try {
+    const rulepack = readRulepack(rulepackMountDir(CODE_HEALTH_PACK_DIR), (file) =>
+      file.startsWith(ANTI_SLOP_PACK_FILE_PREFIX),
+    ).version;
+    return dataStamp({
+      rulepack,
+      image: DEFAULT_SCAN_IMAGE,
+      judgement,
+      rules,
+      scanner: getScanner(ANTI_SLOP_SCANNER_KEY)?.version,
+    });
+  } catch {
+    return null;
+  }
+}
+
 export interface AntiSlopDeps {
   db: Database;
+  /**
+   * W23-09. The data stamp to record on a succeeded run — `antiSlopDataVersion`,
+   * built by the caller because the judgement state is theirs. Absent = no stamp,
+   * so the run can never be skipped past.
+   */
+  dataVersion?: string | null;
   /**
    * Absent = deterministic layer only (W9-06).
    *
@@ -1114,6 +1155,7 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
         status: 'succeeded',
         findingCount: findings.length,
         finishedAt: new Date(),
+        ...(deps.dataVersion ? { dataVersion: deps.dataVersion } : {}),
         ...(toolVersions ? { toolVersions } : {}),
         ...(modelBusy
           ? {

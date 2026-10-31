@@ -91,16 +91,17 @@ export function toolVersionsEqual(
 }
 
 /**
- * The matching earlier run, or null. Newest first, so the baseline a skipped
- * row points at is the most recent run that answered the question.
+ * The earlier SUCCEEDED, non-partial runs that could stand as a baseline for
+ * this question, newest first — before any version comparison.
  *
  * The WHERE clause does the narrowing; the same predicates are re-applied in
  * memory so the tenancy and "same commit" guarantees do not rest on one layer
  * (and so a fake db in a unit test exercises them for real).
  */
-export async function isUpToDate(db: Database, q: UpToDateQuery): Promise<UpToDateMatch | null> {
-  if (q.commitSha === '') return null;
-
+async function baselineCandidates(
+  db: Database,
+  q: Pick<UpToDateQuery, 'workspaceId' | 'repoId' | 'scannerKey' | 'commitSha'>,
+) {
   const rows = await db
     .select({
       id: security.scanRuns.id,
@@ -134,26 +135,65 @@ export async function isUpToDate(db: Database, q: UpToDateQuery): Promise<UpToDa
     .orderBy(desc(security.scanRuns.id))
     .limit(CANDIDATE_LIMIT);
 
-  for (const row of rows) {
-    if (row.workspaceId !== q.workspaceId) continue;
-    if (row.repoId !== q.repoId) continue;
-    if (row.scannerKey !== q.scannerKey) continue;
-    if (row.commitSha !== q.commitSha) continue;
-    if (row.status !== 'succeeded' || row.partial) continue;
-    if (row.scope === 'skipped' || row.trigger === 'pr_synced') continue;
+  return rows.filter(
+    (row) =>
+      row.workspaceId === q.workspaceId &&
+      row.repoId === q.repoId &&
+      row.scannerKey === q.scannerKey &&
+      row.commitSha === q.commitSha &&
+      row.status === 'succeeded' &&
+      !row.partial &&
+      row.scope !== 'skipped' &&
+      row.trigger !== 'pr_synced',
+  );
+}
+
+function toMatch(row: Awaited<ReturnType<typeof baselineCandidates>>[number]): UpToDateMatch {
+  return {
+    id: row.id,
+    findingCount: row.findingCount,
+    toolVersions: row.toolVersions,
+    dataVersion: row.dataVersion,
+    scannerVersion: row.scannerVersion,
+    finishedAt: row.finishedAt,
+  };
+}
+
+/**
+ * The newest run a probe may CACHE versions from (W23-09): same workspace, repo,
+ * scanner and commit, succeeded and whole. Its `toolVersions` are what a re-run
+ * of the same inputs would stamp, which is how a probe answers "which engine
+ * version would this use" without starting the engine. Null when no run has
+ * answered this commit, in which case there is nothing to skip to either.
+ */
+export async function latestBaseline(
+  db: Database,
+  q: Pick<UpToDateQuery, 'workspaceId' | 'repoId' | 'scannerKey' | 'commitSha'>,
+): Promise<UpToDateMatch | null> {
+  if (q.commitSha === '') return null;
+  const [row] = await baselineCandidates(db, q);
+  return row ? toMatch(row) : null;
+}
+
+/**
+ * The matching earlier run, or null. Newest first, so the baseline a skipped
+ * row points at is the most recent run that answered the question.
+ */
+export async function isUpToDate(db: Database, q: UpToDateQuery): Promise<UpToDateMatch | null> {
+  if (q.commitSha === '') return null;
+
+  for (const row of await baselineCandidates(db, q)) {
     if (!toolVersionsEqual(row.toolVersions, q.toolVersions)) continue;
     // null on the QUERY side ignores the comparison; a stamp the query carries
     // must match the one the run recorded (a run with no stamp cannot match).
     if (q.dataVersion !== null && q.dataVersion !== undefined && row.dataVersion !== q.dataVersion)
       continue;
-    return {
-      id: row.id,
-      findingCount: row.findingCount,
-      toolVersions: row.toolVersions,
-      dataVersion: row.dataVersion,
-      scannerVersion: row.scannerVersion,
-      finishedAt: row.finishedAt,
-    };
+    return toMatch(row);
   }
   return null;
 }
+
+// Re-exported here because the package barrel already exports this module; the
+// stamp helpers are the other half of the same question ("what would this run
+// stand on?") and every probe needs both.
+export { dataStamp, ruleStateStamp, shortHash } from './data-stamp.js';

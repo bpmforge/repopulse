@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { isUpToDate, toolVersionsEqual } from './up-to-date.js';
+import { isUpToDate, latestBaseline, toolVersionsEqual } from './up-to-date.js';
+import { dataStamp, shortHash } from './data-stamp.js';
 
 // W23-01. "Is this scan already answered?" — the rule is only as good as the
 // ways it refuses, so most of this is about what must NOT match.
@@ -169,5 +170,57 @@ describe('toolVersionsEqual', () => {
     expect(toolVersionsEqual({}, {})).toBe(true);
     expect(toolVersionsEqual({}, null)).toBe(false);
     expect(toolVersionsEqual(null, undefined)).toBe(true);
+  });
+});
+
+describe('latestBaseline (W23-09): what a probe may cache versions from', () => {
+  const q = { workspaceId: 1, repoId: 2, scannerKey: 'semgrep', commitSha: 'abc123' };
+
+  it('returns the newest qualifying run with its recorded versions', async () => {
+    const hit = await latestBaseline(
+      fakeDb([row({ id: 12, dataVersion: 'd2' }), row({ id: 11, dataVersion: 'd1' })]),
+      q,
+    );
+    expect(hit).toMatchObject({ id: 12, dataVersion: 'd2' });
+    expect(hit?.toolVersions).toEqual({ opengrep: '1.0.0', rulepack: 'a.yaml' });
+  });
+
+  it('applies the same exclusions as isUpToDate, in memory', async () => {
+    const rows = [
+      row({ id: 9, workspaceId: 99 }),
+      row({ id: 8, commitSha: 'other' }),
+      row({ id: 7, status: 'failed' }),
+      row({ id: 6, partial: true }),
+      row({ id: 5, scope: 'skipped' }),
+      row({ id: 4, trigger: 'pr_synced' }),
+    ];
+    expect(await latestBaseline(fakeDb(rows), q)).toBeNull();
+  });
+
+  it('is null for a manual job with no commit', async () => {
+    expect(await latestBaseline(fakeDb([row()]), { ...q, commitSha: '' })).toBeNull();
+  });
+});
+
+describe('dataStamp (W23-09)', () => {
+  it('is order-independent and readable', () => {
+    expect(dataStamp({ rulepack: 'a.yaml', image: 'scan:dev' })).toBe(
+      dataStamp({ image: 'scan:dev', rulepack: 'a.yaml' }),
+    );
+    expect(dataStamp({ rulepack: 'a.yaml', image: 'scan:dev' })).toBe(
+      'image@scan:dev rulepack@a.yaml',
+    );
+  });
+
+  it('omits inputs that do not apply (undefined) and refuses to stamp half the evidence (null)', () => {
+    expect(dataStamp({ a: '1', b: undefined })).toBe('a@1');
+    expect(dataStamp({ a: '1', b: null })).toBeNull();
+    expect(dataStamp({ a: undefined })).toBeNull();
+  });
+
+  it('shortHash is stable and 12 hex chars', () => {
+    expect(shortHash('x')).toBe(shortHash('x'));
+    expect(shortHash('x')).toMatch(/^[0-9a-f]{12}$/);
+    expect(shortHash('x')).not.toBe(shortHash('y'));
   });
 });

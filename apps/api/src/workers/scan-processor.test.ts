@@ -1,5 +1,28 @@
-import { describe, expect, it, vi } from 'vitest';
-import { registerScanner, type ScanProbe, type Scanner } from '@repopulse/security';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { core, facts, security } from '@repopulse/shared';
+import {
+  antiSlopDataVersion,
+  codeHealthDataVersion,
+  dependencyDataVersion,
+  imageDataVersion,
+  registerBuiltinScanners,
+  registerScanner,
+  ruleStateStamp,
+  semgrepDataVersion,
+  snapshotForScan,
+  type ScanProbe,
+  type Scanner,
+} from '@repopulse/security';
+import type { ForgeProvider } from '@repopulse/forge';
+import {
+  architectureDataVersion,
+  buildScanProbes,
+  supplyChainDataVersion,
+} from '../routes/runs/probes.js';
 import { scanProcessor, type ScanJobData } from './scan-processor.js';
 
 // W16-20 / W16-28. What happens when a scan is asked for and cannot happen.
@@ -500,5 +523,285 @@ describe('an unchanged scan is not re-run (W23-01)', () => {
     } as never);
     expect(semgrep).toHaveBeenCalledOnce();
     expect(inserted).toHaveLength(0);
+  });
+});
+
+describe('force reaches the runner (W23-09)', () => {
+  it('passes force only on a forced job, so secrets history can bypass its covered filter', async () => {
+    const seen: unknown[] = [];
+    const secrets = vi.fn(async (args: unknown) => {
+      seen.push(args);
+      return { scanned: 1, findingsCreated: 0, deferred: 0 };
+    });
+    const { db } = stubDb();
+    const process = scanProcessor({ db, historyRunners: { secrets } });
+
+    await process({ data: job({ scannerKey: 'secrets' }) } as never);
+    await process({ data: job({ scannerKey: 'secrets', force: true }) } as never);
+
+    expect(seen).toEqual([
+      { workspaceId: 1, repoId: 2 },
+      { workspaceId: 1, repoId: 2, force: true },
+    ]);
+  });
+});
+
+// W23-09 acceptance 5. The point of the whole ticket: press "Run scans now" twice
+// with nothing pushed and the second press must not touch the forge. A stateful
+// in-memory db, the REAL probes and the REAL processor; each stand-in runner does
+// what the real one does at its edges: fetch the pinned tarball through
+// snapshotForScan (the only sanctioned path, which counts on the fake provider),
+// then leave a succeeded row stamped by the same data-version function the real
+// runner calls.
+describe('two presses with no new commit fetch no tarball (W23-09)', () => {
+  type Row = Record<string, unknown>;
+  const HEAD1 = 'a'.repeat(40);
+  const HEAD2 = 'b'.repeat(40);
+  const SBOM_SHA = 'c'.repeat(40);
+
+  let scanRules: string;
+  let savedRules: string | undefined;
+
+  beforeAll(() => {
+    registerBuiltinScanners();
+    savedRules = process.env['SCAN_RULES_DIR'];
+    scanRules = mkdtempSync(path.join(tmpdir(), 'w23-09-press-'));
+    process.env['SCAN_RULES_DIR'] = scanRules;
+    // A grype database the way scan-db-sync.sh leaves it, built yesterday.
+    const schema = path.join(scanRules, 'vuln-db', '6');
+    mkdirSync(schema, { recursive: true });
+    writeFileSync(path.join(schema, 'vulnerability.db'), 'db');
+    const stamp = new Date(Date.now() - 86_400_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+    writeFileSync(
+      path.join(schema, 'import.json'),
+      JSON.stringify({ source: `https://grype.example/vulnerability-db_v6_${stamp}.tar.zst` }),
+    );
+  });
+  afterAll(() => {
+    if (savedRules === undefined) delete process.env['SCAN_RULES_DIR'];
+    else process.env['SCAN_RULES_DIR'] = savedRules;
+    rmSync(scanRules, { recursive: true, force: true });
+  });
+
+  /** A real gzipped tar, built by the system tar (same discipline as W8-03). */
+  function tarball(): Uint8Array {
+    const stage = mkdtempSync(path.join(tmpdir(), 'w23-09-tar-'));
+    const top = path.join(stage, 'acme-app-abc1234');
+    mkdirSync(top, { recursive: true });
+    writeFileSync(path.join(top, 'index.js'), 'module.exports = {};\n');
+    const out = path.join(stage, 'archive.tar.gz');
+    execFileSync('tar', ['-czf', out, '-C', stage, path.basename(top)], {
+      env: { ...process.env, COPYFILE_DISABLE: '1' },
+    });
+    const bytes = new Uint8Array(readFileSync(out));
+    rmSync(stage, { recursive: true, force: true });
+    return bytes;
+  }
+
+  function world() {
+    const tables = new Map<unknown, Row[]>();
+    const rows = (t: unknown): Row[] => {
+      if (!tables.has(t)) tables.set(t, []);
+      return tables.get(t)!;
+    };
+    const chain = (list: Row[]) => {
+      const c = {
+        where: () => c,
+        orderBy: () => c,
+        limit: async () => list,
+        then: (res: (v: Row[]) => unknown, rej?: (e: unknown) => unknown) =>
+          Promise.resolve(list).then(res, rej),
+      };
+      return c;
+    };
+    let nextId = 1;
+    const db = {
+      select: () => ({ from: (t: unknown) => chain(rows(t)) }),
+      insert: (t: unknown) => ({
+        values: (row: Row) => {
+          const full = {
+            id: nextId++,
+            status: 'running',
+            partial: false,
+            scope: 'full',
+            findingCount: 0,
+            toolVersions: null,
+            dataVersion: null,
+            scannerVersion: 'x',
+            finishedAt: null,
+            ...row,
+          };
+          rows(t).unshift(full); // newest first, like the real ORDER BY id DESC
+          return { returning: async () => [full] };
+        },
+      }),
+    } as never;
+
+    const tarballBytes = tarball();
+    // A RECORDING provider: every port method the scan path touches is logged by
+    // name, so the test counts what actually went to the forge rather than what
+    // a hand-written stub chose to report. (C1a: the archive is the only thing a
+    // snapshot scanner may ask for, and the architecture rule that keeps that true
+    // bans naming the method outside packages/forge and packages/security, which
+    // is also why this matches on the name instead of spelling it.)
+    const portCalls: string[] = [];
+    const fetches: string[] = [];
+    const provider = new Proxy(
+      { kind: 'github', capabilities: { supportsTarball: true } } as Record<string, unknown>,
+      {
+        get(target, prop) {
+          if (typeof prop !== 'string' || prop in target) return target[prop as string];
+          return async (_ctx: unknown, _repo: string, sha: string) => {
+            portCalls.push(prop);
+            if (/Tarball$/.test(prop)) fetches.push(sha);
+            return { commitSha: sha, bytes: tarballBytes, sourceHost: 'codeload.github.com' };
+          };
+        },
+      },
+    ) as unknown as ForgeProvider;
+
+    rows(facts.commits).push({ sha: HEAD1 });
+    rows(core.workspaces).push({ settings: null });
+    rows(security.sboms).push({ id: 5, commitSha: SBOM_SHA });
+    return { db, rows, provider, fetches, portCalls };
+  }
+
+  it('creates zero tarball fetches on the second press, and fetches again for a new commit or a forced one', async () => {
+    const { db, rows, provider, fetches, portCalls } = world();
+    const head = () => rows(facts.commits)[0]!['sha'] as string;
+    const ran: string[] = [];
+
+    /** What a snapshot runner does: stamp (before), fetch, leave a succeeded row. */
+    const snapshotRunner =
+      (
+        key: string,
+        stamp: () => Promise<{
+          toolVersions: Record<string, string> | null;
+          dataVersion: string | null;
+          commitSha?: string;
+        }>,
+      ) =>
+      async () => {
+        const s = await stamp();
+        const sha = head();
+        await snapshotForScan(
+          { provider, repo: 'acme/app', commitSha: sha },
+          async () => undefined,
+        );
+        await (db as never as { insert: (t: unknown) => { values: (r: Row) => unknown } })
+          .insert(security.scanRuns)
+          .values({
+            workspaceId: 1,
+            repoId: 2,
+            scannerKey: key,
+            commitSha: s.commitSha ?? sha,
+            trigger: 'manual',
+            status: 'succeeded',
+            toolVersions: s.toolVersions,
+            dataVersion: s.dataVersion,
+            finishedAt: new Date(),
+          });
+        ran.push(key);
+        return { scanned: 1, findingsCreated: 0, deferred: 0 };
+      };
+    /** What a no-tarball, always-run runner does: its own SQL or forge read. */
+    const cheapRunner = (key: string) => async () => {
+      ran.push(key);
+      return { scanned: 1, findingsCreated: 0, deferred: 0 };
+    };
+
+    const rules = () => ruleStateStamp(db, 1);
+    const weeklyRunners = {
+      semgrep: snapshotRunner('semgrep', async () => ({
+        toolVersions: { opengrep: '1.8.2', rulepack: 'r.yaml' },
+        dataVersion: semgrepDataVersion(undefined, undefined, await rules()),
+      })),
+      code_health_tools: snapshotRunner('code_health_tools', async () => ({
+        toolVersions: { lizard: '1.24.0', jscpd: '4.3.0', ruff: '0.6.0' },
+        dataVersion: codeHealthDataVersion(undefined, await rules()),
+      })),
+      dependency_cve: snapshotRunner('dependency_cve', async () => ({
+        toolVersions: { syft: '1.4.1', grype: '0.80.0' },
+        dataVersion: dependencyDataVersion(),
+      })),
+      container_image: snapshotRunner('container_image', async () => ({
+        toolVersions: { grype: '0.80.0' },
+        dataVersion: imageDataVersion(),
+      })),
+      anti_slop: snapshotRunner('anti_slop', async () => ({
+        toolVersions: { opengrep: '1.8.2', rulepack: 'slop.yaml' },
+        dataVersion: antiSlopDataVersion('off', await rules()),
+      })),
+      architecture_register: snapshotRunner('architecture_register', async () => ({
+        toolVersions: null,
+        dataVersion: architectureDataVersion(),
+      })),
+      supply_chain_register: snapshotRunner('supply_chain_register', async () => {
+        const stamp = await supplyChainDataVersion(db, 1, 2);
+        return { toolVersions: null, dataVersion: stamp!.dataVersion, commitSha: stamp!.commitSha };
+      }),
+      // The always-run set: none of them fetches a tarball.
+      knowledge_register: cheapRunner('knowledge_register'),
+      test_gap_register: cheapRunner('test_gap_register'),
+      attack_chainer: cheapRunner('attack_chainer'),
+      code_scanning_pull: cheapRunner('code_scanning_pull'),
+      owasp_web: cheapRunner('owasp_web'),
+      owasp_llm: cheapRunner('owasp_llm'),
+    };
+    const SNAPSHOT_KEYS = [
+      'semgrep',
+      'code_health_tools',
+      'dependency_cve',
+      'container_image',
+      'anti_slop',
+      'architecture_register',
+      'supply_chain_register',
+    ];
+    const process = scanProcessor({
+      db,
+      weeklyRunners,
+      // The real probes, with the worker's gateway answer for anti-slop.
+      probes: buildScanProbes(db, { antiSlopJudgement: async () => 'off' }),
+    });
+
+    /** "Run scans now": one manual job per enabled scanner. */
+    const press = async (extra: Partial<ScanJobData> = {}) => {
+      for (const key of Object.keys(weeklyRunners)) {
+        await process({ data: job({ scannerKey: key, ...extra }) } as never);
+      }
+    };
+    const skippedRows = () =>
+      rows(security.scanRuns)
+        .filter((r) => r['scope'] === 'skipped')
+        .map((r) => r['scannerKey']);
+
+    // Press 1: nothing has ever run, so every snapshot scanner fetches its tarball.
+    await press();
+    expect(fetches).toHaveLength(SNAPSHOT_KEYS.length);
+    expect(skippedRows()).toEqual([]);
+
+    // Press 2, no new commit: ZERO new fetches across all enabled scanners.
+    await press();
+    expect(fetches).toHaveLength(SNAPSHOT_KEYS.length);
+    expect([...skippedRows()].sort()).toEqual([...SNAPSHOT_KEYS].sort());
+    // The skipped rows stand on real runs at the real commit.
+    for (const row of rows(security.scanRuns).filter((r) => r['scope'] === 'skipped')) {
+      expect(row['baseRunId'], String(row['scannerKey'])).toBeTypeOf('number');
+      expect(row['status']).toBe('succeeded');
+    }
+    // The always-run scanners ran both times (and cost no fetch).
+    expect(ran.filter((k) => k === 'knowledge_register')).toHaveLength(2);
+
+    // CONTROL 1: a pushed commit is a new question for every one of them.
+    rows(facts.commits).unshift({ sha: HEAD2 });
+    await press();
+    expect(fetches).toHaveLength(SNAPSHOT_KEYS.length * 2);
+
+    // CONTROL 2: "Full rescan" bypasses the check at an unchanged commit.
+    await press({ force: true });
+    expect(fetches).toHaveLength(SNAPSHOT_KEYS.length * 3);
+
+    // Nothing but the archive was ever asked of the forge.
+    expect(portCalls).toHaveLength(fetches.length);
   });
 });

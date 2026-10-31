@@ -36,7 +36,14 @@ import { runKnowledgeRegister, runTestGapRegister } from '@repopulse/insights';
 import { buildWorkerGateway, createGatewayResolver, reportGatewayHealth } from './gateway.js';
 import { isAiPaused } from '../lib/ai-pause.js';
 import { hasNeverBeenScanned, startableScannerKeys } from '../lib/startable-scanners.js';
-import { buildScanProbes } from '../routes/runs/probes.js';
+import {
+  antiSlopRunDataVersion,
+  architectureDataVersion,
+  buildScanProbes,
+  judgementStateOf,
+  stampDataVersion,
+  supplyChainDataVersion,
+} from '../routes/runs/probes.js';
 import {
   jsonFetcher,
   readComponents,
@@ -464,7 +471,7 @@ async function main(): Promise<void> {
         // W8-05: history mode, by scanner key. A map rather than a switch, so
         // FR-SEC-1's "the framework never branches on a scanner key" stays true.
         historyRunners: {
-          secrets: async ({ workspaceId, repoId }) => {
+          secrets: async ({ workspaceId, repoId, force }) => {
             const resolved = await providerForRepo(scanForgeDeps, workspaceId, repoId);
             // No active connection: nothing to fetch patches with. Reported as
             // zero work, not as a failure — the repo simply is not connected.
@@ -476,6 +483,9 @@ async function main(): Promise<void> {
               workspaceId,
               repoId,
               repo: resolved.repoFullName,
+              // W23-09: "Full rescan" re-sweeps commits the covered filter would
+              // exclude, including one stuck in `running`.
+              ...(force ? { force: true } : {}),
             });
           },
         },
@@ -484,7 +494,18 @@ async function main(): Promise<void> {
         // schedule, no user waiting — and two crons doing it would drift.
         // W23-01: what each weekly runner would pin to and stamp, so an
         // unchanged scan is skipped. A runner with no probe always runs.
-        probes: buildScanProbes(db),
+        // W23-09: every runner below either has a probe here or is listed in
+        // ALWAYS_RUN (routes/runs/probes.ts) with the reason it never skips.
+        // Anti-slop's probe needs the workspace's gateway, which only this
+        // process can build, so it is injected here and absent from the API's.
+        probes: buildScanProbes(db, {
+          antiSlopJudgement: async (workspaceId) =>
+            judgementStateOf(
+              (await isAiPaused(db, workspaceId))
+                ? null
+                : ((await gateways.for(workspaceId))?.hosts ?? null),
+            ),
+        }),
         weeklyRunners: {
           semgrep: async ({ workspaceId, repoId }) => {
             const resolved = await providerForRepo(scanForgeDeps, workspaceId, repoId);
@@ -680,6 +701,14 @@ async function main(): Promise<void> {
               return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_head_sha' };
             }
 
+            // W23-09: the stamp is built from the SAME gateway this run uses, so
+            // a run made with AI off never stands in for one with a model on.
+            const slopDataVersion = await antiSlopRunDataVersion(
+              db,
+              workspaceId,
+              judgementStateOf(analysisGateway?.hosts ?? null),
+            );
+
             return snapshotForScan(
               {
                 provider: resolved.provider,
@@ -713,6 +742,7 @@ async function main(): Promise<void> {
                       // same rules — it is the first pass over these ones.
                       targetDir: snapshot.dir,
                       trigger: 'schedule',
+                      dataVersion: slopDataVersion,
                       // THE JUDGEMENT HALF, finally reachable. It was written,
                       // tested against a stub and shipped with no gateway to
                       // call — `deps.gateway ? ... : { chunks: [] }` meant every
@@ -795,6 +825,10 @@ async function main(): Promise<void> {
             // as "no dependency problems".
             if (!sbom) return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_sbom' };
 
+            // W23-09: the stamp is read BEFORE the registries are synced, so a
+            // day that turns mid-run makes the next probe disagree, never agree.
+            const registerStamp = await supplyChainDataVersion(db, workspaceId, repoId);
+
             const fetchJson = jsonFetcher();
             const components = readComponents(sbom.document);
             const byPackage = new Map<
@@ -851,6 +885,15 @@ async function main(): Promise<void> {
                   )
                 : await run();
 
+            if (result.status === 'succeeded') {
+              await stampDataVersion(
+                db,
+                workspaceId,
+                result.scanRunId,
+                registerStamp?.dataVersion ?? null,
+              );
+            }
+
             return {
               scanned: result.measured,
               findingsCreated: result.created,
@@ -878,6 +921,9 @@ async function main(): Promise<void> {
             if (!head?.sha) {
               return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_head_sha' };
             }
+            // W23-09: the data stamp, read before the run and written onto its
+            // row after (the row is the package's; the stamp is the probe's).
+            const archDataVersion = architectureDataVersion();
             const result = await runArchitectureScan({
               db,
               provider: resolved.provider,
@@ -886,6 +932,9 @@ async function main(): Promise<void> {
               repo: resolved.repoFullName,
               commitSha: head.sha,
             });
+            if (result.status === 'succeeded' || result.status === 'skipped') {
+              await stampDataVersion(db, workspaceId, result.scanRunId, archDataVersion);
+            }
             return {
               scanned: result.moduleCount,
               findingsCreated: result.findingsCreated,

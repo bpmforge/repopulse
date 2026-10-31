@@ -2,7 +2,10 @@ import { SCAN_MOUNT_PATH } from '../../../sandbox/profile.js';
 import { runInSandbox, stderrTail } from '../../../sandbox/run.js';
 import type { ScanBudget } from '../../framework/types.js';
 import { resolveThresholds, verdictsForFunction, type CodeHealthThresholds } from './thresholds.js';
-import { adaptersFor } from './adapters/registry.js';
+import { adaptersFor, listAdapters } from './adapters/registry.js';
+import { dataStamp, shortHash } from '../../framework/data-stamp.js';
+import { getScanner } from '../../registry.js';
+import { DEFAULT_SCAN_IMAGE } from '../semgrep/scanner.js';
 import type { AdapterContext, AdapterFinding, ToolAdapter } from './adapters/types.js';
 import { listSnapshotFiles } from '../../adapters/architecture/tools.js';
 
@@ -15,6 +18,44 @@ import { listSnapshotFiles } from '../../adapters/architecture/tools.js';
 // any future tool adapter has to clear (§10).
 
 export const CODE_HEALTH_SCANNER_KEY = 'code_health_tools';
+
+/** The pinned versions of the two tools this scanner runs itself (stamped on every run). */
+export const CODE_HEALTH_TOOL_PINS = { lizard: '1.24.0', jscpd: '4.3.0' } as const;
+
+/**
+ * The data stamp of a code-health run (W23-09).
+ *
+ * The run's own `tool_versions` name only the adapters the TREE triggered, which
+ * is known after the run. What the probe can know without a tree is everything
+ * that could change what those adapters, lizard and jscpd report for the SAME
+ * tree: the pins, the registered adapters and their versions (a NEW adapter may
+ * apply to this tree and was never in the baseline's list), the thresholds, the
+ * scan image the tools live in, the workspace's rule lifecycle state (adapter
+ * findings pass through the shadow registry), and the in-process scanner version. The probe
+ * then reuses the baseline's `tool_versions` — same tree, same stamp, same
+ * adapters triggered — and this string is what guards the rest.
+ */
+export function codeHealthDataVersion(
+  thresholds: Partial<CodeHealthThresholds> | undefined,
+  /** The workspace's rule lifecycle state (`ruleStateStamp`); null = unreadable. */
+  rules: string | null,
+): string | null {
+  return dataStamp({
+    adapters: shortHash(
+      listAdapters()
+        .map((a) => `${a.key}@${a.version}`)
+        .sort()
+        .join(','),
+    ),
+    image: DEFAULT_SCAN_IMAGE,
+    rules,
+    pins: Object.entries(CODE_HEALTH_TOOL_PINS)
+      .map(([k, v]) => `${k}${v}`)
+      .join(','),
+    scanner: getScanner(CODE_HEALTH_SCANNER_KEY)?.version,
+    thresholds: shortHash(JSON.stringify(resolveThresholds(thresholds))),
+  });
+}
 
 /** Where jscpd writes its report — a tmpfs, because the root is read-only. */
 const JSCPD_OUT = '/tmp/jscpd';
@@ -265,7 +306,7 @@ export async function runCodeHealthTools(args: RunToolsArgs): Promise<ToolRunRes
     ],
   });
 
-  const toolVersions: Record<string, string> = { lizard: '1.24.0', jscpd: '4.3.0' };
+  const toolVersions: Record<string, string> = { ...CODE_HEALTH_TOOL_PINS };
   for (const adapter of adapters) toolVersions[adapter.key] = adapter.version;
 
   if (result.status !== 'succeeded' || result.rawStdout === undefined) {
