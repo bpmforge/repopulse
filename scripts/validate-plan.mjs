@@ -83,10 +83,10 @@ for (const t of plan.tickets) {
   // `continue` skipped its remaining checks. The validator reported 59 identical
   // id errors and could not print a claimable set at all. Widen this WITH the
   // wave, in the same commit that opens it.
-  const m = typeof t.id === 'string' && t.id.match(/^W([0-9]|1[0-9]|2[0-2])-(\d{2})$/);
+  const m = typeof t.id === 'string' && t.id.match(/^W([0-9]|1[0-9]|2[0-3])-(\d{2})$/);
   // The message names the CURRENT range rather than a range that was true two
   // waves ago — a stale error message sends the next person to the wrong fix.
-  if (!m) { err(`${label}: id must match W<0-21>-<nn>`); continue; }
+  if (!m) { err(`${label}: id must match W<0-23>-<nn>`); continue; }
   if (byId.has(t.id)) err(`${t.id}: duplicate id`);
   byId.set(t.id, t);
 
