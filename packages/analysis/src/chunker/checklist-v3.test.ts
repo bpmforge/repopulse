@@ -81,7 +81,7 @@ describe('performance.v3', () => {
       version: 'v3',
     });
     expect(prompt.checklistVersion).toBe('v3');
-    expect(digest(prompt.text)).toMatchInlineSnapshot(`"7970a59008596b10"`);
+    expect(digest(prompt.text)).toMatchInlineSnapshot(`"50b428d94d73b3bb"`);
   });
 
   it('is what the specialist runs: the live eval (2026-10-26) showed v3 at least as good as v2', () => {

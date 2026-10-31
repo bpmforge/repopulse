@@ -464,6 +464,7 @@ export function aiPassProcessor(deps: AiPassDeps) {
             chunkCount: usage.chunks,
             promptTokens: usage.tokensIn,
             outputTokens: usage.tokensOut,
+            cacheReadTokens: usage.cacheReadTokens,
             startedAt: run.startedAt ?? now(),
             finishedAt: now(),
           })

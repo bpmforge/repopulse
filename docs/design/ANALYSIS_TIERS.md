@@ -74,6 +74,45 @@ projected output ≈ `min(10k, 0.35 × patchTokens + 800)` per chunk.
    finding list + PR metadata and emits a PR-level verdict/summary (reduce). Reduce input is
    findings JSON, never re-pasted diff — bounded regardless of PR size.
 
+### Cacheable prompt prefix (W23-06, INCREMENTAL_SCAN_PLAN X7)
+
+Every chunk of a dimension used to re-send the same checklist inside one user message, so
+nothing gave a server a stable prefix to cache. A chunk prompt is now two parts
+(`buildPromptParts` in `chunker/prompt.ts`):
+
+- **static** = checklist + required-JSON schema + rules. Byte-identical for every chunk of
+  one dimension at one checklist version (a test hashes it across chunks).
+- **dynamic** = PR context + the chunk's file list + the diff. Everything that varies.
+
+`text` is always `static + "\n\n" + dynamic`; that string is what the egress audit hashes,
+so audit digests do not depend on the split. The split rides to transports on
+`CompleteOpts.promptParts` and is honoured only when it reassembles to exactly the prompt
+passed in, so a caller that appends a retry note must append it to `dynamic` too (the
+specialist runner does) or the call falls back to one user message.
+
+**Prompt reordering, deliberate.** The schema block used to trail the diff. A prefix has to
+come first, so it moved ahead of the PR context, and "the diff above" became "the diff you
+are given". The prompt is therefore not byte-identical to before; the golden digests in
+`checklist-v2.test.ts` / `checklist-v3.test.ts` were re-recorded once for this. Checklist
+versions are unchanged. Eval fixtures (W19-05) were not re-run for the new order.
+
+| Transport | Request shape |
+|---|---|
+| OpenAI-compatible: LM Studio, Ollama, hosted, **Bedrock** and **Vertex** (both reached through their OpenAI-compatible chat surfaces) | `messages: [{system: static}, {user: dynamic}]`. The server's prefix/KV cache sees the same leading bytes each call. No `cache_control` is sent: those surfaces take none. |
+| Tier-3 Anthropic API (`t3/client.ts`) | `system: [{type:"text", text: static, cache_control:{type:"ephemeral"}}]`, `messages: [{user: dynamic}]`. |
+| Claude Code CLI | `--append-system-prompt <static>`; the diff stays on stdin. Appended, not replacing, so the CLI's own system prompt is unchanged. |
+
+`max_tokens` (45000 on T2), temperature, streaming, warm-up and crash retry are untouched.
+
+**Telemetry.** `CompleteResult.cacheReadTokens` (0 when the provider reports none), read from
+`usage.prompt_tokens_details.cached_tokens` (OpenAI-compatible), `cache_read_input_tokens`
+(Claude CLI and Anthropic). It is already inside `tokensIn`. Persisted per analysis run in
+`analysis_runs.cache_read_tokens` (migration 0065) and shown on Settings → Models as
+"Prompt cache per model": cache-read / input tokens over each model's last 50 runs
+(`GET /admin/models/cache`). A model whose runs never reported a figure reads "not
+reported", not 0%. Tier-3 cost estimates now price cache reads at 0.1x and cache writes at
+1.25x of the input rate.
+
 ## 3. Tier-3 — Claude API (FR-ANALYSIS-7, NFR-9)
 
 - Client: `@anthropic-ai/sdk` (verify model ids/params against the claude-api skill reference

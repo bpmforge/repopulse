@@ -2,6 +2,7 @@ import { spawn as nodeSpawn, type ChildProcess } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { usablePromptParts, type PromptParts } from '../gateway/types.js';
 import { ProviderError } from '../t2/client.js';
 
 // The customer-supplied Claude Code CLI as a model backend (W19-08).
@@ -74,6 +75,8 @@ export interface CliResult {
   model: string;
   tokensIn: number;
   tokensOut: number;
+  /** Already inside tokensIn (W23-06). */
+  cacheReadTokens: number;
   durationMs: number;
 }
 
@@ -152,7 +155,7 @@ async function inEmptyDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
   }
 }
 
-export const cliArgs = (model: string): string[] => [
+export const cliArgs = (model: string, staticPrompt?: string): string[] => [
   '-p',
   '--output-format',
   'json',
@@ -161,6 +164,13 @@ export const cliArgs = (model: string): string[] => [
   '--no-session-persistence',
   '--model',
   model,
+  // W23-06: the static half of the prompt (checklist + schema + rules) goes on
+  // the system side, APPENDED to the CLI's own system prompt rather than
+  // replacing it, so the CLI's behaviour is unchanged and the byte-identical
+  // prefix is what its prompt cache sees. It is our own fixed text, never the
+  // customer's code, so having it in argv does not expose anything the stdin
+  // rule protects; the diff stays on stdin.
+  ...(staticPrompt ? ['--append-system-prompt', staticPrompt] : []),
 ];
 
 interface CliJson {
@@ -183,10 +193,16 @@ export async function runClaudeCli(
   prompt: string,
   model: string,
   deps: CliDeps = {},
+  parts?: PromptParts,
 ): Promise<CliResult> {
   const bin = cliBinary(deps);
   const started = Date.now();
-  const r = await inEmptyDir((dir) => run(bin, cliArgs(model), prompt, dir, deps));
+  // With a usable split: static -> system flag, dynamic -> stdin. Otherwise the
+  // whole prompt on stdin, exactly as before.
+  const split = usablePromptParts(prompt, parts);
+  const r = await inEmptyDir((dir) =>
+    run(bin, cliArgs(model, split?.static), split ? split.dynamic : prompt, dir, deps),
+  );
 
   if (r.error?.code === 'ENOENT') throw new ProviderError(NOT_FOUND(bin));
   if (r.error)
@@ -222,6 +238,7 @@ export async function runClaudeCli(
     // Cached input still went to the model, so it counts as input.
     tokensIn: n('input_tokens') + n('cache_read_input_tokens') + n('cache_creation_input_tokens'),
     tokensOut: n('output_tokens'),
+    cacheReadTokens: n('cache_read_input_tokens'),
     durationMs: Date.now() - started,
   };
 }

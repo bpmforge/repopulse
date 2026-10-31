@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Dimension } from '../gateway/types.js';
+import { joinPromptParts, type Dimension, type PromptParts } from '../gateway/types.js';
 import { estimateTokens, type DiffChunk } from './index.js';
 
 // Prompt assembly (W6-02, ANALYSIS_TIERS.md §2/§4).
@@ -46,7 +46,7 @@ const requiredJson = (
 
 {"findings":[{"dimension":"${dimension}","severity":1-5,"confidence":1-5,
 "file":"<path>","line_range":[start,end],"title":"<=120 chars",
-"evidence_quote":"verbatim text copied from the diff above",
+"evidence_quote":"verbatim text copied from the diff you are given",
 "rationale":"<=800 chars","suggested_fix":"<=800 chars or null"}]}
 
 If you find nothing, respond with {"findings":[]}. Never invent an
@@ -57,6 +57,51 @@ export interface BuiltPrompt {
   text: string;
   tokens: number;
   checklistVersion: string;
+  /**
+   * The same prompt split at its cache boundary (W23-06). Present for chunk
+   * prompts; `text` is always `static + PROMPT_PART_SEPARATOR + dynamic`.
+   */
+  parts?: PromptParts;
+}
+
+/**
+ * Static / dynamic split of a chunk prompt (W23-06, INCREMENTAL_SCAN_PLAN X7).
+ *
+ * `static` = checklist + required-JSON schema + rules: identical for every
+ * chunk of one dimension at one checklist version, so a local server's KV
+ * cache (or Anthropic's prompt cache) can reuse it. `dynamic` = PR context +
+ * the chunk's files + the diff: everything that changes per chunk.
+ *
+ * ORDER CHANGE, recorded in ANALYSIS_TIERS.md §2: the required-JSON block used
+ * to trail the diff. A cacheable prefix has to come first, so the block moved
+ * in front of the PR context and its wording "the diff above" became "the diff
+ * you are given". The prompt digests in the checklist golden tests moved once,
+ * deliberately, with this ticket.
+ */
+export function buildPromptParts(params: {
+  dimension: Dimension;
+  chunk: DiffChunk;
+  prTitle: string;
+  prBody: string | null;
+  version?: string;
+}): PromptParts {
+  const version = params.version ?? CHECKLIST_VERSION;
+  const staticPart = [
+    loadChecklist(params.dimension, version),
+    '',
+    requiredJson(params.dimension),
+  ].join('\n');
+  const dynamicPart = [
+    prContext(params.prTitle, params.prBody),
+    '',
+    `Files in this chunk: ${params.chunk.paths.join(', ')}`,
+    params.chunk.part ? `(part ${params.chunk.part.index} of ${params.chunk.part.of})` : '',
+    '',
+    '```diff',
+    params.chunk.text,
+    '```',
+  ].join('\n');
+  return { static: staticPart, dynamic: dynamicPart };
 }
 
 /** System framing + checklist + required JSON + the chunk (§4). */
@@ -68,22 +113,9 @@ export function buildChunkPrompt(params: {
   version?: string;
 }): BuiltPrompt {
   const version = params.version ?? CHECKLIST_VERSION;
-  const text = [
-    loadChecklist(params.dimension, version),
-    '',
-    prContext(params.prTitle, params.prBody),
-    '',
-    `Files in this chunk: ${params.chunk.paths.join(', ')}`,
-    params.chunk.part ? `(part ${params.chunk.part.index} of ${params.chunk.part.of})` : '',
-    '',
-    '```diff',
-    params.chunk.text,
-    '```',
-    '',
-    requiredJson(params.dimension),
-  ].join('\n');
-
-  return { text, tokens: estimateTokens(text), checklistVersion: version };
+  const parts = buildPromptParts(params);
+  const text = joinPromptParts(parts);
+  return { text, tokens: estimateTokens(text), checklistVersion: version, parts };
 }
 
 /**

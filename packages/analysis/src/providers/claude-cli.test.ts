@@ -376,3 +376,45 @@ describe('through the analysis gateway', () => {
     expect(r.route?.failedLinks[0]?.error).toMatch(/was not found/);
   });
 });
+
+// W23-06. The static half of the prompt rides the system flag, the diff stays
+// on stdin, and cache-read tokens are reported separately from tokensIn.
+describe('runClaudeCli static/dynamic split (W23-06)', () => {
+  const parts = { static: 'CHECKLIST + SCHEMA', dynamic: 'PR + SECRET DIFF' };
+  const prompt = `${parts.static}\n\n${parts.dynamic}`;
+
+  it('sends static via --append-system-prompt and only the dynamic part on stdin', async () => {
+    const f = fakeSpawn({ stdout: ok('x') });
+    await runClaudeCli(prompt, 'sonnet', { spawnImpl: f.impl }, parts);
+    const c = f.calls[0]!;
+    expect(c.args).toEqual(cliArgs('sonnet', parts.static));
+    const i = c.args.indexOf('--append-system-prompt');
+    expect(i).toBeGreaterThan(-1);
+    expect(c.args[i + 1]).toBe(parts.static);
+    expect(c.stdin).toBe(parts.dynamic);
+    expect(c.args.join(' ')).not.toContain('SECRET DIFF');
+  });
+
+  it('falls back to the whole prompt on stdin when the parts do not reassemble to it', async () => {
+    const f = fakeSpawn({ stdout: ok('x') });
+    await runClaudeCli(`${prompt}\n\nretry note`, 'sonnet', { spawnImpl: f.impl }, parts);
+    const c = f.calls[0]!;
+    expect(c.args).toEqual(cliArgs('sonnet'));
+    expect(c.stdin).toContain('retry note');
+  });
+
+  it('reports cache_read_input_tokens as cacheReadTokens, and 0 when absent', async () => {
+    const withCache = fakeSpawn({
+      stdout: ok('x', { cache_read_input_tokens: 100, cache_creation_input_tokens: 20 }),
+    });
+    expect(await runClaudeCli('p', 'sonnet', { spawnImpl: withCache.impl })).toMatchObject({
+      tokensIn: 130,
+      cacheReadTokens: 100,
+    });
+    const without = fakeSpawn({ stdout: ok('x') });
+    expect(await runClaudeCli('p', 'sonnet', { spawnImpl: without.impl })).toMatchObject({
+      tokensIn: 10,
+      cacheReadTokens: 0,
+    });
+  });
+});

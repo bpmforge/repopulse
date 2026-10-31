@@ -177,3 +177,77 @@ describe('Tier 3 streams too, without exception (W16-39)', () => {
     expect(code).not.toContain('client.messages.create(');
   });
 });
+
+// W23-06. Anthropic: static as the first system block with cache_control
+// ephemeral; cache accounting folded into tokensIn and reported separately.
+describe('prompt caching (W23-06)', () => {
+  const parts = { static: 'CHECKLIST + SCHEMA', dynamic: 'PR + DIFF' };
+  const prompt = `${parts.static}\n\n${parts.dynamic}`;
+  const record = async () => undefined;
+
+  it('sends static as a cache_control ephemeral system block and dynamic as the user turn', async () => {
+    const seen: unknown[] = [];
+    const client = createT3Client({
+      apiKey: 'unused',
+      recordEgress: record,
+      createMessage: async (p) => {
+        seen.push(p);
+        return response;
+      },
+    });
+    await client(prompt, { ...opts, promptParts: parts });
+    expect(seen[0]).toEqual({
+      model: 'claude-sonnet-5',
+      max_tokens: 4000,
+      system: [{ type: 'text', text: parts.static, cache_control: { type: 'ephemeral' } }],
+      messages: [{ role: 'user', content: parts.dynamic }],
+    });
+  });
+
+  it('keeps the single user message without parts, and audits the full prompt either way', async () => {
+    const seen: unknown[] = [];
+    const rows: { contentSha256: string; bytes: number }[] = [];
+    const client = createT3Client({
+      apiKey: 'unused',
+      recordEgress: async (r) => void rows.push(r),
+      createMessage: async (p) => {
+        seen.push(p);
+        return response;
+      },
+    });
+    await client(prompt, opts);
+    await client(prompt, { ...opts, promptParts: parts });
+    expect((seen[0] as { system?: unknown }).system).toBeUndefined();
+    expect((seen[0] as { messages: unknown[] }).messages).toEqual([{ role: 'user', content: prompt }]);
+    expect(rows[0]).toEqual(rows[1]);
+    expect(rows[0]!.contentSha256).toBe(contentDigest(prompt));
+  });
+
+  it('parses cache_read_input_tokens into cacheReadTokens and counts it inside tokensIn', async () => {
+    const client = createT3Client({
+      apiKey: 'unused',
+      recordEgress: record,
+      createMessage: async () => ({
+        ...response,
+        usage: { input_tokens: 100, output_tokens: 50, cache_read_input_tokens: 900, cache_creation_input_tokens: 0 },
+      }),
+    });
+    expect(await client(prompt, opts)).toMatchObject({ tokensIn: 1000, tokensOut: 50, cacheReadTokens: 900 });
+  });
+
+  it('reports 0 when the response has no cache fields, and tokensIn is unchanged', async () => {
+    const client = createT3Client({ apiKey: 'unused', recordEgress: record, createMessage: async () => response });
+    expect(await client(prompt, opts)).toMatchObject({ tokensIn: 1000, cacheReadTokens: 0 });
+  });
+
+  it('prices cache reads at a tenth and writes at 1.25x of the input price', () => {
+    const pricing = { inputPerMTok: 3, outputPerMTok: 15 };
+    expect(estimateCostUsd({ input_tokens: 1_000_000, output_tokens: 0 }, pricing)).toBeCloseTo(3);
+    expect(
+      estimateCostUsd({ input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 1_000_000 }, pricing),
+    ).toBeCloseTo(0.3);
+    expect(
+      estimateCostUsd({ input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 1_000_000 }, pricing),
+    ).toBeCloseTo(3.75);
+  });
+});

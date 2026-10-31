@@ -3,6 +3,7 @@ import { ModelsWizard } from '../../widgets/admin/ModelsWizard.js';
 import { LlmProviders } from '../../widgets/admin/LlmProviders.js';
 import { LlmRouting } from '../../widgets/admin/LlmRouting.js';
 import { ModelEval } from '../../widgets/admin/ModelEval.js';
+import { ModelCache } from '../../widgets/admin/ModelCache.js';
 import { LastChanged } from '../../widgets/admin/AuditLog.js';
 
 // W16-07, W19-02. Admin-only by the API's requireAdmin; the tab itself is presentation.
@@ -27,6 +28,8 @@ function Models() {
       />
       <LlmRouting />
       <ModelEval />
+      {/* W23-06: is the static prompt prefix actually being reused? */}
+      <ModelCache />
     </div>
   );
 }

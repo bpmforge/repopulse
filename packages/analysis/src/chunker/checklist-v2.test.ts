@@ -103,7 +103,7 @@ describe('golden prompt snapshots', () => {
     expect(prompt.checklistVersion).toBe('v2');
     // The digest changes only when the prompt does — which is the signal that
     // a version bump is due.
-    expect(digest(prompt.text)).toMatchInlineSnapshot(`"286b7fb174929645"`);
+    expect(digest(prompt.text)).toMatchInlineSnapshot(`"f7160742cdca9618"`);
   });
 
   it('builds a stable prompt for code_health.v2', () => {
@@ -115,7 +115,7 @@ describe('golden prompt snapshots', () => {
       version: 'v2',
     });
     expect(prompt.checklistVersion).toBe('v2');
-    expect(digest(prompt.text)).toMatchInlineSnapshot(`"5bc704f1ceef06bf"`);
+    expect(digest(prompt.text)).toMatchInlineSnapshot(`"2f0cefc2cf2aa7d6"`);
   });
 
   it('records the version it ran, so a finding is reproducible', () => {
