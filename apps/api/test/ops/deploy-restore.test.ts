@@ -226,6 +226,42 @@ describe('deploy/restore.sh + backup.sh refusals (W17-29)', () => {
     expect(r.out).toContain('SCAN_VULN_DB_ARCHIVE');
   });
 
+  // W22-15 (D3): on a host with both runtimes, RUNTIME=docker used to run podman.
+  it('scan-db-sync.sh honours RUNTIME when both runtimes are installed', async () => {
+    writeEnv({ SCAN_RULES_DIR: path.join(dir, 'scan-rules') });
+    const dockerCalls = path.join(dir, 'docker-calls.txt');
+    writeFileSync(
+      path.join(bin, 'docker'),
+      `#!/usr/bin/env bash\necho "$*" >> "${dockerCalls}"\nexit 1\n`,
+    );
+    chmodSync(path.join(bin, 'docker'), 0o755);
+    await sh('scan-db-sync.sh', [], { RUNTIME: 'docker' });
+
+    expect(readFileSync(dockerCalls, 'utf8')).toContain('run --rm --user 0:0');
+    expect(runtimeCalls()).toBe('');
+  });
+
+  it('scan-db-sync.sh refuses a RUNTIME that is not installed', async () => {
+    writeEnv({ SCAN_RULES_DIR: path.join(dir, 'scan-rules') });
+    const r = await sh('scan-db-sync.sh', [], { RUNTIME: 'docker' });
+
+    expect(r.code).toBe(1);
+    expect(r.out).toContain("RUNTIME=docker was requested but 'docker' is not on PATH");
+    expect(runtimeCalls()).toBe('');
+  });
+
+  // W22-15 (G5): a missing scan image read as a proxy error.
+  it('scan-db-sync.sh names a missing scan image and how to get it, not a proxy', async () => {
+    writeEnv({ SCAN_RULES_DIR: path.join(dir, 'scan-rules') });
+    const r = await sh('scan-db-sync.sh', []);
+
+    expect(r.code).toBe(1);
+    expect(r.out).toContain('The scan image repopulse/scan:dev is not on this host (podman)');
+    expect(r.out).toContain('deploy/up.sh --build builds it');
+    expect(r.out).not.toContain('looks like a proxy');
+    expect(r.out).not.toContain('build scan');
+  });
+
   // INS-65: root's podman cannot see a rootless install's containers or images,
   // so a nightly job in root's crontab failed every night. Both scripts now
   // refuse up front when run as root over an install another user owns. Only

@@ -14,7 +14,7 @@
 # breakage.
 
 # ---------- base ----------
-FROM node:22.23.1-alpine AS base
+FROM docker.io/library/node:22.23.1-alpine AS base
 ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 WORKDIR /app
@@ -71,7 +71,7 @@ COPY tools/repopulse-cli/repopulse.mjs tools/repopulse-cli/repopulse.mjs
 # time. Only the nginx image below is the target arch. When build and target
 # are the same platform this is simply a second native install of the same
 # lockfile. BUILDPLATFORM is set automatically by buildah/podman and BuildKit.
-FROM --platform=$BUILDPLATFORM node:22.23.1-alpine AS web-build
+FROM --platform=$BUILDPLATFORM docker.io/library/node:22.23.1-alpine AS web-build
 ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 WORKDIR /app
@@ -141,7 +141,7 @@ CMD ["tsx", "apps/api/src/index.ts"]
 # (reproduced on a packaged install). So the worker is the one runtime on
 # Debian, with its own glibc install of the same lockfile from the same
 # manifests. Node stays the same pinned version.
-FROM node:22.23.1-bookworm-slim AS base-debian
+FROM docker.io/library/node:22.23.1-bookworm-slim AS base-debian
 ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 WORKDIR /app
@@ -264,7 +264,7 @@ RUN npm install -g tsx@4.23.1 && npm cache clean --force
 CMD ["tsx", "apps/api/src/migrate.ts"]
 
 # ---------- runtime: web ----------
-FROM nginx:1.27-alpine AS web
+FROM docker.io/library/nginx:1.27-alpine AS web
 COPY --from=web-build /app/apps/web/dist /usr/share/nginx/html
 COPY deploy/nginx.conf.template /etc/nginx/templates/default.conf.template
 EXPOSE 8080

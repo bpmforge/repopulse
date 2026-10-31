@@ -73,6 +73,14 @@ describe('deploy/up.sh behaviour (W17-04)', () => {
        * every service (2026-10-28: docker-compose replaced podman-compose).
        */
       staleFirst?: boolean;
+      /** W22-15: what `<runtime> version --format ...` prints (the Podman floor). */
+      runtimeVersion?: string;
+      /** W22-15: what `docker info` prints (a permission error is refused). */
+      infoOut?: string;
+      /** W22-15: exit status of `docker buildx version` (0 = installed). */
+      buildxRc?: number;
+      /** W22-15: seconds `compose up` blocks before answering (the timeout case). */
+      composeUpSleep?: number;
     },
   ): string {
     const bin = path.join(dir, 'bin');
@@ -96,8 +104,29 @@ if [ "$1" = "compose" ]; then
   fi
   # any 'compose ... up -d ...'; the arguments are kept for W20-16's overlay test.
   echo "$*" >> "${path.join(dir, 'compose-args.txt')}"
+  ${opts.composeUpSleep ? `sleep ${opts.composeUpSleep}` : ''}
   echo "${opts.composeUpOut ?? 'stub: compose up ran'}"
   exit ${opts.composeUpRc ?? 0}
+fi
+
+if [ "$1" = "version" ]; then
+  echo "${opts.runtimeVersion ?? '5.8.0'}"
+  exit 0
+fi
+
+if [ "$1" = "info" ]; then
+  echo "${opts.infoOut ?? 'stub info'}"
+  exit 0
+fi
+
+if [ "$1" = "buildx" ]; then
+  exit ${opts.buildxRc ?? 0}
+fi
+
+if [ "$1" = "build" ]; then
+  # W22-15: up.sh builds the scan image itself in a checkout.
+  echo "$*" >> "${path.join(dir, 'build-args.txt')}"
+  exit 0
 fi
 
 if [ "$1" = "image" ]; then
@@ -156,6 +185,8 @@ exit 1
       /** W20-16: arguments to up.sh, and the CLI overlay copied beside it. */
       args?: string[];
       withCliOverlay?: boolean;
+      /** W22-15: put a Containerfile.scan beside deploy/, as a checkout has. */
+      withScanContainerfile?: boolean;
     } = {},
   ): Promise<{ code: number; out: string }> {
     const deployDir = path.join(dir, 'deploy');
@@ -181,6 +212,7 @@ exit 1
     // W17-27: a real install always has SCAN_RUNNER_TOKEN (configure.mjs
     // generates it); the fixture mirrors that so the token refusal, tested on
     // its own below, does not mask the migrate/health behaviour under test.
+    if (opts.withScanContainerfile) writeFileSync(path.join(dir, 'Containerfile.scan'), 'FROM scratch\n');
     if (opts.withCliOverlay) {
       await run('cp', [
         path.join(repoRoot, 'deploy/compose.claude-cli.yaml'),
@@ -479,6 +511,107 @@ exit 1
     expect(out).toContain('images:     localhost/repopulse/*:1.2.3 (all present)');
     expect(out).toContain('All services running');
   });
+
+  // W22-15 (2026-10-31 fresh Ubuntu 24.04): Podman 4.9 never starts api, and
+  // podman-compose 1.0.6 overrides up.sh's mounts and prints secrets. Both are
+  // refused by version before compose is called.
+  it('refuses Podman older than 5 with a sentence, before calling compose (W22-15)', async () => {
+    stubRuntime('podman', { services: allHealthy, runtimeVersion: '4.9.3' });
+    const { code, out } = await runUp({});
+
+    expect(code).not.toBe(0);
+    expect(out).toContain('Podman 4.9.3 is too old: RepoPulse needs Podman 5 or newer');
+    expect(out).toContain('Ubuntu 26.04');
+    expect(out).not.toContain('compose up ran');
+  });
+
+  it('refuses podman-compose older than 1.5, in either spelling of its version line (W22-15)', async () => {
+    stubRuntime('podman', {
+      services: allHealthy,
+      providerVersion: 'podman-compose version: 1.0.6\npodman-compose version 1.0.6',
+    });
+    const { code, out } = await runUp({});
+
+    expect(code).not.toBe(0);
+    expect(out).toContain('podman-compose 1.0.6 is too old');
+    expect(out).toContain('print every password');
+    expect(out).not.toContain('compose up ran');
+  });
+
+  it('accepts Podman 5 with podman-compose 1.5 (W22-15)', async () => {
+    stubRuntime('podman', {
+      services: allHealthy,
+      runtimeVersion: '5.7.0',
+      providerVersion: 'podman-compose version 1.5.0',
+    });
+    const { code, out } = await runUp({});
+
+    expect(code).toBe(0);
+    expect(out).toContain('All services running');
+  });
+
+  it('refuses Docker without buildx in a checkout, naming the package (W22-15)', async () => {
+    stubRuntime('docker', { services: allHealthy, buildxRc: 1 });
+    const { code, out } = await runUp({ RUNTIME: 'docker' });
+
+    expect(code).not.toBe(0);
+    expect(out).toContain("Docker's buildx plugin is missing");
+    expect(out).toContain('docker-buildx');
+    expect(out).not.toContain('compose up ran');
+  });
+
+  it('names the docker group and a new login when the socket is refused (W22-15)', async () => {
+    stubRuntime('docker', {
+      services: allHealthy,
+      infoOut: 'permission denied while trying to connect to the docker API at unix:///var/run/docker.sock',
+    });
+    const { code, out } = await runUp({ RUNTIME: 'docker' });
+
+    expect(code).not.toBe(0);
+    expect(out).toContain('sudo usermod -aG docker');
+    expect(out).toContain('NEW login session');
+  });
+
+  it('builds the scan image in a checkout on --build, under the name compose gives scan-runner (W22-15)', async () => {
+    stubRuntime('podman', { services: allHealthy });
+    const { code } = await runUp({}, { args: ['--build'], withScanContainerfile: true });
+
+    expect(code).toBe(0);
+    const builds = readFileSync(path.join(dir, 'build-args.txt'), 'utf8');
+    expect(builds).toContain('build -f ../Containerfile.scan -t repopulse/scan:dev ..');
+  });
+
+  it('builds a missing scan image in a checkout even without --build (W22-15)', async () => {
+    stubRuntime('podman', { services: allHealthy, imagesPresent: false });
+    const { code } = await runUp({}, { withScanContainerfile: true });
+
+    expect(code).toBe(0);
+    expect(readFileSync(path.join(dir, 'build-args.txt'), 'utf8')).toContain('Containerfile.scan');
+  });
+
+  // P3: on Podman 4.9 compose never returned, so the post-compose timeout never
+  // ran. `timeout` is coreutils; stock macOS has none and the call stays unbounded.
+  const hasTimeout = (() => {
+    try {
+      readFileSync(path.join(runtimeFreeSystemPath(), 'timeout'));
+      return true;
+    } catch {
+      return false;
+    }
+  })();
+  it.runIf(hasTimeout)(
+    'ends a compose up that never returns, and says so (W22-15)',
+    { timeout: 20000 },
+    async () => {
+      stubRuntime('podman', { services: allHealthy, composeUpSleep: 30 });
+      const started = Date.now();
+      const { code, out } = await runUp({ REPOPULSE_COMPOSE_TIMEOUT: '2' });
+
+      expect(code).not.toBe(0);
+      expect(out).toContain('did not return within 2s and was stopped');
+      expect(Date.now() - started).toBeLessThan(15000);
+    },
+  );
 
   it('never uses a destructive down -v anywhere in the script', async () => {
     const script = await run('cat', [upSh]);

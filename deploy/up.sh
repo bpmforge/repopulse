@@ -154,6 +154,64 @@ $provider_err
 Install a compose provider for $RT, or set RUNTIME to the other runtime."
 fi
 
+# ---------------------------------------------------- version floor (W22-15) --
+# Measured on a fresh Ubuntu 24.04 (2026-10-31), whose packages are Podman 4.9.3
+# and podman-compose 1.0.6. Neither failure says what it is:
+#   Podman 4.x cannot start a container whose --requires chain includes one that
+#   has exited (api -> migrate -> postgres): "generating dependency graph ... not
+#   found in input list". podman-compose then waits for api forever.
+#   podman-compose < 1.5 lets a blank line in deploy/.env override the value this
+#   script exports, so the scan-rules and CA mounts fall back to /var/lib/repopulse
+#   paths that do not exist, and it prints every secret it passes (-e
+#   REDIS_PASSWORD=..., --requirepass ...) in its output.
+# So both are refused here, by version, before anything is created. An unknown
+# version (a build that does not report one) is let through.
+version_below() { # $1 version, $2 floor "major.minor" -> true when $1 < $2
+  local v_major v_minor f_major="${2%%.*}" f_minor="${2#*.}"
+  v_major="${1%%.*}"; v_minor="${1#*.}"; v_minor="${v_minor%%.*}"
+  case "$v_major$v_minor" in '' | *[!0-9]*) return 1 ;; esac
+  [ "$v_major" -lt "$f_major" ] || { [ "$v_major" -eq "$f_major" ] && [ "$v_minor" -lt "$f_minor" ]; }
+}
+if [ "$RT" = podman ]; then
+  podman_version="$(podman version --format '{{.Client.Version}}' 2>/dev/null || true)"
+  if version_below "$podman_version" 5.0; then
+    die "Podman $podman_version is too old: RepoPulse needs Podman 5 or newer.
+
+On Podman 4 the containers that wait for the database migration never start,
+and compose waits for them forever. Ubuntu 24.04's own packages are 4.9;
+Ubuntu 26.04 LTS ships 5.7. Upgrade Podman, or use Docker (RUNTIME=docker)."
+  fi
+  pc_version="$(printf '%s\n' "$provider_err" | sed -n 's/.*podman-compose version:\{0,1\} *\([0-9][0-9.]*\).*/\1/p' | head -n1)"
+  if version_below "$pc_version" 1.5; then
+    die "podman-compose $pc_version is too old: RepoPulse needs podman-compose 1.5 or newer.
+
+Older versions let blank lines in deploy/.env override the paths this script
+sets, so the worker's mounts point at directories that do not exist, and they
+print every password they pass to a container in their output. Install a newer
+one (pipx install podman-compose, or your distribution's newer package)."
+  fi
+fi
+
+if [ "$RT" = docker ]; then
+  # The group change that grants the socket only applies to new logins, and
+  # until then every docker call fails the same way (W22-15, D1).
+  if docker info 2>&1 | grep -qi 'permission denied'; then
+    die "Docker is installed, but this user cannot reach its socket (permission denied).
+
+Add yourself to the docker group and start a NEW login session (log out and
+back in; the group does not apply to shells that are already open):
+    sudo usermod -aG docker $(id -un)"
+  fi
+  # A checkout builds its images, and the Dockerfile needs BuildKit
+  # (FROM --platform=$BUILDPLATFORM). Ubuntu's docker.io has no buildx and falls
+  # back to the legacy builder, which fails with "failed to parse platform".
+  if [ -f compose.yaml ] && grep -q '^    build:' compose.yaml && ! docker buildx version >/dev/null 2>&1; then
+    die "Docker's buildx plugin is missing, and the RepoPulse images need it to build.
+Install it (Ubuntu/Debian: sudo apt-get install docker-buildx; Docker's own
+packages: docker-buildx-plugin), then run deploy/up.sh again."
+  fi
+fi
+
 # Absolute, because podman-compose does not resolve a relative bind-mount source
 # against the compose file's directory — it resolves it against the caller's cwd,
 # or not at all. `pwd` here is deploy/, since we cd'd above.
@@ -268,7 +326,8 @@ fi
 echo "scan rules: $SCAN_RULES_DIR"
 if [ -z "$(ls -A "$SCAN_RULES_DIR" 2>/dev/null | grep -v '^README.md$\|^\.gitignore$' || true)" ]; then
   echo "  (empty — dependency scanning will report itself unavailable until you"
-  echo "   run deploy/scan-db-sync.sh, which needs ~2 GB for the grype database)"
+  echo "   run deploy/scan-db-sync.sh: the grype database is ~3.2 GB, and a refresh"
+  echo "   briefly holds two copies, so give this directory 8 GB)"
 fi
 
 # ------------------------------------------------------- images (W17-28) -----
@@ -312,6 +371,29 @@ Nothing was started. Load the bundle's images first:
   echo "images:     $prefix/*:$version (all present)"
 fi
 
+# ------------------------------------------------ scan image (W22-15, G5) ----
+# The sandbox the scanners run in (Containerfile.scan) is not a compose service:
+# scan-runner starts it per scan, and scan-db-sync.sh runs it to fetch the
+# vulnerability database. So `compose --build` never built it, and a checkout
+# install had dependency scanning that could not start and a scan-db-sync.sh
+# that failed. In a checkout it is built here, on --build or when it is missing,
+# under the name compose hands scan-runner (SCAN_IMAGE). A bundle loads it.
+if [ -f ../Containerfile.scan ] && [ -f compose.yaml ] && grep -q '^    build:' compose.yaml; then
+  scan_image="$(env_value SCAN_IMAGE)"
+  : "${scan_image:=repopulse/scan:dev}"
+  want_scan_build=0
+  case " $* " in *" --build "*) want_scan_build=1 ;; esac
+  if [ "$want_scan_build" = 0 ] &&
+    ! "$RT" image exists "$scan_image" 2>/dev/null && ! "$RT" image inspect "$scan_image" >/dev/null 2>&1; then
+    want_scan_build=1
+  fi
+  if [ "$want_scan_build" = 1 ]; then
+    echo "building:   $scan_image (Containerfile.scan, the scanners' sandbox; a few minutes the first time)"
+    "$RT" build -f ../Containerfile.scan -t "$scan_image" .. ||
+      die "Building the scan image $scan_image failed; the build output is above."
+  fi
+fi
+
 # ------------------------------------------------------------------- up ------
 # `|| true` used to hide the reason a stack failed to start. The exit status of
 # the compose wrapper still cannot be trusted on its own — the run that left the
@@ -331,11 +413,31 @@ if [ "$RT" = podman ] && printf '%s' "$provider_err" | grep -qi 'podman-compose'
   esac
 fi
 
+# BOUNDED (W22-15, P3). REPOPULSE_UP_TIMEOUT only guards the checks after compose
+# returns, and on Podman 4.9 podman-compose never returned: it sat in `podman
+# wait --condition=running` for a container that could not start, so the
+# promise that this script names what did not come up was not kept. The
+# default leaves room for a first image build. Where `timeout` is missing
+# (stock macOS) the call runs unbounded, as before.
+: "${REPOPULSE_COMPOSE_TIMEOUT:=1800}"
+bounded=()
+if command -v timeout >/dev/null 2>&1; then
+  bounded=(timeout --kill-after=30 "$REPOPULSE_COMPOSE_TIMEOUT")
+fi
+
 set +e
-compose_out="$("${COMPOSE[@]}" -p "$REPOPULSE_PROJECT" "${COMPOSE_FILES[@]}" up -d "$@" 2>&1)"
+compose_out="$(${bounded[@]+"${bounded[@]}"} "${COMPOSE[@]}" -p "$REPOPULSE_PROJECT" "${COMPOSE_FILES[@]}" up -d "$@" 2>&1)"
 compose_rc=$?
 set -e
 printf '%s\n' "$compose_out"
+if [ "${#bounded[@]}" -gt 0 ] && { [ "$compose_rc" = 124 ] || [ "$compose_rc" = 137 ]; }; then
+  die "'$RT compose up' did not return within ${REPOPULSE_COMPOSE_TIMEOUT}s and was stopped.
+
+A compose that never returns is usually waiting for a container that cannot
+start. See what is stuck:
+    $RT ps -a --filter label=com.docker.compose.project=$REPOPULSE_PROJECT
+(REPOPULSE_COMPOSE_TIMEOUT sets this limit, in seconds.)"
+fi
 
 # ---------------------------------------------------------------- verify -----
 # Container state comes from the runtime, addressed by the compose labels BOTH

@@ -18,7 +18,8 @@
 # Credentials come from the environment, never argv: SMOKE_EMAIL and
 # SMOKE_PASSWORD, else ADMIN_EMAIL and ADMIN_PASSWORD from deploy/.env. The
 # account must already be past its first-sign-in password change, because this
-# script will not change anyone's password. It generates one real report row in
+# script will not change anyone's password — and after that change the
+# ADMIN_PASSWORD in deploy/.env is no longer the password, so pass SMOKE_PASSWORD. It generates one real report row in
 # the account's workspace; that row stays in the report history.
 set -euo pipefail
 
@@ -71,9 +72,19 @@ echo "install:  $URL"
 # JSON-escape the password the minimal way: backslash and double quote.
 pw_json="$(printf '%s' "$PASSWORD" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')"
 login="$(api POST /auth/local/login "{\"email\":\"$EMAIL\",\"password\":\"$pw_json\"}")"
-[ "$(code)" = 200 ] || die "sign-in as $EMAIL returned HTTP $(code): $login"
+# W22-15 (G6): the first sign-in always replaces ADMIN_PASSWORD, so after it the
+# password in deploy/.env is stale; both refusals say what to pass instead.
+if [ "$(code)" != 200 ]; then
+  hint=""
+  [ "$(code)" = 401 ] && [ -z "${SMOKE_PASSWORD:-}" ] && hint="
+The admin's first sign-in replaces ADMIN_PASSWORD from deploy/.env. Pass the
+current password instead:  SMOKE_PASSWORD='...' deploy/smoke-report-pdf.sh"
+  die "sign-in as $EMAIL returned HTTP $(code): $login$hint"
+fi
 [ "$(field "$login" must_change_password)" = false ] ||
-  die "$EMAIL must change their password before this account can be used. Sign in once in the browser, then rerun."
+  die "$EMAIL must change their password before this account can be used.
+Sign in once in the browser and set a new password, then rerun with it:
+    SMOKE_PASSWORD='<the new password>' deploy/smoke-report-pdf.sh"
 echo "signed in: $EMAIL"
 
 created="$(api POST /api/v1/reports "{\"type\":\"$TYPE\",\"window_days\":30,\"annotation\":\"smoke-report-pdf.sh\"}")"

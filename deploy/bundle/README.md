@@ -87,7 +87,7 @@ Data lives in two named volumes, `repopulse_pgdata` and `repopulse_redisdata`.
 Dependency (CVE) scanning needs the grype database, which is **not** in the
 bundle — it aggregates 26 upstream feeds on their own terms, so your install
 fetches it directly. Run `deploy/scan-db-sync.sh` once the stack is up
-(needs outbound HTTPS to grype.anchore.io and ~5 GB under
+(needs outbound HTTPS to grype.anchore.io and ~8 GB under
 `deploy/scan-rules`). Until then the Security tab says the scanner is
 unavailable rather than pretending a clean result.
 

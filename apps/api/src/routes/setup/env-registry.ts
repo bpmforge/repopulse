@@ -436,7 +436,7 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     purpose:
       'Host directory holding the scan rulepacks and the grype vulnerability database, mounted read-only into the --network=none scan container. Filled by deploy/scan-db-sync.sh on the host, on your schedule.',
     ifWrong:
-      'Dependency scanning has no CVE data and fails rather than reporting a clean tree. MUST BE ABSOLUTE — a relative path is not resolved against the compose file and the worker will not start. Budget ~2 GB: the grype database alone is 1.9 GB, which is also why we fetch it here instead of shipping it.',
+      'Dependency scanning has no CVE data and fails rather than reporting a clean tree. MUST BE ABSOLUTE — a relative path is not resolved against the compose file and the worker will not start. Budget 8 GB: the grype database alone is ~3.2 GB and a refresh briefly holds two, which is also why we fetch it here instead of shipping it.',
     default: '/var/lib/repopulse/scan-rules',
   },
   {

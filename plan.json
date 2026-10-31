@@ -12142,7 +12142,14 @@
         "Containerfile.scan",
         "docs/INSTALL.md",
         "apps/api/test/ops/**",
-        "plan.json"
+        "plan.json",
+        "deploy/scan-db-rollback.sh",
+        "deploy/.env.example",
+        "deploy/bundle/README.md",
+        "docs/RUNNING.md",
+        "docs/CONFIG.md",
+        "apps/api/src/routes/setup/env-registry.ts",
+        "apps/api/src/workers/report-packaging.test.ts"
       ],
       "depends_on": [],
       "acceptance": [
