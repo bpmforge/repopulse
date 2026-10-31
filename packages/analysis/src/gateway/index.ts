@@ -206,12 +206,13 @@ export function createAnalysisGateway(deps: GatewayDeps): AnalysisGateway {
             // is audited above like any host that leaves the network: its nominal
             // destination is Anthropic.
             t2.track(host, async () => {
-              const r = await runClaudeCli(prompt, host.modelSlot, deps.cli);
+              const r = await runClaudeCli(prompt, host.modelSlot, deps.cli, opts.promptParts);
               return {
                 text: r.text,
                 model: r.model,
                 tokensIn: r.tokensIn,
                 tokensOut: r.tokensOut,
+                cacheReadTokens: r.cacheReadTokens,
                 // The plan is flat-rate: a per-call dollar figure would be invented.
                 costUsd: null,
                 durationMs: r.durationMs,

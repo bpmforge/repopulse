@@ -50,6 +50,8 @@ export interface SpecialistUsage {
   chunks: number;
   tokensIn: number;
   tokensOut: number;
+  /** Input tokens served from a provider prompt cache (W23-06); inside tokensIn. */
+  cacheReadTokens: number;
   /** Models seen, in order of first use. */
   models: string[];
   findings: number;
@@ -150,6 +152,7 @@ export async function runSpecialists(
         chunks: chunks.length,
         tokensIn: 0,
         tokensOut: 0,
+        cacheReadTokens: 0,
         models: [],
         findings: 0,
         rejected: 0,
@@ -180,6 +183,9 @@ export async function runSpecialists(
         };
 
         let attemptPrompt = prompt.text;
+        // W23-06: the retry note rides on the DYNAMIC half, so the static
+        // prefix stays byte-identical and cacheable across attempts.
+        let attemptParts = prompt.parts;
         let lastError = '';
         for (let attempt = 0; attempt < 2; attempt++) {
           let answer: Awaited<ReturnType<AnalysisGateway['complete']>>;
@@ -189,6 +195,7 @@ export async function runSpecialists(
               maxTokens: 45_000,
               expectJson: true,
               meta,
+              ...(attemptParts ? { promptParts: attemptParts } : {}),
             });
           } catch (err) {
             if (!isPerCallFailure(err)) throw err;
@@ -204,6 +211,7 @@ export async function runSpecialists(
           usage.calls += 1;
           usage.tokensIn += answer.tokensIn;
           usage.tokensOut += answer.tokensOut;
+          usage.cacheReadTokens += answer.cacheReadTokens ?? 0;
           if (!usage.models.includes(answer.model)) usage.models.push(answer.model);
           if (answer.route) result.routes.push(answer.route);
           try {
@@ -235,7 +243,14 @@ export async function runSpecialists(
             lastError = err.message;
             // ONE retry with the error appended (ANALYSIS_TIERS.md §4), then
             // a recorded failure — never salvage a response known malformed.
-            attemptPrompt = `${prompt.text}\n\nYour previous answer was rejected: ${lastError}\nAnswer again with ONLY the required JSON.`;
+            const retryNote = `\n\nYour previous answer was rejected: ${lastError}\nAnswer again with ONLY the required JSON.`;
+            attemptPrompt = `${prompt.text}${retryNote}`;
+            if (prompt.parts) {
+              attemptParts = {
+                static: prompt.parts.static,
+                dynamic: `${prompt.parts.dynamic}${retryNote}`,
+              };
+            }
           }
         }
         if (lastError) {

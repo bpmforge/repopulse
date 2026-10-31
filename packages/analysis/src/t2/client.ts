@@ -1,4 +1,9 @@
-import type { CompleteOpts, CompleteResult } from '../gateway/types.js';
+import {
+  usablePromptParts,
+  type CompleteOpts,
+  type CompleteResult,
+  type PromptParts,
+} from '../gateway/types.js';
 import { type HostSlots, SHARED_HOST_SLOTS } from './host-slots.js';
 import { requestHeadersFor, type HostAuth } from '../config/hosts.js';
 
@@ -170,7 +175,41 @@ interface ChatResponse {
     finish_reason?: string;
   }[];
   model?: string;
-  usage?: { prompt_tokens?: number; completion_tokens?: number };
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    /**
+     * Prompt-cache accounting (W23-06). OpenAI and compatible servers report
+     * `cached_tokens` here when a prefix was reused; LM Studio and some
+     * proxies omit the object entirely, which reads as 0 cache-read tokens.
+     */
+    prompt_tokens_details?: { cached_tokens?: number };
+  };
+}
+
+/**
+ * The chat messages for one request (W23-06). With a usable static/dynamic
+ * split the static part is the SYSTEM message — the stable prefix a server's
+ * KV cache can reuse — and the per-chunk part is the user message. Without
+ * one it is the single user message it always was.
+ */
+export function chatMessages(
+  prompt: string,
+  parts?: PromptParts,
+): { role: 'system' | 'user'; content: string }[] {
+  const split = usablePromptParts(prompt, parts);
+  return split
+    ? [
+        { role: 'system', content: split.static },
+        { role: 'user', content: split.dynamic },
+      ]
+    : [{ role: 'user', content: prompt }];
+}
+
+/** Cache-read tokens from a chat response's usage; 0 when not reported. */
+export function cacheReadTokensOf(usage: ChatResponse['usage']): number {
+  const n = usage?.prompt_tokens_details?.cached_tokens;
+  return typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : 0;
 }
 
 /**
@@ -382,6 +421,7 @@ export class T2Client {
     prompt: string,
     maxTokens: number,
     timeoutMs?: number,
+    parts?: PromptParts,
   ): Promise<ChatResponse> {
     const controller = new AbortController();
     // The reason travels with the abort, so the scan_run says "the model did
@@ -408,7 +448,7 @@ export class T2Client {
         headers: requestHeadersFor(host.auth),
         body: JSON.stringify({
           model: host.modelSlot,
-          messages: [{ role: 'user', content: prompt }],
+          messages: chatMessages(prompt, parts),
           max_tokens: maxTokens,
           temperature: 0.1,
           ...(host.seed !== undefined ? { seed: host.seed } : {}),
@@ -504,7 +544,13 @@ export class T2Client {
           // 45000 ALWAYS, whatever the caller asked for. The cap is a property
           // of the tier (C2/NFR-8), not a per-call preference — enforcing it
           // here is the whole reason callers may not reach LM Studio directly.
-          const body = await this.chat(host, prompt, T2_MAX_TOKENS, this.config.requestTimeoutMs);
+          const body = await this.chat(
+            host,
+            prompt,
+            T2_MAX_TOKENS,
+            this.config.requestTimeoutMs,
+            opts.promptParts,
+          );
           this.warm.add(host.baseUrl);
           // A model that thought and never concluded is a FAILURE with a name,
           // not an empty answer (W16-38). Thrown rather than returned empty,
@@ -518,6 +564,7 @@ export class T2Client {
             model: body.model ?? host.modelSlot,
             tokensIn: body.usage?.prompt_tokens ?? 0,
             tokensOut: body.usage?.completion_tokens ?? 0,
+            cacheReadTokens: cacheReadTokensOf(body.usage),
             // null, not 0: a LAN call has no dollar cost, and 0 would read as
             // "measured and free" rather than "does not apply".
             costUsd: null,

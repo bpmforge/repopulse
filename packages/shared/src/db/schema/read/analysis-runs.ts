@@ -41,6 +41,9 @@ export const analysisRuns = pgTable(
     chunkCount: integer('chunk_count').notNull(),
     promptTokens: integer('prompt_tokens').notNull(),
     outputTokens: integer('output_tokens').notNull(),
+    // W23-06: input tokens the provider served from its prompt cache (already
+    // inside prompt_tokens). 0 when the provider reports none.
+    cacheReadTokens: integer('cache_read_tokens').notNull().default(0),
     // Tier 3 only.
     costUsd: numeric('cost_usd', { precision: 10, scale: 4 }),
     startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
