@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { registerScanner, type ScanProbe, type Scanner } from '@repopulse/security';
 import { scanProcessor, type ScanJobData } from './scan-processor.js';
 
 // W16-20 / W16-28. What happens when a scan is asked for and cannot happen.
@@ -19,9 +20,19 @@ import { scanProcessor, type ScanJobData } from './scan-processor.js';
 // fixture here would need the whole workspace → connection → repo chain that
 // W16-17 is about.
 
-function stubDb() {
+function stubDb(prior: Record<string, unknown>[] = []) {
   const inserted: Record<string, unknown>[] = [];
+  // W23-01: the up-to-date lookup is a select chain. The stub hands back the
+  // seeded rows WITHOUT applying the WHERE clause — isUpToDate re-applies its
+  // own predicates in memory, which is what these tests lean on.
+  const chain = {
+    from: () => chain,
+    where: () => chain,
+    orderBy: () => chain,
+    limit: async () => prior,
+  };
   const db = {
+    select: () => chain,
     insert: () => ({
       values: (row: Record<string, unknown>) => {
         inserted.push(row);
@@ -269,5 +280,225 @@ describe('a scan queues a reprice of its repository', () => {
 
     await process({ data: job({ mode: 'history_sweep', scannerKey: 'secrets' }) } as never);
     expect(afterScan).toHaveBeenCalledTimes(1);
+  });
+});
+
+// W23-01. An unchanged scan is answered from the earlier run instead of being
+// re-run: the weekly cron over a repo nobody pushed to, and a second press of
+// Run scans now, each used to fetch a tarball and run every tool for the same
+// result. The things worth proving are the refusals — force, a changed tool
+// version, and another workspace's run must all still reach the runner.
+describe('an unchanged scan is not re-run (W23-01)', () => {
+  const SHA = 'abc123';
+  const VERSIONS = { opengrep: '1.0.0', rulepack: 'a.yaml' };
+  const priorRun = (over: Record<string, unknown> = {}) => ({
+    id: 41,
+    workspaceId: 1,
+    repoId: 2,
+    scannerKey: 'semgrep',
+    commitSha: SHA,
+    status: 'succeeded',
+    partial: false,
+    scope: 'full',
+    trigger: 'schedule',
+    findingCount: 9,
+    toolVersions: VERSIONS,
+    dataVersion: null,
+    scannerVersion: 'opengrep@1.0.0 rulepack@a.yaml',
+    finishedAt: new Date('2026-10-29T00:00:00Z'),
+    ...over,
+  });
+  const probes = (
+    result: Awaited<ReturnType<ScanProbe>> = { commitSha: SHA, toolVersions: { ...VERSIONS } },
+  ): Record<string, ScanProbe> => ({ semgrep: vi.fn(async () => result) });
+  const runner = () => vi.fn(async () => ({ scanned: 1, findingsCreated: 0, deferred: 0 }));
+  const weeklyJob = (over: Partial<ScanJobData> = {}) =>
+    job({ scannerKey: 'semgrep', mode: 'weekly', trigger: 'schedule', ...over });
+
+  it('a second weekly job at the same sha and tool versions does not call the runner', async () => {
+    const { db, inserted } = stubDb([priorRun()]);
+    const semgrep = runner();
+
+    await scanProcessor({ db, weeklyRunners: { semgrep }, probes: probes() })({
+      data: weeklyJob(),
+    } as never);
+
+    expect(semgrep).not.toHaveBeenCalled();
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0]).toMatchObject({
+      workspaceId: 1,
+      repoId: 2,
+      scannerKey: 'semgrep',
+      status: 'succeeded',
+      scope: 'skipped',
+      // The earlier result, restated, and where it came from.
+      findingCount: 9,
+      baseRunId: 41,
+      // The REAL commit, not the job's (a manual job carries '').
+      commitSha: SHA,
+      trigger: 'schedule',
+    });
+    expect(String(inserted[0]?.error)).toMatch(/nothing changed since the last successful run/i);
+    expect(String(inserted[0]?.error)).toContain('Full rescan');
+  });
+
+  it('a MANUAL (history) job takes the same short-circuit and records the real commit', async () => {
+    const { db, inserted } = stubDb([priorRun({ trigger: 'manual' })]);
+    const semgrep = runner();
+
+    await scanProcessor({ db, weeklyRunners: { semgrep }, probes: probes() })({
+      data: job({ scannerKey: 'semgrep', mode: 'history', commitSha: '' }),
+    } as never);
+
+    expect(semgrep).not.toHaveBeenCalled();
+    expect(inserted[0]).toMatchObject({ scope: 'skipped', commitSha: SHA, trigger: 'manual' });
+  });
+
+  it('force:true calls the runner and writes no skipped row', async () => {
+    const { db, inserted } = stubDb([priorRun()]);
+    const semgrep = runner();
+    const p = probes();
+
+    await scanProcessor({ db, weeklyRunners: { semgrep }, probes: p })({
+      data: weeklyJob({ force: true }),
+    } as never);
+
+    expect(semgrep).toHaveBeenCalledOnce();
+    // Not even asked: a forced job must not pay for the probe.
+    expect(p['semgrep']).not.toHaveBeenCalled();
+    expect(inserted).toHaveLength(0);
+  });
+
+  it('changed tool_versions call the runner', async () => {
+    const { db, inserted } = stubDb([priorRun()]);
+    const semgrep = runner();
+
+    await scanProcessor({
+      db,
+      weeklyRunners: { semgrep },
+      probes: probes({ commitSha: SHA, toolVersions: { ...VERSIONS, opengrep: '2.0.0' } }),
+    })({ data: weeklyJob() } as never);
+
+    expect(semgrep).toHaveBeenCalledOnce();
+    expect(inserted).toHaveLength(0);
+  });
+
+  it('a new head commit calls the runner', async () => {
+    // The seeded run is for SHA; the probe says the head has moved. (A real db
+    // would return no rows for the new sha; the stub returns the old row and
+    // isUpToDate rejects it in memory.)
+    const { db } = stubDb([priorRun()]);
+    const semgrep = runner();
+
+    await scanProcessor({
+      db,
+      weeklyRunners: { semgrep },
+      probes: probes({ commitSha: 'newer-sha', toolVersions: { ...VERSIONS } }),
+    })({ data: weeklyJob() } as never);
+
+    expect(semgrep).toHaveBeenCalledOnce();
+  });
+
+  it('a succeeded run in ANOTHER WORKSPACE never counts', async () => {
+    // Same repo id, same sha, same versions — a different tenant's row.
+    const { db, inserted } = stubDb([priorRun({ workspaceId: 99 })]);
+    const semgrep = runner();
+
+    await scanProcessor({ db, weeklyRunners: { semgrep }, probes: probes() })({
+      data: weeklyJob(),
+    } as never);
+
+    expect(semgrep).toHaveBeenCalledOnce();
+    expect(inserted).toHaveLength(0);
+  });
+
+  it('a failed, partial or skipped earlier run does not count', async () => {
+    for (const over of [{ status: 'failed' }, { partial: true }, { scope: 'skipped' }]) {
+      const { db } = stubDb([priorRun(over)]);
+      const semgrep = runner();
+      await scanProcessor({ db, weeklyRunners: { semgrep }, probes: probes() })({
+        data: weeklyJob(),
+      } as never);
+      expect(semgrep, JSON.stringify(over)).toHaveBeenCalledOnce();
+    }
+  });
+
+  it('a scanner with no probe always runs, and a probe that cannot say runs it too', async () => {
+    const { db, inserted } = stubDb([priorRun()]);
+    const semgrep = runner();
+
+    // No `probes` at all.
+    await scanProcessor({ db, weeklyRunners: { semgrep } })({ data: weeklyJob() } as never);
+    expect(semgrep).toHaveBeenCalledTimes(1);
+
+    // A probe that returns null (no head commit, version unreadable)...
+    await scanProcessor({ db, weeklyRunners: { semgrep }, probes: probes(null) })({
+      data: weeklyJob(),
+    } as never);
+    expect(semgrep).toHaveBeenCalledTimes(2);
+
+    // ...and one that throws: a skip is earned by evidence, never by a failure to look.
+    await scanProcessor({
+      db,
+      weeklyRunners: { semgrep },
+      probes: {
+        semgrep: async () => {
+          throw new Error('podman not found');
+        },
+      },
+    })({ data: weeklyJob() } as never);
+    expect(semgrep).toHaveBeenCalledTimes(3);
+    expect(inserted).toHaveLength(0);
+  });
+
+  it('reads the data stamp from registry metadata, not from the scanner key', async () => {
+    const stamp = vi.fn(async () => 'db-2026-10-31');
+    const scanner: Scanner = {
+      key: 'w23_01_data_scanner',
+      displayName: 'W23-01 test scanner',
+      version: 'w23.v1',
+      inputs: 'snapshot',
+      triggers: ['manual'],
+      dataVersion: stamp,
+      run: async () => [],
+    };
+    registerScanner(scanner);
+    const runnerFn = runner();
+    const withProbe: Record<string, ScanProbe> = {
+      w23_01_data_scanner: async () => ({ commitSha: SHA, toolVersions: null }),
+    };
+    const base = priorRun({ scannerKey: 'w23_01_data_scanner', toolVersions: null });
+
+    // The earlier run recorded a different stamp: the data moved, so re-scan.
+    const stale = stubDb([{ ...base, dataVersion: 'db-2026-10-29' }]);
+    await scanProcessor({
+      db: stale.db,
+      weeklyRunners: { w23_01_data_scanner: runnerFn },
+      probes: withProbe,
+    })({ data: weeklyJob({ scannerKey: 'w23_01_data_scanner' }) } as never);
+    expect(stamp).toHaveBeenCalled();
+    expect(runnerFn).toHaveBeenCalledOnce();
+
+    // Same stamp: up to date, and the skipped row carries it.
+    const fresh = stubDb([{ ...base, dataVersion: 'db-2026-10-31' }]);
+    await scanProcessor({
+      db: fresh.db,
+      weeklyRunners: { w23_01_data_scanner: runnerFn },
+      probes: withProbe,
+    })({ data: weeklyJob({ scannerKey: 'w23_01_data_scanner' }) } as never);
+    expect(runnerFn).toHaveBeenCalledOnce();
+    expect(fresh.inserted[0]).toMatchObject({ scope: 'skipped', dataVersion: 'db-2026-10-31' });
+  });
+
+  it('real runs are not marked: the processor writes no scope of its own for them', async () => {
+    // The default is 'full' in the column; a runner that does work leaves its
+    // own rows, and the processor adds none (the existing contract).
+    const { db, inserted } = stubDb([]);
+    const semgrep = runner();
+    await scanProcessor({ db, weeklyRunners: { semgrep }, probes: probes() })({
+      data: weeklyJob(),
+    } as never);
+    expect(semgrep).toHaveBeenCalledOnce();
+    expect(inserted).toHaveLength(0);
   });
 });

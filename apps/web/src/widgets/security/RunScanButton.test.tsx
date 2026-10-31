@@ -164,3 +164,71 @@ describe('Run scans now — rejected, locked, unlocked (W17-20)', () => {
     expect(screen.getByTestId('run-scan-button')).toBeEnabled();
   });
 });
+
+describe('Full rescan (W23-01)', () => {
+  function lastBody(): unknown {
+    const calls = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls;
+    const init = calls.at(-1)?.[1] as { body?: string } | undefined;
+    return JSON.parse(init?.body ?? 'null');
+  }
+
+  it('offers a labelled "Full rescan" checkbox, off by default, that sends nothing extra when off', async () => {
+    renderButton();
+    const box = screen.getByLabelText('Full rescan');
+    expect(box).not.toBeChecked();
+
+    await userEvent.click(screen.getByTestId('run-scan-button'));
+    await screen.findByTestId('run-scan-result');
+    expect(lastBody()).toEqual({});
+  });
+
+  it('sends force:true when ticked', async () => {
+    renderButton();
+    await userEvent.click(screen.getByLabelText('Full rescan'));
+    expect(screen.getByTestId('run-scan-force-hint')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByTestId('run-scan-button'));
+    await screen.findByTestId('run-scan-result');
+    expect(lastBody()).toEqual({ force: true });
+  });
+
+  it('says "up to date" — not "started", not an error — when nothing was re-scanned', async () => {
+    answer = {
+      status: 202,
+      body: { started: [], already_running: [], up_to_date: ['semgrep'], repo: 'acme/api' },
+    };
+    renderButton();
+    await userEvent.click(screen.getByTestId('run-scan-button'));
+
+    const result = await screen.findByTestId('run-scan-result');
+    expect(result).toHaveTextContent(/up to date: semgrep/i);
+    expect(result).toHaveTextContent(/nothing was re-scanned/i);
+    expect(result).toHaveTextContent(/full rescan/i);
+    expect(result).not.toHaveTextContent(/already running/i);
+    expect(screen.queryByTestId('run-scan-error')).toBeNull();
+  });
+
+  it('names the up-to-date ones beside what it did start', async () => {
+    answer = {
+      status: 202,
+      body: {
+        started: ['code_health_tools'],
+        already_running: [],
+        up_to_date: ['semgrep'],
+        repo: 'acme/api',
+      },
+    };
+    renderButton();
+    await userEvent.click(screen.getByTestId('run-scan-button'));
+
+    expect(await screen.findByTestId('run-scan-result')).toHaveTextContent(
+      /started code_health_tools/i,
+    );
+    expect(screen.getByTestId('run-scan-up-to-date')).toHaveTextContent(/semgrep/);
+  });
+
+  it('locks the checkbox with the button while a scan is in flight', () => {
+    renderButton({ running: ['semgrep'] });
+    expect(screen.getByLabelText('Full rescan')).toBeDisabled();
+  });
+});

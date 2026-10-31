@@ -35,11 +35,18 @@ export interface ScanRunSummary {
   closed_count: number;
   error: string | null;
   finished_at: string | null;
+  /** W23-01: 'skipped' = nothing was scanned; the count restates an earlier run. */
+  scope?: string;
 }
 
 interface RunResult {
   started: string[];
   already_running: string[];
+  /**
+   * W23-01: scanners whose last successful run at this commit, with these tool
+   * versions, still answers the question. Absent from older servers.
+   */
+  up_to_date?: string[];
   repo: string;
 }
 
@@ -84,6 +91,10 @@ export function RunScanButton({
   const queryClient = useQueryClient();
   const [result, setResult] = useState<RunResult | null>(null);
   const [finished, setFinished] = useState(false);
+  // W23-01 "Full rescan": send force, so unchanged scanners are re-run instead
+  // of answered from their last run. Off by default (D5a: incremental/skip when
+  // a baseline exists).
+  const [force, setForce] = useState(false);
   // When the press was accepted, a little early so a skewed clock cannot hide
   // the run it started (W20-21, FND-68).
   const [since, setSince] = useState<string | null>(null);
@@ -92,7 +103,7 @@ export function RunScanButton({
     mutationFn: () =>
       apiFetch<RunResult>(buildUrl('/repos/{id}/scan', { path: { id: repoId } }), {
         method: 'POST',
-        body: JSON.stringify({}),
+        body: JSON.stringify(force ? { force: true } : {}),
       }),
     onSuccess: async (r) => {
       setResult(r);
@@ -145,6 +156,22 @@ export function RunScanButton({
         {label}
       </button>
 
+      <label className="flex items-center gap-1.5 text-xs text-fg-muted">
+        <input
+          type="checkbox"
+          data-testid="run-scan-force"
+          checked={force}
+          disabled={run.isPending || pending || canRun === false}
+          onChange={(e) => setForce(e.target.checked)}
+        />
+        Full rescan
+      </label>
+      {force && (
+        <span className="text-xs text-fg-muted" data-testid="run-scan-force-hint">
+          Re-runs every scanner even if nothing has changed since its last run.
+        </span>
+      )}
+
       {canRun === false && (
         <span className="text-xs text-fg-muted" data-testid="run-scan-admin-only">
           Starting a scan needs the admin role. Ask a workspace admin to run it.
@@ -182,9 +209,23 @@ export function RunScanButton({
               Started {result.started.join(', ')}. Results appear here as each finishes — a scan
               takes minutes, not seconds.
             </>
+          ) : (result.up_to_date ?? []).length > 0 ? (
+            // W23-01. Not a failure and not "started": nothing was re-scanned,
+            // and the sentence says why and how to override it.
+            <>
+              Up to date: {(result.up_to_date ?? []).join(', ')}. Nothing changed since the last
+              successful run at this commit with these tool versions, so nothing was re-scanned.
+              Tick “Full rescan” to force it.
+            </>
           ) : (
             // Not an error, and deliberately not styled as one.
             <>Already running: {result.already_running.join(', ')}.</>
+          )}
+          {result.started.length > 0 && (result.up_to_date ?? []).length > 0 && (
+            <span data-testid="run-scan-up-to-date">
+              {' '}
+              Already up to date, not re-scanned: {(result.up_to_date ?? []).join(', ')}.
+            </span>
           )}
         </span>
       ) : finished ? (
@@ -231,6 +272,10 @@ export function RunSummary({ repoId, since }: { repoId: string; since: string })
           <span className="text-fg">{r.scanner_key.replace(/_/g, ' ')}</span>:{' '}
           {r.status === 'failed' ? (
             <>failed{r.error ? ` (${r.error.slice(0, 120)})` : ''}</>
+          ) : r.scope === 'skipped' ? (
+            <>
+              up to date — nothing changed, so nothing was re-scanned ({r.finding_count} on record)
+            </>
           ) : (
             <>
               reported {r.finding_count}

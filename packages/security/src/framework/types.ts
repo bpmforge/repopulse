@@ -94,6 +94,16 @@ export interface Scanner {
   triggers: ScanTrigger[];
   /** Container tool deps, e.g. ['semgrep@1']. Absent = pure TypeScript. */
   requiredTools?: string[];
+  /**
+   * W23-01. A stamp of the DATA this scanner's answer depends on besides the
+   * commit and the tool versions — the advisory database build, a feed date.
+   * `isUpToDate` compares it to the stamp the earlier run recorded, so a
+   * refreshed database re-scans an unchanged tree. Absent (or resolving to
+   * null) = the scanner depends on no such data and the comparison is skipped.
+   * Registry METADATA read through getScanner(): the framework never branches
+   * on the key to find it.
+   */
+  dataVersion?: () => Promise<string | null>;
   run(ctx: ScannerContext): Promise<ScannerFinding[]>;
 }
 

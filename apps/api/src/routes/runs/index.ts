@@ -2,11 +2,12 @@ import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Queue } from 'bullmq';
 import { auditLog, core, read, security, type Database } from '@repopulse/shared';
-import { listScanners } from '@repopulse/security';
+import { getScanner, isUpToDate, listScanners, type ScanProbe } from '@repopulse/security';
 import { QUEUE, createQueue, createRedisConnection, type QueueName } from '@repopulse/ingest';
 import { requireAdmin } from '../../lib/rbac.js';
 import { sendProblem } from '../../lib/problem.js';
 import { startableScannerKeys } from '../../lib/startable-scanners.js';
+import { buildScanProbes } from './probes.js';
 
 // Run it now (W16-10, F15).
 //
@@ -35,6 +36,12 @@ export interface RunRoutesOptions {
   redisUrl?: string | undefined;
   /** Injectable so tests exercise the route without Redis. */
   queueFor?: (queue: QueueName) => Queue | undefined;
+  /**
+   * W23-01. Per scanner key, what commit and tool versions a run would use —
+   * the same probes the worker consults, so the route and the worker cannot
+   * disagree about "up to date". Defaults to the real ones.
+   */
+  probes?: Record<string, ScanProbe>;
 }
 
 function fail(
@@ -65,6 +72,7 @@ export default async function runRoutes(
   opts: RunRoutesOptions,
 ): Promise<void> {
   const { db } = opts;
+  const probes = opts.probes ?? buildScanProbes(db);
   const queues = new Map<string, Queue>();
   let connection: ReturnType<typeof createRedisConnection> | undefined;
 
@@ -106,7 +114,7 @@ export default async function runRoutes(
    * Admin-only: a scan is third-party code running over the customer's source,
    * and it costs real CPU on the host. That is not a per-user preference.
    */
-  app.post<{ Params: { id: string }; Body: { scanner_key?: string } }>(
+  app.post<{ Params: { id: string }; Body: { scanner_key?: string; force?: boolean } }>(
     '/repos/:id/scan',
     { preHandler: requireAdmin },
     async (request, reply) => {
@@ -135,6 +143,13 @@ export default async function runRoutes(
       );
 
       const requested = request.body?.scanner_key;
+      // W23-01: "Full rescan". Strictly a boolean — a string "false" is truthy
+      // and would silently force the most expensive path.
+      const forceRaw = request.body?.force;
+      if (forceRaw !== undefined && typeof forceRaw !== 'boolean') {
+        return fail(request, reply, 400, 'Invalid request', '"force" must be true or false.');
+      }
+      const force = forceRaw === true;
       const keys = requested ? enabledKeys.filter((key) => key === requested) : enabledKeys;
 
       if (keys.length === 0) {
@@ -165,9 +180,44 @@ export default async function runRoutes(
       const window = runWindowKey(Date.now());
       const started: string[] = [];
       const alreadyRunning: string[] = [];
+      const upToDate: string[] = [];
+
+      // W23-01 (WP-X9): which of these would be answered by an earlier run,
+      // asked SYNCHRONOUSLY so the person is told on the press rather than
+      // after a poll. Same probe and same isUpToDate as the worker's check. A
+      // forced press skips the question; a probe that cannot say counts as "not
+      // up to date" — the scan runs.
+      const answered = new Set<string>();
+      if (!force) {
+        for (const key of keys) {
+          const probe = probes[key];
+          if (!probe) continue;
+          try {
+            const probed = await probe({ workspaceId, repoId });
+            if (!probed) continue;
+            const match = await isUpToDate(db, {
+              workspaceId,
+              repoId,
+              scannerKey: key,
+              commitSha: probed.commitSha,
+              toolVersions: probed.toolVersions ?? null,
+              dataVersion:
+                probed.dataVersion !== undefined
+                  ? probed.dataVersion
+                  : ((await getScanner(key)?.dataVersion?.()) ?? null),
+            });
+            if (match) answered.add(key);
+          } catch (err) {
+            request.log.warn({ err, key }, 'up-to-date probe failed; the scan will run');
+          }
+        }
+      }
 
       for (const key of keys) {
-        const jobId = `sec-manual-${repoId}-${key}-${window}`;
+        // A forced press gets its own id: sharing one with a non-forced press
+        // in the same window would make BullMQ drop the "Full rescan" as a
+        // duplicate of a job that is about to skip.
+        const jobId = `sec-manual-${repoId}-${key}-${force ? 'force-' : ''}${window}`;
         // ASKED BEFORE ADDING, not inferred from the add. BullMQ's `add`
         // returns the existing job when the id is taken, and that job is
         // indistinguishable from a freshly created one — same id, same shape —
@@ -209,10 +259,15 @@ export default async function runRoutes(
             // queue knows what ran, and nothing knows who asked.
             requestId: request.id,
             requestedBy: userId,
+            ...(force ? { force: true } : {}),
           },
           { jobId },
         );
-        started.push(key);
+        // Still enqueued when up to date: the worker records the `skipped` row
+        // (cheap — no tarball) so the coverage table reads "up to date as of
+        // today". Reported apart from `started`, which means "will really scan".
+        if (answered.has(key)) upToDate.push(key);
+        else started.push(key);
       }
 
       auditLog(request.log, {
@@ -221,12 +276,19 @@ export default async function runRoutes(
         workspaceId,
         ip: request.ip,
         ua: request.headers['user-agent'] ?? null,
-        detail: { repo: `${repo.org}/${repo.name}`, started, already_running: alreadyRunning },
+        detail: {
+          repo: `${repo.org}/${repo.name}`,
+          started,
+          already_running: alreadyRunning,
+          up_to_date: upToDate,
+          force,
+        },
       });
 
       return reply.code(202).send({
         started,
         already_running: alreadyRunning,
+        up_to_date: upToDate,
         repo: `${repo.org}/${repo.name}`,
       });
     },
@@ -334,6 +396,7 @@ export default async function runRoutes(
           id: security.scanRuns.id,
           scannerKey: security.scanRuns.scannerKey,
           status: security.scanRuns.status,
+          scope: security.scanRuns.scope,
           partial: security.scanRuns.partial,
           findingCount: security.scanRuns.findingCount,
           commitSha: security.scanRuns.commitSha,
@@ -391,6 +454,7 @@ export default async function runRoutes(
           id: r.id,
           scanner_key: r.scannerKey,
           status: r.status,
+          scope: r.scope,
           partial: r.partial,
           finding_count: r.findingCount,
           new_count: newBy.get(r.id) ?? 0,

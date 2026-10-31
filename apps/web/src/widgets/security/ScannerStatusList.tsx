@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { ErrorNote } from '../../components/index.js';
 import { useApiMutation, useApiQuery } from '../../api/useApiQuery.js';
 import {
+  SCOPE_LABEL,
   hasMeasuredCount,
+  lastRunText,
   scannerStateLabel,
   type ScannerState,
   type ScannerStatus,
@@ -221,7 +223,7 @@ export function ScannerStatusList({ scanners, manage = null }: Props) {
               <td className="py-1.5">
                 {/* Word + glyph, never colour alone (UX_SPEC §7). */}
                 <span data-testid={`scanner-state-${scanner.key}`}>
-                  {scannerStateLabel(scanner.state, scanner.open_findings)}
+                  {scannerStateLabel(scanner.state, scanner.open_findings, scanner.last_run_scope)}
                 </span>
                 {scanner.state === 'all_rejected' && (
                   // HOW MANY, not just that it happened (W16-38). A reader
@@ -246,7 +248,22 @@ export function ScannerStatusList({ scanners, manage = null }: Props) {
                     <RerunScanner scanner={scanner} manage={manage} />
                   )}
               </td>
-              <td className="py-1.5">{when(scanner.last_run_at)}</td>
+              <td className="py-1.5" data-testid={`scanner-last-run-${scanner.key}`}>
+                {scanner.last_run_at
+                  ? lastRunText(when(scanner.last_run_at), scanner.last_run_scope)
+                  : when(scanner.last_run_at)}
+                {/* W23-01: what that run did, so "today" is not read as "scanned today". */}
+                {scanner.last_run_at &&
+                  scanner.last_run_scope &&
+                  SCOPE_LABEL[scanner.last_run_scope] && (
+                    <div
+                      className="text-xs text-fg-muted"
+                      data-testid={`scanner-scope-${scanner.key}`}
+                    >
+                      {SCOPE_LABEL[scanner.last_run_scope]}
+                    </div>
+                  )}
+              </td>
               {/* W20-21 (FND-52): when it runs without anyone pressing Run. */}
               <td
                 className="py-1.5 text-xs text-fg-muted"

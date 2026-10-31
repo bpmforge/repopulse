@@ -6,6 +6,8 @@ export interface ChScannerStatus {
   key: string;
   state: ChScannerState;
   last_run_at: string | null;
+  /** W23-01: 'full' | 'incremental' | 'skipped' (then `last_run_at` = up to date as of). */
+  last_run_scope?: string | null;
   error: string | null;
   tool_versions: Record<string, string> | null;
   /** null = nothing has looked. NOT 0 — that would be a claim. */

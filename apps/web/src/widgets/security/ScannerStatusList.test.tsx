@@ -303,9 +303,19 @@ describe('coverage order (W20-13, FND-31)', () => {
       <ScannerStatusList
         scanners={[
           scanner({ key: 'a', display_name: 'Alpha', state: 'ok' }),
-          scanner({ key: 'b', display_name: 'Beta', state: 'nothing_scanned', error: 'No commits in range' }),
+          scanner({
+            key: 'b',
+            display_name: 'Beta',
+            state: 'nothing_scanned',
+            error: 'No commits in range',
+          }),
           scanner({ key: 'c', display_name: 'Gamma', state: 'error', error: 'boom' }),
-          scanner({ key: 'd', display_name: 'Delta', state: 'nothing_scanned', error: 'not supported on Gitea' }),
+          scanner({
+            key: 'd',
+            display_name: 'Delta',
+            state: 'nothing_scanned',
+            error: 'not supported on Gitea',
+          }),
         ]}
       />,
     );
@@ -319,12 +329,68 @@ describe('coverage order (W20-13, FND-31)', () => {
       <ScannerStatusList
         scanners={[
           scanner({ key: 'a', display_name: 'Alpha', state: 'ok' }),
-          scanner({ key: 'b', display_name: 'Beta', state: 'nothing_scanned', error: 'No SBOM yet' }),
+          scanner({
+            key: 'b',
+            display_name: 'Beta',
+            state: 'nothing_scanned',
+            error: 'No SBOM yet',
+          }),
         ]}
       />,
     );
     expect(screen.getByTestId('scanner-status-caption')).toHaveTextContent(
       '2 scanners. 1 had nothing to scan this time.',
     );
+  });
+});
+
+describe('scope in the coverage table (W23-01)', () => {
+  it('says "Up to date as of <date>" for a skipped run, not "never" and not a bare date', () => {
+    render(
+      <ScannerStatusList
+        scanners={[
+          scanner({
+            key: 'semgrep',
+            state: 'ok',
+            open_findings: 3,
+            last_run_scope: 'skipped',
+            last_run_base_run_id: 41,
+            last_run_at: '2026-10-31T09:00:00.000Z',
+            error: null,
+          }),
+        ]}
+      />,
+    );
+    const cell = screen.getByTestId('scanner-last-run-semgrep');
+    expect(cell.textContent).toMatch(/^Up to date as of /);
+    expect(cell.textContent).not.toMatch(/never/i);
+    expect(screen.getByTestId('scanner-scope-semgrep')).toHaveTextContent('nothing re-scanned');
+    // Not "ran clean" — it did not run; the earlier result still stands.
+    const label = screen.getByTestId('scanner-state-semgrep').textContent ?? '';
+    expect(label).toContain('up to date');
+    expect(label).not.toContain('ran clean');
+  });
+
+  it('shows the scope of a real run without calling it up to date', () => {
+    render(<ScannerStatusList scanners={[scanner({ key: 'semgrep', last_run_scope: 'full' })]} />);
+    expect(screen.getByTestId('scanner-last-run-semgrep').textContent).not.toMatch(/up to date/i);
+    expect(screen.getByTestId('scanner-scope-semgrep')).toHaveTextContent('full scan');
+  });
+
+  it('still says "never" for a scanner with no run at all', () => {
+    render(
+      <ScannerStatusList
+        scanners={[
+          scanner({
+            key: 'semgrep',
+            state: 'never_run',
+            last_run_at: null,
+            last_run_scope: null,
+          }),
+        ]}
+      />,
+    );
+    expect(screen.getByTestId('scanner-last-run-semgrep').textContent).toBe('never');
+    expect(screen.queryByTestId('scanner-scope-semgrep')).toBeNull();
   });
 });

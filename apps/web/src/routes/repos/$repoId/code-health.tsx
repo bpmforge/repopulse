@@ -7,6 +7,7 @@ import { ScannerErrorDetail } from '../../../widgets/security/ScannerStatusList.
 import { useScanRun, type ScanRun } from '../../../widgets/security/useScanRun.js';
 import {
   hasMeasuredCount,
+  lastRunText,
   scannerStateLabel,
   type ScannerState,
 } from '../../../widgets/security/contracts.js';
@@ -328,7 +329,11 @@ function CodeHealthTab() {
                     {/* The security tab's labels, so the two screens cannot
                         describe the same scan_run row in different words. */}
                     <span data-testid={`ch-scanner-state-${scanner.key}`}>
-                      {scannerStateLabel(scanner.state, scanner.open_findings)}
+                      {scannerStateLabel(
+                        scanner.state,
+                        scanner.open_findings,
+                        scanner.last_run_scope,
+                      )}
                     </span>
                     {scanner.error && (
                       // Verbatim, plus the build/db command when the shape is
@@ -339,7 +344,10 @@ function CodeHealthTab() {
                   </td>
                   <td className="py-1.5">
                     {scanner.last_run_at
-                      ? new Date(scanner.last_run_at).toLocaleDateString()
+                      ? lastRunText(
+                          new Date(scanner.last_run_at).toLocaleDateString(),
+                          scanner.last_run_scope,
+                        )
                       : 'never'}
                   </td>
                   <td className="py-1.5 text-right tabular-nums">

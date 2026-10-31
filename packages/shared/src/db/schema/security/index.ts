@@ -88,11 +88,35 @@ export const scanRuns = pgTable(
      * Only the dependency scanner writes it; other scanners have no funnel.
      */
     validationFunnel: jsonb('validation_funnel').$type<Record<string, unknown>>(),
+    /**
+     * What this run did (W23-01, INCREMENTAL_SCAN_PLAN §1).
+     *
+     * `full` read the whole tree; `incremental` read a delta and carried the
+     * rest forward (reserved for W23's incremental modes); `skipped` read
+     * NOTHING because an earlier run at the same commit, with the same tool
+     * and data versions, already answered the question — its row says so
+     * instead of leaving the coverage table reading "never ran".
+     */
+    scope: text('scope').notNull().default('full'),
+    /**
+     * The run this one stands on: for `skipped`, the earlier run whose result
+     * it re-states; for `incremental`, the baseline it was a delta against.
+     * Same workspace and repo by construction (the writer looked it up under
+     * both), so no foreign key — a run row must stay deletable on its own.
+     */
+    baseRunId: bigint('base_run_id', { mode: 'number' }),
+    /**
+     * The scanner's data stamp at run time (advisory DB build, rulepack data),
+     * from the `dataVersion()` its registry entry declares. NULL = the scanner
+     * declares none, which `isUpToDate` reads as "do not compare".
+     */
+    dataVersion: text('data_version'),
     startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
     finishedAt: timestamp('finished_at', { withTimezone: true }),
   },
   (t) => [
     index('scan_runs_workspace_repo_idx').on(t.workspaceId, t.repoId),
+    check('scan_runs_scope_check', sql`${t.scope} in ('full', 'incremental', 'skipped')`),
     check(
       'scan_runs_status_check',
       sql`${t.status} in ('queued', 'running', 'succeeded', 'failed', 'budget_exceeded')`,
