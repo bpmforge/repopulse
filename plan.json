@@ -12319,7 +12319,8 @@
       "status": "in_progress",
       "notes": [
         "Spec: docs/work/INCREMENTAL_SCAN_PLAN.md WP-X7. Full gate before closing: pnpm lint && pnpm typecheck && pnpm test. Respect CLAUDE.md Law 4 (C1a tarball only) and Law 7 (budgeted client).",
-        "2026-10-31 branch feat/W23-06 @ d9422df0. tsc+eslint clean; vitest NOT run (needs Mac). Before done: pnpm test; re-run W19-05 quality evals (prompt order changed: required-JSON block now precedes PR context; golden digests re-recorded); db:migrate 0065_analysis_cache_read_tokens (clashes with W23-01 0065 — renumber the later merge); confirm installed claude CLI accepts --append-system-prompt; Bedrock/Vertex get system message but no cache_control; only ai-pass-processor persists cache_read_tokens (second-model stores 0)."
+        "2026-10-31 branch feat/W23-06 @ d9422df0. tsc+eslint clean; vitest NOT run (needs Mac). Before done: pnpm test; re-run W19-05 quality evals (prompt order changed: required-JSON block now precedes PR context; golden digests re-recorded); db:migrate 0065_analysis_cache_read_tokens (clashes with W23-01 0065 — renumber the later merge); confirm installed claude CLI accepts --append-system-prompt; Bedrock/Vertex get system message but no cache_control; only ai-pass-processor persists cache_read_tokens (second-model stores 0).",
+        "2026-10-31 migration renumbered to 0066 (journal idx 63) on feat/W23-06 — merge W23-01 first; _journal.json will need a trivial append-merge."
       ],
       "points": 5
     },
