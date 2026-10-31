@@ -12161,11 +12161,12 @@
         "ScanJobData gains force?: boolean; POST /runs accepts {force:true} (\"Full rescan\" checkbox in the run dialog) and returns up_to_date: [...] computed synchronously before enqueueing; coverage table shows scope and \"up to date as of <date>\" instead of never ran",
         "Tests: second weekly job for same sha/tool versions does not call the runner and writes a skipped row; force calls it; changed tool_versions calls it; a succeeded run in another workspace never counts; route test propagates force"
       ],
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "Spec: docs/work/INCREMENTAL_SCAN_PLAN.md WP-R1 + WP-X9. Full gate before closing: pnpm lint && pnpm typecheck && pnpm test. Respect CLAUDE.md Law 4 (C1a tarball only) and Law 7 (budgeted client).",
         "2026-10-31 from W23-05: force must also bypass the secrets history `covered` filter (history.ts:70-81) so a commit stuck in `running` can be re-swept.",
-        "2026-10-31 branch feat/W23-01 @ 6e03f2ae (24 files). tsc+eslint clean; vitest NOT run (needs Mac): pnpm test, then db:generate/migrate to confirm hand-written 0065_scan_runs_scope.sql has no drift. GAPS before done: (1) only semgrep has a probe in apps/api/src/routes/runs/probes.ts — every other weekly runner still runs full; add an honest probe per runner (the N-tarball win depends on it); (2) semgrep probe returns null (so it runs) when the engine version is unreadable via podman or SCAN_THIRD_PARTY_RULES=on — check the packaged stack; (3) no runner writes data_version yet; (4) force does not yet bypass the secrets history `covered` filter; (5) other latest-run readers (org/me/setup/admin) not audited for the skipped row; single-scanner Re-run link has no force. MIGRATION CLASH: W23-06 also adds 0065 (idx 62) — whichever merges second renumbers to 0066/idx 63."
+        "2026-10-31 branch feat/W23-01 @ 6e03f2ae (24 files). tsc+eslint clean; vitest NOT run (needs Mac): pnpm test, then db:generate/migrate to confirm hand-written 0065_scan_runs_scope.sql has no drift. GAPS before done: (1) only semgrep has a probe in apps/api/src/routes/runs/probes.ts — every other weekly runner still runs full; add an honest probe per runner (the N-tarball win depends on it); (2) semgrep probe returns null (so it runs) when the engine version is unreadable via podman or SCAN_THIRD_PARTY_RULES=on — check the packaged stack; (3) no runner writes data_version yet; (4) force does not yet bypass the secrets history `covered` filter; (5) other latest-run readers (org/me/setup/admin) not audited for the skipped row; single-scanner Re-run link has no force. MIGRATION CLASH: W23-06 also adds 0065 (idx 62) — whichever merges second renumbers to 0066/idx 63.",
+        "2026-10-31 merged to main 91a1b2a3. Full gate offline (DB-gated files skipped as in CI): tsc clean x4 packages, eslint clean, vitest all chunks green (+32 tests). Follow-ups moved to W23-09."
       ],
       "points": 5
     },
@@ -12316,11 +12317,12 @@
         "Gateway usage records cacheReadTokens per call (claude-cli already sums cache_read_input_tokens); Models settings page shows cache hit % per model",
         "Live LM Studio integration test (skipped without infra) shows warm-call latency < 60% of cold for the same dimension; pnpm test green"
       ],
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "Spec: docs/work/INCREMENTAL_SCAN_PLAN.md WP-X7. Full gate before closing: pnpm lint && pnpm typecheck && pnpm test. Respect CLAUDE.md Law 4 (C1a tarball only) and Law 7 (budgeted client).",
         "2026-10-31 branch feat/W23-06 @ d9422df0. tsc+eslint clean; vitest NOT run (needs Mac). Before done: pnpm test; re-run W19-05 quality evals (prompt order changed: required-JSON block now precedes PR context; golden digests re-recorded); db:migrate 0065_analysis_cache_read_tokens (clashes with W23-01 0065 — renumber the later merge); confirm installed claude CLI accepts --append-system-prompt; Bedrock/Vertex get system message but no cache_control; only ai-pass-processor persists cache_read_tokens (second-model stores 0).",
-        "2026-10-31 migration renumbered to 0066 (journal idx 63) on feat/W23-06 — merge W23-01 first; _journal.json will need a trivial append-merge."
+        "2026-10-31 migration renumbered to 0066 (journal idx 63) on feat/W23-06 — merge W23-01 first; _journal.json will need a trivial append-merge.",
+        "2026-10-31 merged to main dd39c05f (journal 0065 then 0066). tsc clean, eslint clean, vitest all chunks green (+22 analysis tests). OPEN before a release claim on review quality: re-run the W19-05 quality evals on the Mac (prompt order changed); confirm the installed claude CLI accepts --append-system-prompt."
       ],
       "points": 5
     },
@@ -12388,6 +12390,39 @@
         "Spec: docs/work/INCREMENTAL_SCAN_PLAN.md WP-R6. Full gate before closing: pnpm lint && pnpm typecheck && pnpm test. Respect CLAUDE.md Law 4 (C1a tarball only) and Law 7 (budgeted client)."
       ],
       "points": 3
+    },
+    {
+      "id": "W23-09",
+      "title": "Per-runner up-to-date probes + data_version stamping so every weekly/manual scanner can skip; force bypasses the secrets history covered filter",
+      "phase": 23,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/routes/runs/probes.ts",
+        "apps/api/src/routes/runs/probes.test.ts",
+        "apps/api/src/workers/index.ts",
+        "apps/api/src/workers/scan-processor.ts",
+        "apps/api/src/workers/scan-processor.test.ts",
+        "packages/security/src/scanners/**",
+        "packages/security/src/framework/**",
+        "docs/design/SECURITY_SUITE.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W23-01"
+      ],
+      "acceptance": [
+        "Every weeklyRunner key (code_health_tools, dependency_cve, container_image, anti_slop, supply_chain_register, architecture_register, knowledge_register, owasp_web, owasp_llm, test_gap_register, code_scanning_pull, attack_chainer) has an honest probe returning {commitSha, toolVersions, dataVersion} without running the scan, or is documented as always-run with the reason",
+        "Runners stamp data_version on their scan_runs rows where a data source exists (OSV/KEV/EPSS stamp from scan-db-sync; rulepack version for pattern scanners)",
+        "The semgrep probe no longer returns null in the packaged stack: engine version is read from the image label or a cached version file instead of requiring podman at probe time",
+        "force:true also bypasses the secrets history covered filter so a commit stuck in running can be re-swept",
+        "Tests per probe; two consecutive Run scans now presses with no new commit create zero tarball fetches across all enabled scanners"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": [
+        "Spec: docs/work/INCREMENTAL_SCAN_PLAN.md WP-R1 gaps (1)-(4) recorded on W23-01."
+      ]
     }
   ]
 }
