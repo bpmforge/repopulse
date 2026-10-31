@@ -12163,7 +12163,8 @@
       ],
       "status": "todo",
       "notes": [
-        "Spec: docs/work/INCREMENTAL_SCAN_PLAN.md WP-R1 + WP-X9. Full gate before closing: pnpm lint && pnpm typecheck && pnpm test. Respect CLAUDE.md Law 4 (C1a tarball only) and Law 7 (budgeted client)."
+        "Spec: docs/work/INCREMENTAL_SCAN_PLAN.md WP-R1 + WP-X9. Full gate before closing: pnpm lint && pnpm typecheck && pnpm test. Respect CLAUDE.md Law 4 (C1a tarball only) and Law 7 (budgeted client).",
+        "2026-10-31 from W23-05: force must also bypass the secrets history `covered` filter (history.ts:70-81) so a commit stuck in `running` can be re-swept."
       ],
       "points": 5
     },
@@ -12283,9 +12284,10 @@
         "Otherwise the 12-month window excludes commits already covered by a succeeded row for scanner_key secrets; force overrides",
         "Test: second sweep over an unchanged history fetches zero patches"
       ],
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "Spec: docs/work/INCREMENTAL_SCAN_PLAN.md WP-R5. Full gate before closing: pnpm lint && pnpm typecheck && pnpm test. Respect CLAUDE.md Law 4 (C1a tarball only) and Law 7 (budgeted client)."
+        "Spec: docs/work/INCREMENTAL_SCAN_PLAN.md WP-R5. Full gate before closing: pnpm lint && pnpm typecheck && pnpm test. Respect CLAUDE.md Law 4 (C1a tarball only) and Law 7 (budgeted client).",
+        "2026-10-31 VERIFIED, no code change: history.ts:70-81 `covered` subquery excludes commits with a succeeded/running secrets scan_runs row; :83-95 commit query uses sha NOT IN (covered); history.integration.test.ts:210-228 already proves a second sweep fetches zero patches. Gaps noted (not fixed here): a scan_runs row stuck in `running` blocks that commit forever — W23-01 force should bypass `covered`; covered subquery filters repoId but not workspaceId (safe: repoId is a PK)."
       ],
       "points": 2
     },
