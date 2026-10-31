@@ -12161,10 +12161,11 @@
         "ScanJobData gains force?: boolean; POST /runs accepts {force:true} (\"Full rescan\" checkbox in the run dialog) and returns up_to_date: [...] computed synchronously before enqueueing; coverage table shows scope and \"up to date as of <date>\" instead of never ran",
         "Tests: second weekly job for same sha/tool versions does not call the runner and writes a skipped row; force calls it; changed tool_versions calls it; a succeeded run in another workspace never counts; route test propagates force"
       ],
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
         "Spec: docs/work/INCREMENTAL_SCAN_PLAN.md WP-R1 + WP-X9. Full gate before closing: pnpm lint && pnpm typecheck && pnpm test. Respect CLAUDE.md Law 4 (C1a tarball only) and Law 7 (budgeted client).",
-        "2026-10-31 from W23-05: force must also bypass the secrets history `covered` filter (history.ts:70-81) so a commit stuck in `running` can be re-swept."
+        "2026-10-31 from W23-05: force must also bypass the secrets history `covered` filter (history.ts:70-81) so a commit stuck in `running` can be re-swept.",
+        "2026-10-31 branch feat/W23-01 @ 6e03f2ae (24 files). tsc+eslint clean; vitest NOT run (needs Mac): pnpm test, then db:generate/migrate to confirm hand-written 0065_scan_runs_scope.sql has no drift. GAPS before done: (1) only semgrep has a probe in apps/api/src/routes/runs/probes.ts — every other weekly runner still runs full; add an honest probe per runner (the N-tarball win depends on it); (2) semgrep probe returns null (so it runs) when the engine version is unreadable via podman or SCAN_THIRD_PARTY_RULES=on — check the packaged stack; (3) no runner writes data_version yet; (4) force does not yet bypass the secrets history `covered` filter; (5) other latest-run readers (org/me/setup/admin) not audited for the skipped row; single-scanner Re-run link has no force. MIGRATION CLASH: W23-06 also adds 0065 (idx 62) — whichever merges second renumbers to 0066/idx 63."
       ],
       "points": 5
     },
@@ -12315,9 +12316,10 @@
         "Gateway usage records cacheReadTokens per call (claude-cli already sums cache_read_input_tokens); Models settings page shows cache hit % per model",
         "Live LM Studio integration test (skipped without infra) shows warm-call latency < 60% of cold for the same dimension; pnpm test green"
       ],
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
-        "Spec: docs/work/INCREMENTAL_SCAN_PLAN.md WP-X7. Full gate before closing: pnpm lint && pnpm typecheck && pnpm test. Respect CLAUDE.md Law 4 (C1a tarball only) and Law 7 (budgeted client)."
+        "Spec: docs/work/INCREMENTAL_SCAN_PLAN.md WP-X7. Full gate before closing: pnpm lint && pnpm typecheck && pnpm test. Respect CLAUDE.md Law 4 (C1a tarball only) and Law 7 (budgeted client).",
+        "2026-10-31 branch feat/W23-06 @ d9422df0. tsc+eslint clean; vitest NOT run (needs Mac). Before done: pnpm test; re-run W19-05 quality evals (prompt order changed: required-JSON block now precedes PR context; golden digests re-recorded); db:migrate 0065_analysis_cache_read_tokens (clashes with W23-01 0065 — renumber the later merge); confirm installed claude CLI accepts --append-system-prompt; Bedrock/Vertex get system message but no cache_control; only ai-pass-processor persists cache_read_tokens (second-model stores 0)."
       ],
       "points": 5
     },
