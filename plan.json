@@ -12059,6 +12059,7 @@
         "LICENSE",
         "NOTICE",
         "THIRD_PARTY_NOTICES.md",
+        ".gitleaksignore",
         "README.md",
         "docs/work/FOUNDING_BRIEF.md",
         "package.json",
@@ -12082,7 +12083,7 @@
       "status": "in_progress",
       "notes": [
         "Planned 2026-10-28: owner said 'Lodestone MIT, open the rules' (lodestone#8, bpm-rulepacks#45) and 'do it with release' for making them public.",
-        "2026-10-31 (owner: 'start that', release prep up to but not including anything public): LICENSE is now the Apache 2.0 text, NOTICE carries the attributions for what the repository contains, THIRD_PARTY_NOTICES.md inventories the repository's third-party rules and fixtures plus every tool built into the images with its licence, and the root and all ten workspace manifests say Apache-2.0 (packages/security had no licence field). D10 in FOUNDING_BRIEF.md is marked superseded. Lodestone is not listed in NOTICE because Repo Pulse does not depend on it yet (W22-01 is todo); add it when it is. Write scope widened to THIRD_PARTY_NOTICES.md, README.md (licence section) and docs/work/FOUNDING_BRIEF.md. Started ahead of W22-01 because the licence change does not need the code index; the Lodestone pin in criterion 3 still waits for it.",
+        "2026-10-31 (owner: 'start that', release prep up to but not including anything public): LICENSE is now the Apache 2.0 text, NOTICE carries the attributions for what the repository contains, THIRD_PARTY_NOTICES.md inventories the repository's third-party rules and fixtures plus every tool built into the images with its licence, and the root and all ten workspace manifests say Apache-2.0 (packages/security had no licence field). D10 in FOUNDING_BRIEF.md is marked superseded. Lodestone is not listed in NOTICE because Repo Pulse does not depend on it yet (W22-01 is todo); add it when it is. Write scope widened to THIRD_PARTY_NOTICES.md, .gitleaksignore (the 3 new fixture hits, which had turned the gitleaks gate red), README.md (licence section) and docs/work/FOUNDING_BRIEF.md. Started ahead of W22-01 because the licence change does not need the code index; the Lodestone pin in criterion 3 still waits for it.",
         "2026-10-31 gitleaks 8.30.1 (checksum-verified, the ci-local.sh pin) over the full history of every branch on GitHub (1,126 commits across every branch): 3 hits beyond .gitleaksignore, all fixture identifiers (ch_complexity_p90, w20-10-oidc-person, w20-03-foreign); 46 hits with the ignore file off, all synthetic test tokens, fixture code or documentation of them. No live credential found. Not yet run on lodestone or bpm-rulepacks (not in this session's scope) or on Gitea-only branches. Commit metadata names the owner's personal email and one Mac hostname; history also holds LAN addresses and the internal Gitea hostname. Rewriting history is the owner's call and has not been done.",
         "Still open here: the Redis image (redis:7-alpine resolves to 7.4+, RSALv2/SSPLv1, which the bundle redistributes); source-offer wording for the GPL/LGPL tools in the scan image before any image or bundle is published; the 'UNLICENSED-REPOPULSE' provenance value on our own rules and 'Proprietary (RepoPulse)' in benchmark suite.json files; the SPDX schema's licence; and criteria 3 and 4, which are release-day steps that need the owner's yes."
       ]
