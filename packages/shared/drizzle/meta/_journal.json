@@ -273,7 +273,8 @@
       "version": "7",
       "when": 1792200000000,
       "tag": "0040_llm_routing",
-      "breakpoints": true},
+      "breakpoints": true
+    },
     {
       "idx": 39,
       "version": "7",
@@ -422,10 +423,10 @@
       "breakpoints": true
     },
     {
-      "idx": 62,
+      "idx": 63,
       "version": "7",
       "when": 1794800000000,
-      "tag": "0065_analysis_cache_read_tokens",
+      "tag": "0066_analysis_cache_read_tokens",
       "breakpoints": true
     }
   ]
