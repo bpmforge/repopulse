@@ -8,6 +8,7 @@ import {
   isEnabled,
   listScanners,
   registerBuiltinScanners,
+  type ScanProbe,
 } from '@repopulse/security';
 import type { Queue } from 'bullmq';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -43,6 +44,9 @@ describeIfLiveInfra('run it now (W16-10)', () => {
   let workspaceId = 0;
   let userId = 0;
   let connectionId = 0;
+  // W23-01: what the injected semgrep probe answers. Mutable per test so each
+  // one chooses the commit and tool versions the "run" would use.
+  let probeAnswer: Awaited<ReturnType<ScanProbe>> = null;
 
   const fakeQueue = {
     // Models BullMQ's actual contract in the one way that matters: `getJob`
@@ -174,7 +178,11 @@ describeIfLiveInfra('run it now (W16-10)', () => {
         get: (k: string) => (k === 'userId' ? userId : undefined),
       };
     });
-    await app.register(runRoutes, { db, queueFor: () => fakeQueue });
+    await app.register(runRoutes, {
+      db,
+      queueFor: () => fakeQueue,
+      probes: { semgrep: async () => probeAnswer },
+    });
     await app.ready();
   });
 
@@ -184,6 +192,7 @@ describeIfLiveInfra('run it now (W16-10)', () => {
     await app?.close();
     // Reverse order of creation — every row here is referenced by the one above.
     if (repoId) {
+      await db.delete(security.scanRuns).where(eq(security.scanRuns.repoId, repoId));
       await db
         .delete(security.repoScannerConfig)
         .where(eq(security.repoScannerConfig.repoId, repoId));
@@ -199,10 +208,13 @@ describeIfLiveInfra('run it now (W16-10)', () => {
     await db.$client.end();
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
     added.length = 0;
     existing.clear();
     vi.clearAllMocks();
+    probeAnswer = null;
+    // Runs seeded by the W23-01 tests must not leak into the next one.
+    if (repoId) await db.delete(security.scanRuns).where(eq(security.scanRuns.repoId, repoId));
   });
 
   it('starts the default-enabled scanners on a repo with NO config rows', async () => {
@@ -350,6 +362,143 @@ describeIfLiveInfra('run it now (W16-10)', () => {
         .delete(security.repoScannerConfig)
         .where(eq(security.repoScannerConfig.repoId, repoId));
     }
+  });
+
+  describe('up to date and force (W23-01)', () => {
+    const SHA = 'w23-01-head-sha';
+    const VERSIONS = { opengrep: '1.2.3', rulepack: 'a.yaml,b.yaml' };
+
+    async function seedSucceededRun(over: Partial<typeof security.scanRuns.$inferInsert> = {}) {
+      const [row] = await db
+        .insert(security.scanRuns)
+        .values({
+          workspaceId,
+          repoId,
+          scannerKey: 'semgrep',
+          scannerVersion: 'opengrep@1.2.3 rulepack@a.yaml,b.yaml',
+          commitSha: SHA,
+          trigger: 'schedule',
+          status: 'succeeded',
+          findingCount: 7,
+          toolVersions: VERSIONS,
+          ...over,
+        })
+        .returning({ id: security.scanRuns.id });
+      return row!.id;
+    }
+
+    it('reports a scanner whose last run still answers as up_to_date, not started', async () => {
+      await seedSucceededRun();
+      probeAnswer = { commitSha: SHA, toolVersions: { ...VERSIONS } };
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/repos/${repoId}/scan`,
+        headers: CSRF,
+        payload: { scanner_key: 'semgrep' },
+      });
+
+      expect(res.statusCode).toBe(202);
+      expect(res.json().up_to_date).toEqual(['semgrep']);
+      expect(res.json().started).toEqual([]);
+      // Still enqueued, so the worker records the `skipped` row the coverage
+      // table reads — but not forced.
+      expect(added).toHaveLength(1);
+      expect(added[0]?.data).not.toHaveProperty('force');
+    });
+
+    it('starts it when the tool versions changed or the head moved', async () => {
+      await seedSucceededRun();
+
+      probeAnswer = { commitSha: SHA, toolVersions: { ...VERSIONS, opengrep: '9.9.9' } };
+      const changedTool = await app.inject({
+        method: 'POST',
+        url: `/repos/${repoId}/scan`,
+        headers: CSRF,
+        payload: { scanner_key: 'semgrep' },
+      });
+      expect(changedTool.json().started).toEqual(['semgrep']);
+      expect(changedTool.json().up_to_date).toEqual([]);
+
+      existing.clear();
+      probeAnswer = { commitSha: 'a-newer-sha', toolVersions: { ...VERSIONS } };
+      const movedHead = await app.inject({
+        method: 'POST',
+        url: `/repos/${repoId}/scan`,
+        headers: CSRF,
+        payload: { scanner_key: 'semgrep' },
+      });
+      expect(movedHead.json().started).toEqual(['semgrep']);
+    });
+
+    it('does not count a failed, partial or skipped run as up to date', async () => {
+      probeAnswer = { commitSha: SHA, toolVersions: { ...VERSIONS } };
+      const first = await seedSucceededRun({ status: 'failed' });
+      await seedSucceededRun({ partial: true });
+      await seedSucceededRun({ scope: 'skipped', baseRunId: first });
+      const res = await app.inject({
+        method: 'POST',
+        url: `/repos/${repoId}/scan`,
+        headers: CSRF,
+        payload: { scanner_key: 'semgrep' },
+      });
+      expect(res.json().started).toEqual(['semgrep']);
+      expect(res.json().up_to_date).toEqual([]);
+    });
+
+    it('force:true skips the check and propagates to the job, under its own job id', async () => {
+      await seedSucceededRun();
+      probeAnswer = { commitSha: SHA, toolVersions: { ...VERSIONS } };
+
+      // A normal press first: it takes the plain id for this window.
+      await app.inject({
+        method: 'POST',
+        url: `/repos/${repoId}/scan`,
+        headers: CSRF,
+        payload: { scanner_key: 'semgrep' },
+      });
+      expect(added).toHaveLength(1);
+
+      const forced = await app.inject({
+        method: 'POST',
+        url: `/repos/${repoId}/scan`,
+        headers: CSRF,
+        payload: { scanner_key: 'semgrep', force: true },
+      });
+
+      expect(forced.statusCode).toBe(202);
+      // Not absorbed by the non-forced press, and not reported as up to date.
+      expect(forced.json().started).toEqual(['semgrep']);
+      expect(forced.json().up_to_date).toEqual([]);
+      expect(forced.json().already_running).toEqual([]);
+      expect(added).toHaveLength(2);
+      expect(added[1]?.data).toMatchObject({ repoId, scannerKey: 'semgrep', force: true });
+      expect(added[1]?.jobId).not.toBe(added[0]?.jobId);
+      expect(added[1]?.jobId).toContain('force');
+    });
+
+    it('rejects a force that is not a boolean', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: `/repos/${repoId}/scan`,
+        headers: CSRF,
+        payload: { force: 'false' },
+      });
+      expect(res.statusCode).toBe(400);
+      expect(added).toHaveLength(0);
+    });
+
+    it('lists scope on GET /scan-runs so the UI can tell a skip from a scan', async () => {
+      const base = await seedSucceededRun();
+      await seedSucceededRun({ scope: 'skipped', baseRunId: base, trigger: 'manual' });
+      const res = await app.inject({
+        method: 'GET',
+        url: `/repos/${repoId}/scan-runs?since=${encodeURIComponent(new Date(Date.now() - 3_600_000).toISOString())}`,
+      });
+      expect(res.statusCode).toBe(200);
+      const scopes = (res.json().runs as { scope: string }[]).map((r) => r.scope).sort();
+      expect(scopes).toEqual(['full', 'skipped']);
+    });
   });
 
   it('404s for a repository outside the workspace', async () => {

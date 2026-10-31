@@ -36,6 +36,7 @@ import { runKnowledgeRegister, runTestGapRegister } from '@repopulse/insights';
 import { buildWorkerGateway, createGatewayResolver, reportGatewayHealth } from './gateway.js';
 import { isAiPaused } from '../lib/ai-pause.js';
 import { hasNeverBeenScanned, startableScannerKeys } from '../lib/startable-scanners.js';
+import { buildScanProbes } from '../routes/runs/probes.js';
 import {
   jsonFetcher,
   readComponents,
@@ -481,6 +482,9 @@ async function main(): Promise<void> {
         // W8-07 + W8-09 share ONE weekly pass, wired once. A semgrep full run
         // and a chain recompute are the same shape of work — per repo, on a
         // schedule, no user waiting — and two crons doing it would drift.
+        // W23-01: what each weekly runner would pin to and stamp, so an
+        // unchanged scan is skipped. A runner with no probe always runs.
+        probes: buildScanProbes(db),
         weeklyRunners: {
           semgrep: async ({ workspaceId, repoId }) => {
             const resolved = await providerForRepo(scanForgeDeps, workspaceId, repoId);

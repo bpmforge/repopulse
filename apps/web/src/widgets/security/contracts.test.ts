@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   dependencyEmptyCopy,
   hasMeasuredCount,
+  lastRunText,
   ranSuccessfully,
+  scannerStateLabel,
   SCANNER_STATE_LABEL,
   type ScannerState,
   type ScannerStatus,
@@ -95,5 +97,22 @@ describe('dependencyEmptyCopy', () => {
     expect(failed).toMatch(/failed/i);
     expect(running).toMatch(/running now/i);
     expect(new Set([neverRun, failed, running]).size).toBe(3);
+  });
+});
+
+describe('skipped runs read as currency, not as a scan (W23-01)', () => {
+  it('labels an ok+skipped scanner as up to date', () => {
+    expect(scannerStateLabel('ok', 0, 'skipped')).toMatch(/up to date/);
+    expect(scannerStateLabel('ok', 4, 'skipped')).toMatch(/up to date — findings still open/);
+    // Other scopes and states are untouched.
+    expect(scannerStateLabel('ok', 0, 'full')).toBe(SCANNER_STATE_LABEL.ok);
+    expect(scannerStateLabel('ok', 0)).toBe(SCANNER_STATE_LABEL.ok);
+    expect(scannerStateLabel('error', 0, 'skipped')).toBe(SCANNER_STATE_LABEL.error);
+  });
+
+  it("prefixes only a skipped run's date", () => {
+    expect(lastRunText('Oct 31, 2026', 'skipped')).toBe('Up to date as of Oct 31, 2026');
+    expect(lastRunText('Oct 31, 2026', 'full')).toBe('Oct 31, 2026');
+    expect(lastRunText('Oct 31, 2026', null)).toBe('Oct 31, 2026');
   });
 });

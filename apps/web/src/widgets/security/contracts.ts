@@ -23,6 +23,14 @@ export interface ScannerStatus {
   state: ScannerState;
   last_run_at: string | null;
   last_run_status: string | null;
+  /**
+   * W23-01: what the last run did — 'full', 'incremental', or 'skipped' (nothing
+   * was re-scanned because an earlier run at this commit still answers it, so
+   * `last_run_at` then means "up to date as of"). Absent from older payloads.
+   */
+  last_run_scope?: string | null;
+  /** The earlier run a skipped row restates. */
+  last_run_base_run_id?: number | null;
   error: string | null;
   scanner_version: string | null;
   /**
@@ -223,9 +231,34 @@ export interface OrgSecurity {
  * says nothing about how many findings are open, so the count does not qualify
  * it.
  */
-export function scannerStateLabel(state: ScannerState, openFindings: number | null): string {
+export function scannerStateLabel(
+  state: ScannerState,
+  openFindings: number | null,
+  scope?: string | null,
+): string {
+  // W23-01: a skipped run did not "run clean" — it re-stated an earlier result.
+  if (state === 'ok' && scope === 'skipped') {
+    return (openFindings ?? 0) > 0
+      ? '✓ up to date — findings still open'
+      : '✓ up to date — nothing changed since the last run';
+  }
   if (state === 'ok' && (openFindings ?? 0) > 0) return '✓ ran — findings still open';
   return SCANNER_STATE_LABEL[state];
+}
+
+/** The coverage table's scope words (W23-01). Unknown scopes are not guessed at. */
+export const SCOPE_LABEL: Record<string, string> = {
+  full: 'full scan',
+  incremental: 'changed files only',
+  skipped: 'nothing re-scanned',
+};
+
+/**
+ * The "last run" cell: a skipped run says "Up to date as of <date>", never
+ * "never" and never a bare date that reads as a fresh scan (W23-01).
+ */
+export function lastRunText(date: string, scope: string | null | undefined): string {
+  return scope === 'skipped' ? `Up to date as of ${date}` : date;
 }
 
 /**

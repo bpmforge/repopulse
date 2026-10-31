@@ -3,7 +3,9 @@ import { security, type Database, safeErrorText } from '@repopulse/shared';
 import {
   DEFAULT_BUDGET,
   getScanner,
+  isUpToDate,
   runScanner,
+  type ScanProbe,
   type ScanTrigger,
   type ScannerContext,
 } from '@repopulse/security';
@@ -30,6 +32,12 @@ export interface ScanJobData {
    * one `history` job per repo.
    */
   mode?: 'sha' | 'history' | 'history_sweep' | 'weekly' | 'weekly_sweep' | 'pr';
+  /**
+   * W23-01 ("Full rescan"). Bypasses the up-to-date check: the runner is called
+   * even when an earlier run at this commit with these tool and data versions
+   * already answered the question. Only meaningful for `weekly` and `history`.
+   */
+  force?: boolean;
 }
 
 export interface HistoryRunner {
@@ -103,6 +111,10 @@ const NOTHING_SCANNED: Record<string, string> = {
     'Code scanning is not set up on this repository on GitHub, so there were no alerts to import.',
   source_cap_reached:
     'The source cap was reached before anything was scanned — the repository is larger than one pass covers.',
+  // W23-01. Not a runner's answer: the processor's own, when an earlier run at
+  // the same commit with the same tool and data versions already holds it.
+  up_to_date:
+    'Nothing changed since the last successful run at this commit with these tool versions, so nothing was re-scanned. Use "Full rescan" to force it.',
 };
 
 function nothingScannedMessage(reason: string | undefined): string {
@@ -135,6 +147,14 @@ export interface ScanProcessorDeps {
    * runners for the same reason: the framework must not learn scanner names.
    */
   weeklyRunners?: Record<string, HistoryRunner>;
+  /**
+   * W23-01. Per scanner key, what commit and tool versions the runner above
+   * WOULD use, resolved without running it — so an unchanged scan can be
+   * skipped. Same injected-map shape as the runners (the framework never
+   * branches on a key); a scanner with no entry always runs. Shared with
+   * POST /repos/:id/scan, which asks the same question before enqueueing.
+   */
+  probes?: Record<string, ScanProbe>;
   weeklySweep?: (scannerKey: string) => Promise<{ enqueued: number }>;
   /**
    * W21-02. The pattern scanners over one pull-request head (`mode: 'pr'`,
@@ -178,6 +198,15 @@ async function runSweep(
     trigger: data.trigger,
     findingCount: 0,
   };
+
+  // UP TO DATE? (W23-01). Asked before the runner, because the runner's first
+  // act is a tarball fetch. `force` skips the question. A probe that throws or
+  // cannot say is treated as "unknown": run the scan — a skip must be earned by
+  // evidence, never by a failure to look.
+  if (!data.force) {
+    const skipped = await skipIfUpToDate(deps, data, row);
+    if (skipped) return;
+  }
 
   let outcome;
   try {
@@ -246,6 +275,70 @@ async function runSweep(
       error: nothingScannedMessage(outcome.skipped),
     });
   }
+}
+
+/**
+ * Writes the `skipped` row and returns true when the scan is already answered.
+ *
+ * The row restates the earlier run's finding count and points at it
+ * (`base_run_id`), so the coverage table reads "up to date as of <date>" rather
+ * than "never ran". It is a real succeeded row at the REAL commit — `row`'s own
+ * commitSha is the job's, which is '' for a manual run.
+ */
+async function skipIfUpToDate(
+  deps: ScanProcessorDeps,
+  data: ScanJobData,
+  row: {
+    workspaceId: number;
+    repoId: number;
+    scannerKey: string;
+    scannerVersion: string;
+    trigger: ScanTrigger;
+  },
+): Promise<boolean> {
+  const probe = deps.probes?.[data.scannerKey];
+  if (!probe) return false;
+
+  let match;
+  let commitSha: string;
+  try {
+    const probed = await probe({ workspaceId: data.workspaceId, repoId: data.repoId });
+    if (!probed) return false;
+    commitSha = probed.commitSha;
+    // The registry declares the data stamp (metadata, not a key branch); a
+    // probe that knows better may override it.
+    const dataVersion =
+      probed.dataVersion !== undefined
+        ? probed.dataVersion
+        : ((await getScanner(data.scannerKey)?.dataVersion?.()) ?? null);
+    match = await isUpToDate(deps.db, {
+      workspaceId: data.workspaceId,
+      repoId: data.repoId,
+      scannerKey: data.scannerKey,
+      commitSha,
+      toolVersions: probed.toolVersions ?? null,
+      dataVersion,
+    });
+  } catch {
+    return false;
+  }
+  if (!match) return false;
+
+  const now = new Date();
+  await deps.db.insert(security.scanRuns).values({
+    ...row,
+    commitSha,
+    status: 'succeeded',
+    scope: 'skipped',
+    findingCount: match.findingCount,
+    baseRunId: match.id,
+    toolVersions: match.toolVersions,
+    dataVersion: match.dataVersion,
+    startedAt: now,
+    finishedAt: now,
+    error: NOTHING_SCANNED['up_to_date']!,
+  });
+  return true;
 }
 
 export function scanProcessor(deps: ScanProcessorDeps) {

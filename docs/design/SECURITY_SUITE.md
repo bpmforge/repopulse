@@ -442,6 +442,51 @@ separate slice.
 Queue `security.scan`, own worker pool, priority below `analysis.review`; idempotent jobs +
 DLQ per NFR-11. `attack_chainer` is chained as a completion job after each batch.
 
+### 4.1 "Up to date" short-circuit for weekly and manual runs (W23-01)
+
+Before this, a weekly job or a second press of "Run scans now" re-fetched a tarball and
+re-ran every tool even when nothing could have changed. The PR path already asked the
+question (`headAlreadyScanned`); `packages/security/src/framework/up-to-date.ts`
+generalises it.
+
+- **Ledger columns** on `scan_runs`: `scope` (`full` | `incremental` | `skipped`, default
+  `full`), `base_run_id` (the run a skipped/incremental row stands on), `data_version`
+  (the scanner's data stamp, null when it declares none).
+- **`isUpToDate(db, {workspaceId, repoId, scannerKey, commitSha, toolVersions, dataVersion})`**
+  returns the earlier run (id, finding count) or null. A match is a *succeeded*,
+  *non-partial* run for the same workspace, repo, scanner and commit, whose `tool_versions`
+  deep-equal the ones the next run would stamp (null on both sides = equal) and whose
+  `data_version` equals the query's (a null query value ignores the comparison). `skipped`
+  rows and `pr_synced` rows (changed-files-only) never count as a baseline.
+- **How the framework learns what the next run would stamp, without a key branch:** an
+  injected map of probes by scanner key (`ScanProcessorDeps.probes`, built in
+  `apps/api/src/routes/runs/probes.ts`, same shape as `weeklyRunners`) answers
+  `{commitSha, toolVersions}` for a repo; the data stamp comes from the optional
+  `Scanner.dataVersion()` in registry metadata. **A scanner with no probe always runs** —
+  today only `semgrep` has one (engine + rulepack version; declined when the engine version
+  cannot be read, e.g. no container runtime on the host, or when `SCAN_THIRD_PARTY_RULES`
+  is `on`). `code_health_tools`, `dependency_cve`, `anti_slop`, `container_image` and the
+  architecture register stamp versions that are known only after the run (adapters
+  detected in the tree, the SBOM, the image); each needs its own honest probe before it can
+  skip.
+- **`runSweep`** (weekly and manual/history jobs) asks before calling the runner. Up to
+  date → one `scan_runs` row `{status: succeeded, scope: skipped, finding_count: <prior>,
+  base_run_id: <prior id>, commit_sha: <the real head>}` whose `error` carries the
+  `up_to_date` sentence from `NOTHING_SCANNED`, and the runner is not called. The Security
+  and Code Health payloads treat a skipped row as an `ok` result (`last_run_scope:
+  "skipped"`, error withheld) and the tables read "Up to date as of <date>". A probe that
+  throws or returns null runs the scan: a skip is earned by evidence.
+- **Force:** `ScanJobData.force` bypasses the check. `POST /repos/:id/scan` accepts
+  `{scanner_key?, force?: boolean}` (the "Full rescan" checkbox beside "Run scans now"),
+  computes the same check synchronously before enqueueing and returns
+  `up_to_date: [...]` beside `started` / `already_running` (up-to-date keys are still
+  enqueued so the worker records the skipped row, but are not in `started`). A forced job
+  uses a distinct jobId (`...-force-<window>`) so it is not deduped against a non-forced
+  press in the same five-minute window.
+- Real runs keep `scope = 'full'`; the runners write their own rows and do not yet stamp
+  `data_version`, so a scanner that declares `dataVersion()` must also stamp it in its
+  runner before it can ever match.
+
 ## 5. Surfaces (FR-SEC-10)
 
 - **Findings Explorer** (FR-WEB-9): new facets `scanner_key`, extended `dimension`, `cve_id`,

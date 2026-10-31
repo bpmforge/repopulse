@@ -210,6 +210,8 @@ export function stateOf(
         error?: string | null;
         validationFunnel?: Record<string, unknown> | null;
         startedAt?: Date | null;
+        /** W23-01: 'skipped' = an up-to-date answer, not a scan that found nothing. */
+        scope?: string | null;
       }
     | undefined,
 ): ScannerState {
@@ -237,6 +239,11 @@ export function stateOf(
   // The only writer of that shape is scan-processor's zero-work path, which
   // records a row precisely so the table stops reading "has never run" — and a
   // green tick on it would put the lie back in a different place.
+  // AN UP-TO-DATE ANSWER IS A RESULT (W23-01). The skipped row carries a
+  // sentence in `error` (the processor's convention for "said something"), and
+  // without this it would read "ran, but nothing was scanned" — the opposite of
+  // what it means: the earlier run's findings are still the current answer.
+  if (run.scope === 'skipped') return 'ok';
   if (run.error) return 'nothing_scanned';
   // EVERYTHING THE MODEL PROPOSED WAS THROWN OUT (W16-38). Checked before the
   // tick, because "ran clean" over four rejected findings is the same class of
@@ -352,6 +359,7 @@ export default async function securityRoutes(
             error: run.error,
             validationFunnel: run.validationFunnel,
             startedAt: run.startedAt,
+            scope: run.scope,
           }
         : undefined;
       const enabled = isEnabled(
@@ -369,9 +377,15 @@ export default async function securityRoutes(
         state: stateOf(enabled, stateRun),
         last_run_at: run?.finishedAt?.toISOString() ?? run?.startedAt.toISOString() ?? null,
         last_run_status: run?.status ?? null,
+        // W23-01: 'full' | 'incremental' | 'skipped'. A skipped run read
+        // nothing: `last_run_at` is then "up to date as of", and the run it
+        // restates is `last_run_base_run_id`.
+        last_run_scope: run?.scope ?? null,
+        last_run_base_run_id: run?.baseRunId ?? null,
         // The scanner's own error, verbatim: "why is this red" has to be
-        // answerable without a log search.
-        error: run?.error ?? null,
+        // answerable without a log search. Not for a skipped row, whose
+        // sentence is a statement of currency, not a fault.
+        error: run?.scope === 'skipped' ? null : (run?.error ?? null),
         scanner_version: run?.scannerVersion ?? null,
         // The checklist funnel, so the UI can say HOW MANY were thrown out
         // rather than only that some were (W16-38). Null for every scanner

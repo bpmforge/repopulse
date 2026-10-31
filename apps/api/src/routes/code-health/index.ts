@@ -154,11 +154,13 @@ export default async function codeHealthRoutes(
                   error: run.error,
                   validationFunnel: run.validationFunnel,
                   startedAt: run.startedAt,
+                  scope: run.scope,
                 }
               : undefined,
           ),
           last_run_at: run?.finishedAt?.toISOString() ?? run?.startedAt.toISOString() ?? null,
-          error: run?.error ?? null,
+          last_run_scope: run?.scope ?? null,
+          error: run?.scope === 'skipped' ? null : (run?.error ?? null),
           tool_versions: run?.toolVersions ?? null,
           // A dash, not a zero, is the UI's job — but the API must not pretend
           // either: null means "nothing has looked".
