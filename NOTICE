@@ -1,0 +1,33 @@
+Repo Pulse
+Copyright 2026 Bradford Matthews
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This repository also contains, unmodified and each beside its own licence file,
+third-party material distributed under its own terms:
+
+  - Opengrep rules from 0xdea/semgrep-rules (MIT, Copyright (c) 2022 raptor)
+    packages/security/rulepacks/third-party/0xdea/
+  - Opengrep rules from elttam/semgrep-rules (MIT, Copyright (c) 2020 Semgrep,
+    as written in that repository's licence file)
+    packages/security/rulepacks/third-party/elttam/
+  - Opengrep rules from GitLab sast-rules (MIT, Copyright (c) 2011-present
+    GitLab Inc.; the go/ rules carry "License: Apache 2.0 (c) gosec" headers
+    and derive from the gosec project, github.com/securego/gosec)
+    packages/security/rulepacks/third-party/gitlab/
+  - Rules from bpmforge/bpm-rulepacks (MIT)
+    packages/security/rulepacks/third-party/bpm-rulepacks/
+  - OWASP Juice Shop source excerpts used as a benchmark fixture (MIT,
+    Copyright (c) 2014-2026 Bjoern Kimminich & the OWASP Juice Shop
+    contributors)
+    packages/security/fixtures/benchmark/juice-shop/
+  - jwt-go source vendored into two dependency-scanner test fixtures (MIT,
+    Copyright (c) 2012 Dave Grijalva)
+    packages/security/fixtures/dependency/go-*/vendor/github.com/dgrijalva/jwt-go/
+
+The per-file provenance of every imported rule (repository, commit, licence,
+SHA-256) is recorded in packages/security/rulepacks/third-party/LEDGER.json.
+
+Container images built from this repository bundle further third-party tools
+under their own licences, some of them copyleft (GPL-3.0, LGPL-2.1). They are
+listed with their licences and source locations in THIRD_PARTY_NOTICES.md.

@@ -105,6 +105,14 @@ added.
 This is a decision recorded by its author, not legal advice. A lawyer should
 review before the first actual distribution, whichever direction it goes.
 
+**Superseded 2026-10-28 (founder): "we will opensource this".** The licence is
+Apache-2.0 (W22-13): `LICENSE` holds the Apache 2.0 text, `NOTICE` the
+attributions, `THIRD_PARTY_NOTICES.md` the inventory of bundled third-party
+material, and every workspace manifest says `"license": "Apache-2.0"`. The
+repository stays private, and nothing is tagged or published, until the founder
+says yes to each of those steps on release day. The reversibility argument above
+still applies to that day, not to the licence file.
+
 ## D14 — Authentication is standalone; the forge is not the identity provider (founder, 2026-08-20, supersedes D6)
 
 **Decision.** RepoPulse authenticates users with its OWN accounts (local
