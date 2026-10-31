@@ -237,7 +237,9 @@ describe('deploy/restore.sh + backup.sh refusals (W17-29)', () => {
     chmodSync(path.join(bin, 'docker'), 0o755);
     await sh('scan-db-sync.sh', [], { RUNTIME: 'docker' });
 
-    expect(readFileSync(dockerCalls, 'utf8')).toContain('run --rm --user 0:0');
+    // Docker's root is the host's root, so the fetch runs as the invoking user.
+    const me = `${process.getuid?.()}:${process.getgid?.()}`;
+    expect(readFileSync(dockerCalls, 'utf8')).toContain(`run --rm --user ${me}`);
     expect(runtimeCalls()).toBe('');
   });
 

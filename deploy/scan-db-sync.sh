@@ -76,6 +76,15 @@ pick_runtime() {
         done ;;
   esac
 }
+# Who the fetch containers run as, so what they write into the scan-data
+# directory belongs to whoever runs this (W22-15). Rootless podman maps the
+# container's root to the invoking user, so 0:0 is that user. Docker's root is
+# the host's root: under 0:0 the staged database came out root-owned and the
+# chmod/swap below failed with "Operation not permitted" (fresh Ubuntu 24.04,
+# Docker 29), so Docker gets the invoking uid:gid instead.
+fetch_user() { # $1 runtime -> --user value
+  if [ "$1" = docker ]; then printf '%s:%s' "$(id -u)" "$(id -g)"; else printf '0:0'; fi
+}
 if [ -n "${RUNTIME:-}" ] && [ -z "$(pick_runtime)" ]; then
   log "ERROR: RUNTIME=$RUNTIME was requested but '$RUNTIME' is not on PATH."
   exit 1
@@ -262,7 +271,7 @@ if [ "${SCAN_SYNC_VULN_DB:-1}" = "1" ]; then
       [ -e "$stage" ] && chmod -R u+w "$stage" && rm -rf "$stage"
       mkdir -p "$stage"
 
-      # --user 0:0: under rootless podman the container's root maps to the
+      # --user (fetch_user): 0:0 under rootless podman, where the container's root maps to the
       # invoking user, so the files land owned by whoever runs this cron entry
       # and are readable afterwards. The image's own user (65534) maps to a
       # subuid that does not own $stage and could not write into it.
@@ -295,7 +304,7 @@ if [ "${SCAN_SYNC_VULN_DB:-1}" = "1" ]; then
           db_mounts=(-v "$ARCHIVE:/import/db-archive:ro")
         fi
       fi
-      if [ -z "${ARCHIVE_BAD:-}" ] && "$runtime" run --rm --user 0:0 \
+      if [ -z "${ARCHIVE_BAD:-}" ] && "$runtime" run --rm --user "$(fetch_user "$runtime")" \
            -e GRYPE_DB_CACHE_DIR=/db \
            ${proxy_env[@]+"${proxy_env[@]}"} \
            ${grype_ca_env[@]+"${grype_ca_env[@]}"} \
@@ -379,7 +388,7 @@ if [ "${SCAN_SYNC_MALICIOUS:-1}" != "0" ]; then
     if [ -n "$CA_FILE" ]; then
       mal_cmd=(sh -c 'cat "$(python3 -c "import ssl; print(ssl.get_default_verify_paths().openssl_cafile)")" "$REPOPULSE_CA_FILE" > /tmp/ca-bundle.pem && SSL_CERT_FILE=/tmp/ca-bundle.pem REQUESTS_CA_BUNDLE=/tmp/ca-bundle.pem exec python3 /build.py /out')
     fi
-    if "$runtime" run --rm --user 0:0 \
+    if "$runtime" run --rm --user "$(fetch_user "$runtime")" \
          ${proxy_env[@]+"${proxy_env[@]}"} \
          -e "REPOPULSE_CA_FILE=$CA_FILE" \
          ${ca_mounts[@]+"${ca_mounts[@]}"} \
@@ -446,7 +455,7 @@ if [ "$(env_value SCAN_SYNC_PACKAGE_INDEX)" != "0" ] && [ "${SCAN_SYNC_PACKAGE_I
     if [ -n "$CA_FILE" ]; then
       idx_cmd=(sh -c 'cat "$(python3 -c "import ssl; print(ssl.get_default_verify_paths().openssl_cafile)")" "$REPOPULSE_CA_FILE" > /tmp/ca-bundle.pem && SSL_CERT_FILE=/tmp/ca-bundle.pem exec python3 /build.py "$@"' sh "${idx_args[@]}")
     fi
-    if "$runtime" run --rm --user 0:0 \
+    if "$runtime" run --rm --user "$(fetch_user "$runtime")" \
          ${proxy_env[@]+"${proxy_env[@]}"} \
          -e "REPOPULSE_CA_FILE=$CA_FILE" \
          -e "SCAN_PACKAGE_INDEX_ECOSYSTEMS=$idx_ecos" \
