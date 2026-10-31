@@ -529,6 +529,42 @@ sessions do too, unless the volume was removed.
 job is not running, and dependency scans will start refusing the database
 after five days — loudly, naming its age, which is the better failure.
 
+**The advisory data stamp, and what "rematched" means (W23-04).**
+`scan-db-sync.sh` writes `scan-rules/vuln-db.version` — one line,
+`<schema>@<build timestamp>` (for example `6@2026-10-31T01:12:09Z`) — each time
+it swaps in a new vulnerability database. A database synced before this existed
+has no file; the worker derives the identical string from grype's own
+`import.json`, so upgrading does not by itself trigger anything. Every
+dependency and container-image run records the stamp it matched against.
+
+Before fetching a repository's source, the dependency and image scanners and
+the architecture register compare what they read last time with what is there
+now, through the forge's contents API (a handful of small calls, no archive):
+
+- **Nothing changed** (same manifests and stamp; same Dockerfiles and compose
+  files and stamp; same commit tree). The run is recorded as *up to date*
+  ("Nothing this scanner reads changed…") and no source is fetched. "Full
+  rescan" on the Security tab overrides it.
+- **Rematched** (dependency scanner only: same manifests, new stamp). The
+  stored SBOM for that repository is matched again against the new database —
+  no archive, no syft. New advisories appear, withdrawn ones close, exactly as
+  a full scan would report them. What a rematch does not re-check is whether
+  the source *imports or calls* a package, because the source is not read: a
+  CVE that already existed keeps its stored reasoning untouched, and a CVE new
+  to the repository is filed at the manifest tier and says so in its text. The
+  next scan after a manifest change is a full one and fills that in.
+- **Anything else** (manifests, Dockerfiles or tree changed; no earlier run; a
+  file the forge would not return in full; a forge error) is a full scan. The
+  gate only ever errs toward scanning.
+
+Two limits, stated: the gate knows the manifest and Dockerfile paths the last
+full run found plus the usual root files, so a brand-new nested manifest is
+noticed by "Full rescan" or by the next scan that is full for another reason,
+not by the gate. And an image named by a moving tag (`node:20`,
+not `@sha256:`) is never skipped unless a digest source is wired, because a tag
+can move with no file changing. The architecture gate needs the forge to report
+a commit's tree sha; on a forge that does not, it simply always scans.
+
 **Restart the stack, not one service.** `podman compose -f deploy/compose.yaml
 down && ./deploy/up.sh`, about ten seconds on a warm image cache. See below
 for why.

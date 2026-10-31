@@ -1,10 +1,29 @@
-import { and, eq } from 'drizzle-orm';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { and, eq, inArray } from 'drizzle-orm';
 import { read, security, type Database, safeErrorText } from '@repopulse/shared';
 import { persistFindings } from '@repopulse/insights';
 import type { ForgeProvider } from '@repopulse/forge';
 import { snapshotForScan } from '../../snapshot/index.js';
 import {
+  MANIFEST_ROOT_PATHS,
+  advisoryDataVersion,
+  hashSnapshotFiles,
+  mergePaths,
+  readManifestSet,
+  recordGatedRun,
+  stampInputs,
+  toolLabel,
+  toolsMatch,
+  realToolVersions,
+  UP_TO_DATE_NOTE,
+  type BaseRun,
+  type FileSetRead,
+} from '../../framework/input-hash.js';
+import {
   goReachability,
+  reachabilityFor,
   goVulnDbDir,
   symbolReachability,
   validateVulnerabilities,
@@ -17,9 +36,10 @@ import {
   packagesFromSbom,
 } from './malicious.js';
 import { adviseFix, readFixGraphs } from './fixpath/index.js';
-import { runDependencyTools, vulnDbDir } from './tools.js';
+import { runDependencyTools, runGrypeOnSbom, vulnDbDir } from './tools.js';
 import {
   dependencyFindings,
+  manifestPaths,
   DEPENDENCY_SCANNER_KEY,
   type FindingFunnel,
   type PricedIncomingFinding,
@@ -79,6 +99,15 @@ export interface DependencyRunDeps {
   snapshot?: { dir: string; commitSha: string };
   /** The pull request a `pr_synced` run is for; stamped on what it creates. */
   pullRequestId?: number | null;
+  /**
+   * W23-04. The newest real run for this repo (`latestBaseRun`). When given, the
+   * run first asks `dependencyScanDecision` and may answer without a tarball:
+   * `up_to_date` records a `skipped` row, `rematch` re-matches the stored SBOM.
+   * Omit it to force a full scan (a "Full rescan" press, a PR run).
+   */
+  baseRun?: BaseRun | null | undefined;
+  /** Test seam for the rematch's grype call; production runs the sandbox. */
+  grypeOnSbom?: typeof runGrypeOnSbom;
   /**
    * W21-03. The V5 second opinion on this run's CVEs, after they are stored
    * and priced: the caller (the worker) owns which connection may be asked and
@@ -160,6 +189,8 @@ export interface DependencyRunResult {
   /** Findings whose effective_risk this run wrote (V4). */
   findingsPriced: number;
   sbomStored: boolean;
+  /** W23-04: which way the input-hash gate went. Absent = no baseline was offered. */
+  gate?: DependencyScanDecision;
   /** W21-03: the second opinion on this run's CVEs, when one was wired. */
   cveVerify?: CveVerifySummary;
   error?: string;
@@ -188,7 +219,128 @@ const emptyFunnel = {
   sbomStored: false,
 };
 
+// ---- W23-04: the input-hash gate ---------------------------------------------
+//
+// grype's answer is a function of two things: the component list (from the
+// manifests) and the advisory database. When the manifests are byte-identical
+// the SBOM is unchanged, and:
+//   - database stamp equal   -> the whole answer is unchanged: up_to_date;
+//   - database stamp changed -> only the MATCHING is stale: rematch the stored
+//     SBOM, no snapshot, no syft;
+//   - manifests changed      -> today's path, tarball and all.
+// Anything the gate cannot establish (no baseline, no recorded hash, a manifest
+// the forge truncated, a forge error) is `full`.
+
+export type DependencyScanDecision = 'up_to_date' | 'rematch' | 'full';
+
+export interface DependencyGateArgs {
+  provider: ForgeProvider;
+  repo: string;
+  sha: string;
+  baseRun: BaseRun | null;
+  /** Today's advisory stamp. Defaults to `advisoryDataVersion()`. */
+  dataVersion?: string | null;
+  /** The tool versions the run would stamp, when the caller knows them; omitted = not compared. */
+  toolVersions?: Record<string, string> | null;
+}
+
+export interface DependencyGate {
+  decision: DependencyScanDecision;
+  /** The manifest set read for the decision, reused by a rematch. */
+  manifests: FileSetRead | null;
+  dataVersion: string | null;
+}
+
+export async function dependencyGate(args: DependencyGateArgs): Promise<DependencyGate> {
+  const dataVersion =
+    args.dataVersion !== undefined ? args.dataVersion : await advisoryDataVersion();
+  const full = (manifests: FileSetRead | null = null): DependencyGate => ({
+    decision: 'full',
+    manifests,
+    dataVersion,
+  });
+  const base = args.baseRun;
+  if (!base || base.inputHash === null || base.inputPaths.length === 0) return full();
+  if (dataVersion === null) return full();
+  if (!toolsMatch(base, args.toolVersions)) return full();
+
+  let manifests: FileSetRead;
+  try {
+    manifests = await readManifestSet(
+      args.provider,
+      args.repo,
+      args.sha,
+      mergePaths(MANIFEST_ROOT_PATHS, base.inputPaths),
+    );
+  } catch {
+    return full();
+  }
+  if (manifests.hash === null || manifests.hash !== base.inputHash) return full(manifests);
+  return {
+    decision: base.dataVersion === dataVersion ? 'up_to_date' : 'rematch',
+    manifests,
+    dataVersion,
+  };
+}
+
+/** `'up_to_date' | 'rematch' | 'full'` for one repo at `sha` against its newest real run. */
+export async function dependencyScanDecision(
+  args: DependencyGateArgs,
+): Promise<DependencyScanDecision> {
+  return (await dependencyGate(args)).decision;
+}
+
 export async function runDependencyScan(deps: DependencyRunDeps): Promise<DependencyRunResult> {
+  const trigger = deps.trigger ?? 'schedule';
+  // A PR run is a look at a branch and has no baseline; a handed-in snapshot
+  // means someone already paid for the tree. Neither is gated.
+  const gated = deps.baseRun !== undefined && deps.trigger !== 'pr_synced' && !deps.snapshot;
+  let dataVersion: string | null = null;
+  let gateName: DependencyScanDecision | undefined;
+  if (gated) {
+    const gate = await dependencyGate({
+      provider: deps.provider,
+      repo: deps.repo,
+      sha: deps.commitSha,
+      baseRun: deps.baseRun ?? null,
+    });
+    dataVersion = gate.dataVersion;
+    gateName = gate.decision;
+    const base = deps.baseRun!;
+    if (gate.decision === 'up_to_date') {
+      const runId = await recordGatedRun(deps.db, {
+        workspaceId: deps.workspaceId,
+        repoId: deps.repoId,
+        scannerKey: DEPENDENCY_SCANNER_KEY,
+        commitSha: deps.commitSha,
+        trigger,
+        base,
+        scope: 'skipped',
+        dataVersion,
+        findingCount: base.findingCount,
+        note: UP_TO_DATE_NOTE,
+      });
+      return {
+        status: 'succeeded',
+        scanRunId: runId,
+        ...emptyFunnel,
+        findingsTotal: base.findingCount,
+        gate: 'up_to_date',
+      };
+    }
+    if (gate.decision === 'rematch') {
+      const rematched = await rematchSbom(deps, {
+        base,
+        manifests: gate.manifests?.files ?? [],
+        dataVersion,
+      });
+      if (rematched) return rematched;
+      gateName = 'full'; // no stored SBOM for the baseline commit: fall through
+    }
+  } else {
+    dataVersion = await advisoryDataVersion();
+  }
+
   const [run] = await deps.db
     .insert(security.scanRuns)
     .values({
@@ -197,8 +349,9 @@ export async function runDependencyScan(deps: DependencyRunDeps): Promise<Depend
       scannerKey: DEPENDENCY_SCANNER_KEY,
       scannerVersion: 'pending',
       commitSha: deps.commitSha,
-      trigger: deps.trigger ?? 'schedule',
+      trigger,
       status: 'running',
+      dataVersion,
     })
     .returning();
   const runId = run!.id;
@@ -395,11 +548,31 @@ export async function runDependencyScan(deps: DependencyRunDeps): Promise<Depend
 
       const findingsPriced = await priceStoredFindings(deps, mapped.priced);
 
-      await closeRun(deps.db, runId, 'succeeded', mapped.findings.length, null, {
-        ...tools.toolVersions,
-        ...(reachability.toolVersion ? { govulncheck: reachability.toolVersion } : {}),
-        ...(symbols.toolVersion ? { opengrep: symbols.toolVersion } : {}),
-      });
+      // W23-04: the hash of the manifests THIS run read, over the paths syft
+      // found them at plus the root floor — the same set the next gate hashes,
+      // read from the snapshot already on disk (no extra forge calls).
+      const stamped = prRun
+        ? null
+        : hashSnapshotFiles(
+            snapshot.dir,
+            mergePaths(MANIFEST_ROOT_PATHS, manifestPaths(tools.document)),
+          );
+      await closeRun(
+        deps.db,
+        runId,
+        'succeeded',
+        mapped.findings.length,
+        null,
+        stampInputs(
+          {
+            ...tools.toolVersions,
+            ...(reachability.toolVersion ? { govulncheck: reachability.toolVersion } : {}),
+            ...(symbols.toolVersion ? { opengrep: symbols.toolVersion } : {}),
+          },
+          stamped?.hash ?? null,
+          stamped?.paths ?? [],
+        ),
+      );
 
       // The scan is done once its findings are stored; the second opinion
       // runs AFTER the run is closed. Before, the run stayed 'running' while a
@@ -433,6 +606,7 @@ export async function runDependencyScan(deps: DependencyRunDeps): Promise<Depend
         findingsCreated: persisted.created,
         findingsTotal: mapped.findings.length,
         findingsPriced,
+        ...(gateName ? { gate: gateName } : {}),
         ...(cveVerify ? { cveVerify } : {}),
       };
     });
@@ -528,11 +702,242 @@ async function closeRun(
       ...(toolVersions
         ? {
             toolVersions,
-            scannerVersion: Object.entries(toolVersions)
-              .map(([k, v]) => `${k}@${v}`)
-              .join(' '),
+            scannerVersion: toolLabel(toolVersions),
           }
         : {}),
     })
     .where(eq(security.scanRuns.id, runId));
+}
+
+// ---- W23-04: re-match the stored SBOM -------------------------------------------
+
+const REMATCH_UNKNOWN =
+  'the advisory data was refreshed and the source was not re-read, so whether this package ' +
+  'is imported or called was not re-checked on this run';
+
+/** Materialises the manifest files into a scratch dir (V1 and the fix path read lockfiles). */
+async function withManifestDir<T>(
+  files: readonly { path: string; content: string }[],
+  fn: (dir: string) => Promise<T>,
+): Promise<T> {
+  const dir = mkdtempSync(path.join(tmpdir(), 'repopulse-manifests-'));
+  try {
+    for (const file of files) {
+      const target = path.resolve(dir, file.path);
+      // A path comes from a stored SBOM, which came from a repository's tree.
+      if (!target.startsWith(dir + path.sep)) continue;
+      mkdirSync(path.dirname(target), { recursive: true });
+      writeFileSync(target, file.content);
+    }
+    return await fn(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * The advisory database moved and the manifests did not: re-derive the CVE
+ * findings from the SBOM stored for the baseline's commit, with NO snapshot —
+ * grype over the stored document, findings through the SAME persist and pricing
+ * path as a full scan, a `scan_runs` row of scope 'incremental' pointing at the
+ * baseline. Returns null when no SBOM is stored for the baseline (the caller
+ * then runs the full scan).
+ *
+ * WHAT IS NOT RE-DERIVED. V1 (lockfile scope) and the fix path read the
+ * manifests, which the gate already fetched. V2/V3 (imports, call sites) need
+ * source, which this path never reads, so: a finding that already exists keeps
+ * every word the full scan wrote (its title, rationale and fix are read back
+ * and handed to persistFindings unchanged — it bumps the sighting and nothing
+ * else), and is not re-priced; a NEW finding is filed at the manifest tier with
+ * the reason said in its text. No V5 second opinion is spent here, and the
+ * slopsquat pass does not run (its inputs are the manifests, which did not change).
+ */
+export async function rematchSbom(
+  deps: DependencyRunDeps,
+  args: {
+    base: BaseRun;
+    manifests: readonly { path: string; content: string }[];
+    dataVersion: string | null;
+  },
+): Promise<DependencyRunResult | null> {
+  const [stored] = await deps.db
+    .select({ document: security.sboms.document, componentCount: security.sboms.componentCount })
+    .from(security.sboms)
+    .where(
+      and(
+        eq(security.sboms.workspaceId, deps.workspaceId),
+        eq(security.sboms.repoId, deps.repoId),
+        eq(security.sboms.commitSha, args.base.commitSha),
+      ),
+    )
+    .limit(1);
+  if (!stored) return null;
+  const document = stored.document as Record<string, unknown>;
+
+  const [run] = await deps.db
+    .insert(security.scanRuns)
+    .values({
+      workspaceId: deps.workspaceId,
+      repoId: deps.repoId,
+      scannerKey: DEPENDENCY_SCANNER_KEY,
+      scannerVersion: 'pending',
+      commitSha: deps.commitSha,
+      trigger: deps.trigger ?? 'schedule',
+      status: 'running',
+      scope: 'incremental',
+      baseRunId: args.base.id,
+      dataVersion: args.dataVersion,
+    })
+    .returning();
+  const runId = run!.id;
+
+  try {
+    const grype = await (deps.grypeOnSbom ?? runGrypeOnSbom)({
+      document,
+      image: deps.image ?? DEFAULT_IMAGE,
+      vulnDb: deps.vulnDb ?? vulnDbDir(),
+      budget: { wallClockMs: deps.wallClockMs ?? DEFAULT_WALL_CLOCK_MS },
+    });
+    if (grype.status !== 'succeeded') {
+      // Same rule as the full path: a failed match never reaches persistFindings
+      // with an empty list, which would close every CVE this repository has.
+      await closeRun(
+        deps.db,
+        runId,
+        'failed',
+        0,
+        grype.error ?? 'grype failed',
+        null,
+      );
+      return {
+        status: 'failed',
+        scanRunId: runId,
+        ...emptyFunnel,
+        gate: 'rematch',
+        ...(grype.error ? { error: grype.error } : {}),
+      };
+    }
+
+    return await withManifestDir(args.manifests, async (dir) => {
+      const validated = validateVulnerabilities({
+        matches: grype.matches,
+        snapshotDir: dir,
+        rawMatchCount: grype.matchFunnel?.rawMatches ?? grype.matches.length,
+      });
+      // The manifests-only directory would make V2 read "no file imports this"
+      // for every direct dependency — a false not_imported. Say unknown instead.
+      const vulnerabilities = validated.vulnerabilities.map((v) => ({
+        ...v,
+        usage: { status: 'unknown' as const, unknownReason: REMATCH_UNKNOWN, evidence: [] },
+        reachability: reachabilityFor('unknown', null, REMATCH_UNKNOWN),
+        proposals: [],
+      }));
+      const funnel = {
+        ...validated.funnel,
+        usage: { imported: 0, notImported: 0, unknown: vulnerabilities.length },
+        reachability: {
+          symbolReachable: 0,
+          provenUnreachable: 0,
+          imported: 0,
+          manifestOnly: vulnerabilities.length,
+        },
+        proposed: {},
+      };
+
+      const fixGraphs = readFixGraphs(dir).graphs;
+      const mapped = dependencyFindings(vulnerabilities, document, (v) =>
+        adviseFix(fixGraphs, {
+          packageType: v.packageType,
+          name: v.packageName,
+          version: v.packageVersion,
+          fixVersions: v.fixVersions,
+        }),
+      );
+      const malicious = loadMaliciousIndex();
+      const maliciousHits = malicious.ok
+        ? matchMalicious(packagesFromSbom(document), malicious.index).map(maliciousFinding)
+        : [];
+      mapped.priced.push(...maliciousHits);
+      mapped.findings.push(...maliciousHits.map((h) => h.finding));
+
+      // Existing findings keep their stored words and their stored price.
+      const keys = mapped.priced.map((p) => p.key);
+      const existing =
+        keys.length === 0
+          ? []
+          : await deps.db
+              .select({
+                dedupKey: read.findings.dedupKey,
+                title: read.findings.title,
+                rationale: read.findings.rationale,
+                recommendation: read.findings.recommendation,
+              })
+              .from(read.findings)
+              .where(
+                and(
+                  eq(read.findings.workspaceId, deps.workspaceId),
+                  eq(read.findings.repoId, deps.repoId),
+                  inArray(read.findings.dedupKey, keys),
+                ),
+              );
+      const byKey = new Map(existing.map((row) => [row.dedupKey, row]));
+      const fresh: PricedIncomingFinding[] = [];
+      for (const entry of mapped.priced) {
+        const prior = byKey.get(entry.key);
+        if (!prior) {
+          fresh.push(entry);
+          continue;
+        }
+        entry.finding.title = prior.title;
+        entry.finding.rationale = prior.rationale ?? entry.finding.rationale;
+        entry.finding.suggestedFix = prior.recommendation ?? entry.finding.suggestedFix;
+      }
+
+      const persisted = await persistFindings(deps.db, {
+        workspaceId: deps.workspaceId,
+        repoId: deps.repoId,
+        scanRunId: runId,
+        pullRequestId: null,
+        tier: 1,
+        findings: mapped.findings,
+        reviewedFiles: mapped.reviewedFiles,
+        sweepDimensions: ['dependency'],
+        sweepScannerKey: DEPENDENCY_SCANNER_KEY,
+      });
+      const findingsPriced = await priceStoredFindings(deps, fresh);
+
+      const stamped = stampInputs(
+        { ...(realToolVersions(args.base.toolVersions) ?? {}), ...grype.toolVersions },
+        args.base.inputHash,
+        args.base.inputPaths,
+      );
+      await closeRun(deps.db, runId, 'succeeded', mapped.findings.length, null, stamped);
+
+      return {
+        status: 'succeeded' as const,
+        scanRunId: runId,
+        sbomStored: false,
+        componentsScanned: stored.componentCount,
+        ...funnelNumbers(grype.matchFunnel, mapped.funnel),
+        validation: funnel,
+        reachabilityNote: REMATCH_UNKNOWN,
+        maliciousFound: maliciousHits.length,
+        maliciousNote: malicious.ok ? null : malicious.reason,
+        slopsquat: null,
+        findingsCreated: persisted.created,
+        findingsTotal: mapped.findings.length,
+        findingsPriced,
+        gate: 'rematch' as const,
+      };
+    });
+  } catch (err) {
+    await closeRun(deps.db, runId, 'failed', 0, safeErrorText(err).slice(0, 500), null);
+    return {
+      status: 'failed',
+      scanRunId: runId,
+      ...emptyFunnel,
+      gate: 'rematch',
+      error: safeErrorText(err),
+    };
+  }
 }

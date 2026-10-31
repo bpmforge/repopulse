@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { SCAN_MOUNT_PATH } from '../../../sandbox/profile.js';
 import { runInSandbox, stderrTail, type RunInSandboxOptions } from '../../../sandbox/run.js';
@@ -343,4 +344,104 @@ function syftVersion(document: Record<string, unknown>): string | null {
     if (entry?.name === 'syft' && typeof entry.version === 'string') return entry.version;
   }
   return null;
+}
+
+export interface GrypeOnSbomArgs {
+  /** The stored CycloneDX document — exactly what `runDependencyTools` returned. */
+  document: Record<string, unknown>;
+  image: string;
+  budget: Pick<ScanBudget, 'wallClockMs'> & Partial<ScanBudget>;
+  runtime?: string;
+  vulnDb?: string;
+  spawnFn?: RunInSandboxOptions['spawnFn'];
+}
+
+export interface GrypeOnSbomResult {
+  status: 'succeeded' | 'failed';
+  matches: DependencyMatch[];
+  matchFunnel: MatchFunnel | null;
+  toolVersions: Record<string, string>;
+  error?: string;
+}
+
+/**
+ * grype over a STORED SBOM, with no source tree (W23-04 rematch).
+ *
+ * The advisory database moved and the manifests did not, so the component list
+ * is still right and only the matching is stale. The SBOM is written to a
+ * scratch directory that takes the place of the snapshot mount, then goes
+ * through the same normaliser and the same grype invocation as the full path —
+ * and under the same profile (--network=none, read-only database). Same
+ * discipline as `runDependencyTools`: each step's exit code is echoed and
+ * checked, never piped, so a normaliser that died cannot hand grype nothing and
+ * read as a clean repository.
+ */
+export async function runGrypeOnSbom(args: GrypeOnSbomArgs): Promise<GrypeOnSbomResult> {
+  const toolVersions: Record<string, string> = { grype: 'unknown' };
+  const fail = (error: string): GrypeOnSbomResult => ({
+    status: 'failed',
+    matches: [],
+    matchFunnel: null,
+    toolVersions,
+    error,
+  });
+  const vulnDb = args.vulnDb ?? vulnDbDir();
+  const dbCheck = checkVulnDb(vulnDb);
+  if (!dbCheck.ok) return fail(dbCheck.reason);
+
+  const scratch = mkdtempSync(path.join(tmpdir(), 'repopulse-rematch-'));
+  try {
+    // The container runs as an unprivileged user; mkdtemp's 0700 would hide it.
+    chmodSync(scratch, 0o755);
+    const sbomFile = path.join(scratch, 'sbom.json');
+    writeFileSync(sbomFile, JSON.stringify(args.document), { mode: 0o644 });
+
+    const result = await runInSandbox({
+      image: args.image,
+      snapshotDir: scratch,
+      ...(args.runtime ? { runtime: args.runtime } : {}),
+      ...(args.spawnFn ? { spawnFn: args.spawnFn } : {}),
+      extraMounts: [{ hostPath: vulnDb, containerPath: VULN_DB_MOUNT_PATH }],
+      budget: args.budget,
+      parseOutput: false,
+      command: [
+        'sh',
+        '-c',
+        [
+          `node ${NORMALISER_PATH} ${SCAN_MOUNT_PATH}/sbom.json ${GRYPE_SBOM_PATH}`,
+          `echo "NORMALISE_EXIT=$?"`,
+          `echo '${GRYPE_MARKER}'`,
+          `grype sbom:${GRYPE_SBOM_PATH} -o json`,
+          `echo "GRYPE_EXIT=$?"`,
+        ].join('; '),
+      ],
+    });
+    if (result.rawStdout === undefined) return fail(result.error ?? result.status);
+
+    const [head = '', grypeText = ''] = splitOnce(result.rawStdout, GRYPE_MARKER);
+    const normaliseExit = readExitCode(head, 'NORMALISE_EXIT');
+    const grypeExit = readExitCode(grypeText, 'GRYPE_EXIT');
+    const tail = stderrTail(result.stderr, 3);
+    const detail = tail === '' ? '' : `: ${tail}`;
+    if (normaliseExit === null) return fail('the SBOM normaliser did not report an exit code');
+    if (normaliseExit !== 0) return fail(`the SBOM normaliser exited ${normaliseExit}${detail}`);
+    if (grypeExit === null) return fail('grype did not report an exit code');
+    if (grypeExit !== 0) return fail(`grype exited ${grypeExit}${detail}`);
+
+    let parsed;
+    try {
+      parsed = parseGrypeMatches(grypeText.slice(0, grypeText.lastIndexOf('GRYPE_EXIT=')));
+    } catch (error) {
+      return fail(`grype output could not be read: ${(error as Error).message.slice(0, 200)}`);
+    }
+    toolVersions.grype = parsed.grypeVersion ?? 'unknown';
+    return {
+      status: 'succeeded',
+      matches: parsed.matches,
+      matchFunnel: parsed.funnel,
+      toolVersions,
+    };
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
 }

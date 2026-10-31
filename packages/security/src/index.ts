@@ -1,6 +1,7 @@
 export * from './framework/types.js';
 export * from './framework/budget.js';
 export * from './framework/up-to-date.js';
+export * from './framework/input-hash.js';
 export * from './registry.js';
 export * from './config/defaults.js';
 export * from './snapshot/tar.js';
