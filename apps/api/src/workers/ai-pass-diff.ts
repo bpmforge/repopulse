@@ -1,6 +1,6 @@
 import { and, asc, eq, gt, lte, sql } from 'drizzle-orm';
 import { core, facts, type Database } from '@repopulse/shared';
-import type { CallCtx, ForgeDiffFile, ForgeProvider } from '@repopulse/forge';
+import type { CallCtx, ForgeComparison, ForgeDiffFile, ForgeProvider } from '@repopulse/forge';
 import { AI_PASS_MAX_BYTES, AI_PASS_MAX_FILES, type AiPassDeps } from './ai-pass-processor.js';
 
 // Where a DIFF-mode AI pass gets its changes (W19-11): a pull request's files or
@@ -305,5 +305,38 @@ export function forgeDiffSources(deps: ForgeDiffDeps): NonNullable<AiPassDeps['l
       unreadable,
       ...(commits ? { commits } : {}),
     };
+  };
+}
+
+/**
+ * W23-07: the files that differ between two heads of a pull request, for an
+ * incremental re-review. The compare call lives HERE, in the worker, through the
+ * budgeted client on the scan lane (Law 7); analysis never calls the forge and
+ * receives only the file list. null = unavailable (the forge cannot compare, or
+ * refused it - an unknown base after a force push is a 404 - or the repo has no
+ * connection): the caller reviews in full.
+ */
+export function forgeCompareHeads(
+  deps: ForgeDiffDeps,
+): (req: { workspaceId: number; repoId: number; base: string; head: string }) => Promise<ForgeComparison | null> {
+  return async (req) => {
+    const [repo] = await deps.db
+      .select({ id: core.repos.id })
+      .from(core.repos)
+      .where(and(eq(core.repos.id, req.repoId), eq(core.repos.workspaceId, req.workspaceId)))
+      .limit(1);
+    if (!repo) return null;
+    const forge = await deps.forgeFor(req.workspaceId, req.repoId);
+    if (!forge || typeof forge.provider.compareCommits !== 'function') return null;
+    try {
+      return await forge.provider.compareCommits(
+        { lane: 'scan', repoId: String(req.repoId) },
+        forge.repoFullName,
+        req.base,
+        req.head,
+      );
+    } catch {
+      return null;
+    }
   };
 }

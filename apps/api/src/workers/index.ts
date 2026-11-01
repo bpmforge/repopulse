@@ -29,7 +29,7 @@ import { judgeConfigFromEnv, queueJudgeAfterScan } from './ai-judge.js';
 import { fixConfigFor } from './ai-fix.js';
 import { createSecondModelVerifier, cveVerifyHook } from './second-model.js';
 import { snapshotSources } from './ai-pass-sources.js';
-import { forgeDiffSources } from './ai-pass-diff.js';
+import { forgeCompareHeads, forgeDiffSources } from './ai-pass-diff.js';
 import { SCHEDULER_TICK_MS, runScheduleTick } from './ai-pass-scheduler.js';
 import { providerForRepo } from './forge-provider.js';
 import { runKnowledgeRegister, runTestGapRegister } from '@repopulse/insights';
@@ -1296,6 +1296,12 @@ async function main(): Promise<void> {
         // Diff modes (W19-11): a pull request's files or a short commit range,
         // through the budgeted client on the scan lane.
         loadDiff: forgeDiffSources({
+          db,
+          forgeFor: (workspaceId, repoId) => providerForRepo(scanForgeDeps, workspaceId, repoId),
+        }),
+        // W23-07: the files between two heads of a pull request, so a new push
+        // re-reviews only what changed (same budgeted scan-lane client).
+        compareHeads: forgeCompareHeads({
           db,
           forgeFor: (workspaceId, repoId) => providerForRepo(scanForgeDeps, workspaceId, repoId),
         }),

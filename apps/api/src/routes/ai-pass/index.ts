@@ -206,6 +206,13 @@ export default async function aiPassRoutes(
     base_ref: r.baseRef,
     head_ref: r.headRef,
     pr_number: r.prNumber,
+    // W23-07: "incremental since <sha7>" - the head the base review read.
+    scope: r.scope,
+    incremental_since:
+      r.scope === 'incremental'
+        ? ((r.specialists as { incremental?: { sinceSha?: string } } | null)?.incremental
+            ?.sinceSha ?? null)
+        : null,
     commit_sha: r.commitSha,
     reason_code: r.reasonCode,
     reason: r.reason,

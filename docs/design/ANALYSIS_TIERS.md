@@ -244,3 +244,56 @@ Known limits: a verified patch is "clears this rule set and adds no finding to i
 "correct" — the note tells the developer to review it like any change, and a prompt
 injection in the scanned file can at most produce a patch the rules do not object to.
 Rule sets are run twice per attempt (before and after) as separate sandbox runs.
+
+## 8. Incremental re-review on a new push (W23-07)
+
+A pull request that gets another push is not re-read from scratch. When a
+review of the same PR already **finished cleanly** at an earlier head with the
+**same prompt version**, only the hunks changed between the two heads go to the
+model; every other finding is decided from evidence.
+
+**Where it runs.** The review is the `pull_request` AI pass (`ai-pass-processor.ts`).
+The forge compare happens in the **api worker** (`forgeCompareHeads` in
+`ai-pass-diff.ts`, `provider.compareCommits(priorHead, newHead)` through the
+budgeted scan-lane client, Law 7). Analysis never calls the forge (module
+boundary): the worker hands the file list to the pure `planReviewScope`
+(`packages/analysis/src/scheduling/incremental.ts`), then restricts the PR's
+`getPullRequestFiles` diff to the changed paths (`restrictDiff`) before
+`runSpecialists`. Calls still go through the gateway only (Law 8).
+
+**Full review whenever there is doubt** (`reason` is the first that applies):
+`forced` (job `force`), `no_prior_review`, `prior_not_clean` (the prior pass
+dropped a specialist for budget, had a failed chunk or unreadable file),
+`same_head`, `prompt_version_changed`, `compare_unavailable` (no capability,
+forge refused, e.g. 404 after a force push), `compare_truncated` (the list may be
+short, so "only these changed" would be a guess), `no_reviewable_change`.
+
+**Prompt version.** `reviewPromptVersion()` stamps every specialist's checklist
+version (`security@v1+performance@v3+...`) on `ai_pass_runs.prompt_version`.
+Any checklist change forces one full review, after which pushes are incremental
+again. The W23-06 static/dynamic prompt split does not change the stamp: it
+alters caching, not what the model is asked.
+
+**Run record.** `ai_pass_runs.scope` is `incremental` and `base_run_id` points
+at the pass it stands on (migration 0067; both default to full/NULL, so older
+rows keep their meaning). `specialists.incremental` holds `sinceSha`, files
+changed vs in the PR, and carried/closed counts. The review surface shows
+"incremental since <sha7>" next to what the pass reviewed.
+
+**Findings.** What the new chunks raise persists through the normal path
+(`persistFindings`: same dedup key re-sights it). Every OTHER open or confirmed
+finding the base pass raised is decided by `carryForwardReview`
+(`packages/insights/src/findings/review-carry.ts`): if its quote is still in the
+PR's NEW full diff (new side, `normalizeForMatch`: whitespace collapsed, lower
+case: the same normalisation the evidence validator uses) it is **carried
+forward** (`last_seen_at` moves, `occurrence_count` +1, and the new pass gets a
+provenance row so the next push can carry it again); if not, it is **closed** as
+`outdated_diff`, with a finding event, as a full sweep would. Dismissed,
+wont_fix and resolved findings are never touched (D9a).
+
+**Limits.** Idempotency is unchanged: one review per
+`(repoId, prNumber, headSha, dimension)` (`reviewJobId`). The decision is
+per pass, not per dimension: a pass that did not answer for every specialist is
+never a base. A finding in a changed file whose quote survives but which the
+model did not re-raise is carried, not closed: the quote, not the model's
+silence, is the evidence.

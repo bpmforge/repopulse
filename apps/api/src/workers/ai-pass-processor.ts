@@ -5,24 +5,42 @@ import {
   contextWindowForRole,
   excerptAround,
   findingVerdict,
+  needsCompare,
   needsVerification,
+  planReviewScope,
+  quoteStillPresent,
+  restrictDiff,
+  reviewPromptVersion,
   runSpecialists,
   specialistById,
   type AnalysisGateway,
   type LlmRole,
+  type ReviewScopePlan,
   type RoutingPolicy,
   type SpecialistId,
   type SecondModelVerify,
   type T2Host,
 } from '@repopulse/analysis';
-import { dedupKey, persistFindings, recordVerdicts, type FindingVerify } from '@repopulse/insights';
+import {
+  carryForwardReview,
+  dedupKey,
+  persistFindings,
+  recordVerdicts,
+  type FindingVerify,
+} from '@repopulse/insights';
 import {
   TRIAGE_TOP_N,
   parseContextPacket,
   runTriage,
   type TriageCandidate,
 } from '@repopulse/security';
-import { overlaps, rangesByFile, type DiffRequest, type LoadedDiff } from './ai-pass-diff.js';
+import {
+  overlaps,
+  rangesByFile,
+  type DiffEntry,
+  type DiffRequest,
+  type LoadedDiff,
+} from './ai-pass-diff.js';
 import { isAiPaused } from '../lib/ai-pause.js';
 import { withAiPass } from './ai-pass-context.js';
 import { describeEndpoint, loadStoredRouting, providersFor } from '../lib/llm-routing.js';
@@ -65,6 +83,8 @@ export interface AiPassJobData {
   requestId?: string;
   /** A lower call cap for this pass (a scheduled pass is limited by what is left of the month). */
   maxCalls?: number;
+  /** W23-07: review the whole pull request even when an incremental re-review would do. */
+  force?: boolean;
 }
 
 export interface PassFile {
@@ -96,6 +116,20 @@ export interface AiPassDeps {
   }) => Promise<LoadedSources>;
   /** The changes of a pull request or a commit range (W19-11); absent = diff mode unavailable. */
   loadDiff?: (req: DiffRequest) => Promise<LoadedDiff>;
+  /**
+   * W23-07: the files that differ between two heads of a pull request (the
+   * forge compare, budgeted, in the worker). Absent or null = unavailable, and
+   * the review is a full one.
+   */
+  compareHeads?: (req: {
+    workspaceId: number;
+    repoId: number;
+    base: string;
+    head: string;
+  }) => Promise<{
+    files: { path: string; status: string; previousPath?: string }[];
+    truncated: boolean;
+  } | null>;
   /**
    * W20-18 (UX_TODO AI-14): a gateway on ONE connection and model, for a second
    * opinion. Absent = second opinions are unavailable on this server.
@@ -374,6 +408,9 @@ export function aiPassProcessor(deps: AiPassDeps) {
       let unreadable: string[] = [];
       let diffRanges: Map<string, [number, number][]> | null = null;
       let commitSha: string;
+      let incremental: Extract<ReviewScopePlan, { scope: 'incremental' }> | null = null;
+      let reviewScope: { scope: 'full' | 'incremental'; baseRunId?: number } = { scope: 'full' };
+      let fullDiff: readonly DiffEntry[] = [];
       if (run.mode === 'paths') {
         const loaded = await deps.loadSources({
           workspaceId,
@@ -400,12 +437,31 @@ export function aiPassProcessor(deps: AiPassDeps) {
         });
         if (!loaded.ok) return fail(loaded.code, loaded.reason);
         commitSha = loaded.commitSha;
+        // W23-07: on a new push to a reviewed pull request, only the hunks
+        // changed since the prior reviewed head go to the model.
+        let sent = loaded.files;
+        if (run.mode === 'pull_request' && run.prNumber !== null) {
+          const decision = await decideReviewScope({
+            deps,
+            run,
+            workspaceId,
+            headSha: loaded.headRef,
+            prFiles: loaded.files.map((f) => f.path),
+            force: job.data.force === true,
+          });
+          if (decision.scope === 'incremental') {
+            sent = restrictDiff(loaded.files, decision.changed);
+            incremental = decision;
+            reviewScope = { scope: 'incremental', baseRunId: decision.baseRunId };
+          }
+        }
+        fullDiff = loaded.files;
         input = {
           kind: 'diff',
-          files: loaded.files.map((f) => ({ path: f.path, patch: f.patch })),
+          files: sent.map((f) => ({ path: f.path, patch: f.patch })),
         };
         promptTitle = loaded.title;
-        filesRead = loaded.files.length;
+        filesRead = sent.length;
         unreadable = loaded.unreadable;
         diffRanges = rangesByFile(loaded.files);
         await db
@@ -413,7 +469,19 @@ export function aiPassProcessor(deps: AiPassDeps) {
           .set({ baseRef: loaded.baseRef, headRef: loaded.headRef })
           .where(eq(read.aiPassRuns.id, runId));
       }
-      await db.update(read.aiPassRuns).set({ commitSha }).where(eq(read.aiPassRuns.id, runId));
+      await db
+        .update(read.aiPassRuns)
+        .set({
+          commitSha,
+          ...(run.mode === 'pull_request'
+            ? {
+                scope: reviewScope.scope,
+                baseRunId: reviewScope.baseRunId ?? null,
+                promptVersion: reviewPromptVersion(),
+              }
+            : {}),
+        })
+        .where(eq(read.aiPassRuns.id, runId));
 
       const window = (id: SpecialistId): number | null =>
         contextWindowForRole(wg.routing, specialistById(id).role as LlmRole, wg.hosts);
@@ -535,6 +603,21 @@ export function aiPassProcessor(deps: AiPassDeps) {
         }
       }
 
+      // 2b. W23-07: an incremental review decides every OTHER finding of the base
+      // pass from the new full diff: quote still there = carried, gone = closed.
+      let carried: { carried: number; closed: number } | null = null;
+      if (incremental) {
+        const patches = new Map(fullDiff.map((f) => [f.path, f.patch]));
+        carried = await carryForwardReview({
+          db,
+          workspaceId,
+          repoId: run.repoId,
+          baseAiPassRunId: incremental.baseRunId,
+          newAiPassRunId: runId,
+          quoteInDiff: (file, quote) => quoteStillPresent(quote, patches.get(file)),
+        });
+      }
+
       // 3. Evidence-fed triage of RULE-raised findings in scope.
       const triage = await triageStep({
         deps,
@@ -602,6 +685,18 @@ export function aiPassProcessor(deps: AiPassDeps) {
           ...(filesSkipped ? { filesSkipped } : {}),
           ...(unreadable.length > 0 ? { unreadable } : {}),
           verify: verify.summary,
+          ...(incremental && carried
+            ? {
+                incremental: {
+                  sinceSha: incremental.sinceSha,
+                  baseRunId: incremental.baseRunId,
+                  filesChanged: incremental.changed.length,
+                  filesInPullRequest: fullDiff.length,
+                  carriedForward: carried.carried,
+                  closed: carried.closed,
+                },
+              }
+            : {}),
         },
         triageFunnel: triage.funnel as unknown as Record<string, unknown> | null,
         triageSkipped: triage.skipped,
@@ -625,6 +720,66 @@ export function aiPassProcessor(deps: AiPassDeps) {
       return fail('error', safeErrorText(err), progress);
     }
   }
+}
+
+/**
+ * W23-07: full or incremental. Looks for the latest FINISHED review of this pull
+ * request; the cheap checks (no prior, different prompt version, same head,
+ * `force`) decide without a forge call. Any failure to compare is a full review.
+ */
+async function decideReviewScope(a: {
+  deps: AiPassDeps;
+  run: typeof read.aiPassRuns.$inferSelect;
+  workspaceId: number;
+  headSha: string;
+  prFiles: string[];
+  force: boolean;
+}): Promise<ReviewScopePlan> {
+  const { db } = a.deps;
+  const [row] = await db
+    .select()
+    .from(read.aiPassRuns)
+    .where(
+      and(
+        eq(read.aiPassRuns.workspaceId, a.workspaceId),
+        eq(read.aiPassRuns.repoId, a.run.repoId),
+        eq(read.aiPassRuns.mode, 'pull_request'),
+        eq(read.aiPassRuns.prNumber, a.run.prNumber as number),
+        eq(read.aiPassRuns.status, 'succeeded'),
+        sql`${read.aiPassRuns.id} < ${a.run.id}`,
+        isNotNull(read.aiPassRuns.commitSha),
+      ),
+    )
+    .orderBy(desc(read.aiPassRuns.id))
+    .limit(1);
+  const specialists = (row?.specialists ?? {}) as {
+    droppedForBudget?: unknown[];
+    failures?: unknown[];
+    unreadable?: unknown[];
+  };
+  const prior = row
+    ? {
+        runId: row.id,
+        headSha: row.commitSha as string,
+        promptVersion: row.promptVersion,
+        completeAndClean:
+          (specialists.droppedForBudget ?? []).length === 0 &&
+          (specialists.failures ?? []).length === 0 &&
+          (specialists.unreadable ?? []).length === 0,
+      }
+    : null;
+  const promptVersion = reviewPromptVersion();
+  const args = { prior, newHeadSha: a.headSha, promptVersion, force: a.force };
+  const comparison =
+    needsCompare(args) === 'compare' && a.deps.compareHeads && prior
+      ? await a.deps.compareHeads({
+          workspaceId: a.workspaceId,
+          repoId: a.run.repoId,
+          base: prior.headSha,
+          head: a.headSha,
+        })
+      : null;
+  return planReviewScope({ ...args, comparison, prFiles: a.prFiles });
 }
 
 type SpecialistFinding = Awaited<ReturnType<typeof runSpecialists>>['findings'][number];

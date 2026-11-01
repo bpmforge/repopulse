@@ -80,3 +80,5 @@ export function analysisStatus(hosts: readonly HostStatus[], cap: number): {
   }
   return { state: 'ok', banner: null };
 }
+
+export * from './incremental.js';
