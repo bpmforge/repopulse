@@ -1,5 +1,8 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createQueryClient } from '../../api/queryClient.js';
 import { ScannerStatusList, ScanToolingNote } from './ScannerStatusList.js';
 import { SCANNER_STATE_LABEL, type ScannerStatus } from './contracts.js';
 
@@ -344,8 +347,8 @@ describe('coverage order (W20-13, FND-31)', () => {
   });
 });
 
-describe('scope in the coverage table (W23-01)', () => {
-  it('says "Up to date as of <date>" for a skipped run, not "never" and not a bare date', () => {
+describe('Scope column (W23-01, W23-03, W23-08)', () => {
+  it('says "up to date as of <date>" for a skipped run, not "never" and not a bare date', () => {
     render(
       <ScannerStatusList
         scanners={[
@@ -361,42 +364,34 @@ describe('scope in the coverage table (W23-01)', () => {
         ]}
       />,
     );
-    const cell = screen.getByTestId('scanner-last-run-semgrep');
-    expect(cell.textContent).toMatch(/^Up to date as of /);
-    expect(cell.textContent).not.toMatch(/never/i);
-    expect(screen.getByTestId('scanner-scope-semgrep')).toHaveTextContent('nothing re-scanned');
+    expect(screen.getByTestId('scanner-last-run-semgrep').textContent).not.toMatch(/never/i);
+    expect(screen.getByTestId('scanner-scope-semgrep').textContent).toMatch(/^up to date as of /);
     // Not "ran clean" — it did not run; the earlier result still stands.
     const label = screen.getByTestId('scanner-state-semgrep').textContent ?? '';
     expect(label).toContain('up to date');
     expect(label).not.toContain('ran clean');
   });
 
-  it('shows the scope of a real run without calling it up to date', () => {
+  it('says "full" for a full run without calling it up to date', () => {
     render(<ScannerStatusList scanners={[scanner({ key: 'semgrep', last_run_scope: 'full' })]} />);
-    expect(screen.getByTestId('scanner-last-run-semgrep').textContent).not.toMatch(/up to date/i);
-    expect(screen.getByTestId('scanner-scope-semgrep')).toHaveTextContent('full scan');
+    expect(screen.getByTestId('scanner-scope-semgrep').textContent).toMatch(/^full/);
+    expect(screen.getByTestId('scanner-scope-semgrep').textContent).not.toMatch(/up to date/i);
   });
 
-  it('still says "never" for a scanner with no run at all', () => {
+  it('has a Scope column header and a dash when there is no run or no scope', () => {
     render(
       <ScannerStatusList
         scanners={[
-          scanner({
-            key: 'semgrep',
-            state: 'never_run',
-            last_run_at: null,
-            last_run_scope: null,
-          }),
+          scanner({ key: 'semgrep', state: 'never_run', last_run_at: null, last_run_scope: null }),
         ]}
       />,
     );
+    expect(screen.getByRole('columnheader', { name: 'Scope' })).toBeInTheDocument();
     expect(screen.getByTestId('scanner-last-run-semgrep').textContent).toBe('never');
     expect(screen.queryByTestId('scanner-scope-semgrep')).toBeNull();
   });
-});
 
-describe('incremental chip (W23-03)', () => {
-  it('says what the delta was measured from and when the tree was last read in full', () => {
+  it('says what an incremental run was measured from, with a last-full tooltip that is also readable text', () => {
     render(
       <ScannerStatusList
         scanners={[
@@ -412,16 +407,15 @@ describe('incremental chip (W23-03)', () => {
         ]}
       />,
     );
-    const chip = screen.getByTestId('scanner-incremental-chip-semgrep').textContent ?? '';
-    expect(chip).toMatch(/^incremental since a1b2c3d · last full /);
-    expect(chip).toContain('2026');
-    // the scope line is still there, and an incremental run is not "up to date as of"
-    expect(screen.getByTestId('scanner-scope-semgrep')).toHaveTextContent('changed files only');
+    const cell = screen.getByTestId('scanner-scope-semgrep');
+    expect(cell.textContent).toMatch(/^incremental since a1b2c3d/);
+    expect(cell.getAttribute('title')).toMatch(/^Last full scan: .*2026/);
+    expect(screen.getByTestId('scanner-last-full-semgrep').textContent).toMatch(/2026/);
     expect(screen.getByTestId('scanner-last-run-semgrep').textContent).not.toMatch(/up to date/i);
   });
 
-  it('leaves out what an older payload does not carry, and is absent for a full run', () => {
-    const { rerender } = render(
+  it('leaves out what an older payload does not carry', () => {
+    render(
       <ScannerStatusList
         scanners={[
           scanner({
@@ -432,20 +426,68 @@ describe('incremental chip (W23-03)', () => {
         ]}
       />,
     );
-    expect(screen.getByTestId('scanner-incremental-chip-semgrep')).toHaveTextContent(
-      /^incremental$/,
+    expect(screen.getByTestId('scanner-scope-semgrep').textContent).toMatch(/^incremental/);
+    expect(screen.getByTestId('scanner-last-full-semgrep')).toHaveTextContent(
+      'No full scan on record',
     );
-    rerender(
-      <ScannerStatusList
-        scanners={[
-          scanner({
-            key: 'semgrep',
-            last_run_scope: 'full',
-            last_full_at: '2026-10-14T09:00:00.000Z',
-          }),
-        ]}
-      />,
+  });
+});
+
+describe('Full rescan from the table (W23-08)', () => {
+  function renderManaged(over: Partial<ScannerStatus>) {
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <ScannerStatusList
+          scanners={[scanner({ key: 'semgrep', display_name: 'Semgrep', ...over })]}
+          manage={{ repoId: '42', invalidate: [] }}
+        />
+      </QueryClientProvider>,
     );
-    expect(screen.queryByTestId('scanner-incremental-chip-semgrep')).toBeNull();
+  }
+  const bodyOf = () => {
+    const calls = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls as [
+      string,
+      { method?: string; body?: string },
+    ][];
+    const post = calls.filter(([, init]) => init?.method === 'POST').at(-1);
+    return JSON.parse(post?.[1].body ?? 'null') as unknown;
+  };
+
+  beforeEach(() => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({ started: ['semgrep'], already_running: [], up_to_date: [] }),
+            { status: 202, headers: { 'content-type': 'application/json' } },
+          ),
+        ),
+      ),
+    );
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('offers a labelled Full rescan button on an up-to-date row that sends force for that scanner only', async () => {
+    renderManaged({ last_run_scope: 'skipped', state: 'ok' });
+    await userEvent.click(screen.getByRole('button', { name: 'Full rescan: Semgrep' }));
+    await screen.findByRole('status');
+    expect(bodyOf()).toEqual({ scanner_key: 'semgrep', force: true });
+  });
+
+  it('does not offer it on a full run, or without the manage role', () => {
+    renderManaged({ last_run_scope: 'full', state: 'ok' });
+    expect(screen.queryByTestId('scanner-full-rescan-semgrep')).toBeNull();
+  });
+
+  it('Re-run sends no force by default and force when the labelled checkbox is ticked', async () => {
+    renderManaged({ state: 'error', error: 'boom', last_run_scope: 'full' });
+    await userEvent.click(screen.getByRole('button', { name: 'Re-run: Semgrep' }));
+    await screen.findByRole('status');
+    expect(bodyOf()).toEqual({ scanner_key: 'semgrep' });
+
+    await userEvent.click(screen.getByLabelText('Full rescan of Semgrep'));
+    await userEvent.click(screen.getByRole('button', { name: 'Re-run: Semgrep' }));
+    await vi.waitFor(() => expect(bodyOf()).toEqual({ scanner_key: 'semgrep', force: true }));
   });
 });

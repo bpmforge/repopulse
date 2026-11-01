@@ -354,6 +354,28 @@ checklists are shipped but off by default and manual; the release journey
 enabled one per repository through `PUT /scanners/:key`, because no screen
 does yet.
 
+### Scan scope and "Full rescan"
+
+**Run scans now** no longer re-scans blindly. A scanner whose last successful run was at the
+same commit, with the same tool versions and data, is reported "up to date" and is not run
+again (no archive fetch); a per-file scanner (semgrep, code-health tools) may scan only the
+files changed since its last run. The Security tab's coverage table shows which happened in its
+**Scope** column (`full`, `incremental since <sha>`, `up to date as of <date>`) and, on hover or
+as plain text under it, when the tree was last read in full. The words are defined in
+docs/design/SECURITY_SUITE.md §5.1.
+
+**Full rescan** forces a complete run regardless. Tick it beside **Run scans now** to re-run every
+enabled scanner, or press **Full rescan** in a row's Scope cell to re-run just that one (admin
+only). Reach for it when:
+
+- you changed something a commit does not record: a rules file, scanner configuration, or the
+  vulnerability database (`deploy/scan-db-sync.sh`);
+- the "last full scan" date is old and you want the carried-forward findings re-measured;
+- a scan seems stuck as "up to date" and you want proof it can still run end to end.
+
+Pressing **Run scans now** twice with no new commit is cheap by design: the second press records
+`up to date` rows and fetches nothing.
+
 ---
 
 ## Tests

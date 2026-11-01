@@ -647,6 +647,34 @@ no tree was fetched. Skipping the tarball when only incremental-capable scanners
 - Health score: open scanner findings feed the FR-INSIGHTS-2 security sub-score basis
   (label upgrades from "Tier-1 only" when scanner data present).
 
+### 5.1 Scan scope on the Security tab (W23-08)
+
+The coverage table has a **Scope** column that says what each scanner's *last run* actually did,
+so a date in "Last run" is never read as "the whole repository was re-read that day":
+
+| Scope cell | What it means for an operator |
+|---|---|
+| `full` | The last run read the whole tree (or the whole input, for a whole-tree scanner). Its findings are a fresh, complete measurement. |
+| `incremental since a1b2c3d` | The last run looked only at the files changed since commit `a1b2c3d` (seven characters of the base) and merged that delta with the findings carried forward from the earlier run. Cheaper, and correct for per-file tools, but it is only as complete as the last full scan. |
+| `up to date as of 31 Oct` | Nothing was scanned. A successful run at this same commit, with the same tool versions and data, already answers the question, so the row restates it. The date is when that was confirmed. State reads "up to date", never "ran clean". |
+| `—` | No run yet, or a scope this build does not recognise (older payloads). Nothing is guessed. |
+
+Under the scope text the cell states **Last full scan: <date>** (or "No full scan on record"). It is
+also the cell's tooltip, and is rendered as text so keyboard and screen-reader users get it too. It
+comes from `last_full_at` on the coverage payload; a `full` run is itself that moment.
+
+**Full rescan** is reachable from three places, all sending `force: true` to
+`POST /repos/:id/scan`, which skips the up-to-date question and the incremental baseline:
+
+1. the "Full rescan" checkbox beside **Run scans now** (every enabled scanner);
+2. a **Full rescan** button in the Scope cell of any row whose last run was `incremental` or
+   `skipped` (that scanner only; admin only);
+3. a "Full rescan" checkbox beside the per-row **Re-run** link in the State cell.
+
+Use it when you changed something the commit does not show (a rules file, a scanner's config, the
+vulnerability database), or when the last full scan is old enough that you no longer trust the
+carried-forward findings. e2e: `e2e/scan-scope.spec.ts`.
+
 ## 6. Non-functional commitments
 
 - **NFR-13** snapshot never persisted — §2.1 shred + sweeper; test kills a scan mid-run and
