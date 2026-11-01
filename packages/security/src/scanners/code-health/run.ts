@@ -421,14 +421,7 @@ async function tryIncremental(
       };
 
       if (tools.status !== 'succeeded') {
-        await closeRun(
-          deps.db,
-          runId,
-          'failed',
-          0,
-          tools.error ?? null,
-          toolVersions,
-        );
+        await closeRun(deps.db, runId, 'failed', 0, tools.error ?? null, toolVersions);
         return {
           status: 'failed',
           scanRunId: runId,
@@ -471,7 +464,10 @@ async function tryIncremental(
         // THE INCREMENTAL SWEEP: only the files this run read. No tree list, so
         // nothing outside the changed set can be closed by not being reported.
         reviewedFiles: [
-          ...new Set([...fetched.written, ...findings.map((f) => f.file).filter((f): f is string => !!f)]),
+          ...new Set([
+            ...fetched.written,
+            ...findings.map((f) => f.file).filter((f): f is string => !!f),
+          ]),
         ],
         fullSweep: {
           keepOpen: (row) =>

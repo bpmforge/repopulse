@@ -172,7 +172,13 @@ describe('Gitea compareCommits', () => {
         url: compareUrl,
         response: {
           status: 200,
-          body: { total_commits: 2, commits: [{ sha: 'c2', parents: [{ sha: 'c1' }] }, { sha: 'c1', parents: [{ sha: 'b0' }] }] },
+          body: {
+            total_commits: 2,
+            commits: [
+              { sha: 'c2', parents: [{ sha: 'c1' }] },
+              { sha: 'c1', parents: [{ sha: 'b0' }] },
+            ],
+          },
         },
       },
       {
@@ -212,7 +218,10 @@ describe('Gitea compareCommits', () => {
         url: compareUrl,
         response: {
           status: 200,
-          body: { total_commits: 1, commits: [{ sha: 'm1', parents: [{ sha: 'x' }, { sha: 'y' }] }] },
+          body: {
+            total_commits: 1,
+            commits: [{ sha: 'm1', parents: [{ sha: 'x' }, { sha: 'y' }] }],
+          },
         },
       },
     ]);
@@ -227,7 +236,10 @@ describe('Gitea compareCommits', () => {
       {
         method: 'GET',
         url: compareUrl,
-        response: { status: 200, body: { total_commits: 400, commits: [{ sha: 'c', parents: [] }] } },
+        response: {
+          status: 200,
+          body: { total_commits: 400, commits: [{ sha: 'c', parents: [] }] },
+        },
       },
     ]);
     expect((await p.compareCommits!(ctx, 'acme/widgets', 'b0', 'h0')).truncated).toBe(true);
@@ -265,10 +277,20 @@ describe('GitLab compareCommits', () => {
 
   it('compare_timeout and the file limit are truncated', async () => {
     expect(
-      (await gitlab({ compare_timeout: true, diffs: [] }).compareCommits!(ctx, 'acme/widgets', 'b0', 'h0'))
-        .truncated,
+      (
+        await gitlab({ compare_timeout: true, diffs: [] }).compareCommits!(
+          ctx,
+          'acme/widgets',
+          'b0',
+          'h0',
+        )
+      ).truncated,
     ).toBe(true);
-    const many = Array.from({ length: 1000 }, (_, i) => ({ old_path: `f${i}`, new_path: `f${i}`, diff: '' }));
+    const many = Array.from({ length: 1000 }, (_, i) => ({
+      old_path: `f${i}`,
+      new_path: `f${i}`,
+      diff: '',
+    }));
     expect(
       (await gitlab({ diffs: many }).compareCommits!(ctx, 'acme/widgets', 'b0', 'h0')).truncated,
     ).toBe(true);

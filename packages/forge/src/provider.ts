@@ -89,12 +89,7 @@ export interface ForgeProvider {
    * Throws ForgeHttpError when the forge refuses (an unknown base after a force
    * push answers 404); the incremental planner reads any throw as "full".
    */
-  compareCommits?(
-    ctx: CallCtx,
-    repo: string,
-    base: string,
-    head: string,
-  ): Promise<ForgeComparison>;
+  compareCommits?(ctx: CallCtx, repo: string, base: string, head: string): Promise<ForgeComparison>;
   /**
    * The tree object id of a commit (W23-03): equal trees mean byte-identical
    * source, whatever the commit ids say. null where the forge cannot say (GitLab

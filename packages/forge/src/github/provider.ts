@@ -267,7 +267,11 @@ export class GitHubProvider implements ForgeProvider {
       const res = await this.get(ctx, page === 1 ? url : withPage(url, String(page)), 'commits');
       assertListOk(res, 'compare');
       const body = res.body as { status?: string; files?: RawDiffFile[] } | null;
-      if (page === 1 && body?.status !== undefined && !['ahead', 'identical'].includes(body.status)) {
+      if (
+        page === 1 &&
+        body?.status !== undefined &&
+        !['ahead', 'identical'].includes(body.status)
+      ) {
         truncated = true;
       }
       const got = body?.files ?? [];
@@ -286,7 +290,11 @@ export class GitHubProvider implements ForgeProvider {
 
   /** `GET /git/commits/{sha}` -> `.tree.sha` (W23-03). A commit the forge does not have is null. */
   async getCommitTreeSha(ctx: CallCtx, repo: string, sha: string): Promise<string | null> {
-    const res = await this.get(ctx, `${this.base}/repos/${repo}/git/commits/${encodeURIComponent(sha)}`, 'commits');
+    const res = await this.get(
+      ctx,
+      `${this.base}/repos/${repo}/git/commits/${encodeURIComponent(sha)}`,
+      'commits',
+    );
     if (assertListOk(res, 'commit_tree', [404, 422]) === 'empty') return null;
     const tree = (res.body as { tree?: { sha?: string } } | null)?.tree?.sha;
     return typeof tree === 'string' && tree !== '' ? tree : null;

@@ -151,15 +151,16 @@ describe('planIncremental (W23-03)', () => {
   it('no earlier run is full, and a run of another workspace is not a base', async () => {
     expect((await planIncremental(args(fakeDb([]), provider({ files: [] })))).mode).toBe('full');
     expect(
-      (await planIncremental(args(fakeDb([row({ workspaceId: 99 })]), provider({ files: [] })))).mode,
+      (await planIncremental(args(fakeDb([row({ workspaceId: 99 })]), provider({ files: [] }))))
+        .mode,
     ).toBe('full');
   });
 
   it('partial, skipped and PR runs are not baselines', async () => {
     for (const over of [{ partial: true }, { scope: 'skipped' }, { trigger: 'pr_synced' }]) {
-      expect(
-        (await planIncremental(args(fakeDb([row(over)]), provider({ files: [] })))).mode,
-      ).toBe('full');
+      expect((await planIncremental(args(fakeDb([row(over)]), provider({ files: [] })))).mode).toBe(
+        'full',
+      );
     }
   });
 
@@ -190,7 +191,8 @@ describe('planIncremental (W23-03)', () => {
   });
 
   describe('drift guard', () => {
-    const incr = (id: number) => row({ id, scope: 'incremental', startedAt: daysAgo(1), finishedAt: daysAgo(1) });
+    const incr = (id: number) =>
+      row({ id, scope: 'incremental', startedAt: daysAgo(1), finishedAt: daysAgo(1) });
 
     it('9 incrementals since the last full: still incremental', async () => {
       const runs = [...Array.from({ length: 9 }, (_, i) => incr(30 - i)), row({ id: 5 })];
@@ -225,7 +227,7 @@ describe('planIncremental (W23-03)', () => {
       ).toMatchObject({ mode: 'full', reason: 'no_full_run_on_record' });
     });
 
-    it('the limits are the caller\'s to set', async () => {
+    it("the limits are the caller's to set", async () => {
       const runs = [incr(7), incr(6), row({ id: 5 })];
       expect(
         await planIncremental(args(fakeDb(runs), provider({ files: [] }), { maxChain: 2 })),
@@ -322,7 +324,11 @@ describe('fetchChangedFiles (W23-03)', () => {
       paths: ['gone.ts'],
     };
     await expect(
-      fetchChangedFiles({ ...base, provider: fetcher({ 'gone.ts': 'missing' }, []), root: scratch() }),
+      fetchChangedFiles({
+        ...base,
+        provider: fetcher({ 'gone.ts': 'missing' }, []),
+        root: scratch(),
+      }),
     ).rejects.toThrow();
     const skipped = await fetchChangedFiles({
       ...base,

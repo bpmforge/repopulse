@@ -1,5 +1,12 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync, readFileSync, readdirSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  writeFileSync,
+  readFileSync,
+  readdirSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -81,7 +88,14 @@ function tools(over: Partial<ToolRunResult> = {}): ToolRunResult {
   };
 }
 
-const persistResult = { created: 1, updated: 0, reopened: 0, autoResolved: 0, suppressed: 0, foldedDuplicates: 0 };
+const persistResult = {
+  created: 1,
+  updated: 0,
+  reopened: 0,
+  autoResolved: 0,
+  suppressed: 0,
+  foldedDuplicates: 0,
+};
 
 interface Spy {
   fetched: string[];
@@ -98,7 +112,14 @@ function harness(opts: {
   plan?: IncrementalPlan;
   baseRows?: unknown[];
 }) {
-  const spy: Spy = { fetched: [], toolDirs: [], persisted: [], carried: [], compares: 0, planned: 0 };
+  const spy: Spy = {
+    fetched: [],
+    toolDirs: [],
+    persisted: [],
+    carried: [],
+    compares: 0,
+    planned: 0,
+  };
   const database = makeDb(opts.baseRows ?? []);
   const stage = mkdtempSync(path.join(tmpdir(), 'w23-03-ch-stage-'));
   const top = path.join(stage, 'acme-widgets-abc');
@@ -162,7 +183,9 @@ function harness(opts: {
   return { deps, spy, database, bytes };
 }
 
-const plan = (over: Partial<Extract<IncrementalPlan, { mode: 'incremental' }>> = {}): IncrementalPlan => ({
+const plan = (
+  over: Partial<Extract<IncrementalPlan, { mode: 'incremental' }>> = {},
+): IncrementalPlan => ({
   mode: 'incremental',
   baseRun: BASE,
   changed: ['src/b.ts'],
@@ -178,7 +201,9 @@ describe('code_health_tools incremental run (W23-03)', () => {
     // one contents call, for B only: no tarball
     expect(spy.fetched).toEqual(['src/b.ts']);
     // the tools saw a scratch dir with exactly B, and did not run duplication
-    expect(spy.toolDirs).toEqual([{ dir: expect.any(String), files: ['src/b.ts'], skipDuplication: true }]);
+    expect(spy.toolDirs).toEqual([
+      { dir: expect.any(String), files: ['src/b.ts'], skipDuplication: true },
+    ]);
     // the sweep may only close inside the changed set: no tree list, B reviewed
     expect(spy.persisted).toHaveLength(1);
     expect(spy.persisted[0]).toMatchObject({
@@ -186,7 +211,9 @@ describe('code_health_tools incremental run (W23-03)', () => {
       sweepScannerKey: 'code_health_tools',
       scanRunId: 77,
     });
-    expect((spy.persisted[0]!['fullSweep'] as Record<string, unknown>)['treeFiles']).toBeUndefined();
+    expect(
+      (spy.persisted[0]!['fullSweep'] as Record<string, unknown>)['treeFiles'],
+    ).toBeUndefined();
     // A and C are carried, B (replaced by the scan) and D (deleted) are not unchanged
     expect(spy.carried[0]).toMatchObject({
       baseRunId: 10,
@@ -195,7 +222,11 @@ describe('code_health_tools incremental run (W23-03)', () => {
       deletedPaths: ['src/d.ts'],
     });
     // the row says what it did, and points at its baseline
-    expect(database.inserts[0]).toMatchObject({ scope: 'incremental', baseRunId: 10, trigger: 'manual' });
+    expect(database.inserts[0]).toMatchObject({
+      scope: 'incremental',
+      baseRunId: 10,
+      trigger: 'manual',
+    });
     expect(out).toMatchObject({
       status: 'succeeded',
       scope: 'incremental',
@@ -216,9 +247,11 @@ describe('code_health_tools incremental run (W23-03)', () => {
     h.deps.runTools = (async () =>
       tools({ adapterErrors: [{ adapter: 'biome', reason: 'produced no output' }] })) as never;
     await runCodeHealthScan(h.deps);
-    const keepOpen = (h.spy.persisted[0]!['fullSweep'] as {
-      keepOpen: (r: { ruleId: string | null; file: string | null }) => boolean;
-    }).keepOpen;
+    const keepOpen = (
+      h.spy.persisted[0]!['fullSweep'] as {
+        keepOpen: (r: { ruleId: string | null; file: string | null }) => boolean;
+      }
+    ).keepOpen;
     expect(keepOpen({ ruleId: 'duplication.clone', file: 'src/b.ts' })).toBe(true);
     expect(keepOpen({ ruleId: 'tool.biome.lint', file: 'src/b.ts' })).toBe(true);
     expect(keepOpen({ ruleId: 'complexity.ccn', file: 'src/b.ts' })).toBe(false);
@@ -228,13 +261,17 @@ describe('code_health_tools incremental run (W23-03)', () => {
   });
 
   it('only files a per-file tool reads are fetched (README is not)', async () => {
-    const { deps, spy } = harness({ plan: plan({ changed: ['README.md', 'src/b.ts', 'docs/x.png'] }) });
+    const { deps, spy } = harness({
+      plan: plan({ changed: ['README.md', 'src/b.ts', 'docs/x.png'] }),
+    });
     await runCodeHealthScan(deps);
     expect(spy.fetched).toEqual(['src/b.ts']);
   });
 
   it('a delta with nothing to scan still carries everything forward and runs no tool', async () => {
-    const { deps, spy, database } = harness({ plan: plan({ changed: ['README.md'], deleted: [] }) });
+    const { deps, spy, database } = harness({
+      plan: plan({ changed: ['README.md'], deleted: [] }),
+    });
     const out = await runCodeHealthScan(deps);
     expect(spy.fetched).toEqual([]);
     expect(spy.toolDirs).toEqual([]);
@@ -260,11 +297,11 @@ describe('code_health_tools incremental run (W23-03)', () => {
     };
 
     it('over the cap: scope full, and no file was fetched one by one', async () => {
-      const many = Array.from({ length: 201 }, (_, i) => ({ path: `src/f${i}.ts`, status: 'modified' }));
-      const dv = codeHealthDataVersion(
-        undefined,
-        await ruleStateStamp(makeDb().db, 1),
-      );
+      const many = Array.from({ length: 201 }, (_, i) => ({
+        path: `src/f${i}.ts`,
+        status: 'modified',
+      }));
+      const dv = codeHealthDataVersion(undefined, await ruleStateStamp(makeDb().db, 1));
       const h = harness({
         compare: { files: many },
         baseRows: [
@@ -298,7 +335,9 @@ describe('code_health_tools incremental run (W23-03)', () => {
 
     it('a whole-tree adapter in the last full run (cppcheck): full', async () => {
       const h = harness({
-        plan: plan({ baseRun: { ...BASE, toolVersions: { ...BASE.toolVersions, cppcheck: '2.22.0' } } }),
+        plan: plan({
+          baseRun: { ...BASE, toolVersions: { ...BASE.toolVersions, cppcheck: '2.22.0' } },
+        }),
       });
       await runCodeHealthScan(h.deps);
       expect(h.spy.fetched).toEqual([]);

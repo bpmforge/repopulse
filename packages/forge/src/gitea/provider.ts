@@ -253,7 +253,11 @@ export class GiteaProvider implements ForgeProvider {
 
   /** `GET /git/commits/{sha}` -> `.commit.tree.sha` (W23-03). */
   async getCommitTreeSha(ctx: CallCtx, repo: string, sha: string): Promise<string | null> {
-    const res = await this.get(ctx, `${this.base}/repos/${repo}/git/commits/${encodeURIComponent(sha)}`, 'commits');
+    const res = await this.get(
+      ctx,
+      `${this.base}/repos/${repo}/git/commits/${encodeURIComponent(sha)}`,
+      'commits',
+    );
     if (assertListOk(res, 'commit_tree', [404, 422]) === 'empty') return null;
     const tree = (res.body as { commit?: { tree?: { sha?: string } } } | null)?.commit?.tree?.sha;
     return typeof tree === 'string' && tree !== '' ? tree : null;

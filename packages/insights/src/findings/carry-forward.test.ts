@@ -132,7 +132,12 @@ describe('filesSeenByRun', () => {
       [f(1, 'a.ts'), f(2, 'a.ts'), f(3, null), f(4, 'b.ts', { workspaceId: 5 })],
     ]);
     expect(
-      await filesSeenByRun(db, { workspaceId: 1, repoId: 2, scannerKey: 'code_health_tools', runId: 10 }),
+      await filesSeenByRun(db, {
+        workspaceId: 1,
+        repoId: 2,
+        scannerKey: 'code_health_tools',
+        runId: 10,
+      }),
     ).toEqual(['a.ts']);
   });
 });

@@ -1,5 +1,12 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -119,7 +126,14 @@ function harness(opts: { plan?: IncrementalPlan; files?: Record<string, string |
     },
     persist: (async (_db: unknown, p: Record<string, unknown>) => {
       persisted.push(p);
-      return { created: 0, updated: 0, reopened: 0, autoResolved: 0, suppressed: 0, foldedDuplicates: 0 };
+      return {
+        created: 0,
+        updated: 0,
+        reopened: 0,
+        autoResolved: 0,
+        suppressed: 0,
+        foldedDuplicates: 0,
+      };
     }) as never,
     carry: (async (p: Record<string, unknown>) => {
       carried.push(p);
@@ -131,7 +145,9 @@ function harness(opts: { plan?: IncrementalPlan; files?: Record<string, string |
   return { deps, fetched, scanned, persisted, carried, database };
 }
 
-const plan = (over: Partial<Extract<IncrementalPlan, { mode: 'incremental' }>> = {}): IncrementalPlan => ({
+const plan = (
+  over: Partial<Extract<IncrementalPlan, { mode: 'incremental' }>> = {},
+): IncrementalPlan => ({
   mode: 'incremental',
   baseRun: BASE,
   changed: ['src/b.js'],
@@ -170,11 +186,17 @@ describe('semgrep incremental merge on a manual run (W23-03)', () => {
       unchangedPaths: ['src/a.js', 'src/c.js'],
       deletedPaths: ['src/d.js'],
     });
-    expect(h.database.inserts[0]).toMatchObject({ scope: 'incremental', baseRunId: 10, trigger: 'manual' });
+    expect(h.database.inserts[0]).toMatchObject({
+      scope: 'incremental',
+      baseRunId: 10,
+      trigger: 'manual',
+    });
     expect(out).toMatchObject({ carriedForward: 3, closedInDeletedFiles: 1, findingsTotal: 3 });
     const closed = h.database.updates.at(-1)!;
     expect(closed).toMatchObject({ status: 'succeeded', findingCount: 3 });
-    expect(typeof closed['dataVersion'] === 'string' || closed['dataVersion'] === undefined).toBe(true);
+    expect(typeof closed['dataVersion'] === 'string' || closed['dataVersion'] === undefined).toBe(
+      true,
+    );
   });
 
   it('a delta with nothing scannable runs no engine and still carries everything', async () => {
@@ -182,7 +204,12 @@ describe('semgrep incremental merge on a manual run (W23-03)', () => {
     const out = await runSemgrepFull(h.deps);
     expect(h.scanned).toEqual([]);
     expect(out).toMatchObject({ status: 'succeeded', scope: 'incremental', filesScanned: 0 });
-    expect(h.carried[0]!['unchangedPaths']).toEqual(['src/a.js', 'src/b.js', 'src/c.js', 'src/d.js']);
+    expect(h.carried[0]!['unchangedPaths']).toEqual([
+      'src/a.js',
+      'src/b.js',
+      'src/c.js',
+      'src/d.js',
+    ]);
   });
 
   it('a baseline that never read the engine version is not trusted: full', async () => {
@@ -208,7 +235,10 @@ describe('semgrep incremental merge on a manual run (W23-03)', () => {
       expect(h.fetched, name).toEqual([]);
       // the engine saw the whole extracted tree, and the row is an ordinary full one
       expect(h.scanned[0]!.length, name).toBe(TREE_SIZE);
-      expect(h.database.inserts.every((r) => r['scope'] === undefined), name).toBe(true);
+      expect(
+        h.database.inserts.every((r) => r['scope'] === undefined),
+        name,
+      ).toBe(true);
       expect(h.carried, name).toEqual([]);
     }
 

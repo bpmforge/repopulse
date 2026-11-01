@@ -31,6 +31,12 @@ export interface ScannerStatus {
   last_run_scope?: string | null;
   /** The earlier run a skipped row restates. */
   last_run_base_run_id?: number | null;
+  /**
+   * W23-03: for an incremental run, the commit it was measured from, and when the
+   * tree was last read in full. Absent from older payloads.
+   */
+  last_run_base_sha?: string | null;
+  last_full_at?: string | null;
   error: string | null;
   scanner_version: string | null;
   /**
@@ -252,6 +258,24 @@ export const SCOPE_LABEL: Record<string, string> = {
   incremental: 'changed files only',
   skipped: 'nothing re-scanned',
 };
+
+/**
+ * The coverage chip for an incremental run (W23-03): "incremental since a1b2c3d ·
+ * last full 14 Oct". The pieces the payload lacks are left out rather than
+ * guessed, so an older payload still says "incremental".
+ */
+export function incrementalChip(
+  scope: string | null | undefined,
+  baseSha: string | null | undefined,
+  lastFullAt: string | null | undefined,
+  formatDate: (iso: string) => string,
+): string | null {
+  if (scope !== 'incremental') return null;
+  const parts = ['incremental'];
+  if (baseSha) parts[0] = `incremental since ${baseSha.slice(0, 7)}`;
+  if (lastFullAt) parts.push(`last full ${formatDate(lastFullAt)}`);
+  return parts.join(' · ');
+}
 
 /**
  * The "last run" cell: a skipped run says "Up to date as of <date>", never

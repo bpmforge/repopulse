@@ -394,3 +394,58 @@ describe('scope in the coverage table (W23-01)', () => {
     expect(screen.queryByTestId('scanner-scope-semgrep')).toBeNull();
   });
 });
+
+describe('incremental chip (W23-03)', () => {
+  it('says what the delta was measured from and when the tree was last read in full', () => {
+    render(
+      <ScannerStatusList
+        scanners={[
+          scanner({
+            key: 'semgrep',
+            state: 'ok',
+            last_run_scope: 'incremental',
+            last_run_base_sha: 'a1b2c3d4e5f6a7b8',
+            last_full_at: '2026-10-14T09:00:00.000Z',
+            last_run_at: '2026-10-31T09:00:00.000Z',
+            error: null,
+          }),
+        ]}
+      />,
+    );
+    const chip = screen.getByTestId('scanner-incremental-chip-semgrep').textContent ?? '';
+    expect(chip).toMatch(/^incremental since a1b2c3d · last full /);
+    expect(chip).toContain('2026');
+    // the scope line is still there, and an incremental run is not "up to date as of"
+    expect(screen.getByTestId('scanner-scope-semgrep')).toHaveTextContent('changed files only');
+    expect(screen.getByTestId('scanner-last-run-semgrep').textContent).not.toMatch(/up to date/i);
+  });
+
+  it('leaves out what an older payload does not carry, and is absent for a full run', () => {
+    const { rerender } = render(
+      <ScannerStatusList
+        scanners={[
+          scanner({
+            key: 'semgrep',
+            last_run_scope: 'incremental',
+            last_run_at: '2026-10-31T09:00:00.000Z',
+          }),
+        ]}
+      />,
+    );
+    expect(screen.getByTestId('scanner-incremental-chip-semgrep')).toHaveTextContent(
+      /^incremental$/,
+    );
+    rerender(
+      <ScannerStatusList
+        scanners={[
+          scanner({
+            key: 'semgrep',
+            last_run_scope: 'full',
+            last_full_at: '2026-10-14T09:00:00.000Z',
+          }),
+        ]}
+      />,
+    );
+    expect(screen.queryByTestId('scanner-incremental-chip-semgrep')).toBeNull();
+  });
+});

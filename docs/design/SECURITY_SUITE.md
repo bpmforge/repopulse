@@ -88,6 +88,9 @@ tool_versions jsonb, error text?)` — powers UI status, reproducibility, and NF
 - `Lane` union gains `'scan'` (priority between `backfill` and `reconcile`).
 - FR-FORGE-6 lint gate amended, not removed: tarball/zipball endpoints callable ONLY from the
   snapshot service module; `git clone`/`git://` remain absolutely banned everywhere (C1a).
+- W23-03: optional ops `compareCommits(ctx, repo, base, head) -> {files: {path, status, previousPath?}[],
+  truncated}` and `getCommitTreeSha(ctx, repo, sha) -> string | null`, both through the budgeted
+  client (§4.2). `truncated` means "the list may be short, treat the answer as unknown".
 
 ## 2. Snapshot service (FR-SEC-2, C1a, NFR-13/14)
 
@@ -537,6 +540,98 @@ where the scanners run, can skip.
   commit stuck in a `running` row (a worker that died mid-scan; `covered` counts `running`)
   is swept again. It re-sweeps the window oldest-first up to the usual 200-commit cap through
   the same budgeted `scan` lane.
+
+### 4.2 Incremental runs for per-file scanners (W23-03)
+
+A manual or weekly run of a scanner that judges each file on its own does not need the whole
+tree again when one file changed. `code_health_tools` and `semgrep` now plan an **incremental**
+run against the last real answer: fetch only the files that changed, scan those, and carry the
+rest of the previous findings forward. The result is still the whole tree's; only the work is
+incremental (INCREMENTAL_SCAN_PLAN claim C12).
+
+**Registry metadata, not a branch.** `Scanner.incremental?: { maxChangedFiles }` (catalogue.ts)
+marks a scanner as eligible and sets the largest delta it will fetch file by file (200 for both).
+The framework never reads a scanner key to decide this.
+
+**Forge port.** `compareCommits(ctx, repo, base, head)` returns the changed paths and statuses:
+
+| Forge | Endpoint | `truncated` when |
+|---|---|---|
+| GitHub | `GET /repos/{repo}/compare/{base}...{head}` (3 pages of 100) | 300 files reached, or `base` is not an ancestor of `head` (`diverged`/`behind`: GitHub then lists the change from the merge base) |
+| Gitea | `GET /repos/{repo}/compare/{base}...{head}` lists commits only, so files come from each commit's own file list | a merge commit is in the range (its files are not listed), or more than 50 commits |
+| GitLab | `GET /projects/:id/repository/compare?from&to&straight=true` | `compare_timeout`, or 1000 diffs |
+
+`getCommitTreeSha` is `GET /repos/{repo}/git/commits/{sha}` -> `tree.sha` on GitHub and
+`commit.tree.sha` on Gitea; GitLab exposes no tree id on a commit and answers `null`. It is what
+the W23-04 architecture gate already asked for (`commitTreeSha`).
+
+**The plan** (`framework/incremental.ts`, `planIncremental`) answers `full` unless every one of
+these holds, so a refusal is a redundant full scan and never a stale answer:
+
+1. the forge can compare, the comparison is not truncated and has at most `maxChangedFiles` files;
+2. there is an earlier real run (`latestBaseRun`: succeeded, whole, not skipped, not a PR look)
+   whose tool versions and data stamp equal this run's (a null stamp, i.e. unreadable now, plans full);
+3. **drift guard:** fewer than 10 incremental runs since the last `full` row, that full is at most
+   30 days old, and one is on record at all.
+
+A run that is handed a tree already on disk (a batch that fetched one for another scanner) or
+that is a "Full rescan" (`force`) does not plan: a full run is free in the first case and asked
+for in the second.
+
+**The merge** (`carryForward`, packages/insights). Findings the base run saw (`last_seen_scan_run_id`)
+on files not in the delta are re-sighted on the new run: same rows and dedup keys, `last_seen` and the
+sighting pointer moved, `occurrence_count` +1. Findings on files the delta deleted (or renamed away)
+are closed (`outdated_diff`, an event naming the new run). Findings on changed files are left to the
+new scan's `persistFindings`, whose sweep is limited to the files the run actually read (it passes
+`reviewedFiles` and no tree list, so nothing outside the changed set is closed by silence).
+The run row is `scope = 'incremental'` with `base_run_id` set, and carries the same `data_version`
+stamp, so it is itself a valid baseline for the next probe and plan.
+
+**Anything that cannot be exact falls back to a full run having written nothing** (no row, no
+finding): a changed file the forge will not return in full (over 1 MB, binary), a path outside the
+scratch dir, a failed fetch.
+
+**Which tools are per-file.** Each code-health adapter declares `scope` (an adapter that does not is
+read as `'tree'`):
+
+| Tool | `scope` | Why |
+|---|---|---|
+| lizard (complexity, file length) | per-file | measured per function and file |
+| ruff, Biome, shellcheck, hadolint, actionlint | `file` | each finding is a property of one file |
+| cppcheck | `tree` | whole-program analysis across translation units |
+| checkov, iacrender | `tree` | graph checks and renders follow references across files |
+| jscpd (duplication) | whole-tree | a clone is a relation between files |
+
+A last full run that used a `tree` adapter, or a changed file one would read, makes the next run full.
+jscpd is **not run** incrementally: clone findings already on record are neither replaced nor closed
+by an incremental run (only deleting their file closes them) and the three posture metrics
+(`ch_duplication_pct`, `ch_complexity_p90`, `ch_worst_fn_count`) are not written, because over a handful
+of files they would plot a drop that never happened. The next full run, at most ten incrementals or
+thirty days away, recomputes both.
+
+semgrep is planned the same way, with the engine and the same per-file fetch the PR path uses
+(`fetchChangedFiles`, shared with `runSemgrepIncremental`, whose behaviour is unchanged). Its
+`filesScanned` is the number of changed files read. A baseline that never recorded the engine version
+is not trusted.
+
+**Coverage chip.** The Security tab's coverage table shows "incremental since a1b2c3d - last full
+14 Oct" under the last-run date of an incremental run (`last_run_base_sha`, `last_full_at` on the
+scanner status payload).
+
+**Step 0 verdicts (recorded here and in the commit).**
+- `owasp_web` / `owasp_llm` "scheduled surface" (`owasp/run.ts:29-30,57`) is a **delta**, not the tree:
+  the runner (`runChecklistNow`, workers/index.ts) reads the newest ingested commit's own file list
+  (`diffOf` -> `getCommitFiles`). No change needed. (It does mean a scheduled run reviews one commit,
+  not everything since the last run, which is a coverage question rather than a cost one.)
+- `anti_slop` (workers/index.ts) is **whole-tree**: it reads every source in the snapshot
+  (`readSnapshotSources`) for density measures and a model judgement over the tree, and the logging and
+  perf packs ride the same bracket. Not per-file, not changed.
+
+**Known limitation.** Inside a batch ("Run scans now") the batch still fetches the one tarball when
+any scanner in it reads a tree (`usesSnapshot`), and the scanners run on that tree as a full run; the
+incremental path applies to weekly per-scanner jobs, a manual run of one scanner, and batches where
+no tree was fetched. Skipping the tarball when only incremental-capable scanners remain needs a hook in
+`scan-processor.ts` (outside this ticket's scope).
 
 ## 5. Surfaces (FR-SEC-10)
 
