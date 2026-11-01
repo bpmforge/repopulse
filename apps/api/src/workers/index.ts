@@ -541,7 +541,7 @@ async function main(): Promise<void> {
           },
         },
         weeklyRunners: {
-          semgrep: async ({ workspaceId, repoId }, opts) => {
+          semgrep: async ({ workspaceId, repoId, force }, opts) => {
             const resolved = await providerForRepo(scanForgeDeps, workspaceId, repoId);
             if (!resolved) {
               return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_connection' };
@@ -570,6 +570,9 @@ async function main(): Promise<void> {
               repo: resolved.repoFullName,
               commitSha: opts?.snapshot?.commitSha ?? sha,
               ...(opts?.snapshot ? { snapshot: opts.snapshot } : {}),
+              // W23-03: with a baseline (and no tree already on disk) this scans
+              // only the files changed since it; "Full rescan" never does.
+              ...(force ? { force: true } : {}),
             });
             return {
               scanned: result.status === 'succeeded' ? 1 : 0,
@@ -582,7 +585,7 @@ async function main(): Promise<void> {
           // same commit, and complexity is a property of a codebase rather
           // than of a change — a per-PR run would report the same findings on
           // every branch until people filtered the scanner out of their view.
-          code_health_tools: async ({ workspaceId, repoId }, opts) => {
+          code_health_tools: async ({ workspaceId, repoId, force }, opts) => {
             const resolved = await providerForRepo(scanForgeDeps, workspaceId, repoId);
             if (!resolved) {
               return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_connection' };
@@ -604,6 +607,8 @@ async function main(): Promise<void> {
               repo: resolved.repoFullName,
               commitSha: opts?.snapshot?.commitSha ?? head.sha,
               ...(opts?.snapshot ? { snapshot: opts.snapshot } : {}),
+              // W23-03: changed files only when a baseline allows it; never on "Full rescan".
+              ...(force ? { force: true } : {}),
             });
             return {
               scanned: result.status === 'succeeded' ? 1 : 0,

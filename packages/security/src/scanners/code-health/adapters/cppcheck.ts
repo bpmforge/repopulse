@@ -129,6 +129,10 @@ export const cppcheckAdapter: ToolAdapter = {
   key: 'cppcheck',
   version: '2.22.0',
   license: 'GPL-3.0-or-later',
+  /**
+   * Incremental scans (W23-03): 'tree' — whole-program: it checks call and data flow across translation units, so one changed file can change the answer for others.
+   */
+  scope: 'tree',
 
   detect(ctx: AdapterContext): boolean {
     return hasExtension(ctx.files, CPPCHECK_EXTENSIONS);

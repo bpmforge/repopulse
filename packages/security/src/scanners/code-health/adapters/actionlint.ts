@@ -98,6 +98,10 @@ export const actionlintAdapter: ToolAdapter = {
   key: 'actionlint',
   version: '1.7.12',
   license: 'MIT',
+  /**
+   * Incremental scans (W23-03): 'file' — one workflow file at a time (a local reusable workflow is another file's own check).
+   */
+  scope: 'file',
   shadow: true,
 
   detect(ctx: AdapterContext): boolean {

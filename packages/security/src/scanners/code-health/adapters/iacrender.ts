@@ -146,6 +146,10 @@ export const iacRenderAdapter: ToolAdapter = {
   key: 'iacrender',
   version: 'helm+kustomize+checkov',
   license: 'Apache-2.0 (helm, kustomize, checkov)',
+  /**
+   * Incremental scans (W23-03): 'tree' — renders a chart or overlay from the files around it, and checkov then reads the render; the output depends on the whole directory.
+   */
+  scope: 'tree',
   shadow: true,
 
   detect(ctx: AdapterContext): boolean {

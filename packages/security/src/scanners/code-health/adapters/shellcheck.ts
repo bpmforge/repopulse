@@ -45,6 +45,10 @@ export const shellcheckAdapter: ToolAdapter = {
   key: 'shellcheck',
   version: '0.11.0',
   license: 'GPL-3.0-only (subprocess only)',
+  /**
+   * Incremental scans (W23-03): 'file' — one script at a time; no `source` following is enabled.
+   */
+  scope: 'file',
   shadow: true,
 
   detect(ctx: AdapterContext): boolean {

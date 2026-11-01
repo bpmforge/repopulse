@@ -214,6 +214,13 @@ export interface RunToolsArgs {
   runtime?: string;
   /** Test seam. Production uses the registry's language routing. */
   adapters?: readonly ToolAdapter[];
+  /**
+   * W23-03: do not run jscpd. Duplication is the one WHOLE-TREE half of this
+   * scanner (a clone is a relation between files), so an incremental run over a
+   * handful of changed files must not run it: it would report only the clones
+   * among those files and read as "the rest are gone".
+   */
+  skipDuplication?: boolean;
 }
 
 /** argv -> a single-quoted shell word list, so no argument can be re-parsed. */
@@ -290,9 +297,13 @@ export async function runCodeHealthTools(args: RunToolsArgs): Promise<ToolRunRes
       [
         `lizard --csv ${SCAN_MOUNT_PATH} 2>/dev/null || true`,
         `echo '===JSCPD==='`,
-        `jscpd --min-lines ${thresholds.minLines} --min-tokens ${thresholds.minTokens} ` +
-          `--reporters json --output ${JSCPD_OUT} --silent ${SCAN_MOUNT_PATH} >/dev/null 2>&1 || true`,
-        `cat ${JSCPD_OUT}/jscpd-report.json 2>/dev/null || echo '{}'`,
+        ...(args.skipDuplication
+          ? [`echo '{}'`]
+          : [
+              `jscpd --min-lines ${thresholds.minLines} --min-tokens ${thresholds.minTokens} ` +
+                `--reporters json --output ${JSCPD_OUT} --silent ${SCAN_MOUNT_PATH} >/dev/null 2>&1 || true`,
+              `cat ${JSCPD_OUT}/jscpd-report.json 2>/dev/null || echo '{}'`,
+            ]),
         // Each adapter appends its own section to the SAME stdout, behind its
         // own marker. Still one container: adding a start per tool would
         // multiply the slowest part of a scan by the number of adapters.
