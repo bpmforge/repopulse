@@ -12234,9 +12234,10 @@
         "Tests: base full run with findings in A,B,C; change B -> only B fetched, A and C findings re-sighted with new last_seen, B findings replaced, finding in deleted D closed; over-cap -> scope full; semgrep manual run with a baseline reports filesScanned < tree size",
         "Coverage chip shows \"incremental since <sha7> · last full <date>\""
       ],
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "Spec: docs/work/INCREMENTAL_SCAN_PLAN.md WP-R3. Full gate before closing: pnpm lint && pnpm typecheck && pnpm test. Respect CLAUDE.md Law 4 (C1a tarball only) and Law 7 (budgeted client)."
+        "Spec: docs/work/INCREMENTAL_SCAN_PLAN.md WP-R3. Full gate before closing: pnpm lint && pnpm typecheck && pnpm test. Respect CLAUDE.md Law 4 (C1a tarball only) and Law 7 (budgeted client).",
+        "2026-10-31 merged to main 61fed695; offline gate green across forge/security/insights/api/web. Step 0: owasp scheduled surface = delta (commit file list); anti_slop = whole-tree (unchanged). Per-file adapters: ruff, biome, shellcheck, hadolint, actionlint, lizard; whole-tree: cppcheck, checkov, iacrender, jscpd. Open: compare fixtures are synthetic (record real ones); run.incremental.integration.test.ts needs Postgres; a Run-scans batch that fetched a tarball still runs semgrep/code_health full (skip-the-fetch-when-only-incremental hook in scan-processor is a follow-up); GitLab getCommitTreeSha returns null."
       ],
       "points": 8
     },
