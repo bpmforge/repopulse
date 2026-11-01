@@ -12072,6 +12072,10 @@
       "write_scope": [
         "LICENSE",
         "NOTICE",
+        "THIRD_PARTY_NOTICES.md",
+        ".gitleaksignore",
+        "README.md",
+        "docs/work/FOUNDING_BRIEF.md",
         "package.json",
         "apps/*/package.json",
         "packages/*/package.json",
@@ -12090,9 +12094,12 @@
         "The release checklist records each repository's licence, visibility and tag on the day"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
-        "Planned 2026-10-28: owner said 'Lodestone MIT, open the rules' (lodestone#8, bpm-rulepacks#45) and 'do it with release' for making them public."
+        "Planned 2026-10-28: owner said 'Lodestone MIT, open the rules' (lodestone#8, bpm-rulepacks#45) and 'do it with release' for making them public.",
+        "2026-10-31 (owner: 'start that', release prep up to but not including anything public): LICENSE is now the Apache 2.0 text, NOTICE carries the attributions for what the repository contains, THIRD_PARTY_NOTICES.md inventories the repository's third-party rules and fixtures plus every tool built into the images with its licence, and the root and all ten workspace manifests say Apache-2.0 (packages/security had no licence field). D10 in FOUNDING_BRIEF.md is marked superseded. Lodestone is not listed in NOTICE because Repo Pulse does not depend on it yet (W22-01 is todo); add it when it is. Write scope widened to THIRD_PARTY_NOTICES.md, .gitleaksignore (the 3 new fixture hits, which had turned the gitleaks gate red), README.md (licence section) and docs/work/FOUNDING_BRIEF.md. Started ahead of W22-01 because the licence change does not need the code index; the Lodestone pin in criterion 3 still waits for it.",
+        "2026-10-31 gitleaks 8.30.1 (checksum-verified, the ci-local.sh pin) over the full history of every branch on GitHub (1,126 commits across every branch): 3 hits beyond .gitleaksignore, all fixture identifiers (ch_complexity_p90, w20-10-oidc-person, w20-03-foreign); 46 hits with the ignore file off, all synthetic test tokens, fixture code or documentation of them. No live credential found. Not yet run on lodestone or bpm-rulepacks (not in this session's scope) or on Gitea-only branches. Commit metadata names the owner's personal email and one Mac hostname; history also holds LAN addresses and the internal Gitea hostname. Rewriting history is the owner's call and has not been done.",
+        "Still open here: the Redis image (redis:7-alpine resolves to 7.4+, RSALv2/SSPLv1, which the bundle redistributes); source-offer wording for the GPL/LGPL tools in the scan image before any image or bundle is published; the 'UNLICENSED-REPOPULSE' provenance value on our own rules and 'Proprietary (RepoPulse)' in benchmark suite.json files; the SPDX schema's licence; and criteria 3 and 4, which are release-day steps that need the owner's yes."
       ]
     },
     {
@@ -12132,6 +12139,44 @@
         "2026-10-29: the fast first pass is built (#195). It uses an optional triage_fast routing role (Settings → Models → Routing, \"Quick first look at rule hits\"). A confident false positive (>= 4 of 5, AI_JUDGE_FAST_MIN_CONFIDENCE) stands; everything else escalates to the triage model. ai_triage_verdicts.pass records which pass, and plan.judge counts fast_cleared/escalated/fast_errors and per-pass time. Still to do here: batching several hits of one rule per call, and the fast-vs-strong agreement measurement on outline and saleor.",
         "2026-10-29: agreement is now measurable. Live on outline the 8B fast model took about 16 s a hit, escalated all 4, and the 27B called all 4 real; the fast answer was thrown away. An escalated hit's stored full verdict now keeps the fast answer in ai_triage_verdicts.fast_pass (migration 0064: {verdict, confidence, reason low_confidence|not_false_positive|rejected|provider_error, model, ms}; null on fast rows by a check, with no triage_fast route and on AI-pass rows); the stored verdict, verify_status and finding status are unchanged. plan.judge gains fast_vs_full (\"<fast>-><full>\" counts where both answered). scripts/judge-agreement.mjs (read-only, workspace-filtered) prints the matrix across stored verdicts and the precision of a fast likely-false-positive by confidence below the threshold. Write scope widened to packages/shared/drizzle/** and packages/shared/src/db/schema/read/ai-pass.ts (the column and migration) and scripts/judge-agreement.mjs. Still to do: batching, and recording the measured numbers on outline and saleor.",
         "2026-10-30: batching is built. Up to AI_JUDGE_BATCH_SIZE (default 4, 1-8; 1 = exactly the old one-hit calls) consecutive queue entries of one rule go in one prompt (packages/security/src/triage/batch.ts packTriageBatch/runTriageBatch, prompt.ts buildTriageBatchPrompt, checklist_version triage.v1+batch; a hit asked alone keeps triage.v1). Each hit keeps its id, flagged lines, numbered lines and evidence packet exactly as its single-hit call (prepareTriageHit); whole hits are packed to the probed window and one that does not fit waits for the next call, never cut. The model answers a JSON array by hit id; each item is validated alone against its own lines. A missing, doubled or failing item rejects only that hit, which is asked again alone (single-hit call, corrective retry included) in the same run, next in line, when minutes and calls allow; only that answer is final. A batched call that throws re-asks its hits alone. The quick first look batches the same way; per hit a confident false positive stands and the escalations go to the main model as one batch; fast_pass stays per hit (ms = batch time / hits). Deadline and call cap are checked between calls. plan.judge adds batch_size, batches [{pass, hits, rejected, ms}] (at most 200) and batch_retried. Verdict semantics, verify_status mapping and finding status unchanged. AI_JUDGE_BATCH_SIZE is in the env registry and docs/CONFIG.md. Write scope widened to packages/security/src/triage/** (the batch prompt, packer and parser), apps/api/src/workers/index.ts and apps/api/src/routes/ai-pass/schedule.ts (reading the env var), apps/api/src/routes/setup/env-registry.ts and docs/CONFIG.md (registering it). Still to do: measure verdicts per run at batch size 4 and agreement with one hit per call on outline and saleor."
+      ]
+    },
+    {
+      "id": "W22-15",
+      "title": "Clean-machine install fixes from the 2026-10-31 fresh Linux test",
+      "phase": 22,
+      "module": "infra",
+      "stories": [],
+      "write_scope": [
+        "deploy/configure.sh",
+        "deploy/up.sh",
+        "deploy/scan-db-sync.sh",
+        "deploy/smoke-report-pdf.sh",
+        "Dockerfile",
+        "Containerfile.scan",
+        "docs/INSTALL.md",
+        "apps/api/test/ops/**",
+        "plan.json",
+        "deploy/scan-db-rollback.sh",
+        "deploy/.env.example",
+        "deploy/bundle/README.md",
+        "docs/RUNNING.md",
+        "docs/CONFIG.md",
+        "apps/api/src/routes/setup/env-registry.ts",
+        "apps/api/src/workers/report-packaging.test.ts"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "On a fresh Ubuntu 26.04 VM with distro Podman 5.7, and on a fresh Ubuntu 24.04 VM with distro Docker, following docs/INSTALL.md \"Install from a checkout\" literally (no manual builds, no extra flags) gives healthz OK, admin sign-in with the forced password change, a passing deploy/smoke-report-pdf.sh and a passing deploy/scan-db-sync.sh",
+        "On Ubuntu 24.04 distro Podman 4.9.3 / podman-compose 1.0.6, deploy/up.sh refuses up front with a sentence naming the version floor instead of hanging, and a compose call that never returns is ended by a timeout that names it",
+        "configure.sh builds the migrate image itself in a checkout, gives bundle-only advice only in a bundle, and writes deploy/.env under rootless Podman on Linux; scan-db-sync.sh honours RUNTIME and names a missing scan image instead of blaming a proxy",
+        "deploy-script tests cover the new checks (version floors, buildx, compose timeout, configure.sh build and user mapping, scan-db-sync runtime choice) and pnpm lint, typecheck and test are green"
+      ],
+      "points": 3,
+      "status": "done",
+      "notes": [
+        "2026-10-31: filed from the clean-machine install test (owner chose \"Fix all install bugs\"; report at repopulse-backups/clean-install-2026-10-31/REPORT.md). Defects: G1 configure.sh needs the migrate image that only up.sh --build makes (circular, bundle-only error text); G2 configure.sh --user uid:gid cannot write deploy/.env under rootless Podman (needs --userns=keep-id); G3 Dockerfile FROM short names (nginx) do not resolve on Ubuntu Podman; G4 podman.socket not in \"What you need\"; G5 the checkout path never builds Containerfile.scan and scan-db-sync blames a proxy and suggests a compose service that does not exist; G6 smoke-report-pdf.sh needs the first password change and SMOKE_PASSWORD, undocumented; G7 grype DB is 3.2 GB, not 1.9; P1 podman-compose 1.0.6 lets blank .env lines override up.sh exports (and prints the Redis password in its logs); P2 Podman 4.9 cannot start --requires chains; P3 up.sh timeout cannot end a hung compose; D1 docker group re-login; D2 Ubuntu docker.io lacks buildx; D3 scan-db-sync.sh ignores RUNTIME.",
+        "2026-10-31: done. Re-tested from scratch on fresh VMs following docs/INSTALL.md \"Install from a checkout\" literally, no manual builds or flags, at 70b1d0ce: Ubuntu 26.04.1 LTS + distro Podman 5.7.0 / podman-compose 1.5.0 (configure.sh 18 s incl. migrate build, up.sh --build 145 s incl. Containerfile.scan, healthz OK, sign-in + forced password change, smoke-report-pdf PASS 2 pages, scan-db-sync PASS 73 s, 3.3 GB); Ubuntu 24.04.5 LTS + distro Docker 29.1.3 / compose 2.40.3 / buildx 0.30.1, RUNTIME=docker (configure 12 s, up 147 s, all six healthy, smoke PASS, scan-db-sync PASS 74 s). Ubuntu 24.04 distro Podman 4.9.3 / podman-compose 1.0.6: up.sh refuses in 0 s with the version sentence, no containers created. Live P3 check on Linux: a compose up that never returns is stopped after REPOPULSE_COMPOSE_TIMEOUT=5 with its message. The re-test found one more defect, fixed in 70b1d0ce: under rootful Docker the scan-db-sync fetch ran as --user 0:0 = host root, so the staged DB was root-owned and the swap failed; Docker now uses the invoking uid:gid. Write scope widened to deploy/scan-db-rollback.sh, deploy/.env.example, deploy/bundle/README.md, docs/RUNNING.md, docs/CONFIG.md and env-registry.ts (the 8 GB scan-data figure) and apps/api/src/workers/report-packaging.test.ts (it matched the unqualified node: base name). Report: repopulse-backups/clean-install-2026-10-31/REPORT.md, \"Re-test after fixes\"."
       ]
     },
     {

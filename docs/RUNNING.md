@@ -240,7 +240,7 @@ schema:
 
 An empty scan-data directory is fine: dependency scanning reports itself
 unavailable (which the Security tab says plainly) until you run
-`deploy/scan-db-sync.sh`, which needs 5 GB under that directory.
+`deploy/scan-db-sync.sh`, which needs 8 GB under that directory.
 
 Then open `http://localhost:8099` (`REPOPULSE_PORT`) and sign in as
 `ADMIN_EMAIL`. [INSTALL.md](INSTALL.md) is the same path written for someone

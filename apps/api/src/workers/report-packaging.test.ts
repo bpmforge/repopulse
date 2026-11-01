@@ -40,9 +40,11 @@ describe('the worker image can launch the report printer', () => {
 
   it('is built on a glibc base, because Playwright has no Alpine browser', () => {
     const worker = stage(dockerfile, 'worker');
-    const base = /^node:/.test(worker.from) ? worker.from : stage(dockerfile, worker.from).from;
+    // Base images are fully qualified (W22-15): Ubuntu's Podman resolves no short names.
+    const node = /^(docker\.io\/library\/)?node:/;
+    const base = node.test(worker.from) ? worker.from : stage(dockerfile, worker.from).from;
     expect(base).not.toMatch(/alpine/);
-    expect(base).toMatch(/^node:\S+-(bookworm|trixie)(-slim)?$/);
+    expect(base).toMatch(/^(docker\.io\/library\/)?node:\S+-(bookworm|trixie)(-slim)?$/);
   });
 
   it('installs the browser from the playwright in its own tree, at a path app can read', () => {
