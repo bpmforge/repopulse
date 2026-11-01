@@ -85,6 +85,10 @@ export const BUILTIN_SCANNERS: readonly Scanner[] = [
     // snapshot every PR pattern scanner shares (scanners/pr/run.ts).
     triggers: ['pr_synced', 'schedule', 'manual'],
     requiredTools: ['opengrep@1'],
+    // W23-03: Opengrep's OSS rules judge one file at a time, so a manual or
+    // weekly run may scan only what changed since the last full answer. The cap
+    // is the PR path's own (runSemgrepIncremental's maxFiles).
+    incremental: { maxChangedFiles: 200 },
   }),
   sweeper({
     key: CODE_HEALTH_SCANNER_KEY,
@@ -93,6 +97,10 @@ export const BUILTIN_SCANNERS: readonly Scanner[] = [
     inputs: 'snapshot',
     triggers: ['schedule', 'manual'],
     requiredTools: ['lizard@1', 'jscpd@4'],
+    // W23-03: lizard and the 'file'-scope adapters judge one file at a time.
+    // jscpd (duplication) does not, and is left to full runs — see
+    // code-health/run.ts, tryIncremental.
+    incremental: { maxChangedFiles: 200 },
   }),
   sweeper({
     key: ANTI_SLOP_SCANNER_KEY,

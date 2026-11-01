@@ -258,6 +258,10 @@ export const checkovAdapter: ToolAdapter = {
   key: 'checkov',
   version: '3.3.29',
   license: 'Apache-2.0',
+  /**
+   * Incremental scans (W23-03): 'tree' — its graph checks follow references across resources, modules and files, so one changed file can change the answer for others.
+   */
+  scope: 'tree',
   shadow: true,
 
   detect(ctx: AdapterContext): boolean {

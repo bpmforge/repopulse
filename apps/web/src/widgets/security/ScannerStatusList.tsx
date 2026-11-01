@@ -4,6 +4,7 @@ import { useApiMutation, useApiQuery } from '../../api/useApiQuery.js';
 import {
   SCOPE_LABEL,
   hasMeasuredCount,
+  incrementalChip,
   lastRunText,
   scannerStateLabel,
   type ScannerState,
@@ -46,6 +47,22 @@ function when(iso: string | null): string {
   if (!iso) return 'never';
   const date = new Date(iso);
   return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+/** "incremental since a1b2c3d · last full 14 Oct" under an incremental run's date (W23-03). */
+function IncrementalChip({ scanner }: { scanner: ScannerStatus }) {
+  const text = incrementalChip(
+    scanner.last_run_scope,
+    scanner.last_run_base_sha,
+    scanner.last_full_at,
+    when,
+  );
+  if (!scanner.last_run_at || text === null) return null;
+  return (
+    <div className="text-xs text-fg-muted" data-testid={`scanner-incremental-chip-${scanner.key}`}>
+      {text}
+    </div>
+  );
 }
 
 /**
@@ -263,6 +280,8 @@ export function ScannerStatusList({ scanners, manage = null }: Props) {
                       {SCOPE_LABEL[scanner.last_run_scope]}
                     </div>
                   )}
+                {/* W23-03: how far back the delta reaches, and how stale the full read is. */}
+                <IncrementalChip scanner={scanner} />
               </td>
               {/* W20-21 (FND-52): when it runs without anyone pressing Run. */}
               <td

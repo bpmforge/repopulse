@@ -1,0 +1,37 @@
+{
+  "scenario": "compare-diverged-200",
+  "provenance": "synthetic",
+  "note": "GET /compare where base is NOT an ancestor of head (force push): GitHub lists the change from the merge base, so the list is not base-to-head. Authored from the documented shape.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.github.com/repos/bpmforge/repopulse-fixture/compare/aaaa111...bbbb222?per_page=100"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "x-ratelimit-limit": "5000",
+      "x-ratelimit-remaining": "4990",
+      "x-ratelimit-used": "10",
+      "x-ratelimit-reset": "1784426823",
+      "x-ratelimit-resource": "core"
+    },
+    "body": {
+      "status": "diverged",
+      "ahead_by": 2,
+      "behind_by": 1,
+      "total_commits": 2,
+      "files": [
+        {
+          "sha": "0000000000000000000000000000000000000000",
+          "filename": "src/a.ts",
+          "status": "modified",
+          "additions": 3,
+          "deletions": 1,
+          "changes": 4,
+          "patch": "@@ -1 +1 @@\n-a\n+b"
+        }
+      ]
+    }
+  }
+}

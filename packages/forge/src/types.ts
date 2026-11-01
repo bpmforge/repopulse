@@ -69,6 +69,28 @@ export interface ForgeDiffFile {
   patchTruncated: boolean; // true when forge omitted/clipped patch
 }
 
+/**
+ * One file in a commit-to-commit comparison (W23-03). Path and status only: the
+ * incremental scanners fetch the content themselves, at the head.
+ */
+export interface ForgeCompareFile {
+  path: string;
+  status: ForgeDiffFile['status'];
+  /** The old path of a rename: the file that no longer exists at the head. */
+  previousPath?: string;
+}
+
+/**
+ * The files that differ between two commits. `truncated` = the list may be
+ * SHORT: the forge capped it (GitHub: 300 files), timed out, or `base` is not an
+ * ancestor of `head` so the answer is not the base-to-head change. A caller that
+ * needs the exact set must treat `truncated` as "unknown" and do the full work.
+ */
+export interface ForgeComparison {
+  files: ForgeCompareFile[];
+  truncated: boolean;
+}
+
 export interface ForgePR {
   number: number;
   externalId: string;

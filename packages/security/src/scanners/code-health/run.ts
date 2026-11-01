@@ -1,17 +1,39 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import { read, security, type Database, safeErrorText } from '@repopulse/shared';
 import { attachExcerpts } from '../../excerpt.js';
-import { persistFindings, type IncomingFinding } from '@repopulse/insights';
+import {
+  carryForward,
+  filesSeenByRun,
+  persistFindings,
+  type IncomingFinding,
+} from '@repopulse/insights';
 import type { ForgeProvider } from '@repopulse/forge';
-import { listTreeFiles, snapshotOrProvided } from '../../snapshot/index.js';
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { listTreeFiles, shred, snapshotOrProvided } from '../../snapshot/index.js';
 import { ruleStateStamp } from '../../framework/data-stamp.js';
+import {
+  fetchChangedFiles,
+  planIncremental,
+  type IncrementalPlan,
+} from '../../framework/incremental.js';
+import { realToolVersions } from '../../framework/input-hash.js';
+import { getScanner } from '../../registry.js';
+import { SCAN_MOUNT_PATH } from '../../../sandbox/profile.js';
 import {
   runCodeHealthTools,
   codeHealthDataVersion,
   CODE_HEALTH_SCANNER_KEY,
   type CodeHealthFinding,
+  type ToolRunResult,
 } from './tools.js';
-import { dedupeAcrossTools, dedupeAgainstPack, listAdapters } from './adapters/registry.js';
+import {
+  adaptersFor,
+  dedupeAcrossTools,
+  dedupeAgainstPack,
+  listAdapters,
+} from './adapters/registry.js';
 import type { AdapterFinding } from './adapters/types.js';
 import type { CodeHealthThresholds } from './thresholds.js';
 import { isStarterRule, toolRowIsAdminChoice } from '../../rules/starter-set.js';
@@ -36,6 +58,18 @@ export interface CodeHealthRunDeps {
   wallClockMs?: number;
   /** W23-02. A tree the scan batch already fetched; absent = fetch our own. */
   snapshot?: { dir: string; commitSha: string };
+  /**
+   * W23-03. "Full rescan": never plan an incremental run. Without it, and
+   * without a handed-in tree (already on disk, so a full run costs nothing
+   * extra), a run with a usable baseline scans only the files changed since it.
+   */
+  force?: boolean;
+  /** Test seams for the incremental path; production leaves them out. */
+  runTools?: typeof runCodeHealthTools;
+  plan?: typeof planIncremental;
+  persist?: typeof persistFindings;
+  carry?: typeof carryForward;
+  seenFiles?: typeof filesSeenByRun;
 }
 
 export interface CodeHealthRunResult {
@@ -49,6 +83,13 @@ export interface CodeHealthRunResult {
   adapterDropped?: number;
   /** Adapters that applied but could not be read — surfaced, never swallowed. */
   adapterErrors?: { adapter: string; reason: string }[];
+  /** W23-03: what the run did. Absent = a full run. */
+  scope?: 'full' | 'incremental';
+  /** Incremental only: changed files actually fetched and scanned. */
+  filesScanned?: number;
+  /** Incremental only: prior findings re-sighted, and findings closed in deleted files. */
+  carriedForward?: number;
+  closedInDeletedFiles?: number;
   error?: string;
 }
 
@@ -242,8 +283,273 @@ export async function seedAdapterRegistry(
   return inserted.map((r) => r.ruleId);
 }
 
+/**
+ * Files lizard reads (its languages), broad on purpose: a file fetched that no
+ * tool reads costs one contents call, while a file left out that lizard WOULD
+ * have measured makes the incremental answer differ from a full run's.
+ */
+const LIZARD_FILES =
+  /\.(c|cc|cpp|cxx|h|hh|hpp|hxx|m|mm|java|cs|js|jsx|mjs|cjs|vue|ts|tsx|py|rb|php|swift|go|rs|scala|kt|kts|lua|sol|erl|hrl|zig|gd|ttcn|ttcn3|pl|pm|f90|f95|r)$/i;
+
+/** A changed path some per-file tool of this scanner would read (lizard, or an adapter's own filter). */
+function isReadable(file: string): boolean {
+  return (
+    LIZARD_FILES.test(file) || adaptersFor({ mountPath: SCAN_MOUNT_PATH, files: [file] }).length > 0
+  );
+}
+
+/**
+ * INCREMENTAL mode (W23-03, WP-R3): the changed files since the last full
+ * answer, fetched one by one (no tarball), run through lizard and the per-file
+ * adapters in a scratch dir; the base run's findings for every other file are
+ * carried forward. Whole-tree result, incremental work (C12).
+ *
+ * WHAT IT DOES NOT DO, and why that is stated rather than hidden:
+ *   - DUPLICATION (jscpd) is a relation between files; it is not run. Clones
+ *     already on record are never closed or replaced by an incremental run
+ *     (only deleted files take theirs with them), and the next full run, at most
+ *     ten incrementals or thirty days away, recomputes them.
+ *   - The three posture metrics (duplication %, complexity p90, worst-function
+ *     count) are whole-tree numbers; over a handful of files they would plot a
+ *     drop that never happened. No metric rows are written; the series carries
+ *     the last full run's values.
+ *   - An adapter whose `scope` is not 'file' (cppcheck, checkov, iacrender), in
+ *     the last full run or among the changed files, makes the run full.
+ *
+ * Returns null whenever it cannot be exact: the caller then runs the full scan,
+ * and NOTHING has been written (no run row, no finding). The fetch and every
+ * check come before the first write.
+ */
+async function tryIncremental(
+  deps: CodeHealthRunDeps,
+  dataVersion: string | null,
+): Promise<CodeHealthRunResult | null> {
+  const meta = getScanner(CODE_HEALTH_SCANNER_KEY)?.incremental;
+  if (!meta) return null;
+
+  let plan: IncrementalPlan;
+  try {
+    plan = await (deps.plan ?? planIncremental)({
+      db: deps.db,
+      provider: deps.provider,
+      repo: deps.repo,
+      workspaceId: deps.workspaceId,
+      repoId: deps.repoId,
+      scannerKey: CODE_HEALTH_SCANNER_KEY,
+      headSha: deps.commitSha,
+      // The run's own tool versions are known only by running (which adapters
+      // the TREE triggers); the data stamp pins the registry, pins and image.
+      dataVersion,
+      maxChangedFiles: meta.maxChangedFiles,
+    });
+  } catch {
+    return null;
+  }
+  if (plan.mode !== 'incremental') return null;
+
+  const treeAdapters = new Set(
+    listAdapters()
+      .filter((a) => a.scope !== 'file')
+      .map((a) => a.key),
+  );
+  if (Object.keys(plan.baseRun.toolVersions ?? {}).some((k) => treeAdapters.has(k))) return null;
+  const targets = plan.changed.filter(isReadable);
+  if (adaptersFor({ mountPath: SCAN_MOUNT_PATH, files: targets }).some((a) => a.scope !== 'file')) {
+    return null;
+  }
+
+  const root = await mkdtemp(path.join(tmpdir(), 'repopulse-code-health-'));
+  try {
+    let fetched;
+    try {
+      fetched = await fetchChangedFiles({
+        provider: deps.provider,
+        repo: deps.repo,
+        repoId: deps.repoId,
+        commitSha: deps.commitSha,
+        paths: targets,
+        root,
+        maxFiles: meta.maxChangedFiles,
+        onMissing: 'skip',
+      });
+    } catch {
+      return null;
+    }
+    // A file we could not read in full (over the forge's size limit, binary) is
+    // one a full run's tarball WOULD have measured: its old findings cannot be
+    // carried as if nothing happened, so the exact answer is the full run.
+    if (fetched.unreadable.length > 0 || fetched.overCap.length > 0) return null;
+
+    const [run] = await deps.db
+      .insert(security.scanRuns)
+      .values({
+        workspaceId: deps.workspaceId,
+        repoId: deps.repoId,
+        scannerKey: CODE_HEALTH_SCANNER_KEY,
+        scannerVersion: 'pending',
+        commitSha: deps.commitSha,
+        trigger: deps.trigger ?? 'schedule',
+        status: 'running',
+        scope: 'incremental',
+        baseRunId: plan.baseRun.id,
+      })
+      .returning();
+    const runId = run!.id;
+
+    try {
+      const emptyTools: ToolRunResult = {
+        status: 'succeeded',
+        findings: [],
+        adapterFindings: [],
+        adapterErrors: [],
+        metrics: { ch_duplication_pct: 0, ch_complexity_p90: null, ch_worst_fn_count: 0 },
+        toolVersions: {},
+      };
+      const tools: ToolRunResult =
+        fetched.written.length === 0
+          ? emptyTools
+          : await (deps.runTools ?? runCodeHealthTools)({
+              targetDir: root,
+              image: deps.image ?? DEFAULT_IMAGE,
+              budget: { wallClockMs: deps.wallClockMs ?? DEFAULT_WALL_CLOCK_MS },
+              skipDuplication: true,
+              ...(deps.thresholds ? { thresholds: deps.thresholds } : {}),
+            });
+      const toolVersions = {
+        ...(realToolVersions(plan.baseRun.toolVersions) ?? {}),
+        ...tools.toolVersions,
+      };
+
+      if (tools.status !== 'succeeded') {
+        await closeRun(deps.db, runId, 'failed', 0, tools.error ?? null, toolVersions);
+        return {
+          status: 'failed',
+          scanRunId: runId,
+          findingsCreated: 0,
+          findingsTotal: 0,
+          metricsWritten: 0,
+          scope: 'incremental',
+          ...(tools.error ? { error: tools.error } : {}),
+        };
+      }
+
+      // Same dedup and shadow lifecycle as a full run, over the scanned files.
+      const openRuleIds = (
+        await deps.db
+          .select({ ruleId: read.findings.ruleId })
+          .from(read.findings)
+          .where(eq(read.findings.repoId, deps.repoId))
+      )
+        .map((row) => row.ruleId)
+        .filter((id): id is string => id !== null);
+      const acrossTools = dedupeAcrossTools(tools.adapterFindings);
+      const againstPack = dedupeAgainstPack(acrossTools.kept, openRuleIds);
+      const dropped = [...acrossTools.dropped, ...againstPack.dropped];
+      const { kept, experimental } = await adapterShadowState(
+        deps.db,
+        deps.workspaceId,
+        againstPack.kept,
+      );
+      const findings = [...toIncoming(tools.findings), ...adapterToIncoming(kept, experimental)];
+      await seedAdapterRegistry(deps.db, deps.workspaceId, kept);
+
+      const failedTools = new Set(tools.adapterErrors.map((e) => e.adapter));
+      const persisted = await (deps.persist ?? persistFindings)(deps.db, {
+        workspaceId: deps.workspaceId,
+        repoId: deps.repoId,
+        scanRunId: runId,
+        pullRequestId: null,
+        tier: 1,
+        findings: await attachExcerpts(root, findings),
+        // THE INCREMENTAL SWEEP: only the files this run read. No tree list, so
+        // nothing outside the changed set can be closed by not being reported.
+        reviewedFiles: [
+          ...new Set([
+            ...fetched.written,
+            ...findings.map((f) => f.file).filter((f): f is string => !!f),
+          ]),
+        ],
+        fullSweep: {
+          keepOpen: (row) =>
+            row.ruleId !== null &&
+            // a clone is a relation between files: only a full run may decide it is gone
+            (row.ruleId.startsWith('duplication.') ||
+              (row.ruleId.startsWith('tool.') && failedTools.has(row.ruleId.split('.')[1] ?? ''))),
+        },
+        sweepScannerKey: CODE_HEALTH_SCANNER_KEY,
+      });
+
+      // Everything else the base run saw: re-sighted, or closed if its file is gone.
+      const deleted = [...new Set([...plan.deleted, ...fetched.gone])];
+      const scanned = new Set(fetched.written);
+      const seen = await (deps.seenFiles ?? filesSeenByRun)(deps.db, {
+        workspaceId: deps.workspaceId,
+        repoId: deps.repoId,
+        scannerKey: CODE_HEALTH_SCANNER_KEY,
+        runId: plan.baseRun.id,
+      });
+      const carried = await (deps.carry ?? carryForward)({
+        db: deps.db,
+        workspaceId: deps.workspaceId,
+        repoId: deps.repoId,
+        scannerKey: CODE_HEALTH_SCANNER_KEY,
+        baseRunId: plan.baseRun.id,
+        newRunId: runId,
+        unchangedPaths: seen.filter((f) => !scanned.has(f) && !deleted.includes(f)),
+        deletedPaths: deleted,
+      });
+
+      await closeRun(
+        deps.db,
+        runId,
+        'succeeded',
+        findings.length + carried.resighted,
+        null,
+        toolVersions,
+        tools.adapterErrors.length === 0 ? dataVersion : null,
+      );
+      return {
+        status: 'succeeded',
+        scanRunId: runId,
+        findingsCreated: persisted.created,
+        findingsTotal: findings.length + carried.resighted,
+        metricsWritten: 0,
+        adapterFindings: kept.length,
+        adapterDropped: dropped.length,
+        adapterErrors: tools.adapterErrors,
+        scope: 'incremental',
+        filesScanned: fetched.written.length,
+        carriedForward: carried.resighted,
+        closedInDeletedFiles: carried.closed,
+      };
+    } catch (err) {
+      await closeRun(deps.db, runId, 'failed', 0, safeErrorText(err).slice(0, 500), null);
+      return {
+        status: 'failed',
+        scanRunId: runId,
+        findingsCreated: 0,
+        findingsTotal: 0,
+        metricsWritten: 0,
+        scope: 'incremental',
+        error: safeErrorText(err),
+      };
+    }
+  } finally {
+    await shred(root);
+  }
+}
+
 /** Weekly/manual pass over a snapshot. */
 export async function runCodeHealthScan(deps: CodeHealthRunDeps): Promise<CodeHealthRunResult> {
+  // W23-09: read before the tools run (see semgrep run-modes for why).
+  const dataVersion = codeHealthDataVersion(
+    deps.thresholds,
+    await ruleStateStamp(deps.db, deps.workspaceId),
+  );
+  if (!deps.force && !deps.snapshot) {
+    const incremental = await tryIncremental(deps, dataVersion);
+    if (incremental) return incremental;
+  }
   const [run] = await deps.db
     .insert(security.scanRuns)
     .values({
@@ -257,18 +563,13 @@ export async function runCodeHealthScan(deps: CodeHealthRunDeps): Promise<CodeHe
     })
     .returning();
   const runId = run!.id;
-  // W23-09: read before the tools run (see semgrep run-modes for why).
-  const dataVersion = codeHealthDataVersion(
-    deps.thresholds,
-    await ruleStateStamp(deps.db, deps.workspaceId),
-  );
 
   try {
     return await snapshotOrProvided(
       deps.snapshot,
       { provider: deps.provider, repo: deps.repo, commitSha: deps.commitSha },
       async (snapshot) => {
-        const tools = await runCodeHealthTools({
+        const tools = await (deps.runTools ?? runCodeHealthTools)({
           targetDir: snapshot.dir,
           image: deps.image ?? DEFAULT_IMAGE,
           budget: { wallClockMs: deps.wallClockMs ?? DEFAULT_WALL_CLOCK_MS },
@@ -319,7 +620,7 @@ export async function runCodeHealthScan(deps: CodeHealthRunDeps): Promise<CodeHe
         // and its findings are left exactly as they were.
         const tree = listTreeFiles(snapshot.dir);
         const failedTools = new Set(tools.adapterErrors.map((e) => e.adapter));
-        const persisted = await persistFindings(deps.db, {
+        const persisted = await (deps.persist ?? persistFindings)(deps.db, {
           workspaceId: deps.workspaceId,
           repoId: deps.repoId,
           scanRunId: runId,

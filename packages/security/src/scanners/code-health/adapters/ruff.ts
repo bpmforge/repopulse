@@ -43,6 +43,10 @@ export const ruffAdapter: ToolAdapter = {
   key: 'ruff',
   version: '0.16.3',
   license: 'MIT',
+  /**
+   * Incremental scans (W23-03): 'file' — each diagnostic is a property of one file (isolated config, no import resolution across files).
+   */
+  scope: 'file',
 
   detect(ctx: AdapterContext): boolean {
     return hasExtension(ctx.files, ['.py', '.pyi']);

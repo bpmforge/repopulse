@@ -11,6 +11,8 @@ import type {
   ForgeCapabilities,
   ForgeCheckRun,
   ForgeCommit,
+  ForgeCompareFile,
+  ForgeComparison,
   ForgeCursor,
   ForgeDeployment,
   ForgeDiffFile,
@@ -82,6 +84,9 @@ export interface GiteaProviderOptions {
   /** Self-hosted, so there is no sensible default — the operator's instance. */
   baseUrl: string;
 }
+
+/** One file-list call per commit in the range; a longer range is reported truncated. */
+export const GITEA_COMPARE_MAX_COMMITS = 50;
 
 export class GiteaProvider implements ForgeProvider {
   readonly kind = 'gitea' as const;
@@ -184,6 +189,78 @@ export class GiteaProvider implements ForgeProvider {
         deletions: body.stats?.deletions ?? 0,
       },
     };
+  }
+
+  /**
+   * Gitea's compare endpoint lists the COMMITS between two refs and no files, so
+   * the file list is built from those commits' own file lists (W23-03). Two
+   * things make that safe to hand to a caller that needs the exact set, and
+   * anything else reports `truncated`:
+   *  - a merge commit in the range (its own file list is empty, and a conflict
+   *    resolved in it would be invisible), and
+   *  - more commits than GITEA_COMPARE_MAX_COMMITS (a call each).
+   * A later commit's status wins: added then removed is a delete, removed then
+   * added is a modification of a path that exists at the head.
+   */
+  async compareCommits(
+    ctx: CallCtx,
+    repo: string,
+    base: string,
+    head: string,
+  ): Promise<ForgeComparison> {
+    const res = await this.get(
+      ctx,
+      `${this.base}/repos/${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`,
+      'commits',
+    );
+    assertListOk(res, 'compare');
+    const body = res.body as {
+      total_commits?: number;
+      commits?: { sha: string; parents?: { sha: string }[] | null }[] | null;
+    };
+    const commits = body.commits ?? [];
+    const total = body.total_commits ?? commits.length;
+    if (
+      total > GITEA_COMPARE_MAX_COMMITS ||
+      commits.length < total ||
+      commits.some((c) => (c.parents?.length ?? 0) > 1)
+    ) {
+      return { files: [], truncated: true };
+    }
+    // Oldest first, so the newest commit's word on a path is the last one.
+    const byPath = new Map<string, ForgeCompareFile>();
+    for (const commit of [...commits].reverse()) {
+      const page = await this.getCommitFiles(ctx, repo, commit.sha);
+      for (const f of page.items) {
+        const prior = byPath.get(f.path);
+        const status =
+          f.status === 'removed'
+            ? 'removed'
+            : prior?.status === 'removed'
+              ? 'modified'
+              : prior?.status === 'added' && f.status === 'modified'
+                ? 'added'
+                : f.status;
+        byPath.set(f.path, {
+          path: f.path,
+          status,
+          ...(f.previousPath ? { previousPath: f.previousPath } : {}),
+        });
+      }
+    }
+    return { files: [...byPath.values()], truncated: false };
+  }
+
+  /** `GET /git/commits/{sha}` -> `.commit.tree.sha` (W23-03). */
+  async getCommitTreeSha(ctx: CallCtx, repo: string, sha: string): Promise<string | null> {
+    const res = await this.get(
+      ctx,
+      `${this.base}/repos/${repo}/git/commits/${encodeURIComponent(sha)}`,
+      'commits',
+    );
+    if (assertListOk(res, 'commit_tree', [404, 422]) === 'empty') return null;
+    const tree = (res.body as { commit?: { tree?: { sha?: string } } } | null)?.commit?.tree?.sha;
+    return typeof tree === 'string' && tree !== '' ? tree : null;
   }
 
   async listPullRequests(ctx: CallCtx, repo: string, q: SinceQuery): Promise<Page<ForgePR>> {

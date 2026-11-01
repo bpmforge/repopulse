@@ -49,6 +49,10 @@ export const hadolintAdapter: ToolAdapter = {
   key: 'hadolint',
   version: '2.15.1',
   license: 'GPL-3.0-only (subprocess only)',
+  /**
+   * Incremental scans (W23-03): 'file' — one Dockerfile at a time, no cross-file context.
+   */
+  scope: 'file',
   shadow: true,
 
   detect(ctx: AdapterContext): boolean {

@@ -44,6 +44,22 @@ export interface ToolAdapter {
   version: string;
   license: string;
   /**
+   * What one run of this tool depends on (W23-03, incremental scans).
+   *
+   *   'file'  each finding is a property of ONE file: run over only the files a
+   *           commit changed, carry the rest forward, and the answer is the same
+   *           as a full run's.
+   *   'tree'  a finding can depend on other files (cross-file analysis, a render
+   *           of a whole directory): one changed file can change the answer for
+   *           files that did not change, so the tool cannot be made incremental
+   *           honestly. Absent means 'tree': the safe reading for an adapter
+   *           nobody has classified.
+   *
+   * A scan whose changed files, or whose last full run, involve any 'tree'
+   * adapter is planned FULL. Declared here so that adding an adapter states it.
+   */
+  scope?: 'file' | 'tree';
+  /**
    * Does this tool apply to this snapshot?
    *
    * Language routing lives here rather than in the scanner: running Biome over

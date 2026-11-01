@@ -366,6 +366,16 @@ export default async function securityRoutes(
         key,
         enabledByKey.has(key) ? { enabled: enabledByKey.get(key)! } : undefined,
       );
+      // W23-03: for an incremental run, the commit its delta was measured from
+      // and when the tree was last read in full ("incremental since a1b2c3d ·
+      // last full 14 Oct"). Read from the runs already loaded above.
+      const baseRun =
+        run?.baseRunId !== null && run?.baseRunId !== undefined
+          ? runs.find((r) => r.id === run.baseRunId)
+          : undefined;
+      const lastFull = runs.find(
+        (r) => r.scannerKey === key && r.scope === 'full' && r.status === 'succeeded' && !r.partial,
+      );
       return {
         key,
         display_name:
@@ -382,6 +392,8 @@ export default async function securityRoutes(
         // restates is `last_run_base_run_id`.
         last_run_scope: run?.scope ?? null,
         last_run_base_run_id: run?.baseRunId ?? null,
+        last_run_base_sha: baseRun?.commitSha ?? null,
+        last_full_at: lastFull ? (lastFull.finishedAt ?? lastFull.startedAt).toISOString() : null,
         // The scanner's own error, verbatim: "why is this red" has to be
         // answerable without a log search. Not for a skipped row, whose
         // sentence is a statement of currency, not a fault.

@@ -57,6 +57,10 @@ export const biomeAdapter: ToolAdapter = {
   key: 'biome',
   version: '2.5.9',
   license: 'MIT OR Apache-2.0',
+  /**
+   * Incremental scans (W23-03): 'file' — lint rules read one file at a time, with our own baked-in config.
+   */
+  scope: 'file',
 
   detect(ctx: AdapterContext): boolean {
     return hasExtension(ctx.files, ['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs']);

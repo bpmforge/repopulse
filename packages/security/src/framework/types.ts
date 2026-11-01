@@ -104,6 +104,15 @@ export interface Scanner {
    * on the key to find it.
    */
   dataVersion?: () => Promise<string | null>;
+  /**
+   * W23-03. Present = this scanner judges each file on its own, so a manual or
+   * weekly run MAY scan only the files that changed since the last full answer
+   * and carry the rest forward (`planIncremental`, `carryForward`). The cap is
+   * the most changed files it will fetch one by one before a full snapshot is
+   * the cheaper way. Absent = whole-tree: the framework never limits its work.
+   * Registry METADATA: the framework reads it, it never branches on `key`.
+   */
+  incremental?: { maxChangedFiles: number };
   run(ctx: ScannerContext): Promise<ScannerFinding[]>;
 }
 
