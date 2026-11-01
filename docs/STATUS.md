@@ -4170,3 +4170,12 @@ on the Mac:**
 3. **Playwright e2e for W23-08**: `pnpm exec playwright test e2e/scan-scope.spec.ts` plus
    `e2e/a11y.spec.ts`, `e2e/security.spec.ts`, `e2e/code-health.spec.ts` (the coverage table gained
    a column). The spec was written against the existing helpers and has never run.
+
+- 2026-11-01 — W23 wave pushed to GitHub `main` (aa64de34; includes the #206 open-source
+  prep merge). `CHANGELOG.md` and `docs/RELEASE.md` added; W23-10 opened for cutting 0.2.0.
+  No version bump yet: the About page's published accuracy is pinned to 0.1.0 and must be
+  re-measured on the release commit first (step 4 of RELEASE.md). GitHub Actions on this
+  private repository has not started a runner since 2026-10-13 (jobs fail in ~3 s with no
+  runner; today's dispatched run sat queued an hour) — likely an Actions billing/spending
+  limit; until that is fixed the live-infra gate runs only on a developer machine. The
+  product site (W22-12) is still blocked on W22-10/11 (measured examples).

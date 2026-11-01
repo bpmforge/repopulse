@@ -12478,6 +12478,42 @@
         "Spec: docs/work/INCREMENTAL_SCAN_PLAN.md WP-R1 gaps (1)-(4) recorded on W23-01.",
         "2026-10-31 merged to main 91ff60d2; offline gate green (tsc, eslint, vitest with DB-gated files skipped). Live-infra pnpm test still to run on the Mac."
       ]
+    },
+    {
+      "id": "W23-10",
+      "title": "Cut release 0.2.0: live-infra gate, evals, benchmark on the release commit, version bump, bundles, tag, GitHub release",
+      "phase": 23,
+      "module": "infra",
+      "stories": [],
+      "write_scope": [
+        "package.json",
+        "apps/*/package.json",
+        "packages/*/package.json",
+        "tools/*/package.json",
+        "README.md",
+        "CHANGELOG.md",
+        "docs/RELEASE.md",
+        "docs/STATUS.md",
+        "docs/benchmarks/**",
+        "apps/web/src/about/release-accuracy.json",
+        "deploy/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W23-08",
+        "W23-09"
+      ],
+      "acceptance": [
+        "pnpm lint && pnpm typecheck && pnpm test green with live Postgres/Redis on the release commit; pnpm db:generate shows no drift for 0065-0067; pnpm e2e green including e2e/scan-scope.spec.ts",
+        "W19-05 review-quality evals re-run after the W23-06 prompt reorder, results recorded in docs/MODEL_EVAL.md or docs/TRIAGE_EVAL.md",
+        "Benchmark re-run on the release commit (docs/benchmarks/report.{json,md}) and apps/web/src/about/release-accuracy.json updated to release 0.2.0 with the About test green",
+        "Version 0.2.0 in the root and every workspace package.json and the README bundle names; CHANGELOG dated; tag v0.2.0 pushed to origin and github; bundles built per architecture with deploy/bundle.sh, smoke-installed, attached to a GitHub release with .sha256 files"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": [
+        "Procedure: docs/RELEASE.md. The W22-13 release-day steps (public Lodestone/bpm-rulepacks, licence items) are separate and need the owner's go on the day."
+      ]
     }
   ]
 }
