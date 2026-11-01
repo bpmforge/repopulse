@@ -2,10 +2,9 @@ import { useState } from 'react';
 import { ErrorNote } from '../../components/index.js';
 import { useApiMutation, useApiQuery } from '../../api/useApiQuery.js';
 import {
-  SCOPE_LABEL,
   hasMeasuredCount,
-  incrementalChip,
-  lastRunText,
+  lastFullText,
+  scopeCellText,
   scannerStateLabel,
   type ScannerState,
   type ScannerStatus,
@@ -49,19 +48,41 @@ function when(iso: string | null): string {
   return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-/** "incremental since a1b2c3d · last full 14 Oct" under an incremental run's date (W23-03). */
-function IncrementalChip({ scanner }: { scanner: ScannerStatus }) {
-  const text = incrementalChip(
+/**
+ * The Scope cell (W23-08): what the last run did, a "last full" tooltip, and —
+ * for an admin, on a row whose last run did not read the whole tree — a
+ * "Full rescan" button that re-runs just this scanner with force. The tooltip
+ * text is also rendered for assistive technology, because `title` alone is
+ * invisible to a keyboard user.
+ */
+function ScopeCell({ scanner, manage }: { scanner: ScannerStatus; manage: Props['manage'] }) {
+  const text = scopeCellText(
     scanner.last_run_scope,
     scanner.last_run_base_sha,
-    scanner.last_full_at,
+    scanner.last_run_at,
     when,
   );
-  if (!scanner.last_run_at || text === null) return null;
+  if (text === null) return <>—</>;
+  const lastFull = lastFullText(
+    scanner.last_run_scope,
+    scanner.last_full_at,
+    scanner.last_run_at,
+    when,
+  );
+  const partial = scanner.last_run_scope === 'incremental' || scanner.last_run_scope === 'skipped';
   return (
-    <div className="text-xs text-fg-muted" data-testid={`scanner-incremental-chip-${scanner.key}`}>
-      {text}
-    </div>
+    <>
+      <span data-testid={`scanner-scope-${scanner.key}`} title={lastFull}>
+        {text}
+        <span className="sr-only"> ({lastFull})</span>
+      </span>
+      <div className="text-xs text-fg-muted" data-testid={`scanner-last-full-${scanner.key}`}>
+        {lastFull}
+      </div>
+      {manage && partial && scanner.registered && scanner.enabled && (
+        <RerunScanner scanner={scanner} manage={manage} mode="full" />
+      )}
+    </>
   );
 }
 
@@ -198,6 +219,10 @@ export function ScannerStatusList({ scanners, manage = null }: Props) {
             <th scope="col" className="py-1 text-right">
               Open
             </th>
+            {/* After Open, so the positions of the earlier columns stay put. */}
+            <th scope="col" className="py-1 pl-3">
+              Scope
+            </th>
             {manage && (
               <th scope="col" className="py-1 text-right">
                 On for this repository
@@ -266,22 +291,7 @@ export function ScannerStatusList({ scanners, manage = null }: Props) {
                   )}
               </td>
               <td className="py-1.5" data-testid={`scanner-last-run-${scanner.key}`}>
-                {scanner.last_run_at
-                  ? lastRunText(when(scanner.last_run_at), scanner.last_run_scope)
-                  : when(scanner.last_run_at)}
-                {/* W23-01: what that run did, so "today" is not read as "scanned today". */}
-                {scanner.last_run_at &&
-                  scanner.last_run_scope &&
-                  SCOPE_LABEL[scanner.last_run_scope] && (
-                    <div
-                      className="text-xs text-fg-muted"
-                      data-testid={`scanner-scope-${scanner.key}`}
-                    >
-                      {SCOPE_LABEL[scanner.last_run_scope]}
-                    </div>
-                  )}
-                {/* W23-03: how far back the delta reaches, and how stale the full read is. */}
-                <IncrementalChip scanner={scanner} />
+                {when(scanner.last_run_at)}
               </td>
               {/* W20-21 (FND-52): when it runs without anyone pressing Run. */}
               <td
@@ -298,6 +308,9 @@ export function ScannerStatusList({ scanners, manage = null }: Props) {
                   scanned nothing, or one whose every finding was rejected —
                   the count column must not make the claim the label refused. */}
                 {hasMeasuredCount(scanner.state) ? scanner.open_findings : '—'}
+              </td>
+              <td className="py-1.5 pl-3">
+                <ScopeCell scanner={scanner} manage={manage} />
               </td>
               {manage && (
                 <td className="py-1.5 text-right">
@@ -320,31 +333,68 @@ export function ScannerStatusList({ scanners, manage = null }: Props) {
 function RerunScanner({
   scanner,
   manage,
+  mode = 'rerun',
 }: {
   scanner: ScannerStatus;
   manage: { repoId: string; invalidate: readonly (readonly unknown[])[] };
+  /** 'full' = the Scope cell's "Full rescan" (always force); 'rerun' = the State cell's Re-run. */
+  mode?: 'rerun' | 'full';
 }) {
   const run = useApiMutation<
-    { scanner_key: string },
-    { started: string[]; already_running: string[] }
+    { scanner_key: string; force?: boolean },
+    { started: string[]; already_running: string[]; up_to_date?: string[] }
   >(
     { endpoint: '/repos/{id}/scan', path: { id: manage.repoId }, method: 'POST' },
     { invalidate: manage.invalidate },
   );
+  // W23-08: Re-run used to send no force, so a scanner whose last run was
+  // "up to date" could not be re-run on its own at all. Off by default.
+  const [force, setForce] = useState(false);
+  const forced = mode === 'full' || force;
   return (
     <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs">
       <button
         type="button"
         className="text-accent underline underline-offset-2 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-        data-testid={`scanner-rerun-${scanner.key}`}
+        data-testid={
+          mode === 'full' ? `scanner-full-rescan-${scanner.key}` : `scanner-rerun-${scanner.key}`
+        }
+        aria-label={
+          mode === 'full'
+            ? `Full rescan: ${scanner.display_name}`
+            : `${scanner.state === 'never_run' ? 'Run it now' : 'Re-run'}: ${scanner.display_name}`
+        }
         disabled={run.isPending}
-        onClick={() => run.mutate({ scanner_key: scanner.key })}
+        onClick={() => run.mutate({ scanner_key: scanner.key, ...(forced ? { force: true } : {}) })}
       >
-        {run.isPending ? 'Starting…' : scanner.state === 'never_run' ? 'Run it now' : 'Re-run'}
+        {run.isPending
+          ? 'Starting…'
+          : mode === 'full'
+            ? 'Full rescan'
+            : scanner.state === 'never_run'
+              ? 'Run it now'
+              : 'Re-run'}
       </button>
+      {mode === 'rerun' && (
+        <label className="flex items-center gap-1 text-fg-muted">
+          <input
+            type="checkbox"
+            data-testid={`scanner-rerun-force-${scanner.key}`}
+            checked={force}
+            disabled={run.isPending}
+            onChange={(e) => setForce(e.target.checked)}
+          />
+          Full rescan
+          <span className="sr-only"> of {scanner.display_name}</span>
+        </label>
+      )}
       {run.isSuccess && (
         <span role="status" className="text-fg-muted">
-          {run.data.started.length > 0 ? 'Started.' : 'Already running.'}
+          {run.data.started.length > 0
+            ? 'Started.'
+            : (run.data.up_to_date ?? []).length > 0
+              ? 'Up to date — nothing re-scanned.'
+              : 'Already running.'}
         </span>
       )}
       <ErrorNote error={run.error} testId={`scanner-rerun-error-${scanner.key}`} />

@@ -4124,3 +4124,49 @@ incidents plus 120 held-out real packages): P 0.938 / R 0.938 overall; rule
 scan image, the image build, a real snapshot scan, the cargo dump and a full Go
 backfill. Also fixed: the CocoaPods note in `ecosystems/matrix.ts`, which did
 not match docs/ECOSYSTEMS.md on main. Gate: see the commit body.
+
+### 2026-10-31 — W23: incremental scanning (tickets 01-09)
+
+Goal: a second press of "Run scans now" with no new commit, and a weekly sweep over an
+unchanged repository, should cost nothing; a changed repository should cost the delta.
+Spec: docs/work/INCREMENTAL_SCAN_PLAN.md.
+
+What landed (all merged to `main` except where noted):
+
+- **W23-01** `scan_runs.scope` (`full` | `incremental` | `skipped`), `base_run_id`,
+  `data_version`; `isUpToDate`; `force` on `POST /repos/:id/scan` and the `up_to_date` reply
+  field; coverage API `last_run_scope`; a "Full rescan" checkbox and "up to date as of" in the UI.
+- **W23-02** one snapshot (one tarball) per repo and commit per scan batch.
+- **W23-03** incremental mode for per-file scanners (`code_health_tools`, `semgrep`): forge
+  compare, changed files only, carry-forward merge; `compareCommits` and `getCommitTreeSha` on the
+  forge port. Open: compare fixtures are synthetic; a batch that fetched a tree still runs
+  semgrep/code-health full; GitLab `getCommitTreeSha` returns null.
+- **W23-04** input-hash gates: `dependency_cve` re-matches the stored SBOM on data refresh;
+  `container_image` and `architecture_register` skip on unchanged inputs (architecture gate is
+  inert until `getCommitTreeSha` is implemented per forge).
+- **W23-05** verified, no code change: the secrets history sweep already resumes from the last
+  swept commit.
+- **W23-06** cacheable prompt prefix for Tier-2/3 calls and cache-read telemetry on the Models
+  page (migrations 0065 then 0066).
+- **W23-07** incremental PR re-review: not part of this entry (separate branch).
+- **W23-08** (this entry) the Scope column and "Last full scan" tooltip in the Security
+  coverage table, a per-row **Full rescan** button and a Full rescan option on the per-row Re-run,
+  `e2e/scan-scope.spec.ts`, and docs (SECURITY_SUITE §5.1, RUNNING "Scan scope and Full rescan").
+  The e2e asserts the second press wrote only `skipped` rows (recorded before the runner's
+  archive fetch) and listed every baselined scanner under `up_to_date`; it cannot read the fake
+  forge's own request log, which lives in the e2e API process.
+- **W23-09** per-runner up-to-date probes, `data_version` stamping, and `force` bypassing the
+  secrets history `covered` filter.
+
+Verified offline here: tsc, eslint and vitest (DB-gated files skipped, as in CI). **Still to run
+on the Mac:**
+
+1. `pnpm test` with live Postgres/Redis (W23-01..04, 06, 09 integration files are DB-gated);
+   confirm `db:generate` shows no drift against the hand-written `0065_scan_runs_scope.sql` and
+   `0066_analysis_cache_read_tokens`.
+2. The **W19-05 quality evals** for W23-06: the required-JSON block now precedes the PR context in
+   the prompt, so review quality must be re-measured before any release claim; also confirm the
+   installed `claude` CLI accepts `--append-system-prompt`.
+3. **Playwright e2e for W23-08**: `pnpm exec playwright test e2e/scan-scope.spec.ts` plus
+   `e2e/a11y.spec.ts`, `e2e/security.spec.ts`, `e2e/code-health.spec.ts` (the coverage table gained
+   a column). The spec was written against the existing helpers and has never run.

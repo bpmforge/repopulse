@@ -278,6 +278,40 @@ export function incrementalChip(
 }
 
 /**
+ * The coverage table's Scope cell (W23-08): what the last run did, in the words
+ * an operator uses — "full", "incremental since a1b2c3d", "up to date as of
+ * 31 Oct". Null when there is no run or the scope is one this build does not
+ * know, so nothing is guessed.
+ */
+export function scopeCellText(
+  scope: string | null | undefined,
+  baseSha: string | null | undefined,
+  lastRunAt: string | null | undefined,
+  formatDate: (iso: string) => string,
+): string | null {
+  if (!lastRunAt) return null;
+  if (scope === 'full') return 'full';
+  if (scope === 'incremental')
+    return baseSha ? `incremental since ${baseSha.slice(0, 7)}` : 'incremental';
+  if (scope === 'skipped') return `up to date as of ${formatDate(lastRunAt)}`;
+  return null;
+}
+
+/**
+ * The "last full" tooltip (W23-08). `last_full_at` is when the whole tree was
+ * last read; a full run is itself that moment. Says so when nothing is on record.
+ */
+export function lastFullText(
+  scope: string | null | undefined,
+  lastFullAt: string | null | undefined,
+  lastRunAt: string | null | undefined,
+  formatDate: (iso: string) => string,
+): string {
+  const at = lastFullAt ?? (scope === 'full' ? lastRunAt : null);
+  return at ? `Last full scan: ${formatDate(at)}` : 'No full scan on record';
+}
+
+/**
  * The "last run" cell: a skipped run says "Up to date as of <date>", never
  * "never" and never a bare date that reads as a fresh scan (W23-01).
  */
