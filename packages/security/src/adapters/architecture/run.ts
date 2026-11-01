@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { security, type Database, safeErrorText } from '@repopulse/shared';
 import { persistFindings, type IncomingFinding } from '@repopulse/insights';
 import type { ForgeProvider } from '@repopulse/forge';
-import { snapshotForScan } from '../../snapshot/fetch.js';
+import { snapshotOrProvided } from '../../snapshot/fetch.js';
 import { runArchitectureTools, ARCHITECTURE_SCANNER_KEY } from './tools.js';
 import type { ArchitectureFinding } from './graph.js';
 
@@ -21,6 +21,8 @@ export interface ArchitectureRunDeps {
   image?: string;
   wallClockMs?: number;
   trigger?: 'schedule' | 'manual';
+  /** W23-02. A tree the scan batch already fetched; absent = fetch our own. */
+  snapshot?: { dir: string; commitSha: string };
 }
 
 export interface ArchitectureRunResult {
@@ -74,7 +76,8 @@ export async function runArchitectureScan(
   const runId = run!.id;
 
   try {
-    return await snapshotForScan(
+    return await snapshotOrProvided(
+      deps.snapshot,
       { provider: deps.provider, repo: deps.repo, commitSha: deps.commitSha },
       async (snapshot) => {
         const tools = await runArchitectureTools({

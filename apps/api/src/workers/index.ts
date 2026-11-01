@@ -40,6 +40,7 @@ import {
   antiSlopRunDataVersion,
   architectureDataVersion,
   buildScanProbes,
+  headShaFor,
   judgementStateOf,
   stampDataVersion,
   supplyChainDataVersion,
@@ -58,6 +59,8 @@ import {
   runLoggingScan,
   runPerfScan,
   snapshotForScan,
+  snapshotOrProvided,
+  getScanner,
   runSecretsHistoryScan,
   runSecretsStreamScan,
   runArchitectureScan,
@@ -223,20 +226,23 @@ async function main(): Promise<void> {
       ? {
           onLive: async (workspaceId: number, repoId: number) => {
             if (!(await hasNeverBeenScanned(db, workspaceId, repoId))) return;
-            for (const scannerKey of await startableScannerKeys(db, workspaceId, repoId)) {
-              await securityScanQueue.add(
-                'first-scan',
-                {
-                  workspaceId,
-                  repoId,
-                  scannerKey,
-                  commitSha: '',
-                  trigger: 'schedule' as const,
-                  mode: 'history' as const,
-                },
-                { jobId: `sec-first-${repoId}-${scannerKey}` },
-              );
-            }
+            // W23-02: ONE batch job — one commit, one archive for every
+            // snapshot scanner — instead of a job per scanner.
+            const scannerKeys = await startableScannerKeys(db, workspaceId, repoId);
+            if (scannerKeys.length === 0) return;
+            await securityScanQueue.add(
+              'first-scan',
+              {
+                workspaceId,
+                repoId,
+                scannerKey: '',
+                scannerKeys,
+                commitSha: '',
+                trigger: 'schedule' as const,
+                mode: 'batch' as const,
+              },
+              { jobId: `sec-first-batch-${repoId}` },
+            );
           },
         }
       : {}),
@@ -506,8 +512,32 @@ async function main(): Promise<void> {
                 : ((await gateways.for(workspaceId))?.hosts ?? null),
             ),
         }),
+        // W23-02: one snapshot per scan batch. `dependency_cve` and
+        // `container_image` read a tree too but are declared `manifests` (they
+        // work from the SBOM they build), so they are named here, at the wiring,
+        // rather than in the framework.
+        batch: {
+          usesSnapshot: (key) =>
+            getScanner(key)?.inputs === 'snapshot' ||
+            key === 'dependency_cve' ||
+            key === 'container_image',
+          // No connection or no ingested commit: null, and each scanner records
+          // its own no_connection / no_head_sha row on its own path.
+          headSha: async (workspaceId, repoId) =>
+            (await providerForRepo(scanForgeDeps, workspaceId, repoId))
+              ? headShaFor(db, workspaceId, repoId)
+              : null,
+          withSnapshot: async ({ workspaceId, repoId, commitSha }, fn) => {
+            const resolved = await providerForRepo(scanForgeDeps, workspaceId, repoId);
+            if (!resolved) throw new Error('No forge connection for this repository');
+            return snapshotForScan(
+              { provider: resolved.provider, repo: resolved.repoFullName, commitSha },
+              (snapshot) => fn({ dir: snapshot.dir, commitSha: snapshot.commitSha }),
+            );
+          },
+        },
         weeklyRunners: {
-          semgrep: async ({ workspaceId, repoId }) => {
+          semgrep: async ({ workspaceId, repoId }, opts) => {
             const resolved = await providerForRepo(scanForgeDeps, workspaceId, repoId);
             if (!resolved) {
               return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_connection' };
@@ -534,7 +564,8 @@ async function main(): Promise<void> {
               workspaceId,
               repoId,
               repo: resolved.repoFullName,
-              commitSha: sha,
+              commitSha: opts?.snapshot?.commitSha ?? sha,
+              ...(opts?.snapshot ? { snapshot: opts.snapshot } : {}),
             });
             return {
               scanned: result.status === 'succeeded' ? 1 : 0,
@@ -547,7 +578,7 @@ async function main(): Promise<void> {
           // same commit, and complexity is a property of a codebase rather
           // than of a change — a per-PR run would report the same findings on
           // every branch until people filtered the scanner out of their view.
-          code_health_tools: async ({ workspaceId, repoId }) => {
+          code_health_tools: async ({ workspaceId, repoId }, opts) => {
             const resolved = await providerForRepo(scanForgeDeps, workspaceId, repoId);
             if (!resolved) {
               return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_connection' };
@@ -567,7 +598,8 @@ async function main(): Promise<void> {
               workspaceId,
               repoId,
               repo: resolved.repoFullName,
-              commitSha: head.sha,
+              commitSha: opts?.snapshot?.commitSha ?? head.sha,
+              ...(opts?.snapshot ? { snapshot: opts.snapshot } : {}),
             });
             return {
               scanned: result.status === 'succeeded' ? 1 : 0,
@@ -593,7 +625,7 @@ async function main(): Promise<void> {
           // clean one, by the scanner's own design — and says
           // `run deploy/scan-db-sync.sh` in the error, which now reaches the
           // coverage table verbatim (W16-35).
-          dependency_cve: async ({ workspaceId, repoId }) => {
+          dependency_cve: async ({ workspaceId, repoId }, opts) => {
             const resolved = await providerForRepo(scanForgeDeps, workspaceId, repoId);
             if (!resolved) {
               return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_connection' };
@@ -619,7 +651,8 @@ async function main(): Promise<void> {
               workspaceId,
               repoId,
               repo: resolved.repoFullName,
-              commitSha: head.sha,
+              commitSha: opts?.snapshot?.commitSha ?? head.sha,
+              ...(opts?.snapshot ? { snapshot: opts.snapshot } : {}),
               ...(cveGateway
                 ? {
                     verifyCves: cveVerifyHook({
@@ -644,7 +677,7 @@ async function main(): Promise<void> {
           // W18-34. Opt-in (container_image is off by default), so the scheduler
           // and the manual route only reach this for a repository whose owner
           // turned it on. Pulls happen host-side in runImageScan.
-          container_image: async ({ workspaceId, repoId }) => {
+          container_image: async ({ workspaceId, repoId }, opts) => {
             const resolved = await providerForRepo(scanForgeDeps, workspaceId, repoId);
             if (!resolved) {
               return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_connection' };
@@ -664,7 +697,8 @@ async function main(): Promise<void> {
               workspaceId,
               repoId,
               repo: resolved.repoFullName,
-              commitSha: head.sha,
+              commitSha: opts?.snapshot?.commitSha ?? head.sha,
+              ...(opts?.snapshot ? { snapshot: opts.snapshot } : {}),
             });
             return {
               scanned: result.imagesScanned,
@@ -678,7 +712,7 @@ async function main(): Promise<void> {
           // logging pack are arithmetic and patterns — they need a snapshot,
           // not a model — so they run here and the judgement layer stays on
           // the pull-request path where a gateway already exists.
-          anti_slop: async ({ workspaceId, repoId }) => {
+          anti_slop: async ({ workspaceId, repoId }, opts) => {
             // THIS WORKSPACE'S gateway (W16-19), resolved here because here is
             // where the workspace is known. Cached by the resolver, so the two
             // scanners below share one build rather than each paying for a
@@ -709,11 +743,14 @@ async function main(): Promise<void> {
               judgementStateOf(analysisGateway?.hosts ?? null),
             );
 
-            return snapshotForScan(
+            // The batch's tree pins the commit (W23-02); alone, the head.
+            const commitSha = opts?.snapshot?.commitSha ?? head.sha;
+            return snapshotOrProvided(
+              opts?.snapshot,
               {
                 provider: resolved.provider,
                 repo: resolved.repoFullName,
-                commitSha: head.sha,
+                commitSha: commitSha,
               },
               async (snapshot) => {
                 const sources = readSnapshotSources(snapshot.dir);
@@ -731,7 +768,7 @@ async function main(): Promise<void> {
                       db,
                       workspaceId,
                       repoId,
-                      commitSha: head.sha,
+                      commitSha: commitSha,
                       files: [],
                       sources: sources.files,
                       sourcesComplete: !sources.truncated && sources.skipped === 0,
@@ -755,7 +792,7 @@ async function main(): Promise<void> {
                       db,
                       workspaceId,
                       repoId,
-                      commitSha: head.sha,
+                      commitSha: commitSha,
                       files: [],
                       targetDir: snapshot.dir,
                       trigger: 'schedule',
@@ -785,7 +822,7 @@ async function main(): Promise<void> {
                   db,
                   workspaceId,
                   repoId,
-                  commitSha: head.sha,
+                  commitSha: commitSha,
                   targetDir: snapshot.dir,
                   trigger: 'schedule',
                 });
@@ -907,7 +944,7 @@ async function main(): Promise<void> {
           // W10-03. Needs a snapshot like the other tool scanners, so it
           // carries the same no-connection / no-head-sha guards: a register
           // that cannot fetch a tree reports why rather than reporting clean.
-          architecture_register: async ({ workspaceId, repoId }) => {
+          architecture_register: async ({ workspaceId, repoId }, opts) => {
             const resolved = await providerForRepo(scanForgeDeps, workspaceId, repoId);
             if (!resolved) {
               return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_connection' };
@@ -930,7 +967,8 @@ async function main(): Promise<void> {
               workspaceId,
               repoId,
               repo: resolved.repoFullName,
-              commitSha: head.sha,
+              commitSha: opts?.snapshot?.commitSha ?? head.sha,
+              ...(opts?.snapshot ? { snapshot: opts.snapshot } : {}),
             });
             if (result.status === 'succeeded' || result.status === 'skipped') {
               await stampDataVersion(db, workspaceId, result.scanRunId, archDataVersion);

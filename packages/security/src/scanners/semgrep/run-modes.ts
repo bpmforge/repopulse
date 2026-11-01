@@ -6,7 +6,7 @@ import { security, type Database, safeErrorText } from '@repopulse/shared';
 import { attachExcerpts } from '../../excerpt.js';
 import { persistFindings } from '@repopulse/insights';
 import type { CallCtx, ForgeProvider } from '@repopulse/forge';
-import { listTreeFiles, shred, snapshotForScan } from '../../snapshot/index.js';
+import { listTreeFiles, shred, snapshotOrProvided } from '../../snapshot/index.js';
 import { shadowFindings } from '../../rules/shadow.js';
 import { ruleStateStamp } from '../../framework/data-stamp.js';
 import {
@@ -44,6 +44,8 @@ export interface SemgrepModeDeps {
   wallClockMs?: number;
   /** Defaults to runSemgrepScan; a test seam like the code-health scanners' runPack. */
   runScan?: (args: SemgrepRunArgs) => Promise<SemgrepRunResult>;
+  /** W23-02. A tree the scan batch already fetched; absent = fetch our own. */
+  snapshot?: { dir: string; commitSha: string };
 }
 
 export interface SemgrepModeResult {
@@ -118,7 +120,7 @@ async function closeRun(
 /**
  * FULL mode: the whole tree at one commit, inside a snapshot (C1a).
  *
- * The snapshot is bracketed by snapshotForScan, so the source is deleted on
+ * The snapshot is bracketed by snapshotForScan (or by the batch that handed one in), so the source is deleted on
  * every exit path including a throw — a scan that crashes must not be the
  * reason a customer's code stays on disk.
  */
@@ -134,7 +136,8 @@ export async function runSemgrepFull(
     await ruleStateStamp(deps.db, deps.workspaceId),
   );
   try {
-    return await snapshotForScan(
+    return await snapshotOrProvided(
+      deps.snapshot,
       { provider: deps.provider, repo: deps.repo, commitSha: deps.commitSha },
       async (snapshot) => {
         const scan = await (deps.runScan ?? runSemgrepScan)({

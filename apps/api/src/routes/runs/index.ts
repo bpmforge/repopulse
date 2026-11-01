@@ -213,44 +213,54 @@ export default async function runRoutes(
         }
       }
 
-      for (const key of keys) {
-        // A forced press gets its own id: sharing one with a non-forced press
-        // in the same window would make BullMQ drop the "Full rescan" as a
-        // duplicate of a job that is about to skip.
-        const jobId = `sec-manual-${repoId}-${key}-${force ? 'force-' : ''}${window}`;
-        // ASKED BEFORE ADDING, not inferred from the add. BullMQ's `add`
-        // returns the existing job when the id is taken, and that job is
-        // indistinguishable from a freshly created one — same id, same shape —
-        // so there is nothing in the return value to tell the two apart. The
-        // first version of this tried and reported every second press as a
-        // fresh start, which is the exact lie the response exists to avoid.
-        const taken = await queue.getJob(jobId);
-        if (taken) {
-          // "Already running" has to mean RUNNING. A job that finished inside
-          // the window still holds its id (BullMQ keeps completed and failed
-          // records), and the W17-30 journey found what that does: the CVE
-          // scan fails in 30 ms for want of a database, the operator runs
-          // scan-db-sync and presses again, and for the rest of five minutes
-          // the answer is "already running" about a job that is over. The
-          // window is for double-presses, not for punishing the fix.
-          const state = await taken.getState();
-          if (state === 'completed' || state === 'failed') {
-            await taken.remove();
-          } else {
-            alreadyRunning.push(key);
-            continue;
-          }
+      // W23-02 (WP-R2): ONE batch job for the whole press. The worker resolves
+      // the head once, asks "up to date?" per scanner and fetches ONE archive
+      // for every snapshot scanner that remains — instead of N jobs, N tarballs
+      // of the same commit.
+      //
+      // A forced press gets its own id: sharing one with a non-forced press in
+      // the same window would make BullMQ drop the "Full rescan" as a duplicate
+      // of a job that is about to skip. A single-scanner press (`scanner_key`)
+      // carries its key, so it is not swallowed by an all-scanners job in the
+      // same window either.
+      const jobId = `sec-batch-${repoId}-${requested ? `${requested}-` : ''}${force ? 'force-' : ''}${window}`;
+      // ASKED BEFORE ADDING, not inferred from the add. BullMQ's `add` returns
+      // the existing job when the id is taken, and that job is indistinguishable
+      // from a freshly created one, so there is nothing in the return value to
+      // tell the two apart (the first version reported every second press as a
+      // fresh start — the exact lie the response exists to avoid).
+      const taken = await queue.getJob(jobId);
+      let running = false;
+      if (taken) {
+        // "Already running" has to mean RUNNING. A job that finished inside the
+        // window still holds its id (BullMQ keeps completed and failed records),
+        // and the W17-30 journey found what that does: the CVE scan fails in
+        // 30 ms for want of a database, the operator runs scan-db-sync and
+        // presses again, and for the rest of five minutes the answer is
+        // "already running" about a job that is over. The window is for
+        // double-presses, not for punishing the fix.
+        const state = await taken.getState();
+        if (state === 'completed' || state === 'failed') {
+          await taken.remove();
+        } else {
+          running = true;
         }
+      }
 
+      if (running) {
+        alreadyRunning.push(...keys);
+      } else {
         await queue.add(
           'manual',
           {
             workspaceId,
             repoId,
-            scannerKey: key,
+            // The keys are in `scannerKeys`; the job is about the repository.
+            scannerKey: '',
+            scannerKeys: keys,
             commitSha: '',
             trigger: 'manual' as const,
-            mode: 'history' as const,
+            mode: 'batch' as const,
             // W16-18. The id of the request that started this job, and who
             // pressed the button. job_failure stores the whole payload as jsonb,
             // so both land in the dead-letter ledger with no migration — and
@@ -266,8 +276,10 @@ export default async function runRoutes(
         // Still enqueued when up to date: the worker records the `skipped` row
         // (cheap — no tarball) so the coverage table reads "up to date as of
         // today". Reported apart from `started`, which means "will really scan".
-        if (answered.has(key)) upToDate.push(key);
-        else started.push(key);
+        for (const key of keys) {
+          if (answered.has(key)) upToDate.push(key);
+          else started.push(key);
+        }
       }
 
       auditLog(request.log, {
