@@ -1,0 +1,74 @@
+{
+  "scenario": "compare-ahead-200",
+  "provenance": "synthetic",
+  "note": "GET /compare/{base}...{head} where base is an ancestor of head; authored from the documented shape (a live compare was not recorded offline).",
+  "request": {
+    "method": "GET",
+    "url": "https://api.github.com/repos/bpmforge/repopulse-fixture/compare/aaaa111...bbbb222?per_page=100"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "x-ratelimit-limit": "5000",
+      "x-ratelimit-remaining": "4990",
+      "x-ratelimit-used": "10",
+      "x-ratelimit-reset": "1784426823",
+      "x-ratelimit-resource": "core"
+    },
+    "body": {
+      "status": "ahead",
+      "ahead_by": 2,
+      "behind_by": 0,
+      "total_commits": 2,
+      "files": [
+        {
+          "sha": "0000000000000000000000000000000000000000",
+          "filename": "src/a.ts",
+          "status": "modified",
+          "additions": 3,
+          "deletions": 1,
+          "changes": 4,
+          "patch": "@@ -1 +1 @@\n-a\n+b"
+        },
+        {
+          "sha": "0000000000000000000000000000000000000000",
+          "filename": "src/new.ts",
+          "status": "added",
+          "additions": 3,
+          "deletions": 1,
+          "changes": 4,
+          "patch": "@@ -1 +1 @@\n-a\n+b"
+        },
+        {
+          "sha": "0000000000000000000000000000000000000000",
+          "filename": "src/gone.ts",
+          "status": "removed",
+          "additions": 3,
+          "deletions": 1,
+          "changes": 4,
+          "patch": "@@ -1 +1 @@\n-a\n+b"
+        },
+        {
+          "sha": "0000000000000000000000000000000000000000",
+          "filename": "src/moved.ts",
+          "status": "renamed",
+          "additions": 3,
+          "deletions": 1,
+          "changes": 4,
+          "patch": "@@ -1 +1 @@\n-a\n+b",
+          "previous_filename": "src/old-name.ts"
+        },
+        {
+          "sha": "0000000000000000000000000000000000000000",
+          "filename": "src/copy.ts",
+          "status": "copied",
+          "additions": 3,
+          "deletions": 1,
+          "changes": 4,
+          "patch": "@@ -1 +1 @@\n-a\n+b"
+        }
+      ]
+    }
+  }
+}

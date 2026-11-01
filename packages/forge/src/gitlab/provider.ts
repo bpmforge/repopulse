@@ -8,6 +8,7 @@ import type {
   ForgeCapabilities,
   ForgeCheckRun,
   ForgeCommit,
+  ForgeComparison,
   ForgeCursor,
   ForgeDeployment,
   ForgeDiffFile,
@@ -88,6 +89,9 @@ export interface GitLabProviderOptions {
  * of each guessing — the worker used to fill it with the GitHub default.
  */
 export const DEFAULT_GITLAB_BASE_URL = 'https://gitlab.com';
+
+/** GitLab stops listing a comparison's diffs at about this many files. */
+export const GITLAB_COMPARE_FILE_CAP = 1000;
 
 export class GitLabProvider implements ForgeProvider {
   readonly kind = 'gitlab' as const;
@@ -199,6 +203,45 @@ export class GitLabProvider implements ForgeProvider {
         deletions: body.stats?.deletions ?? 0,
       },
     };
+  }
+
+  /**
+   * `GET /repository/compare?from&to&straight=true` (W23-03). `straight` makes it
+   * the plain base-to-head diff (not the merge-base one), so a force-pushed base
+   * is still exact. The diff list is one response; GitLab sets `compare_timeout`
+   * when it gave up, and stops listing at its own file limit, either of which is
+   * reported `truncated`.
+   */
+  async compareCommits(
+    ctx: CallCtx,
+    repo: string,
+    base: string,
+    head: string,
+  ): Promise<ForgeComparison> {
+    const res = await this.get(
+      ctx,
+      `${this.base}/projects/${projectPath(repo)}/repository/compare?from=${encodeURIComponent(base)}&to=${encodeURIComponent(head)}&straight=true`,
+      'commits',
+    );
+    assertListOk(res, 'compare');
+    const body = res.body as { diffs?: RawGitlabDiff[] | null; compare_timeout?: boolean } | null;
+    const diffs = body?.diffs ?? [];
+    return {
+      files: diffs.map((d) => {
+        const f = normalizeDiff(d);
+        return {
+          path: f.path,
+          status: f.status,
+          ...(f.previousPath ? { previousPath: f.previousPath } : {}),
+        };
+      }),
+      truncated: body?.compare_timeout === true || diffs.length >= GITLAB_COMPARE_FILE_CAP,
+    };
+  }
+
+  /** GitLab's commit payload carries no tree id, so there is nothing to compare (W23-03). */
+  async getCommitTreeSha(_ctx: CallCtx, _repo: string, _sha: string): Promise<string | null> {
+    return null;
   }
 
   async listPullRequests(ctx: CallCtx, repo: string, q: SinceQuery): Promise<Page<ForgePR>> {

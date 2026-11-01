@@ -14,6 +14,8 @@ import type {
   ForgeCodeScanningAlert,
   ForgeCodeScanningState,
   ForgeCommit,
+  ForgeComparison,
+  ForgeCompareFile,
   ForgeCursor,
   ForgeDeployment,
   ForgeDiffFile,
@@ -143,6 +145,10 @@ export interface GitHubProviderOptions {
   tarballDownloader?: TarballDownloader;
 }
 
+/** GitHub's compare lists at most 300 files: three pages of 100. */
+export const GITHUB_COMPARE_FILE_CAP = 300;
+const GITHUB_COMPARE_PAGES = GITHUB_COMPARE_FILE_CAP / 100;
+
 function withPage(base: string, cursor?: ForgeCursor): string {
   return cursor
     ? `${base}${base.includes('?') ? '&' : '?'}page=${encodeURIComponent(cursor)}`
@@ -238,6 +244,52 @@ export class GitHubProvider implements ForgeProvider {
       ...(next ? { nextCursor: next } : {}),
       stats: body.stats ?? { additions: 0, deletions: 0 },
     };
+  }
+
+  /**
+   * `GET /compare/{base}...{head}` (W23-03). GitHub serves at most 300 files
+   * (three pages of 100) and no more however many changed, so a full third page
+   * is "truncated": the file list may be short. A base that is not an ancestor
+   * of the head (`diverged`/`behind`, e.g. after a force push) lists the change
+   * from the MERGE BASE, not from `base`, and is reported truncated for the same
+   * reason: the list is not the whole base-to-head change.
+   */
+  async compareCommits(
+    ctx: CallCtx,
+    repo: string,
+    base: string,
+    head: string,
+  ): Promise<ForgeComparison> {
+    const url = `${this.base}/repos/${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}?per_page=100`;
+    const files: ForgeCompareFile[] = [];
+    let truncated = false;
+    for (let page = 1; page <= GITHUB_COMPARE_PAGES; page += 1) {
+      const res = await this.get(ctx, page === 1 ? url : withPage(url, String(page)), 'commits');
+      assertListOk(res, 'compare');
+      const body = res.body as { status?: string; files?: RawDiffFile[] } | null;
+      if (page === 1 && body?.status !== undefined && !['ahead', 'identical'].includes(body.status)) {
+        truncated = true;
+      }
+      const got = body?.files ?? [];
+      files.push(
+        ...got.map((f) => ({
+          path: f.filename,
+          status: normalizeDiffFile(f).status,
+          ...(f.previous_filename ? { previousPath: f.previous_filename } : {}),
+        })),
+      );
+      if (got.length < 100) break;
+      if (page === GITHUB_COMPARE_PAGES) truncated = true;
+    }
+    return { files, truncated };
+  }
+
+  /** `GET /git/commits/{sha}` -> `.tree.sha` (W23-03). A commit the forge does not have is null. */
+  async getCommitTreeSha(ctx: CallCtx, repo: string, sha: string): Promise<string | null> {
+    const res = await this.get(ctx, `${this.base}/repos/${repo}/git/commits/${encodeURIComponent(sha)}`, 'commits');
+    if (assertListOk(res, 'commit_tree', [404, 422]) === 'empty') return null;
+    const tree = (res.body as { tree?: { sha?: string } } | null)?.tree?.sha;
+    return typeof tree === 'string' && tree !== '' ? tree : null;
   }
 
   async listPullRequests(ctx: CallCtx, repo: string, q: SinceQuery): Promise<Page<ForgePR>> {

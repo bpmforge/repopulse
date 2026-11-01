@@ -9,6 +9,7 @@ import type {
   ForgeCodeScanningAlert,
   ForgeCodeScanningState,
   ForgeCommit,
+  ForgeComparison,
   ForgeDiffFile,
   ForgeFileContent,
   ForgeTarball,
@@ -80,6 +81,26 @@ export interface ForgeProvider {
   listDeployments(ctx: CallCtx, repo: string, cursor?: ForgeCursor): Promise<Page<ForgeDeployment>>;
   listIssues(ctx: CallCtx, repo: string, q: SinceQuery): Promise<Page<ForgeIssue>>;
   getFileContent(ctx: CallCtx, repo: string, path: string, ref: string): Promise<ForgeFileContent>; // FR-FORGE-6 only
+
+  /**
+   * The files that differ between `base` and `head` (W23-03), through the
+   * budgeted client. OPTIONAL like the other ops a forge may lack: a caller
+   * without it does the full work. Every adapter in this package implements it.
+   * Throws ForgeHttpError when the forge refuses (an unknown base after a force
+   * push answers 404); the incremental planner reads any throw as "full".
+   */
+  compareCommits?(
+    ctx: CallCtx,
+    repo: string,
+    base: string,
+    head: string,
+  ): Promise<ForgeComparison>;
+  /**
+   * The tree object id of a commit (W23-03): equal trees mean byte-identical
+   * source, whatever the commit ids say. null where the forge cannot say (GitLab
+   * exposes no tree id on a commit), and the caller then works from the commit.
+   */
+  getCommitTreeSha?(ctx: CallCtx, repo: string, sha: string): Promise<string | null>;
 
   /**
    * Source archive for one commit — capability-guarded by `supportsTarball`
