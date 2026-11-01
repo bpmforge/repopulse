@@ -12198,9 +12198,11 @@
         "Fake-provider test: Run scans now on a repo with 5 snapshot scanners -> fetchTarball called exactly once, 5 scan_runs rows, SNAPSHOT_ROOT empty afterwards; forge budget shows one tarball charge",
         "docs/CONSTRAINTS.md C1a reads \"for the length of one scan batch\"; ARCHITECTURE.md 4i updated in the same commit"
       ],
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "Spec: docs/work/INCREMENTAL_SCAN_PLAN.md WP-R2. Full gate before closing: pnpm lint && pnpm typecheck && pnpm test. Respect CLAUDE.md Law 4 (C1a tarball only) and Law 7 (budgeted client)."
+        "Spec: docs/work/INCREMENTAL_SCAN_PLAN.md WP-R2. Full gate before closing: pnpm lint && pnpm typecheck && pnpm test. Respect CLAUDE.md Law 4 (C1a tarball only) and Law 7 (budgeted client).",
+        "2026-10-31 merged to main 206b9d91; offline gate green (tsc, eslint, vitest with DB-gated files skipped). Live-infra pnpm test still to run on the Mac.",
+        "Open: supply_chain_register still takes its own snapshot (inputs: manifests) outside the batch bracket."
       ],
       "points": 8
     },
@@ -12263,9 +12265,11 @@
         "scan-db-sync.sh writes the data stamp the gates read; RUNBOOK.md documents it",
         "Tests for all three gates: unchanged -> skipped row; data_version change -> SBOM re-matched and fetchTarball never called; manifest change -> full"
       ],
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "Spec: docs/work/INCREMENTAL_SCAN_PLAN.md WP-R4. Full gate before closing: pnpm lint && pnpm typecheck && pnpm test. Respect CLAUDE.md Law 4 (C1a tarball only) and Law 7 (budgeted client)."
+        "Spec: docs/work/INCREMENTAL_SCAN_PLAN.md WP-R4. Full gate before closing: pnpm lint && pnpm typecheck && pnpm test. Respect CLAUDE.md Law 4 (C1a tarball only) and Law 7 (budgeted client).",
+        "2026-10-31 merged to main 284dca12; offline gate green (tsc, eslint, vitest with DB-gated files skipped). Live-infra pnpm test still to run on the Mac.",
+        "Open: architecture gate inert until ForgeProvider gets getCommitTreeSha (GitHub: GET /repos/{repo}/git/commits/{sha} .tree.sha); image skips only within a UTC day (W23-09 stamp design); input hash rides in tool_versions.input_hash (no column); vuln-db.version is now operator-facing only."
       ],
       "points": 5
     },
@@ -12419,9 +12423,10 @@
         "Tests per probe; two consecutive Run scans now presses with no new commit create zero tarball fetches across all enabled scanners"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "Spec: docs/work/INCREMENTAL_SCAN_PLAN.md WP-R1 gaps (1)-(4) recorded on W23-01."
+        "Spec: docs/work/INCREMENTAL_SCAN_PLAN.md WP-R1 gaps (1)-(4) recorded on W23-01.",
+        "2026-10-31 merged to main 91ff60d2; offline gate green (tsc, eslint, vitest with DB-gated files skipped). Live-infra pnpm test still to run on the Mac."
       ]
     }
   ]
