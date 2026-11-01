@@ -227,6 +227,47 @@ describeIfLiveInfra('secrets history mode (W8-05)', () => {
     expect(after.length).toBe(before.length);
   });
 
+  it('a commit stuck in `running` is skipped, and `force` re-sweeps it (W23-09)', async () => {
+    // A worker that died mid-scan leaves a `running` row, and the covered filter
+    // counts `running` as covered: without a way around it the commit is never
+    // looked at again.
+    await db
+      .update(security.scanRuns)
+      .set({ status: 'running', finishedAt: null })
+      .where(
+        and(
+          eq(security.scanRuns.repoId, repoId),
+          eq(security.scanRuns.scannerKey, 'secrets'),
+          eq(security.scanRuns.commitSha, OLD_SHA),
+        ),
+      );
+
+    const plainCalls: { sha: string; lane: string }[] = [];
+    const plain = await runSecretsHistoryScan({
+      db,
+      provider: fakeProvider(plainCalls),
+      workspaceId,
+      repoId,
+      repo: 'acme/secrets-history',
+    });
+    expect(plain.skipped).toBe('no_targets');
+    expect(plainCalls).toEqual([]);
+
+    const forcedCalls: { sha: string; lane: string }[] = [];
+    const forced = await runSecretsHistoryScan({
+      db,
+      provider: fakeProvider(forcedCalls),
+      workspaceId,
+      repoId,
+      repo: 'acme/secrets-history',
+      force: true,
+    });
+    expect(forced.skipped).toBeUndefined();
+    expect(forcedCalls.map((c) => c.sha)).toContain(OLD_SHA);
+    // Still on the budgeted scan lane (Law 7): force changes WHICH commits, not how they are fetched.
+    expect(forcedCalls.every((c) => c.lane === 'scan')).toBe(true);
+  });
+
   it('reports what it DEFERRED when the cap bites', async () => {
     // A silent cap reads as "history is clean" when it means "history is
     // half-read". Clearing the scan runs makes both commits pending again —

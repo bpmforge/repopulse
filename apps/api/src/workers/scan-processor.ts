@@ -41,7 +41,16 @@ export interface ScanJobData {
 }
 
 export interface HistoryRunner {
-  (args: { workspaceId: number; repoId: number }): Promise<{
+  (args: {
+    workspaceId: number;
+    repoId: number;
+    /**
+     * W23-09. Present (true) only on a forced job. The processor's own
+     * up-to-date check is skipped for it, and a runner with its own "already
+     * covered" memory (secrets history's `covered` filter) must ignore that too.
+     */
+    force?: boolean;
+  }): Promise<{
     scanned: number;
     findingsCreated: number;
     deferred: number;
@@ -210,7 +219,11 @@ async function runSweep(
 
   let outcome;
   try {
-    outcome = await runner({ workspaceId: data.workspaceId, repoId: data.repoId });
+    outcome = await runner({
+      workspaceId: data.workspaceId,
+      repoId: data.repoId,
+      ...(data.force ? { force: true } : {}),
+    });
   } catch (err) {
     // A THROW MUST REACH THE SCREEN (W16-28).
     //

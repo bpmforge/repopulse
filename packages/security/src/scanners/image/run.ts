@@ -8,6 +8,9 @@ import type { ForgeProvider } from '@repopulse/forge';
 import { snapshotForScan } from '../../snapshot/index.js';
 import type { DependencyMatch } from '../dependency/matches.js';
 import { vulnDbDir } from '../dependency/tools.js';
+import { advisoryDataStamp } from '../dependency/data-stamp.js';
+import { dataStamp, shortHash } from '../../framework/data-stamp.js';
+import { getScanner } from '../../registry.js';
 import { imageFinding, IMAGE_SCANNER_KEY, type PricedImageFinding } from './findings.js';
 import { listTags, pullImage, type PullResult } from './pull.js';
 import { distinctImages, extractImageRefs, imageSourceKind, type ImageRef } from './refs.js';
@@ -68,6 +71,33 @@ const DEFAULT_IMAGE = process.env.SCAN_IMAGE ?? 'localhost/repopulse/scan:dev';
 const DEFAULT_WALL_CLOCK_MS = 10 * 60 * 1000;
 const MAX_FILES = 400;
 
+/**
+ * The data stamp of an image run (W23-09): the advisory data grype matches the
+ * pulled images against, the scan image, the scanner version, and the UTC DAY.
+ *
+ * The day is the honest part. An image tag is a mutable pointer — `node:20` is
+ * republished under the same name — and its digest is only known after a pull
+ * (`pullImage` copies to a docker-archive and reports none), so there is no
+ * pre-pull fact that says "the registry still holds what we scanned". What can
+ * be said is how stale an answer is allowed to be: this stamp lets a repeat
+ * press or weekly pass at the same commit skip within one UTC day and re-resolves
+ * the tags on the next. Documented in SECURITY_SUITE.md §4.1.
+ *
+ * Null when the advisory data is unreadable (the run then fails on a named reason).
+ */
+export function imageDataVersion(
+  opts: { now?: Date; vulnDb?: string; image?: string } = {},
+): string | null {
+  const advisory = advisoryDataStamp(opts.vulnDb ? { vulnDb: opts.vulnDb } : {});
+  if (advisory === null) return null;
+  return dataStamp({
+    advisory: shortHash(advisory),
+    image: opts.image ?? DEFAULT_IMAGE,
+    registry: `day:${(opts.now ?? new Date()).toISOString().slice(0, 10)}`,
+    scanner: getScanner(IMAGE_SCANNER_KEY)?.version,
+  });
+}
+
 const empty = {
   imagesNamed: 0,
   imagesScanned: 0,
@@ -126,6 +156,7 @@ export async function runImageScan(deps: ImageRunDeps): Promise<ImageRunResult> 
   const runId = run!.id;
 
   const image = deps.image ?? DEFAULT_IMAGE;
+  const dataVersion = imageDataVersion({ image, ...(deps.vulnDb ? { vulnDb: deps.vulnDb } : {}) });
   const pull = deps.pull ?? ((ref: string, dir: string) => pullImage(ref, dir));
   const scan =
     deps.scan ??
@@ -267,7 +298,16 @@ export async function runImageScan(deps: ImageRunDeps): Promise<ImageRunResult> 
         );
       }
       const error = notes.length > 0 ? notes.join('; ').slice(0, 1000) : null;
-      await closeRun(deps.db, runId, status, priced.length, error, grypeVersion, partial);
+      await closeRun(
+        deps.db,
+        runId,
+        status,
+        priced.length,
+        error,
+        grypeVersion,
+        partial,
+        status === 'succeeded' ? dataVersion : null,
+      );
 
       return {
         status,
@@ -296,6 +336,7 @@ async function closeRun(
   error: string | null,
   grypeVersion: string | null,
   partial = false,
+  dataVersion: string | null = null,
 ): Promise<void> {
   await db
     .update(security.scanRuns)
@@ -305,6 +346,7 @@ async function closeRun(
       findingCount,
       error,
       finishedAt: new Date(),
+      ...(dataVersion ? { dataVersion } : {}),
       ...(grypeVersion
         ? { toolVersions: { grype: grypeVersion }, scannerVersion: `grype@${grypeVersion}` }
         : {}),

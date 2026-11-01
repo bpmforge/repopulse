@@ -36,6 +36,14 @@ export interface HistoryScanDeps {
   maxCommits?: number;
   trigger?: 'schedule' | 'manual';
   verification?: SecretsVerificationConfig;
+  /**
+   * W23-09 ("Full rescan"). Ignore which commits an earlier run covered and
+   * sweep the window again, oldest first, up to the cap. Needed because the
+   * `covered` filter below also counts a run still marked `running`, so a
+   * commit whose worker died mid-scan was excluded from every later sweep with
+   * no way back.
+   */
+  force?: boolean;
 }
 
 export interface HistoryScanResult {
@@ -63,7 +71,7 @@ export async function historyTargets(
   db: Database,
   workspaceId: number,
   repoId: number,
-  opts: { windowMonths?: number; limit: number; now?: Date },
+  opts: { windowMonths?: number; limit: number; now?: Date; force?: boolean },
 ): Promise<StreamScanTarget[]> {
   const since = windowStart(opts.windowMonths ?? 12, opts.now ?? new Date());
 
@@ -88,7 +96,9 @@ export async function historyTargets(
         eq(facts.commits.workspaceId, workspaceId),
         eq(facts.commits.repoId, repoId),
         gte(facts.commits.committedAt, since),
-        notInArray(facts.commits.sha, covered),
+        // `force` bypasses the covered filter (W23-09); the window and the cap
+        // still bound the sweep.
+        ...(opts.force ? [] : [notInArray(facts.commits.sha, covered)]),
       ),
     )
     .orderBy(facts.commits.committedAt)
@@ -114,6 +124,7 @@ export async function runSecretsHistoryScan(deps: HistoryScanDeps): Promise<Hist
   const cap = deps.maxCommits ?? 200;
   const found = await historyTargets(deps.db, deps.workspaceId, deps.repoId, {
     limit: cap,
+    ...(deps.force ? { force: true } : {}),
     ...(deps.windowMonths !== undefined ? { windowMonths: deps.windowMonths } : {}),
   });
   const targets = found.slice(0, cap);

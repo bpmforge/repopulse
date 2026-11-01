@@ -4,7 +4,13 @@ import { attachExcerpts } from '../../excerpt.js';
 import { persistFindings, type IncomingFinding } from '@repopulse/insights';
 import type { ForgeProvider } from '@repopulse/forge';
 import { listTreeFiles, snapshotForScan } from '../../snapshot/index.js';
-import { runCodeHealthTools, CODE_HEALTH_SCANNER_KEY, type CodeHealthFinding } from './tools.js';
+import { ruleStateStamp } from '../../framework/data-stamp.js';
+import {
+  runCodeHealthTools,
+  codeHealthDataVersion,
+  CODE_HEALTH_SCANNER_KEY,
+  type CodeHealthFinding,
+} from './tools.js';
 import { dedupeAcrossTools, dedupeAgainstPack, listAdapters } from './adapters/registry.js';
 import type { AdapterFinding } from './adapters/types.js';
 import type { CodeHealthThresholds } from './thresholds.js';
@@ -249,6 +255,11 @@ export async function runCodeHealthScan(deps: CodeHealthRunDeps): Promise<CodeHe
     })
     .returning();
   const runId = run!.id;
+  // W23-09: read before the tools run (see semgrep run-modes for why).
+  const dataVersion = codeHealthDataVersion(
+    deps.thresholds,
+    await ruleStateStamp(deps.db, deps.workspaceId),
+  );
 
   try {
     return await snapshotForScan(
@@ -351,7 +362,17 @@ export async function runCodeHealthScan(deps: CodeHealthRunDeps): Promise<CodeHe
           );
         }
 
-        await closeRun(deps.db, runId, 'succeeded', findings.length, null, tools.toolVersions);
+        await closeRun(
+          deps.db,
+          runId,
+          'succeeded',
+          findings.length,
+          null,
+          tools.toolVersions,
+          // An adapter that applied and produced nothing (a missing tool, a
+          // crash) leaves a run a repeat press should retry: no stamp, no skip.
+          tools.adapterErrors.length === 0 ? dataVersion : null,
+        );
 
         return {
           status: 'succeeded' as const,
@@ -385,6 +406,7 @@ async function closeRun(
   findingCount: number,
   error: string | null,
   toolVersions: Record<string, string> | null,
+  dataVersion: string | null = null,
 ): Promise<void> {
   await db
     .update(security.scanRuns)
@@ -393,6 +415,7 @@ async function closeRun(
       findingCount,
       error,
       finishedAt: new Date(),
+      ...(dataVersion ? { dataVersion } : {}),
       ...(toolVersions
         ? {
             toolVersions,

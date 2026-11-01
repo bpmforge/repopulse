@@ -18,6 +18,7 @@ import {
 } from './malicious.js';
 import { adviseFix, readFixGraphs } from './fixpath/index.js';
 import { runDependencyTools, vulnDbDir } from './tools.js';
+import { dependencyDataVersion } from './data-stamp.js';
 import {
   dependencyFindings,
   DEPENDENCY_SCANNER_KEY,
@@ -202,6 +203,14 @@ export async function runDependencyScan(deps: DependencyRunDeps): Promise<Depend
     })
     .returning();
   const runId = run!.id;
+  // W23-09: the advisory-data stamp, read BEFORE the tools run so a database
+  // refreshed mid-scan makes the next probe disagree (one re-scan) rather than
+  // agree with an answer built on the old data. Null (unreadable database) =
+  // no stamp, and the run will fail on its own named reason anyway.
+  const dataVersion = dependencyDataVersion({
+    ...(deps.vulnDb ? { vulnDb: deps.vulnDb } : {}),
+    ...(deps.image ? { image: deps.image } : {}),
+  });
 
   // A PULL REQUEST'S RUN IS A LOOK, NOT A SWEEP (W21-02). Its tree is a
   // branch, so it stores no SBOM (the registers and owasp_llm read the newest
@@ -395,11 +404,19 @@ export async function runDependencyScan(deps: DependencyRunDeps): Promise<Depend
 
       const findingsPriced = await priceStoredFindings(deps, mapped.priced);
 
-      await closeRun(deps.db, runId, 'succeeded', mapped.findings.length, null, {
-        ...tools.toolVersions,
-        ...(reachability.toolVersion ? { govulncheck: reachability.toolVersion } : {}),
-        ...(symbols.toolVersion ? { opengrep: symbols.toolVersion } : {}),
-      });
+      await closeRun(
+        deps.db,
+        runId,
+        'succeeded',
+        mapped.findings.length,
+        null,
+        {
+          ...tools.toolVersions,
+          ...(reachability.toolVersion ? { govulncheck: reachability.toolVersion } : {}),
+          ...(symbols.toolVersion ? { opengrep: symbols.toolVersion } : {}),
+        },
+        dataVersion,
+      );
 
       // The scan is done once its findings are stored; the second opinion
       // runs AFTER the run is closed. Before, the run stayed 'running' while a
@@ -517,6 +534,7 @@ async function closeRun(
   findingCount: number,
   error: string | null,
   toolVersions: Record<string, string> | null,
+  dataVersion: string | null = null,
 ): Promise<void> {
   await db
     .update(security.scanRuns)
@@ -525,6 +543,7 @@ async function closeRun(
       findingCount,
       error,
       finishedAt: new Date(),
+      ...(dataVersion ? { dataVersion } : {}),
       ...(toolVersions
         ? {
             toolVersions,
@@ -536,3 +555,8 @@ async function closeRun(
     })
     .where(eq(security.scanRuns.id, runId));
 }
+
+// W23-09: the advisory-data stamp lives beside the runner that records it and is
+// exported through the same module so the probe in apps/api recomputes it with
+// the same code.
+export { advisoryDataStamp, dependencyDataVersion } from './data-stamp.js';
