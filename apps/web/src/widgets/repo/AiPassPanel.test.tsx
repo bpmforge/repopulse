@@ -224,6 +224,23 @@ describe('AiPassPanel', () => {
     expect(screen.getByTestId('ai-pass-1').textContent).toMatch(/the files src\/payments/);
   });
 
+  it('says "incremental since <sha7>" on a pull request review that only re-read what a push changed (W23-07)', () => {
+    state.runs = [
+      run({
+        id: 5,
+        mode: 'pull_request',
+        pr_number: 12,
+        paths: [],
+        scope: 'incremental',
+        incremental_since: 'abcdef0123456789',
+      }),
+      run({ id: 4, mode: 'pull_request', pr_number: 12, paths: [], scope: 'full' }),
+    ];
+    render(<AiPassPanel repoId="3" />);
+    expect(screen.getByTestId('ai-pass-5').textContent).toMatch(/incremental since abcdef0/);
+    expect(screen.getByTestId('ai-pass-4').textContent).not.toMatch(/incremental since/);
+  });
+
   it('a refused scheduled pass is listed under Scheduled passes, not as a review; scheduled passes that ran stay, tagged', () => {
     state.runs = [
       run({

@@ -236,6 +236,12 @@ function RunRow({
           })}
         </span>
         .
+        {run.scope === 'incremental' && run.incremental_since ? (
+          <span data-testid="ai-pass-incremental">
+            {' '}
+            · incremental since {run.incremental_since.slice(0, 7)}
+          </span>
+        ) : null}
       </p>
       {run.reason ? (
         <p className="text-xs text-fg-muted" data-testid="ai-pass-reason">

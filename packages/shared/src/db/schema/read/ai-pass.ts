@@ -89,6 +89,12 @@ export const aiPassRuns = pgTable(
     /** Diff modes: the head commit reviewed. */
     headRef: text('head_ref'),
     prNumber: integer('pr_number'),
+    /** W23-07: 'incremental' = only the hunks changed since the base run's head were reviewed. */
+    scope: text('scope').$type<'full' | 'incremental'>().notNull().default('full'),
+    /** W23-07: the earlier pass an incremental run stands on (no FK: provenance). */
+    baseRunId: bigint('base_run_id', { mode: 'number' }),
+    /** W23-07: "id@checklistVersion+..." the pass ran with; incremental only on a match. */
+    promptVersion: text('prompt_version'),
     /** Who started it: a person (manual) or a schedule an admin opted a repository into. */
     trigger: text('trigger').$type<AiPassTrigger>().notNull().default('manual'),
     scheduleId: bigint('schedule_id', { mode: 'number' }).references(() => aiPassSchedules.id, {
@@ -130,6 +136,7 @@ export const aiPassRuns = pgTable(
       'ai_pass_runs_mode_check',
       sql`${t.mode} in (${sql.raw(AI_PASS_MODES.map((m) => `'${m}'`).join(', '))})`,
     ),
+    check('ai_pass_runs_scope_check', sql`${t.scope} in ('full', 'incremental')`),
     check(
       'ai_pass_runs_status_check',
       sql`${t.status} in (${sql.raw(AI_PASS_STATUSES.map((s) => `'${s}'`).join(', '))})`,

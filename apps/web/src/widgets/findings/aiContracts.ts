@@ -158,6 +158,9 @@ export interface AiPassRun {
   base_ref?: string | null;
   head_ref?: string | null;
   pr_number?: number | null;
+  /** W23-07: 'incremental' = only the hunks changed since `incremental_since` were re-reviewed. */
+  scope?: 'full' | 'incremental';
+  incremental_since?: string | null;
   commit_sha: string | null;
   reason_code: string | null;
   reason: string | null;
