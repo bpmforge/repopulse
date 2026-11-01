@@ -64,6 +64,10 @@ import {
   runSecretsHistoryScan,
   runSecretsStreamScan,
   runArchitectureScan,
+  latestBaseRun,
+  DEPENDENCY_SCANNER_KEY,
+  IMAGE_SCANNER_KEY,
+  ARCHITECTURE_SCANNER_KEY,
   runRuleDraftPass,
   runStoredVerdictTweakPass,
   combineLearningPasses,
@@ -625,7 +629,7 @@ async function main(): Promise<void> {
           // clean one, by the scanner's own design — and says
           // `run deploy/scan-db-sync.sh` in the error, which now reaches the
           // coverage table verbatim (W16-35).
-          dependency_cve: async ({ workspaceId, repoId }, opts) => {
+          dependency_cve: async ({ workspaceId, repoId, force }, opts) => {
             const resolved = await providerForRepo(scanForgeDeps, workspaceId, repoId);
             if (!resolved) {
               return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_connection' };
@@ -650,6 +654,11 @@ async function main(): Promise<void> {
               provider: resolved.provider,
               workspaceId,
               repoId,
+              // W23-04: the newest real run, so the runner can skip or re-match.
+              // "Full rescan" passes none and gets today's full scan.
+              baseRun: force
+                ? undefined
+                : await latestBaseRun(db, { workspaceId, repoId, scannerKey: DEPENDENCY_SCANNER_KEY }),
               repo: resolved.repoFullName,
               commitSha: opts?.snapshot?.commitSha ?? head.sha,
               ...(opts?.snapshot ? { snapshot: opts.snapshot } : {}),
@@ -677,7 +686,7 @@ async function main(): Promise<void> {
           // W18-34. Opt-in (container_image is off by default), so the scheduler
           // and the manual route only reach this for a repository whose owner
           // turned it on. Pulls happen host-side in runImageScan.
-          container_image: async ({ workspaceId, repoId }, opts) => {
+          container_image: async ({ workspaceId, repoId, force }, opts) => {
             const resolved = await providerForRepo(scanForgeDeps, workspaceId, repoId);
             if (!resolved) {
               return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_connection' };
@@ -696,6 +705,11 @@ async function main(): Promise<void> {
               provider: resolved.provider,
               workspaceId,
               repoId,
+              // W23-04: the newest real run, so the runner can skip or re-match.
+              // "Full rescan" passes none and gets today's full scan.
+              baseRun: force
+                ? undefined
+                : await latestBaseRun(db, { workspaceId, repoId, scannerKey: IMAGE_SCANNER_KEY }),
               repo: resolved.repoFullName,
               commitSha: opts?.snapshot?.commitSha ?? head.sha,
               ...(opts?.snapshot ? { snapshot: opts.snapshot } : {}),
@@ -944,7 +958,7 @@ async function main(): Promise<void> {
           // W10-03. Needs a snapshot like the other tool scanners, so it
           // carries the same no-connection / no-head-sha guards: a register
           // that cannot fetch a tree reports why rather than reporting clean.
-          architecture_register: async ({ workspaceId, repoId }, opts) => {
+          architecture_register: async ({ workspaceId, repoId, force }, opts) => {
             const resolved = await providerForRepo(scanForgeDeps, workspaceId, repoId);
             if (!resolved) {
               return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_connection' };
@@ -966,6 +980,11 @@ async function main(): Promise<void> {
               provider: resolved.provider,
               workspaceId,
               repoId,
+              // W23-04: the newest real run, so the runner can skip or re-match.
+              // "Full rescan" passes none and gets today's full scan.
+              baseRun: force
+                ? undefined
+                : await latestBaseRun(db, { workspaceId, repoId, scannerKey: ARCHITECTURE_SCANNER_KEY }),
               repo: resolved.repoFullName,
               commitSha: opts?.snapshot?.commitSha ?? head.sha,
               ...(opts?.snapshot ? { snapshot: opts.snapshot } : {}),

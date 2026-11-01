@@ -78,11 +78,30 @@ function isEmptyVersions(v: Record<string, string> | null | undefined): boolean 
   return v === null || v === undefined;
 }
 
-/** Deep-equal on string maps, key order irrelevant; null/undefined on both sides is equal. */
+// W23-04 stores the input hash inside `tool_versions` under these two keys
+// (input-hash.ts INPUT_HASH_KEY / INPUT_PATHS_KEY — a test pins them equal). They
+// describe what a run READ, not which tools produced it, so a comparison of tool
+// versions must not see them: a baseline stamped with an input hash is still the
+// same question as a probe that knows only the engines.
+const INPUT_STAMP_KEYS: ReadonlySet<string> = new Set(['input_hash', 'input_paths']);
+
+function withoutInputStamp(
+  v: Record<string, string> | null | undefined,
+): Record<string, string> | null | undefined {
+  if (v === null || v === undefined) return v;
+  return Object.fromEntries(Object.entries(v).filter(([k]) => !INPUT_STAMP_KEYS.has(k)));
+}
+
+/**
+ * Deep-equal on string maps, key order irrelevant; null/undefined on both sides
+ * is equal. The W23-04 input stamp (`input_hash`, `input_paths`) is ignored.
+ */
 export function toolVersionsEqual(
-  a: Record<string, string> | null | undefined,
-  b: Record<string, string> | null | undefined,
+  left: Record<string, string> | null | undefined,
+  right: Record<string, string> | null | undefined,
 ): boolean {
+  const a = withoutInputStamp(left);
+  const b = withoutInputStamp(right);
   if (isEmptyVersions(a) || isEmptyVersions(b)) return isEmptyVersions(a) && isEmptyVersions(b);
   const ka = Object.keys(a!).sort();
   const kb = Object.keys(b!).sort();

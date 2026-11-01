@@ -311,6 +311,23 @@ if [ "${SCAN_SYNC_VULN_DB:-1}" = "1" ]; then
           fi
           rm -rf "$VULN_DB_DIR.old"
           log "grype database synced: $(du -sh "$VULN_DB_DIR" | awk '{print $1}') at $VULN_DB_DIR"
+          # W23-04: the DATA STAMP. One line, `<schema>@<build timestamp>` — grype's
+          # own record of what it just imported — written AFTER the swap and by
+          # rename, so a reader sees the old stamp or the new one, never half.
+          # The worker compares it with the stamp each scan recorded: unchanged
+          # manifests + a changed stamp = re-match the stored SBOM instead of
+          # re-fetching the source (docs/RUNBOOK.md, "What 'rematched' means").
+          # If the build time cannot be read the stamp is the import.json's own
+          # sha256, which still changes whenever the database does.
+          stamp_json="$(ls "$VULN_DB_DIR"/*/import.json 2>/dev/null | head -n1 || true)"
+          if [ -n "$stamp_json" ]; then
+            stamp_schema="$(basename "$(dirname "$stamp_json")")"
+            stamp_built="$(grep -Eo '[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z' "$stamp_json" | head -n1 || true)"
+            : "${stamp_built:=sha256-$(sha256sum "$stamp_json" | cut -c1-16)}"
+            printf '%s@%s\n' "$stamp_schema" "$stamp_built" > "$DEST/vuln-db.version.tmp"
+            mv "$DEST/vuln-db.version.tmp" "$DEST/vuln-db.version"
+            log "advisory data stamp: $(cat "$DEST/vuln-db.version")"
+          fi
         else
           log "ERROR: the freshly downloaded database failed 'grype db status'"
           log "       under the read-only, no-network profile. Keeping the previous"

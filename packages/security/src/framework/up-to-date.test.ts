@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { isUpToDate, latestBaseline, toolVersionsEqual } from './up-to-date.js';
 import { dataStamp, shortHash } from './data-stamp.js';
+import { INPUT_HASH_KEY, INPUT_PATHS_KEY } from './input-hash.js';
 
 // W23-01. "Is this scan already answered?" — the rule is only as good as the
 // ways it refuses, so most of this is about what must NOT match.
@@ -101,6 +102,14 @@ describe('isUpToDate (W23-01)', () => {
     expect(await isUpToDate(fakeDb([row({ trigger: 'pr_synced' })]), query)).toBeNull();
   });
 
+  it('matches a baseline whose tool_versions carry the W23-04 input stamp (probe knows only the engines)', async () => {
+    const stamped = row({
+      toolVersions: { opengrep: '1.0.0', rulepack: 'a.yaml', input_hash: 'h', input_paths: '["package.json"]' },
+    });
+    const hit = await isUpToDate(fakeDb([stamped]), query);
+    expect(hit).toMatchObject({ id: 10 });
+  });
+
   it('does not match when any tool version differs, appears or disappears', async () => {
     expect(
       await isUpToDate(fakeDb([row()]), {
@@ -170,6 +179,19 @@ describe('toolVersionsEqual', () => {
     expect(toolVersionsEqual({}, {})).toBe(true);
     expect(toolVersionsEqual({}, null)).toBe(false);
     expect(toolVersionsEqual(null, undefined)).toBe(true);
+  });
+
+  it('ignores the W23-04 input stamp on either side', () => {
+    const stamped = { grype: '1', [INPUT_HASH_KEY]: 'abc', [INPUT_PATHS_KEY]: '["package.json"]' };
+    expect(toolVersionsEqual(stamped, { grype: '1' })).toBe(true);
+    expect(toolVersionsEqual({ grype: '1' }, stamped)).toBe(true);
+    expect(toolVersionsEqual(stamped, { ...stamped, [INPUT_HASH_KEY]: 'other' })).toBe(true);
+    expect(toolVersionsEqual(stamped, { grype: '2' })).toBe(false);
+  });
+
+  it('uses the same reserved keys as the input-hash stamp', () => {
+    expect(INPUT_HASH_KEY).toBe('input_hash');
+    expect(INPUT_PATHS_KEY).toBe('input_paths');
   });
 });
 

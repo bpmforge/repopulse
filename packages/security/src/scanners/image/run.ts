@@ -6,6 +6,19 @@ import { read, security, type Database, safeErrorText } from '@repopulse/shared'
 import { persistFindings } from '@repopulse/insights';
 import type { ForgeProvider } from '@repopulse/forge';
 import { snapshotForScan } from '../../snapshot/index.js';
+import {
+  IMAGE_ROOT_PATHS,
+  hashFileSet,
+  hashSnapshotFiles,
+  mergePaths,
+  readManifestSet,
+  recordGatedRun,
+  stampInputs,
+  toolLabel,
+  toolsMatch,
+  UP_TO_DATE_NOTE,
+  type BaseRun,
+} from '../../framework/input-hash.js';
 import type { DependencyMatch } from '../dependency/matches.js';
 import { vulnDbDir } from '../dependency/tools.js';
 import { advisoryDataStamp } from '../dependency/data-stamp.js';
@@ -43,6 +56,18 @@ export interface ImageRunDeps {
    */
   snapshot?: { dir: string; commitSha: string };
   pullRequestId?: number | null;
+  /**
+   * W23-04. The newest real run for this repo (`latestBaseRun`). When given, the
+   * run first asks `imageScanDecision` and records a `skipped` row instead of
+   * pulling anything when the inputs and the data are unchanged. Omit to force.
+   */
+  baseRun?: BaseRun | null | undefined;
+  /**
+   * W23-04. Digests of the base images, where the caller knows them (a registry
+   * HEAD per tag). Folded into the input hash, so a moved `node:20` re-scans.
+   * Absent = digests unknown; see `imageScanDecision` for what that means.
+   */
+  imageDigests?: () => Promise<string[] | null>;
   /** Most distinct images scanned per run. */
   maxImages?: number;
   /** Newer tags tried per image when looking for an upgrade that clears findings. */
@@ -64,6 +89,8 @@ export interface ImageRunResult {
   imagesOverCap: number;
   findingsCreated: number;
   findingsTotal: number;
+  /** W23-04: which way the input-hash gate went. Absent = no baseline was offered. */
+  gate?: ImageScanDecision;
   error?: string;
 }
 
@@ -140,7 +167,109 @@ async function withScratch<T>(fn: (dir: string) => Promise<T>): Promise<T> {
   }
 }
 
+// ---- W23-04: the input-hash gate ---------------------------------------------
+//
+// The image scanner's answer depends on the files that NAME images (Dockerfiles,
+// compose files, .dockerignore), on what those images contain today (the
+// digest), and on the advisory database. Unchanged on all three -> nothing to
+// pull. A changed database does not rematch here (no SBOM is stored per image):
+// it is a full run.
+//
+// HONEST LIMIT: a tag like `node:20` names whatever the registry serves today.
+// With no digest source the gate cannot tell that the tag moved, so it will not
+// skip a run whose files name an unpinned tag — only a run whose images are all
+// pinned (`@sha256:`) or whose digests the caller resolved can be up_to_date.
+
+export type ImageScanDecision = 'up_to_date' | 'full';
+
+export interface ImageGateArgs {
+  provider: ForgeProvider;
+  repo: string;
+  sha: string;
+  baseRun: BaseRun | null;
+  /** Today's data stamp (W23-09 `imageDataVersion`). Defaults to computing it. */
+  dataVersion?: string | null;
+  imageDigests?: () => Promise<string[] | null>;
+  toolVersions?: Record<string, string> | null;
+}
+
+/** The digest salt: `''` when every named image is pinned, null when unknown. */
+async function digestSalt(
+  files: readonly { path: string; content: string }[],
+  imageDigests: (() => Promise<string[] | null>) | undefined,
+): Promise<string | null> {
+  const refs = extractImageRefs(files).images;
+  const unpinned = refs.filter((r) => !r.digest);
+  if (unpinned.length === 0) return '';
+  if (!imageDigests) return null;
+  const digests = await imageDigests();
+  return digests === null ? null : [...digests].sort().join(',');
+}
+
+export async function imageScanDecision(args: ImageGateArgs): Promise<ImageScanDecision> {
+  const base = args.baseRun;
+  if (!base || base.inputHash === null || base.inputPaths.length === 0) return 'full';
+  const dataVersion =
+    args.dataVersion !== undefined ? args.dataVersion : imageDataVersion();
+  if (dataVersion === null || base.dataVersion !== dataVersion) return 'full';
+  if (!toolsMatch(base, args.toolVersions)) return 'full';
+  try {
+    const set = await readManifestSet(
+      args.provider,
+      args.repo,
+      args.sha,
+      mergePaths(IMAGE_ROOT_PATHS, base.inputPaths),
+    );
+    if (set.hash === null) return 'full';
+    const salt = await digestSalt(set.files, args.imageDigests);
+    if (salt === null) return 'full';
+    return imageInputHash(set.hash, salt) === base.inputHash ? 'up_to_date' : 'full';
+  } catch {
+    return 'full';
+  }
+}
+
+/** The stamped value: the file-set hash, salted with the base-image digests. */
+export function imageInputHash(fileHash: string, digestSaltValue: string): string {
+  return digestSaltValue === '' ? fileHash : hashFileSet([
+    { path: 'files', content: fileHash },
+    { path: 'digests', content: digestSaltValue },
+  ]);
+}
+
 export async function runImageScan(deps: ImageRunDeps): Promise<ImageRunResult> {
+  const gated = deps.baseRun !== undefined && deps.trigger !== 'pr_synced' && !deps.snapshot;
+  const image = deps.image ?? DEFAULT_IMAGE;
+  // W23-09: the data stamp, read BEFORE the scan; the W23-04 gate compares
+  // `data_version` with this same value.
+  const dataVersion = imageDataVersion({ image, ...(deps.vulnDb ? { vulnDb: deps.vulnDb } : {}) });
+  if (gated) {
+    const decision = await imageScanDecision({
+      provider: deps.provider,
+      repo: deps.repo,
+      sha: deps.commitSha,
+      baseRun: deps.baseRun ?? null,
+      dataVersion,
+      ...(deps.imageDigests ? { imageDigests: deps.imageDigests } : {}),
+    });
+    if (decision === 'up_to_date') {
+      const base = deps.baseRun!;
+      const scanRunId = await recordGatedRun(deps.db, {
+        workspaceId: deps.workspaceId,
+        repoId: deps.repoId,
+        scannerKey: IMAGE_SCANNER_KEY,
+        commitSha: deps.commitSha,
+        trigger: deps.trigger ?? 'manual',
+        base,
+        scope: 'skipped',
+        dataVersion,
+        findingCount: base.findingCount,
+        note: UP_TO_DATE_NOTE,
+      });
+      return { status: 'succeeded', scanRunId, ...empty, findingsTotal: base.findingCount, gate: 'up_to_date' };
+    }
+  }
+
   const [run] = await deps.db
     .insert(security.scanRuns)
     .values({
@@ -151,12 +280,11 @@ export async function runImageScan(deps: ImageRunDeps): Promise<ImageRunResult> 
       commitSha: deps.commitSha,
       trigger: deps.trigger ?? 'manual',
       status: 'running',
+      dataVersion,
     })
     .returning();
   const runId = run!.id;
 
-  const image = deps.image ?? DEFAULT_IMAGE;
-  const dataVersion = imageDataVersion({ image, ...(deps.vulnDb ? { vulnDb: deps.vulnDb } : {}) });
   const pull = deps.pull ?? ((ref: string, dir: string) => pullImage(ref, dir));
   const scan =
     deps.scan ??
@@ -298,6 +426,37 @@ export async function runImageScan(deps: ImageRunDeps): Promise<ImageRunResult> 
         );
       }
       const error = notes.length > 0 ? notes.join('; ').slice(0, 1000) : null;
+      // W23-04: stamp the inputs this run read. Only a clean, whole run is a
+      // baseline (a partial one is never offered by latestBaseRun), and the
+      // digests are folded in only when every unpinned image has a known one.
+      let stamp: Record<string, string> | null = null;
+      if (!prRun && grypeVersion) {
+        // Not every yaml in the tree: only the files that name an image, plus
+        // every Dockerfile and compose-named file (the ones that could start
+        // to). A Kubernetes manifest that names no image today and gains one
+        // is the residual gap, stated in the RUNBOOK.
+        const naming = new Set(refs.images.map((i) => i.file));
+        const paths = mergePaths(
+          IMAGE_ROOT_PATHS,
+          files
+            .filter(
+              (f) =>
+                imageSourceKind(f.path) === 'dockerfile' ||
+                /compose/i.test(f.path.split('/').pop() ?? '') ||
+                naming.has(f.path),
+            )
+            .map((f) => f.path),
+        );
+        const onDisk = hashSnapshotFiles(snapshot.dir, paths);
+        const salt = await digestSalt(files, deps.imageDigests).catch(() => null);
+        if (onDisk.hash !== null && salt !== null) {
+          stamp = stampInputs(
+            { grype: grypeVersion },
+            imageInputHash(onDisk.hash, salt),
+            onDisk.paths,
+          );
+        }
+      }
       await closeRun(
         deps.db,
         runId,
@@ -307,6 +466,7 @@ export async function runImageScan(deps: ImageRunDeps): Promise<ImageRunResult> 
         grypeVersion,
         partial,
         status === 'succeeded' ? dataVersion : null,
+        stamp,
       );
 
       return {
@@ -337,6 +497,7 @@ async function closeRun(
   grypeVersion: string | null,
   partial = false,
   dataVersion: string | null = null,
+  stamp: Record<string, string> | null = null,
 ): Promise<void> {
   await db
     .update(security.scanRuns)
@@ -348,7 +509,10 @@ async function closeRun(
       finishedAt: new Date(),
       ...(dataVersion ? { dataVersion } : {}),
       ...(grypeVersion
-        ? { toolVersions: { grype: grypeVersion }, scannerVersion: `grype@${grypeVersion}` }
+        ? {
+            toolVersions: stamp ?? { grype: grypeVersion },
+            scannerVersion: stamp ? toolLabel(stamp) : `grype@${grypeVersion}`,
+          }
         : {}),
     })
     .where(eq(security.scanRuns.id, runId));
