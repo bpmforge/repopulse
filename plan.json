@@ -12357,9 +12357,11 @@
         "Full review when there is no prior, the prompt version changed, or compare is unavailable",
         "Test: PR with 10 files reviewed at head A; push touching 1 file -> exactly that file's chunks reach the gateway, 9 files' findings carried forward, a vanished quote closes its finding; UI shows \"incremental since <sha7>\""
       ],
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "Spec: docs/work/INCREMENTAL_SCAN_PLAN.md WP-X8. Full gate before closing: pnpm lint && pnpm typecheck && pnpm test. Respect CLAUDE.md Law 4 (C1a tarball only) and Law 7 (budgeted client)."
+        "Spec: docs/work/INCREMENTAL_SCAN_PLAN.md WP-X8. Full gate before closing: pnpm lint && pnpm typecheck && pnpm test. Respect CLAUDE.md Law 4 (C1a tarball only) and Law 7 (budgeted client).",
+        "2026-10-31 merged to main 75e0dc4e; offline gate green.",
+        "Open: processor→DB carry-forward path has no DB-gated test yet (Mac pnpm test); base is per pass not per dimension; AiPassJobData.force has no route/UI yet; migration 0067_ai_pass_incremental (idx 64)."
       ],
       "points": 5
     },
@@ -12390,9 +12392,11 @@
         "Playwright: two Run scans now presses with no new commit -> second shows Up to date rows and created no tarball traffic (budget counter or logs); a11y spec green",
         "docs updated; STATUS.md records W23 exit"
       ],
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "Spec: docs/work/INCREMENTAL_SCAN_PLAN.md WP-R6. Full gate before closing: pnpm lint && pnpm typecheck && pnpm test. Respect CLAUDE.md Law 4 (C1a tarball only) and Law 7 (budgeted client)."
+        "Spec: docs/work/INCREMENTAL_SCAN_PLAN.md WP-R6. Full gate before closing: pnpm lint && pnpm typecheck && pnpm test. Respect CLAUDE.md Law 4 (C1a tarball only) and Law 7 (budgeted client).",
+        "2026-10-31 merged to main 197134b4; offline gate green.",
+        "Open: e2e/scan-scope.spec.ts never run (needs the seeded stack on the Mac) — run with a11y, security, code-health specs."
       ],
       "points": 3
     },
