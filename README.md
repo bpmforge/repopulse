@@ -34,9 +34,9 @@ What you need on the host:
 On the host, with the two files in the current directory:
 
 ```bash
-shasum -a 256 -c repopulse-0.1.0-rc1-linux-arm64.tar.gz.sha256   # or: sha256sum -c
-tar -xzf repopulse-0.1.0-rc1-linux-arm64.tar.gz
-cd repopulse-0.1.0-rc1-linux-arm64
+shasum -a 256 -c repopulse-0.2.0-linux-arm64.tar.gz.sha256   # or: sha256sum -c
+tar -xzf repopulse-0.2.0-linux-arm64.tar.gz
+cd repopulse-0.2.0-linux-arm64
 ADMIN_PASSWORD='a long passphrase' ./install.sh --url=http://localhost:8099 --admin-email=you@example.com
 ```
 

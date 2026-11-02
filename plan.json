@@ -12500,7 +12500,11 @@
         "plan.json",
         "docs/MODEL_EVAL.md",
         "docs/TRIAGE_EVAL.md",
-        "docs/release-notes/**"
+        "docs/release-notes/**",
+        "docs/triage-eval.json",
+        "packages/security/src/eval/results.generated.ts",
+        "e2e/**",
+        "apps/web/src/widgets/admin/LlmRouting.tsx"
       ],
       "depends_on": [
         "W23-08",
@@ -12515,7 +12519,8 @@
       "points": 5,
       "status": "in_progress",
       "notes": [
-        "Procedure: docs/RELEASE.md. The W22-13 release-day steps (public Lodestone/bpm-rulepacks, licence items) are separate and need the owner's go on the day."
+        "Procedure: docs/RELEASE.md. The W22-13 release-day steps (public Lodestone/bpm-rulepacks, licence items) are separate and need the owner's go on the day.",
+        "2026-11-02 scope widened for what the release gate found: e2e/** (a persona race in journey.spec, the seeded credential re-seal in globalSetup, the scan-scope probed-runner filter) and LlmRouting.tsx (the W24-02 routing table scrolled the Models page sideways at 390px)."
       ]
     },
     {

@@ -33,10 +33,15 @@
         "rulepacks/code-health/logging.rust.v1.yaml",
         "rulepacks/code-health/logging.swift.v1.yaml",
         "rulepacks/code-health/logging.v1.yaml",
+        "rulepacks/code-health/perf/perf.complexity.go.v1.yaml",
+        "rulepacks/code-health/perf/perf.complexity.java.v1.yaml",
+        "rulepacks/code-health/perf/perf.complexity.python.v1.yaml",
+        "rulepacks/code-health/perf/perf.complexity.v1.yaml",
         "rulepacks/code-health/perf/perf.go.v1.yaml",
         "rulepacks/code-health/perf/perf.java.v1.yaml",
         "rulepacks/code-health/perf/perf.python.v1.yaml",
         "rulepacks/code-health/perf/perf.rust.v1.yaml",
+        "rulepacks/code-health/perf/perf.swift.v1.yaml",
         "rulepacks/code-health/perf/perf.v1.yaml",
         "rulepacks/semgrep/bpm-baseline.c-cpp-flow.v1.yaml",
         "rulepacks/semgrep/bpm-baseline.c-cpp.v1.yaml",
@@ -59,7 +64,7 @@
         "rulepacks/semgrep/bpm-baseline.swift.v1.yaml",
         "rulepacks/semgrep/bpm-baseline.v1.yaml"
       ],
-      "rules": 306,
+      "rules": 332,
       "parseErrors": [
         "juice-shop/codefixes/loginAdminChallenge_1.ts",
         "juice-shop/codefixes/loginAdminChallenge_2.ts",
@@ -88,7 +93,7 @@
       "title": "Bug-introducing changes (before/after pairs)",
       "source": {
         "kind": "authored",
-        "licence": "Proprietary (RepoPulse); written for this benchmark"
+        "licence": "Apache-2.0 (RepoPulse); written for this benchmark"
       },
       "status": "scored",
       "trees": 38,
@@ -100,7 +105,7 @@
       "source": {
         "kind": "in-repo",
         "path": "packages/security/fixtures/benchmark/iac-adapters",
-        "licence": "Proprietary (RepoPulse)"
+        "licence": "Apache-2.0 (RepoPulse)"
       },
       "status": "scored",
       "trees": 3,
@@ -151,11 +156,11 @@
       "source": {
         "kind": "in-repo",
         "path": "packages/security/fixtures/{code-health,perf,semgrep,injection}",
-        "licence": "Proprietary (RepoPulse)"
+        "licence": "Apache-2.0 (RepoPulse)"
       },
       "status": "scored",
       "trees": 8,
-      "labels": 135
+      "labels": 147
     },
     {
       "id": "sampleco",
@@ -173,15 +178,15 @@
     }
   ],
   "totals": {
-    "tp": 1725,
-    "fp": 494,
+    "tp": 1737,
+    "fp": 497,
     "fn": 1156,
     "tn": 3470,
-    "duplicate": 223,
+    "duplicate": 224,
     "ignored": 2370,
     "skipped": 11,
-    "precision": 0.777,
-    "recall": 0.599
+    "precision": 0.778,
+    "recall": 0.6
   },
   "byDimension": [
     {
@@ -257,15 +262,15 @@
     {
       "dimension": "performance",
       "score": {
-        "tp": 24,
-        "fp": 0,
+        "tp": 34,
+        "fp": 3,
         "fn": 1,
         "tn": 0,
-        "duplicate": 1,
+        "duplicate": 2,
         "ignored": 4,
         "skipped": 0,
-        "precision": 1,
-        "recall": 0.96
+        "precision": 0.919,
+        "recall": 0.971
       }
     },
     {
@@ -299,7 +304,7 @@
     {
       "dimension": "slop",
       "score": {
-        "tp": 30,
+        "tp": 32,
         "fp": 0,
         "fn": 8,
         "tn": 0,
@@ -307,7 +312,7 @@
         "ignored": 29,
         "skipped": 0,
         "precision": 1,
-        "recall": 0.789
+        "recall": 0.8
       }
     }
   ],
@@ -861,7 +866,7 @@
       "engine": "yaml",
       "dimension": "slop",
       "score": {
-        "tp": 3,
+        "tp": 4,
         "fp": 0,
         "fn": 0,
         "tn": 0,
@@ -1549,7 +1554,7 @@
       "engine": "yaml",
       "dimension": "slop",
       "score": {
-        "tp": 1,
+        "tp": 2,
         "fp": 0,
         "fn": 0,
         "tn": 0,
@@ -4137,6 +4142,70 @@
       }
     },
     {
+      "rule": "bpm-perf-copy-on-append",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-perf-find-by-key-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-perf-find-by-key-in-loop-py",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 1,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-perf-go-contains-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "bpm-perf-go-db-call-in-loop",
       "engine": "yaml",
       "dimension": "performance",
@@ -4154,6 +4223,38 @@
     },
     {
       "rule": "bpm-perf-go-defer-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-perf-go-nested-range-join",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-perf-go-prepend-in-loop",
       "engine": "yaml",
       "dimension": "performance",
       "score": {
@@ -4201,6 +4302,38 @@
       }
     },
     {
+      "rule": "bpm-perf-includes-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 1,
+        "fp": 3,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 0.25,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-perf-java-contains-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "bpm-perf-java-db-call-in-loop",
       "engine": "yaml",
       "dimension": "performance",
@@ -4217,7 +4350,39 @@
       }
     },
     {
+      "rule": "bpm-perf-java-find-by-key-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "bpm-perf-java-regex-compile-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-perf-java-remove-front-in-loop",
       "engine": "yaml",
       "dimension": "performance",
       "score": {
@@ -4281,7 +4446,55 @@
       }
     },
     {
+      "rule": "bpm-perf-kt-blocking-in-suspend",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "bpm-perf-kt-db-call-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-perf-kt-find-by-key-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-perf-kt-formatter-in-loop",
       "engine": "yaml",
       "dimension": "performance",
       "score": {
@@ -4313,6 +4526,22 @@
       }
     },
     {
+      "rule": "bpm-perf-kt-remove-front-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "bpm-perf-kt-string-concat-in-loop",
       "engine": "yaml",
       "dimension": "performance",
@@ -4326,6 +4555,38 @@
         "skipped": 0,
         "precision": null,
         "recall": null
+      }
+    },
+    {
+      "rule": "bpm-perf-list-concat-in-loop-py",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-perf-membership-in-list-in-loop-py",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
       }
     },
     {
@@ -4350,6 +4611,22 @@
       "dimension": "performance",
       "score": {
         "tp": 4,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-perf-pop-front-in-loop-py",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 1,
         "fp": 0,
         "fn": 0,
         "tn": 0,
@@ -4393,6 +4670,22 @@
       }
     },
     {
+      "rule": "bpm-perf-rs-blocking-in-async",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "bpm-perf-rs-clone-loop-collection",
       "engine": "yaml",
       "dimension": "performance",
@@ -4425,7 +4718,55 @@
       }
     },
     {
+      "rule": "bpm-perf-rs-db-call-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-perf-rs-find-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "bpm-perf-rs-regex-compile-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-perf-rs-remove-front-in-loop",
       "engine": "yaml",
       "dimension": "performance",
       "score": {
@@ -4470,6 +4811,86 @@
         "skipped": 0,
         "precision": 1,
         "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-perf-sw-fetch-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-perf-sw-find-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-perf-sw-formatter-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-perf-sw-regex-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-perf-sw-remove-front-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
       }
     },
     {
@@ -8714,13 +9135,13 @@
       "suite": "juice-shop",
       "score": {
         "tp": 7,
-        "fp": 0,
+        "fp": 3,
         "fn": 4,
         "tn": 5,
         "duplicate": 0,
         "ignored": 0,
         "skipped": 8,
-        "precision": 1,
+        "precision": 0.7,
         "recall": 0.636
       }
     },
@@ -8755,11 +9176,11 @@
     {
       "suite": "rule-fixtures",
       "score": {
-        "tp": 135,
+        "tp": 147,
         "fp": 0,
         "fn": 0,
         "tn": 0,
-        "duplicate": 1,
+        "duplicate": 2,
         "ignored": 0,
         "skipped": 0,
         "precision": 1,
@@ -9026,8 +9447,8 @@
     }
   ],
   "measured": {
-    "date": "2026-10-16",
-    "commit": "e49421c6ccd61c52d3db5034859d1f4fa44a1e16"
+    "date": "2026-11-02",
+    "commit": "3a35f2468e5bd2f851525dde9d6669da40e8b111"
   },
   "outcomes": [
     {
@@ -10826,6 +11247,17 @@
     {
       "suite": "juice-shop",
       "tree": "codefixes",
+      "file": "redirectChallenge_1.ts",
+      "line": 15,
+      "ruleId": "bpm-perf-includes-in-loop",
+      "dimension": "performance",
+      "cwe": null,
+      "kind": "fp",
+      "labelId": null
+    },
+    {
+      "suite": "juice-shop",
+      "tree": "codefixes",
       "file": "redirectChallenge_2.ts",
       "line": 15,
       "ruleId": null,
@@ -10837,6 +11269,17 @@
     {
       "suite": "juice-shop",
       "tree": "codefixes",
+      "file": "redirectChallenge_2.ts",
+      "line": 15,
+      "ruleId": "bpm-perf-includes-in-loop",
+      "dimension": "performance",
+      "cwe": null,
+      "kind": "fp",
+      "labelId": null
+    },
+    {
+      "suite": "juice-shop",
+      "tree": "codefixes",
       "file": "redirectChallenge_3.ts",
       "line": 15,
       "ruleId": null,
@@ -10844,6 +11287,17 @@
       "labelId": "redirect-3",
       "cwe": null,
       "kind": "fn"
+    },
+    {
+      "suite": "juice-shop",
+      "tree": "codefixes",
+      "file": "redirectChallenge_3.ts",
+      "line": 15,
+      "ruleId": "bpm-perf-includes-in-loop",
+      "dimension": "performance",
+      "cwe": null,
+      "kind": "fp",
+      "labelId": null
     },
     {
       "suite": "juice-shop",
@@ -111564,6 +112018,28 @@
     {
       "suite": "rule-fixtures",
       "tree": "code-health/triggering",
+      "file": "slop.js",
+      "line": 35,
+      "ruleId": "bpm-ch-empty-catch",
+      "dimension": "slop",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ch-empty-catch-todo"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "slop.js",
+      "line": 45,
+      "ruleId": "bpm-ch-silent-fallback-return",
+      "dimension": "slop",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ch-silent-fallback-long"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
       "file": "slop.py",
       "line": 7,
       "ruleId": "bpm-ch-empty-except-py",
@@ -112583,6 +113059,127 @@
       "cwe": null,
       "kind": "tp",
       "labelId": "py-perf-unbounded-gather-py-52"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "joins.py",
+      "line": 8,
+      "ruleId": "bpm-perf-find-by-key-in-loop-py",
+      "dimension": "performance",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "perf-py-find-by-key-loop"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "joins.py",
+      "line": 13,
+      "ruleId": "bpm-perf-find-by-key-in-loop-py",
+      "dimension": "performance",
+      "cwe": null,
+      "kind": "duplicate",
+      "labelId": "perf-py-find-by-key-next"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "joins.py",
+      "line": 13,
+      "ruleId": "bpm-perf-find-by-key-in-loop-py",
+      "dimension": "performance",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "perf-py-find-by-key-next"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "joins.py",
+      "line": 18,
+      "ruleId": "bpm-perf-membership-in-list-in-loop-py",
+      "dimension": "performance",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "perf-py-membership-list"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "joins.py",
+      "line": 25,
+      "ruleId": "bpm-perf-pop-front-in-loop-py",
+      "dimension": "performance",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "perf-py-pop-front"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "joins.py",
+      "line": 32,
+      "ruleId": "bpm-perf-list-concat-in-loop-py",
+      "dimension": "performance",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "perf-py-list-concat"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "joins.ts",
+      "line": 12,
+      "ruleId": "bpm-perf-find-by-key-in-loop",
+      "dimension": "performance",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "perf-find-by-key-loop"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "joins.ts",
+      "line": 19,
+      "ruleId": "bpm-perf-find-by-key-in-loop",
+      "dimension": "performance",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "perf-find-by-key-map"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "joins.ts",
+      "line": 24,
+      "ruleId": "bpm-perf-includes-in-loop",
+      "dimension": "performance",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "perf-includes-filter"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "joins.ts",
+      "line": 30,
+      "ruleId": "bpm-perf-copy-on-append",
+      "dimension": "performance",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "perf-copy-on-append-map"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "joins.ts",
+      "line": 35,
+      "ruleId": "bpm-perf-copy-on-append",
+      "dimension": "performance",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "perf-copy-on-append-reduce"
     },
     {
       "suite": "rule-fixtures",
