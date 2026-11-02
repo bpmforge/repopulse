@@ -439,7 +439,15 @@ RUN set -eux; \
 # helm + kustomize. Fetched here, at build time, because the scan container has
 # no network at run time. Each tarball is checked against the publisher's own
 # checksum before anything is extracted, and the stanza ends by running both
-# binaries so an image that cannot execute them fails the build.
+# binaries so an image that cannot execute them fails the build — on a native
+# build. A cross-build (deploy/bundle.sh --arch=amd64 on an arm64 host) runs
+# them under qemu-user, where the Go runtime aborts at random
+# (`fatal error: lfstack.push`, the same abort the Dockerfile's web-build stage
+# avoids); there the checksums above are the check, and the bundle manifest
+# records "emulated": true. BUILDPLATFORM/TARGETPLATFORM are set automatically
+# by buildah/podman and BuildKit.
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
 RUN set -eux; \
     apk add --no-cache --virtual .fetch-iac curl; \
     arch="$(uname -m)"; \
@@ -462,8 +470,12 @@ RUN set -eux; \
     rm -rf /tmp/helm.tar.gz /tmp/kustomize.tar.gz "/tmp/linux-${goarch}"; \
     apk del .fetch-iac; \
     rm -rf /var/cache/apk/*; \
-    helm version; \
-    kustomize version
+    if [ -z "${TARGETPLATFORM}" ] || [ "${TARGETPLATFORM}" = "${BUILDPLATFORM}" ]; then \
+      helm version; \
+      kustomize version; \
+    else \
+      echo "cross-build ${BUILDPLATFORM} -> ${TARGETPLATFORM}: helm/kustomize not executed under emulation (checksums verified)"; \
+    fi
 
 # The mount points the profile uses. Created at build time so the container
 # never needs to mkdir anything on a read-only root. /vuln-db is its own mount
