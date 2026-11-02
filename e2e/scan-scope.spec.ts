@@ -54,7 +54,10 @@ async function openSecurityTab(page: Page): Promise<string> {
   await page
     .getByTestId('health-tile-grid')
     .locator('a')
-    .filter({ hasText: SEED_REPO_NAMES[0] as string })
+    // `infra`, not `payments`: seeded repos keep their ids across runs, so the
+    // runs this spec makes persist, and security.spec asserts on `payments`
+    // that the chainer "has not run".
+    .filter({ hasText: SEED_REPO_NAMES[2] as string })
     .first()
     .click();
   await expect(page).toHaveURL(/\/repos\/\d+/);
@@ -154,7 +157,11 @@ test.describe('scan scope', () => {
     // PRESS TWO — same commit: no sync, no push, nothing between the presses.
     const base1 = newestId(await runsOf(page, repoId));
     const second = await press(page, repoId);
-    for (const key of okKeys) {
+    // The press answers from the API's probes, which have no anti-slop probe
+    // (only the worker can build the gateway its stamp names — ProbeOptions in
+    // probes.ts), so anti_slop is reported as started there and skipped by the
+    // worker. The recorded rows below hold every key to `skipped`.
+    for (const key of okKeys.filter((k) => k !== 'anti_slop')) {
       expect(second.up_to_date ?? [], `${key} listed as up to date`).toContain(key);
       expect(second.started, `${key} not started`).not.toContain(key);
     }

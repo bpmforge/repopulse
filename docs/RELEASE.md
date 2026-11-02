@@ -47,7 +47,11 @@ enforces it; the enforcing file is named so the step is never done from memory.
    commit the regenerated `docs/benchmarks/report.{json,md}` and copy the rows into
    `apps/web/src/about/release-accuracy.json` with `release` set to the new version,
    `measured.commit` to the release commit, and the tool versions used. The About test is the
-   check.
+   check. Then regenerate the two files derived from the report —
+   `UPDATE_BENCHMARK_BUNDLE=1 npx vitest run apps/api/src/lib/benchmark-precision.test.ts` and
+   `pnpm --filter @repopulse/security starter-set` (read its diff: it decides which rules are on
+   by default) — and update `apps/web/src/routes/about.test.tsx`; the full `pnpm test` fails on
+   all three otherwise (it did for 0.2.0).
 5. **Bump the version** in the root and all ten workspace `package.json` files and in
    `README.md` (the bundle file names). Commit `chore(release): vX.Y.Z`.
 6. **Build the bundles** on a host with Podman: `deploy/bundle.sh --version=X.Y.Z` once per
