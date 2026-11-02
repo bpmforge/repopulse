@@ -21,14 +21,14 @@ specialist is run over cases with a planted defect and clean cases, and scored f
 
 ### `qwen/qwen3.8-27b`
 
-Engine: OpenAI-compatible endpoint at localhost:1234 · run 2026-10-26 · temperature 0.1 · seed 7 (requested; the provider may ignore it) · complete
+Engine: OpenAI-compatible endpoint at localhost:1234 · run 2026-11-02 · temperature 0.1 · seed 7 (requested; the provider may ignore it) · complete
 
 | Role | Checklist | Cases | Precision | Recall | TP | FP | FN | Not scored | Format failures |
 |---|---|--:|--:|--:|--:|--:|--:|--:|--:|
 | Security | v1 | 4 | 100% | 100% | 2 | 0 | 0 | 0 | 0 |
-| Performance | v3 | 8 | 67% | 100% | 4 | 2 | 0 | 0 | 0 |
+| Performance | v3 | 8 | 67% | 50% | 2 | 1 | 2 | 0 | 0 |
 | Code health | v2 | 4 | 100% | 100% | 2 | 0 | 0 | 0 | 0 |
-| Test coverage | v1 | 4 | 33% | 100% | 2 | 4 | 0 | 0 | 0 |
+| Test coverage | v1 | 4 | 50% | 50% | 1 | 1 | 1 | 0 | 0 |
 | Best practices | v1 | 4 | 100% | 100% | 2 | 0 | 0 | 0 | 0 |
 | AI slop | v1 | 4 | 67% | 100% | 2 | 1 | 0 | 0 | 0 |
 

@@ -313,7 +313,14 @@ image_json() { # $1 image -> {"name":..,"id":..,"digest":..,"size":..}
 
 # --------------------------------------------------------------- pack -------
 echo "== pack $TARBALL"
-( cd "$OUT" && tar -cf - "$NAME" | gzip -1 > "$NAME.tar.gz" )
+# macOS tar (bsdtar) stores extended attributes as LIBARCHIVE.xattr.* pax
+# headers — com.apple.provenance is on every file a Mac has touched — and GNU
+# tar on the customer's Linux host prints "Ignoring unknown extended header
+# keyword" once per file: about a thousand lines on the first command of the
+# install (found smoking 0.2.0). GNU tar on a Linux build host adds none.
+TAR_FLAGS=()
+if tar --version 2>/dev/null | grep -q bsdtar; then TAR_FLAGS=(--no-xattrs --no-mac-metadata); fi
+( cd "$OUT" && COPYFILE_DISABLE=1 tar ${TAR_FLAGS[@]+"${TAR_FLAGS[@]}"} -cf - "$NAME" | gzip -1 > "$NAME.tar.gz" )
 ( cd "$OUT" && shasum -a 256 "$NAME.tar.gz" > "$NAME.tar.gz.sha256" )
 rm -rf "$STAGE"
 

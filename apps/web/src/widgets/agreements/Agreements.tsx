@@ -447,7 +447,7 @@ function AgreementItem({
               <span className="text-fg-muted">Delete this agreement for everyone?</span>
               <button
                 type="button"
-                className="text-crit hover:underline disabled:opacity-50"
+                className="inline-flex min-h-6 items-center text-crit hover:underline disabled:opacity-50"
                 data-testid={`agreement-delete-confirm-${a.id}`}
                 disabled={remove.isPending}
                 onClick={() => remove.mutate(undefined)}
@@ -458,7 +458,7 @@ function AgreementItem({
               </button>
               <button
                 type="button"
-                className="text-fg-muted hover:underline"
+                className="inline-flex min-h-6 items-center text-fg-muted hover:underline"
                 onClick={() => setConfirmDelete(false)}
               >
                 Cancel
@@ -467,7 +467,9 @@ function AgreementItem({
           ) : (
             <button
               type="button"
-              className="text-crit hover:underline"
+              // min-h-6: a bare text button was under the 24px target size
+              // (WCAG 2.5.8), caught by the axe pass on Settings → Agreements.
+              className="inline-flex min-h-6 items-center text-crit hover:underline"
               data-testid={`agreement-delete-${a.id}`}
               onClick={() => setConfirmDelete(true)}
             >

@@ -3,7 +3,11 @@ import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { chromium } from '@playwright/test';
 import { createRedisConnection } from '@repopulse/ingest';
-import { createDb, seedWarehouse } from '@repopulse/shared';
+import { eq } from 'drizzle-orm';
+import { core, createDb, FAKE_TOKEN, seedWarehouse } from '@repopulse/shared';
+// By path, as e2e/server.ts imports apps/api: the root package does not depend
+// on @repopulse/auth, and only the vault can seal a credential.
+import { credentials } from '../packages/auth/src/index.js';
 import { PORTS } from '../ports.config.mjs';
 
 export const STORAGE_STATE = 'e2e/.auth/state.json';
@@ -28,6 +32,7 @@ export default async function globalSetup(): Promise<void> {
   }
   const db = createDb(url);
   await seedWarehouse(db);
+  await sealSeededConnection(db);
   await db.$client.end();
 
   // Drop every BullMQ key before the run. The seeder recreates repo rows with
@@ -61,4 +66,31 @@ export default async function globalSetup(): Promise<void> {
   await mkdir(dirname(STORAGE_STATE), { recursive: true });
   await context.storageState({ path: STORAGE_STATE });
   await browser.close();
+}
+
+/**
+ * Give the seeded forge connection a credential the vault can open.
+ *
+ * The seeder writes a four-byte placeholder (packages/shared has no vault), so
+ * every scanner that fetches a tarball died with "ciphertext too short" and the
+ * scan-scope spec could never see a successful snapshot scan. apps/api/src/demo.ts
+ * does the same re-seal for demo mode. Only rows still carrying the seeder's
+ * fingerprint are touched, so a connection an ingest spec made is left alone;
+ * the address is the e2e fake forge's fixed port, the one the worker is given.
+ */
+async function sealSeededConnection(db: ReturnType<typeof createDb>): Promise<void> {
+  if (process.env.SMOKE_REAL_FORGE === '1') return;
+  const key = process.env.TOKEN_ENC_KEY;
+  if (!key) throw new Error('e2e globalSetup: TOKEN_ENC_KEY is not set — the worker cannot open the seeded credential.');
+  const sealed = credentials.encryptCredential(FAKE_TOKEN, Buffer.from(key, 'hex'));
+  await db
+    .update(core.forgeConnections)
+    .set({
+      credentialCiphertext: sealed.ciphertext,
+      credentialIv: sealed.iv,
+      keyVersion: sealed.keyVersion,
+      credentialFingerprint: sealed.fingerprint,
+      baseUrl: `http://127.0.0.1:${PORTS.e2eFakeForge}`,
+    })
+    .where(eq(core.forgeConnections.credentialFingerprint, 'seed:fp'));
 }

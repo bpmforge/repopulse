@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { loginAsFixture } from './helpers/auth.js';
 import { expectNoA11yViolations } from './helpers/axe.js';
 import { SEED_REPO_NAMES } from '@repopulse/shared';
+import { PROBED_RUNNERS } from '../apps/api/src/routes/runs/probes.js';
 
 // Scan scope on the Security tab (W23-08; W23-01 skip, W23-03 incremental).
 //
@@ -53,7 +54,10 @@ async function openSecurityTab(page: Page): Promise<string> {
   await page
     .getByTestId('health-tile-grid')
     .locator('a')
-    .filter({ hasText: SEED_REPO_NAMES[0] as string })
+    // `infra`, not `payments`: seeded repos keep their ids across runs, so the
+    // runs this spec makes persist, and security.spec asserts on `payments`
+    // that the chainer "has not run".
+    .filter({ hasText: SEED_REPO_NAMES[2] as string })
     .first()
     .click();
   await expect(page).toHaveURL(/\/repos\/\d+/);
@@ -136,10 +140,15 @@ test.describe('scan scope', () => {
 
     // The scanners that completed a successful run are the ones the second
     // press is allowed — and required — to leave alone. Failed ones (a scanner
-    // whose tooling is missing in this stack) legitimately retry.
+    // whose tooling is missing in this stack) legitimately retry, and so does
+    // every scanner without a probe: only PROBED_RUNNERS can be answered by an
+    // earlier run (attack_chainer reads the findings every other scanner
+    // changes; a manual secrets press sweeps a commit range). Once one of those
+    // had a successful run here, the spec demanded a skip it never offers.
     okKeys = (await scannersOf(page, repoId))
       .filter((s) => s.registered && s.enabled && s.state === 'ok' && s.last_run_at)
-      .map((s) => s.key);
+      .map((s) => s.key)
+      .filter((key) => PROBED_RUNNERS.includes(key));
     expect(
       okKeys.length,
       'at least one scanner must have a successful run to be "up to date" — is the scan worker running?',
@@ -148,7 +157,11 @@ test.describe('scan scope', () => {
     // PRESS TWO — same commit: no sync, no push, nothing between the presses.
     const base1 = newestId(await runsOf(page, repoId));
     const second = await press(page, repoId);
-    for (const key of okKeys) {
+    // The press answers from the API's probes, which have no anti-slop probe
+    // (only the worker can build the gateway its stamp names — ProbeOptions in
+    // probes.ts), so anti_slop is reported as started there and skipped by the
+    // worker. The recorded rows below hold every key to `skipped`.
+    for (const key of okKeys.filter((k) => k !== 'anti_slop')) {
       expect(second.up_to_date ?? [], `${key} listed as up to date`).toContain(key);
       expect(second.started, `${key} not started`).not.toContain(key);
     }

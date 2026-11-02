@@ -17,7 +17,7 @@ cite a line it was shown.
 
 | Model | Cases | Agreement | Agree | Disagree | Abstained | Rejected | Missed real | Checklist | Run |
 |---|--:|--:|--:|--:|--:|--:|--:|---|---|
-| `qwen/qwen3.8-27b` | 12 | 100% | 12 | 0 | 0 | 0 | 0 | triage.v1 | 2026-10-18 |
+| `qwen/qwen3.8-27b` | 12 | 100% | 12 | 0 | 0 | 0 | 0 | triage.v1 | 2026-11-02 |
 
 ## Per case
 

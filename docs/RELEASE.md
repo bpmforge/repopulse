@@ -27,8 +27,18 @@ enforces it; the enforcing file is named so the step is never done from memory.
 2. **Full gate on `main` with live infra** (CLAUDE.md law 3): dev stack up, then
    `pnpm lint && pnpm typecheck && pnpm test` — the ~1,000 DB/Redis-gated tests only run
    here; GitHub Actions on this private repository does not currently start runners.
-   `pnpm db:generate` must show no drift against the committed migrations.
-   `pnpm e2e` against the seeded stack.
+   **Schema drift:** `pnpm db:generate` cannot run on this repository (the drizzle snapshot
+   chain forks at 0032/0033 and has no snapshot after 0038), so check drift on a scratch
+   database instead: create `repopulse_drift`, `DATABASE_URL=<…/repopulse_drift> pnpm exec
+   drizzle-kit migrate`, then `drizzle-kit push --verbose` against it and read the statements
+   it proposes. Known and harmless as of 0.2.0: a drop/re-add of
+   `check_runs_repo_kind_forge_run_attempt_key` (identical columns), the
+   `ai_triage_verdicts` self-FK name (0051) and `finding_events_scan_run_id_idx` (0054, not
+   declared in the schema). Anything else is drift. Drop the scratch database afterwards.
+   `pnpm e2e` against the seeded stack. The dev worker runs snapshot scanners in
+   `localhost/repopulse/scan:dev` — build or tag one first (`podman build -f
+   Containerfile.scan -t localhost/repopulse/scan:dev .`), or the scan-scope spec has no
+   successful snapshot scan to compare against.
 3. **Review-quality evals** (`docs/MODEL_EVAL.md`, `docs/TRIAGE_EVAL.md`, W19-05) whenever a
    prompt changed since the last release. 0.2.0: yes — W23-06 moved the required-JSON block
    ahead of the PR context.
@@ -37,12 +47,20 @@ enforces it; the enforcing file is named so the step is never done from memory.
    commit the regenerated `docs/benchmarks/report.{json,md}` and copy the rows into
    `apps/web/src/about/release-accuracy.json` with `release` set to the new version,
    `measured.commit` to the release commit, and the tool versions used. The About test is the
-   check.
+   check. Then regenerate the two files derived from the report —
+   `UPDATE_BENCHMARK_BUNDLE=1 npx vitest run apps/api/src/lib/benchmark-precision.test.ts` and
+   `pnpm --filter @repopulse/security starter-set` (read its diff: it decides which rules are on
+   by default) — and update `apps/web/src/routes/about.test.tsx`; the full `pnpm test` fails on
+   all three otherwise (it did for 0.2.0).
 5. **Bump the version** in the root and all ten workspace `package.json` files and in
    `README.md` (the bundle file names). Commit `chore(release): vX.Y.Z`.
 6. **Build the bundles** on a host with Podman: `deploy/bundle.sh --version=X.Y.Z` once per
    architecture (`--arch=arm64`, `--arch=amd64`); smoke each with its own `install.sh` on a
    clean machine (W22-15 is the record of the last such test); `deploy/smoke-report-pdf.sh`.
+   Build the native architecture **last**, or re-tag afterwards: an `--arch=amd64` build on an
+   arm64 host leaves amd64 images under the shared local tags (`localhost/repopulse/*:X.Y.Z`,
+   `postgres:16`, `valkey`), and the next `pnpm test` runs the scan containers under qemu,
+   several times slower (34+ minutes against ~10) (0.2.0: re-tagged from the arm64 `manifest.json` image ids).
 7. **Tag and publish.** `git tag -a vX.Y.Z -F <release notes>`; `git push origin main --tags
    && git push github main --tags`; GitHub release from the tag with the tarballs and
    `.sha256` files attached; the bundle `README.md` tells customers nothing is downloaded from
@@ -55,9 +73,13 @@ enforces it; the enforcing file is named so the step is never done from memory.
 9. **Dogfood upgrade** on `repopulse.bpmforge.com` per `docs/DEPLOYMENT.md` (set
    `REPOPULSE_VERSION` and `SCAN_IMAGE`, `./install.sh`, verify, roll back if needed).
 
-## Where 0.2.0 stands (2026-11-01)
+## Where 0.2.0 stands (2026-11-02)
 
-Done: steps 1 (W23 wave closed; CHANGELOG written) and the offline half of step 2
-(tsc, eslint, vitest with DB-gated files skipped: 4,631 tests, 0 failed).
-Open: live-infra gate, evals, benchmark, version bump, bundles, tag, and the release-day
-steps. These are tracked as ticket W23-10.
+Done on branch `claude/project-thread-06ulll` (W23-10): steps 2–5 — live-infra gate, e2e,
+evals, benchmark on 3a35f24 and version 0.2.0 (`docs/release-notes/v0.2.0.md`). Step 6: the
+arm64 and amd64 bundles are built from `4a338f7b` (`fix(scan-image): …`), which is the commit
+to tag; later commits change only docs, `deploy/bundle/ARCHITECTURES.md` and `plan.json`.
+Smoke results: `docs/release-notes/v0.2.0-verification.md`.
+Open, each needing the owner's go: merge to `main`, step 7 (tag `v0.2.0` from
+`docs/release-notes/v0.2.0.md`, push, GitHub release with the tarballs), step 8 (W22-13
+public repositories) and step 9 (dogfood upgrade).

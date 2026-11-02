@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { PageHeader, WidgetFrame, frameState } from '../components/index.js';
 import { useApiQuery } from '../api/useApiQuery.js';
+import { docsUrl } from '../lib/docs.js';
 import {
   RELEASE_ACCURACY,
   percent,
@@ -54,6 +55,32 @@ export function AboutPage({ accuracy }: { accuracy: ReleaseAccuracy }) {
           <dt className="text-fg-muted">Accuracy published with</dt>
           <dd className="font-mono" data-testid="about-accuracy-release">
             {accuracy.release}
+          </dd>
+          {/* The licence the install ships under. LICENSE, NOTICE and
+              THIRD_PARTY_NOTICES.md are in every image and bundle (W23-11);
+              this says so where an operator looks for the version. */}
+          <dt className="text-fg-muted">Licence</dt>
+          <dd data-testid="about-licence">
+            <a
+              href={docsUrl('LICENSE')}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              Apache License 2.0
+            </a>
+            <span className="text-fg-muted">
+              {' '}
+              · components under other licences:{' '}
+              <a
+                href={docsUrl('THIRD_PARTY_NOTICES.md')}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              >
+                THIRD_PARTY_NOTICES.md
+              </a>
+            </span>
           </dd>
         </dl>
         {/* A source build reports the package version; an install reports its
