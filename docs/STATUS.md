@@ -4214,3 +4214,14 @@ on the Mac:**
   - Owner's go needed: merge to `main`, tag `v0.2.0` at `4a338f7b`, push to both remotes,
     GitHub release with the two tarballs and `.sha256` files, W22-13 public repos, dogfood
     upgrade.
+- 2026-11-02 — **RepoPulse 0.2.0 released** (W23-10 done). Owner's go: "Yes, both bundles".
+  - `main` is `da828f84` on GitHub and Gitea (Gitea fast-forwarded from `2d7d95f4`).
+  - Annotated tag `v0.2.0` (object `26baf7c7`) at `4a338f7b`, on both remotes.
+  - Release: https://github.com/bpmforge/repopulse/releases/tag/v0.2.0 with both tarballs and
+    `.sha256` files. Downloaded signed out; checksums match. The notes say amd64 was tested
+    under emulation only.
+  - Now public: `bpmforge/repopulse` (Apache-2.0, tag v0.2.0), `bpmforge/bpm-rulepacks` (MIT,
+    no tag), `bpmforge/lodestone` (MIT, no tag). gitleaks over both new repos' full history
+    found only fixtures and one false positive.
+  - Not done: the dogfood upgrade of repopulse.bpmforge.com (needs the owner's yes), the
+    Lodestone pin (W22-13, waits for W22-01), and a real amd64 host test (W11-05).
