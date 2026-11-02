@@ -46,6 +46,19 @@ describe('About (W20-23)', () => {
     expect(screen.queryByTestId('about-version-note')).toBeNull();
   });
 
+  it('names the licence and links the licence and third-party notices', async () => {
+    renderAbout();
+    const licence = await screen.findByTestId('about-licence');
+    expect(within(licence).getByRole('link', { name: 'Apache License 2.0' })).toHaveAttribute(
+      'href',
+      expect.stringMatching(/\/LICENSE$/),
+    );
+    expect(within(licence).getByRole('link', { name: 'THIRD_PARTY_NOTICES.md' })).toHaveAttribute(
+      'href',
+      expect.stringMatching(/\/THIRD_PARTY_NOTICES\.md$/),
+    );
+  });
+
   it('says so when the install is named differently from the numbers’ release', async () => {
     version = '2026.10.3';
     renderAbout();
