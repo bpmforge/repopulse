@@ -280,6 +280,10 @@ own images (`podman tag localhost/repopulse/api:dev localhost/repopulse/api:$(da
 
 **Data:**
 
+Rolling back to a bundle from before November 2026? Its `redis` is Redis 7.4
+and may not read a volume Valkey has used; see *Redis became Valkey (2026-11)*
+above before the `up -d` below.
+
 ```sh
 podman compose -f deploy/compose.yaml down                       # in the NEW directory
 cd /path/to/previous-bundle
