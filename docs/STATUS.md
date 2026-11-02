@@ -4186,3 +4186,31 @@ on the Mac:**
   repository tab (old Security-tab links redirect) and "AI Reviewers" is renamed "Review
   bots". Before/after pictures in `docs/screenshots/w24/`. Gated in the cloud only; the Mac
   real-engine run (scripts/ci-local.sh) has not been run on this change.
+- 2026-11-02 — **W23-10: 0.2.0 is ready to tag** (branch `claude/project-thread-06ulll`; not
+  merged to `main`, nothing tagged, nothing public). Evidence: `docs/release-notes/v0.2.0-verification.md`.
+  Release steps 2–6 are done. The commit to tag is `4a338f7b`; both bundles were built from it.
+  - Gate on the Mac with live Postgres 16 and Valkey 9.0.7: lint and typecheck clean, `pnpm test` 5,936 passed / 22 skipped / 0 failed, `pnpm e2e` 164 passed / 17 skipped / 0 failed (on `4a338f7b`). The first live e2e on
+    `main` was 152 passed / 11 failed; every failure is fixed on the branch: a persona race,
+    the seeded credential that no tarball scanner could open, scan-scope expectations, the W24
+    routing table overflowing at 390px, and agreement-button target size.
+  - The full gate also caught the three files derived from the benchmark report. RELEASE.md
+    step 4 now lists them.
+  - `pnpm db:generate` cannot run (the snapshot chain forks at 0032/0033 and has nothing after
+    0038), so drift is now checked on a scratch database (RELEASE.md step 2). 0065–0067 are
+    clean. Two older declaration differences remain (0051 FK name, 0054 index); follow-up.
+  - Evals: triage 12/12. Performance and test-coverage recall moved between runs (50% in the
+    complete run, 75%/100% on a repeat); not shown to be a W23-06 regression.
+  - Benchmark: P 0.778 / R 0.600 overall. Juice Shop precision fell 1.00 → 0.70 from three
+    `bpm-perf-includes-in-loop` hits on `String.includes`; follow-up. About shows 0.2.0
+    with 0.1.0 as the previous release, and now names the licence.
+  - Bundles: arm64 smoke-tested in a fresh Ubuntu 26.04.1 VM with Podman 5.7, PDF smoke
+    included. amd64 was smoke-tested under qemu only: Valkey was substituted, and the PDF
+    could not run (Chromium traps under qemu). Release fixes found by the bundle work:
+    macOS xattrs in the tarball (1,713 GNU tar warnings), and the amd64 scan image no longer
+    building since W18-45 (Go `lfstack.push` abort under qemu).
+  - Playwright on the M5 Mac: `~/Library/Caches/ms-playwright` did not exist. The pinned
+    chromium-1228 was under `~/Code/KPrust/`; copied into the default cache.
+  - The e2e worker needs a local `localhost/repopulse/scan:dev` image (RELEASE.md step 2).
+  - Owner's go needed: merge to `main`, tag `v0.2.0` at `4a338f7b`, push to both remotes,
+    GitHub release with the two tarballs and `.sha256` files, W22-13 public repos, dogfood
+    upgrade.

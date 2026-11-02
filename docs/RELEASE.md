@@ -57,6 +57,10 @@ enforces it; the enforcing file is named so the step is never done from memory.
 6. **Build the bundles** on a host with Podman: `deploy/bundle.sh --version=X.Y.Z` once per
    architecture (`--arch=arm64`, `--arch=amd64`); smoke each with its own `install.sh` on a
    clean machine (W22-15 is the record of the last such test); `deploy/smoke-report-pdf.sh`.
+   Build the native architecture **last**, or re-tag afterwards: an `--arch=amd64` build on an
+   arm64 host leaves amd64 images under the shared local tags (`localhost/repopulse/*:X.Y.Z`,
+   `postgres:16`, `valkey`), and the next `pnpm test` runs the scan containers under qemu,
+   several times slower (34+ minutes against ~10) (0.2.0: re-tagged from the arm64 `manifest.json` image ids).
 7. **Tag and publish.** `git tag -a vX.Y.Z -F <release notes>`; `git push origin main --tags
    && git push github main --tags`; GitHub release from the tag with the tarballs and
    `.sha256` files attached; the bundle `README.md` tells customers nothing is downloaded from

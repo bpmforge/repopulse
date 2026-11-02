@@ -71,6 +71,13 @@ The release procedure is in [docs/RELEASE.md](docs/RELEASE.md).
   `link-in-text-block`). (W24-05)
 - Settings → Models no longer scrolls sideways at phone width: the W24 routing table scrolls
   in its own region. (W23-10)
+- The About page names the licence (Apache License 2.0) and links the third-party notices.
+  (W23-10)
+- Agreement Delete/Cancel buttons meet the 24px minimum target size (WCAG 2.5.8). (W23-10)
+- Install bundles built on macOS no longer carry macOS extended attributes, which made GNU tar
+  print an "unknown extended header keyword" warning per file on extraction. (W23-10)
+- The amd64 scan image builds again under emulation: the helm/kustomize self-check is skipped
+  on a cross-build (the binaries are still checksum-verified). (W23-10)
 
 ### Verified for this release (W23-10, 2026-11-02, macOS arm64 with Podman)
 - `pnpm lint`, `pnpm typecheck`, `pnpm test` with live Postgres 16 and Valkey 9.0.7:

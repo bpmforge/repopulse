@@ -12504,7 +12504,13 @@
         "docs/triage-eval.json",
         "packages/security/src/eval/results.generated.ts",
         "e2e/**",
-        "apps/web/src/widgets/admin/LlmRouting.tsx"
+        "apps/web/src/widgets/admin/LlmRouting.tsx",
+        "apps/web/src/routes/about.tsx",
+        "apps/web/src/routes/about.test.tsx",
+        "apps/web/src/widgets/agreements/Agreements.tsx",
+        "Containerfile.scan",
+        "apps/api/src/lib/benchmark-precision.data.ts",
+        "packages/security/src/rules/starter-set.data.ts"
       ],
       "depends_on": [
         "W23-08",
@@ -12520,7 +12526,8 @@
       "status": "in_progress",
       "notes": [
         "Procedure: docs/RELEASE.md. The W22-13 release-day steps (public Lodestone/bpm-rulepacks, licence items) are separate and need the owner's go on the day.",
-        "2026-11-02 scope widened for what the release gate found: e2e/** (a persona race in journey.spec, the seeded credential re-seal in globalSetup, the scan-scope probed-runner filter) and LlmRouting.tsx (the W24-02 routing table scrolled the Models page sideways at 390px)."
+        "2026-11-02 scope widened for what the release gate found: e2e/** (a persona race in journey.spec, the seeded credential re-seal in globalSetup, the scan-scope probed-runner filter) and LlmRouting.tsx (the W24-02 routing table scrolled the Models page sideways at 390px).",
+        "2026-11-02 RELEASE STEPS 2-6 DONE on claude/project-thread-06ulll; tag commit 4a338f7b (both bundles built from it). Gate on 4a338f7b: lint/typecheck clean, pnpm test 5,936 passed / 22 skipped / 0 failed, pnpm e2e 164 passed / 17 skipped / 0 failed. Evals: triage 12/12. Benchmark P 0.778 / R 0.600. Bundles: arm64 sha256 ab1772b0…348ca, amd64 sha256 92218907…de4da9 (stored on the build host, not uploaded); arm64 smoke in a fresh Ubuntu 26.04.1 + Podman 5.7 VM incl. the PDF smoke; amd64 emulated smoke only (Valkey substituted, PDF untestable under qemu). Further scope used for release blockers: apps/web/src/routes/about*.tsx (licence row), apps/web/src/widgets/agreements/Agreements.tsx (axe target-size), Containerfile.scan (amd64 cross-build), apps/api/src/lib/benchmark-precision.data.ts and packages/security/src/rules/starter-set.data.ts (regenerated from the report). Evidence: docs/release-notes/v0.2.0-verification.md. OPEN, owner go needed: merge to main, tag v0.2.0 at 4a338f7b and push to both remotes, GitHub release with the tarballs + .sha256, W22-13 public repos, dogfood upgrade; then status -> done."
       ]
     },
     {
