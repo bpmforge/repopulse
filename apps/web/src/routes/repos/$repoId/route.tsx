@@ -83,12 +83,17 @@ const TABS: { to: string; label: string; exact?: boolean; testId?: string }[] = 
   { to: '/repos/$repoId/pr-flow', label: 'PR Flow' },
   // W18-23. Beside PR Flow because it is the other half of the review story:
   // PR Flow measures human review, this measures the tools.
-  { to: '/repos/$repoId/ai-reviewers', label: 'AI Reviewers' },
+  // W24-04: "AI Reviewers" (third-party bots) sat a few tabs from RepoPulse's
+  // own AI review, and people looking for one landed on the other (UX_TODO AI-15).
+  // Same route and test id; a plainer name.
+  { to: '/repos/$repoId/ai-reviewers', label: 'Review bots', testId: 'ai-reviewers' },
   { to: '/repos/$repoId/ci', label: 'CI' },
   // W20-23 (UX_TODO ADM-34, DSH-33): the place is "Findings" everywhere (rail, trail,
   // heading, palette, this tab); a "finding" is one item in it.
   { to: '/repos/$repoId/findings', label: 'Findings', testId: 'findings' },
   { to: '/repos/$repoId/security', label: 'Security' },
+  // W24-04 (UX review: the AI panel was buried in the Security tab).
+  { to: '/repos/$repoId/ai-review', label: 'AI review', testId: 'ai-review' },
   { to: '/repos/$repoId/code-health', label: 'Code Health' },
 ];
 

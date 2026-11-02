@@ -234,7 +234,7 @@ export function Inbox() {
                     {(data.ai_passes ?? []).map((p) => (
                       <li key={p.id}>
                         <Link
-                          to={'/repos/$repoId/security' as never}
+                          to={'/repos/$repoId/ai-review' as never}
                           params={{ repoId: String(p.repo_id) } as never}
                           hash="ai-review-pass"
                           onClick={() => setOpen(false)}
@@ -263,7 +263,7 @@ export function Inbox() {
                     {(data.ai_pass_requests ?? []).map((r) => (
                       <li key={r.id}>
                         <Link
-                          to={'/repos/$repoId/security' as never}
+                          to={'/repos/$repoId/ai-review' as never}
                           params={{ repoId: String(r.repo_id ?? '') } as never}
                           hash="ai-review-pass"
                           onClick={() => setOpen(false)}

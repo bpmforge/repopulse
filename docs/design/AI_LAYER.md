@@ -755,6 +755,24 @@ scrolls sideways at 375 px.
 The source review file (`UX-REVIEW.md`) was not reachable from the machine that did this,
 so these five were built from the request's own description of them.
 
+## W24-01..04: the UX review findings, fixed properly (2026-11-02)
+
+W19-13 softened all four findings; the 2026-10 walkthrough showed each still there. What
+changed (pictures in `docs/screenshots/w24/`):
+
+- **Models page.** With no connection, the wizard is the page and the by-hand form is
+  folded behind Advanced inside it; there is no second full-size "Models" form. With
+  connections, the page opens on Configured providers, and the wizard plus the by-hand form
+  fold together behind *Set up another model*.
+- **Routing.** The shared pool is described once, above the table (who is in it, and
+  whether it leaves the network). A role on the pool says *Shared pool* and a short network
+  mark. The mark no longer repeats the sentence's opening words.
+- **Quality per model.** A row per role (plus Triage agreement) and a P/R column pair per
+  model, with model, connection, date and engine in the column header.
+- **AI review tab.** The AI review pass and its schedule moved from the Security tab to a
+  repository tab of their own beside it. Old `/security?ai_path=` and `#ai-review-pass`
+  links redirect. The third-party bots tab is renamed *Review bots*.
+
 ## W19-14: diff mode and a scheduled pass, run for real (2026-10-21)
 
 Diff mode (W19-11) and the scheduler (W19-12) had only run against a fake provider and an

@@ -93,7 +93,7 @@ describe('D9a: RepoPulse holds no forge write scope (W18-18)', () => {
       'listDeployments',
       'listIssues',
       'getFileContent',
-      // W23-03 incremental scans: both read-only GETs (compare, commit).
+      // W23-03 incremental scanning: optional, both reads (a compare and a commit's tree id).
       'compareCommits',
       'getCommitTreeSha',
       'getTarball',

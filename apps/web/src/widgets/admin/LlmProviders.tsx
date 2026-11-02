@@ -569,7 +569,15 @@ export function ClaudeCliPanel({
   );
 }
 
-export function LlmProviders() {
+/**
+ * Which part of the screen to draw (W24-01). The Models page draws the list and
+ * the by-hand form in different places, so the guided setup and the form are no
+ * longer two full-size ways to do one thing stacked on top of each other.
+ * `all` is the old single block.
+ */
+export type LlmProvidersSection = 'all' | 'list' | 'form';
+
+export function LlmProviders({ section = 'all' }: { section?: LlmProvidersSection } = {}) {
   const list = useApiQuery<{ items: ProviderRow[]; env_fallback?: EnvFallback }>(LIST);
   const kindsQuery = useApiQuery<{ kinds: KindSpec[]; presets?: Preset[] }>(KINDS);
   const kinds = kindsQuery.data?.kinds ?? [];
@@ -832,9 +840,19 @@ export function LlmProviders() {
     </WidgetFrame>
   );
 
+  const advanced = (
+    <details className="rounded-sm border border-border px-3 py-2" data-testid="llm-advanced">
+      <summary className="cursor-pointer text-sm">
+        Advanced: add a connection by hand (the guided setup does the same)
+      </summary>
+      <div className="mt-3">{modelsForm}</div>
+    </details>
+  );
+  if (section === 'form') return advanced;
+
   return (
     <div className="flex flex-col gap-4" data-testid="llm-providers">
-      {items.length > 0 ? (
+      {section === 'list' ? null : items.length > 0 ? (
         <details className="rounded-sm border border-border px-3 py-2" data-testid="llm-advanced">
           <summary className="cursor-pointer text-sm">
             Advanced: add a connection by hand (the setup above does the same)

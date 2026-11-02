@@ -118,23 +118,27 @@ function renderSecurity() {
   );
 }
 
-describe('Security tab — the AI review pass is near the top', () => {
-  // W20-13 (UX_TODO FND-32): the open findings moved up, directly under
-  // Coverage; on a phone they were several screens down.
-  it('sits after the scanner coverage and the open findings, above the lower panels', async () => {
+describe('Security tab — the AI review pass has its own tab', () => {
+  // W20-13 (UX_TODO FND-32): the open findings sit directly under Coverage.
+  // W24-04: the AI review pass moved to its own tab; one line here says where.
+  it('keeps findings under coverage, and points to the AI review tab instead of holding the pass', async () => {
     renderSecurity();
     await screen.findByTestId('security-coverage');
     const order = Array.from(
       document.querySelectorAll(
-        '[data-testid="security-coverage"], [data-testid="security-ai-pass"], [data-testid="security-findings"], [data-testid="security-chains"]',
+        '[data-testid="security-coverage"], [data-testid="security-ai-pass-moved"], [data-testid="security-findings"], [data-testid="security-chains"]',
       ),
     ).map((el) => el.getAttribute('data-testid'));
     expect(order).toEqual([
       'security-coverage',
       'security-findings',
-      'security-ai-pass',
+      'security-ai-pass-moved',
       'security-chains',
     ]);
+    expect(document.querySelector('[data-testid="ai-pass-panel"]')).toBeNull();
+    expect(
+      screen.getByTestId('security-ai-pass-moved').querySelector('a')?.getAttribute('href'),
+    ).toBe('/repos/7/ai-review');
   });
 });
 
@@ -413,5 +417,45 @@ describe('Security tab — CVE rows and scanner switches (W20-08)', () => {
         body: { repo_id: 7, enabled: true },
       }),
     );
+  });
+});
+
+describe('Security tab — old AI review pass links', () => {
+  // W24-04: a saved "start a pass on this file" link (?ai_path=) or a
+  // #ai-review-pass anchor goes on to the AI review tab, file and all.
+  it.each([
+    ['/repos/7/security?ai_path=src%2Fusers.ts', 'src/users.ts'],
+    ['/repos/7/security#ai-review-pass', ''],
+  ])('sends %s on to the AI review tab', async (entry, path) => {
+    const rootRoute = createRootRoute();
+    const sec = createRoute({
+      getParentRoute: () => rootRoute,
+      path: '/repos/$repoId/security',
+      validateSearch: securityRoute.options.validateSearch as never,
+      beforeLoad: securityRoute.options.beforeLoad as never,
+      component: () => <p>security</p>,
+    });
+    const ai = createRoute({
+      getParentRoute: () => rootRoute,
+      path: '/repos/$repoId/ai-review',
+      validateSearch: (s: Record<string, unknown>) => s as { ai_path?: string },
+      component: function AiStub() {
+        const search = ai.useSearch() as { ai_path?: string };
+        return <p data-testid="ai-stub">ai review:{search.ai_path ?? ''}</p>;
+      },
+    });
+    const routeTree = rootRoute.addChildren([sec, ai] as never);
+    const router = createRouter({
+      routeTree,
+      history: createMemoryHistory({ initialEntries: [entry] }),
+    } as never) as unknown as ReturnType<typeof createRouter>;
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <RouterProvider router={router as never} />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByTestId('ai-stub')).toHaveTextContent(`ai review:${path}`);
+    expect(router.state.location.pathname).toBe('/repos/7/ai-review');
+    expect(router.state.location.hash).toBe('ai-review-pass');
   });
 });

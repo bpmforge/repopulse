@@ -81,10 +81,15 @@ describe('Settings → Models → quality per model (W19-05)', () => {
     // Precision and recall are separate cells, so the numbers line up down a column.
     expect(await screen.findByTestId('model-eval-qwen-security-p')).toHaveTextContent('100%');
     expect(screen.getByTestId('model-eval-qwen-security-r')).toHaveTextContent('50%');
+    // W24-03: a row per role, a P and an R sub-header per MODEL.
     expect(
       screen.getAllByRole('columnheader', { name: 'P' }).length,
-      'a P and an R sub-header per role',
-    ).toBe(ROLES.length);
+      'a P and an R sub-header per model',
+    ).toBe(1);
+    expect(screen.getAllByRole('rowheader').map((h) => h.textContent)).toEqual([
+      ...ROLES.map((r) => r.label),
+      'Triage agreement',
+    ]);
     // The table can scroll sideways, so its region is labelled and reachable by keyboard.
     const region = screen.getByRole('region', { name: /Quality per model/ });
     expect(region).toHaveAttribute('tabindex', '0');
@@ -98,7 +103,7 @@ describe('Settings → Models → quality per model (W19-05)', () => {
     const row = screen.getByTestId('model-eval-row-qwen');
     expect(row).toHaveTextContent('2026-10-18');
     expect(row).toHaveTextContent('localhost:1234');
-    expect(row).toHaveTextContent('100%');
+    expect(screen.getByTestId('model-eval-qwen-triage')).toHaveTextContent('100%');
   });
 
   it('shows an incomplete run as incomplete, with no number, and says how many provider errors', async () => {
