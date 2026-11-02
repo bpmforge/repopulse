@@ -75,9 +75,10 @@ The release procedure is in [docs/RELEASE.md](docs/RELEASE.md).
 ### Verified for this release (W23-10, 2026-11-02, macOS arm64 with Podman)
 - `pnpm lint`, `pnpm typecheck`, `pnpm test` with live Postgres 16 and Valkey 9.0.7:
   5,935 passed, 22 skipped, 0 failed (613 files).
-- `pnpm e2e` against the seeded dev stack: see the release notes for the final count; the
-  first run found a persona race in the suite, an undecryptable seeded credential and the
-  routing overflow above, all fixed.
+- `pnpm e2e` against the seeded dev stack: 164 passed, 17 skipped, 0 failed. The first run
+  (152 passed, 11 failed) found a persona race in the suite, an undecryptable seeded
+  credential, two wrong expectations in the new scan-scope spec and the routing overflow
+  above, all fixed.
 - Migrations 0065–0067 match the schema (scratch database: every migration applied, then
   `drizzle-kit push`). `pnpm db:generate` itself cannot run: the snapshot chain forks at
   0032/0033 and stops at 0038. Two older differences remain (an FK name from 0051, an
