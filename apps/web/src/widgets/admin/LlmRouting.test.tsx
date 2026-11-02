@@ -107,7 +107,7 @@ describe('Settings → Models → Routing (W19-02)', () => {
     renderScreen();
     const row = await screen.findByTestId('routing-row-security');
     expect(row).toHaveTextContent('LAN');
-    expect(screen.getByTestId('routing-row-patch')).toHaveTextContent('shared pool');
+    expect(screen.getByTestId('routing-row-patch')).toHaveTextContent(/shared pool/i);
     const add = within(screen.getByTestId('routing-add-patch'));
     expect(add.getAllByRole('option').map((o) => o.textContent)).toEqual([
       'Add a connection…',
@@ -165,10 +165,15 @@ describe('Settings → Models → Routing (W19-02)', () => {
     expect(await screen.findByTestId('routing-effective-security')).toHaveTextContent(
       'Uses LAN · lan-m. If it is down or refuses, the role skips and says so.',
     );
-    // No chain: the shared pool of ENABLED connections only.
-    const pool = screen.getByTestId('routing-effective-performance').textContent ?? '';
+    // No chain: the shared pool of ENABLED connections only, said once above the
+    // table (W24-02); the role's own row just says it is on the pool.
+    const pool = screen.getByTestId('routing-shared-pool-text').textContent ?? '';
     expect(pool).toMatch(/^Uses the shared pool: LAN · lan-m, Hosted · cloud-m\.$/);
     expect(pool).not.toContain('Off');
+    expect(screen.getByTestId('routing-effective-performance')).toHaveTextContent(/^Shared pool$/);
+    // Seven roles on the pool, one sentence about it.
+    expect(screen.getAllByText(/Uses the shared pool/)).toHaveLength(1);
+    expect(screen.getByTestId('routing-shared-pool')).toHaveTextContent('The 7 roles marked');
   });
 
   it('updates the sentence as the chain is built, and states the local-only limit on the shared pool', async () => {
@@ -183,7 +188,7 @@ describe('Settings → Models → Routing (W19-02)', () => {
       'then Hosted · big-model.',
     );
     await userEvent.click(screen.getByTestId('routing-local-only'));
-    expect(screen.getByTestId('routing-effective-triage')).toHaveTextContent(
+    expect(screen.getByTestId('routing-shared-pool-text')).toHaveTextContent(
       /limited to connections on your network \(local-only is on\)/,
     );
   });
@@ -194,9 +199,10 @@ describe('Settings → Models → Routing (W19-02)', () => {
     renderScreen();
     const security = await screen.findByTestId('routing-egress-security');
     expect(security).toHaveTextContent(/Stays on your network\. Uses LAN/);
-    expect(screen.getByTestId('routing-egress-triage')).toHaveTextContent(
+    expect(screen.getByTestId('routing-shared-pool-egress')).toHaveTextContent(
       /May leave your network: the shared pool includes Hosted \(api\.example-llm\.com\)/,
     );
+    expect(screen.getByTestId('routing-egress-triage')).toHaveTextContent('may leave your network');
     // A hosted link added on this screen takes its connection's host at once.
     await userEvent.selectOptions(screen.getByTestId('routing-add-patch'), '2');
     expect(screen.getByTestId('routing-egress-patch')).toHaveTextContent(
@@ -204,10 +210,18 @@ describe('Settings → Models → Routing (W19-02)', () => {
     );
 
     await userEvent.click(screen.getByTestId('routing-local-only'));
-    const pool = screen.getByTestId('routing-effective-triage').textContent ?? '';
+    const pool = screen.getByTestId('routing-shared-pool-text').textContent ?? '';
     expect(pool).toContain('LAN · lan-m');
     expect(pool).not.toContain('Hosted');
     expect(screen.getByTestId('routing-egress-patch')).toHaveTextContent(/Blocked by Local only/);
+  });
+
+  // W24-02: the mark and the sentence no longer say the same words twice.
+  it('does not repeat "Stays on your network" in the mark and the sentence', async () => {
+    renderScreen();
+    const security = await screen.findByTestId('routing-egress-security');
+    expect(security.textContent).toMatch(/^✓ Stays on your network\. Uses LAN/);
+    expect(security.textContent).not.toMatch(/Stays on your network\.\s+Stays/);
   });
 
   // W20-06 (UX_TODO AI-03): a switched-off connection is named, not silently hidden.

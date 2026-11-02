@@ -93,6 +93,9 @@ describe('D9a: RepoPulse holds no forge write scope (W18-18)', () => {
       'listDeployments',
       'listIssues',
       'getFileContent',
+      // W23-03 incremental scanning: optional, both reads (a compare and a commit's tree id).
+      'compareCommits',
+      'getCommitTreeSha',
       'getTarball',
       'listCodeScanningAlerts', // optional, a read
       // W20-25 (UX_TODO ADM-50): optional, a read of the token's owner and expiry.

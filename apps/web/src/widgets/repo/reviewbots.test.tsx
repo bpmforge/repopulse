@@ -186,7 +186,7 @@ describe('ReviewBots tab (W18-23)', () => {
     const own = await screen.findByTestId('review-bots-own-ai');
     expect(within(own).getByRole('link')).toHaveAttribute(
       'href',
-      '/repos/7/security#ai-review-pass',
+      '/repos/7/ai-review#ai-review-pass',
     );
   });
 

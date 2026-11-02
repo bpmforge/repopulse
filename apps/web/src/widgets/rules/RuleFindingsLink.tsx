@@ -34,7 +34,9 @@ export function RuleRegistryLink() {
   return (
     <InternalLink
       to="/admin/rules"
-      className="text-accent underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+      // W24-05: underlined always. It sits inside a sentence, and colour alone
+      // does not tell it apart from the text around it (axe link-in-text-block).
+      className="text-accent underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
       testId="rule-registry-link"
     >
       Settings → Rules

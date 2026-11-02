@@ -402,7 +402,7 @@ function NotYetRun({ finding }: { finding: AiFindingContext | undefined }) {
         <>
           An admin can{' '}
           <Link
-            to="/repos/$repoId/security"
+            to="/repos/$repoId/ai-review"
             params={{ repoId: String(finding.repoId) } as never}
             search={{ ai_path: finding.file } as never}
             hash="ai-review-pass"

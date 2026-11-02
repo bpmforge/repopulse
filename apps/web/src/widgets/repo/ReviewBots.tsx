@@ -129,12 +129,12 @@ export function ReviewBots({ repoId, window }: Props) {
       <p className="max-w-3xl text-sm text-fg-muted" data-testid="review-bots-own-ai">
         Looking for RepoPulse&rsquo;s own AI review of this repository? It is on the{' '}
         <Link
-          to="/repos/$repoId/security"
+          to="/repos/$repoId/ai-review"
           params={{ repoId } as never}
           hash="ai-review-pass"
           className="text-fg underline underline-offset-2"
         >
-          Security tab, under AI review pass
+          AI review tab
         </Link>
         .
       </p>
