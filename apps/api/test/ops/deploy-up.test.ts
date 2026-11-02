@@ -157,3 +157,21 @@ describe('cross-arch bundle build (W11-01, 2026-09-23)', () => {
     }
   });
 });
+
+describe('redis service runs Valkey and still reads Redis 7.4 volumes (W22-13)', () => {
+  // Valkey exits on an RDB version 12 base ("Can't handle RDB format version
+  // 12"), which every install from before 2026-11 has. Measured on a real 7.4
+  // volume: refused without the flag, all 55 keys loaded with it. The flag is
+  // permanent because the old base stays until an AOF rewrite, so this guards
+  // against it being tidied away.
+  for (const file of ['deploy/compose.yaml', 'deploy/compose.demo.yaml']) {
+    it(`${file} starts valkey-server with --rdb-version-check relaxed`, () => {
+      const cmd = read(file)
+        .split('\n')
+        .find((l) => /^\s+command:.*valkey-server/.test(l));
+      expect(cmd).toBeDefined();
+      expect(cmd).toMatch(/['"]--rdb-version-check['"],\s*['"]relaxed['"]/);
+    });
+  }
+});
+

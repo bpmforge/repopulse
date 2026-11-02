@@ -126,7 +126,11 @@ function harness(opts: {
   mkdirSync(path.join(top, 'src'), { recursive: true });
   writeFileSync(path.join(top, 'src/a.ts'), 'export const a = 1;\n');
   const archive = path.join(stage, 'a.tar.gz');
-  execFileSync('tar', ['-czf', archive, '-C', stage, path.basename(top)]);
+  // COPYFILE_DISABLE: no macOS AppleDouble `._name` sidecars, which a forge
+  // archive never holds (same as snapshot.test.ts).
+  execFileSync('tar', ['-czf', archive, '-C', stage, path.basename(top)], {
+    env: { ...process.env, COPYFILE_DISABLE: '1' },
+  });
   const bytes = new Uint8Array(readFileSync(archive));
 
   const provider = {

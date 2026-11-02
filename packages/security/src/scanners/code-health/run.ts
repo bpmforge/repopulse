@@ -272,7 +272,7 @@ export async function seedAdapterRegistry(
           source: `adapter:${tool}`,
           // The mapping from the tool's output to findings is ours; the tool
           // runs unmodified in the sandbox and none of its rule text is stored.
-          license: 'UNLICENSED-REPOPULSE',
+          license: 'Apache-2.0',
           author: 'repopulse',
           date: now.toISOString().slice(0, 10),
         },

@@ -33,8 +33,9 @@ export const ALLOWED_LICENSES = [
   'BSD-2-Clause',
   'BSD-3-Clause',
   'ISC',
-  // Ours. Spelled out rather than inferred from an empty field, so "no licence
-  // recorded" can never be read as "ours".
+  // Ours before the 2026-10-31 relicensing to Apache-2.0 (W22-13). New rows say
+  // 'Apache-2.0'; this value stays allowed because rules stored by earlier
+  // installs still carry it, and the Rules page shows it as Apache-2.0.
   'UNLICENSED-REPOPULSE',
 ] as const;
 

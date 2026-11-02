@@ -4,7 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createQueryClient } from '../../api/queryClient.js';
-import { RuleWorkbench } from './rules.js';
+import { RuleWorkbench, displayLicence } from './rules.js';
 import { RULE_TRANSITIONS, type RuleRow } from '../../widgets/rules/contracts.js';
 
 // Settings → Rules lifecycle buttons (W20-01, UX_TODO FND-69).
@@ -206,5 +206,12 @@ describe('propose a rule (W20-08)', () => {
         languages: ['typescript'],
       });
     });
+  });
+});
+
+describe('rule licence shown on the workbench (W22-13)', () => {
+  it('shows rules stored before the Apache-2.0 relicensing as Apache-2.0', () => {
+    expect(displayLicence('UNLICENSED-REPOPULSE')).toBe('Apache-2.0');
+    expect(displayLicence('MIT')).toBe('MIT');
   });
 });

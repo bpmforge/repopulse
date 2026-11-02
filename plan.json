@@ -12516,6 +12516,51 @@
       ]
     },
     {
+      "id": "W23-11",
+      "title": "Release licence hygiene: Valkey for Redis, licence files in every image and bundle, source offer, our rules labelled Apache-2.0",
+      "phase": 23,
+      "module": "deploy",
+      "stories": [],
+      "write_scope": [
+        "deploy/**",
+        "compose.dev.yaml",
+        "Dockerfile",
+        "Containerfile.scan",
+        ".gitea/workflows/gate.yaml",
+        ".github/workflows/ci.yml",
+        "THIRD_PARTY_NOTICES.md",
+        "docs/DEPLOYMENT.md",
+        "docs/TECH_STACK.md",
+        "docs/RUNBOOK.md",
+        "docs/INSTALL.md",
+        "packages/security/src/rules/schema.ts",
+        "packages/security/src/rules/intake.ts",
+        "packages/security/src/scanners/code-health/run.ts",
+        "packages/security/src/scanners/slopsquat/run.ts",
+        "packages/security/fixtures/benchmark/*/suite.json",
+        "apps/web/src/routes/admin/rules.tsx",
+        "apps/web/src/routes/admin/rules.test.tsx",
+        "apps/web/src/widgets/rules/ProposeRuleForm.tsx",
+        "apps/api/test/ops/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W22-13"
+      ],
+      "acceptance": [
+        "The deploy, demo and dev compose files, the bundle and CI run Valkey (valkey/valkey:9.0.7-alpine, BSD-3-Clause) as the redis service instead of redis:7-alpine, which had floated to Redis 7.4 (RSALv2/SSPLv1); an existing install's Redis volume upgrades in place with its sessions, queues and report schedules intact, or RUNBOOK says exactly what to do",
+        "Every application, web and scan image and every bundle carries LICENSE, NOTICE and THIRD_PARTY_NOTICES.md, and THIRD_PARTY_NOTICES.md carries the source offer for the GPL/LGPL tools",
+        "New rules record their licence as Apache-2.0; rules stored earlier as UNLICENSED-REPOPULSE stay allowed and show as Apache-2.0 on the Rules page",
+        "Full gate green on the Mac with Valkey behind the dev stack, and a clean install from scratch passes on Ubuntu 26.04 (Podman) and Ubuntu 24.04 (Docker)"
+      ],
+      "points": 3,
+      "status": "done",
+      "notes": [
+        "Filed 2026-11-02 from the release-prep report (owner: 'do all the recommendations'). History is not rewritten (recommended; owner's call stands). Making the repositories public and tagging stay release-day steps that need the owner's yes.",
+        "2026-11-02 done. Valkey 9.0.7 refuses a Redis 7.4 volume ('Can't handle RDB format version 12'), so deploy and demo compose run it with --rdb-version-check relaxed (nothing here uses hash-field expiry, the only RDB v12 addition); verified on a synthetic volume and on real Podman (55/55 keys) and Docker (86/86) installs, and a live up.sh --build upgrade kept a pre-upgrade session and report schedule. RUNBOOK 'Redis became Valkey (2026-11)'. Mac gate 5859 passed / 95 skipped / 0 failed; clean installs pass on Ubuntu 26.04 Podman 5.7 and 24.04 Docker 29 with licence files present in every image. e2e not run (no Playwright browsers on the Mac)."
+      ]
+    },
+    {
       "id": "W24-01",
       "title": "Models page: open on what is configured; fold the guided setup and the by-hand form together",
       "phase": 24,

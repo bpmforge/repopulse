@@ -4,7 +4,7 @@
   "description": "Hand-written pairs in the spirit of Signal65's bug-introducing-commit method: each case is one plausible edit, 'before' is the correct code and 'after' is the same file once the edit has introduced one defect. A scanner should flag the after tree at the labelled lines and stay quiet on the before tree; any finding on a before tree is a false positive. The edits were written to look like ordinary refactors, not shaped to the rules, so several are expected misses.",
   "source": {
     "kind": "authored",
-    "licence": "Proprietary (RepoPulse); written for this benchmark"
+    "licence": "Apache-2.0 (RepoPulse); written for this benchmark"
   },
   "unlabelled": "fp",
   "trees": [

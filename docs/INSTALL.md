@@ -1,8 +1,9 @@
 # Installing RepoPulse in your own environment
 
 RepoPulse runs as six long-running containers on one host — web, API,
-background worker, a scan-runner sidecar, PostgreSQL and Redis — plus a
-one-shot migration job that runs before the API starts. It reads your
+background worker, a scan-runner sidecar, PostgreSQL and Redis (served by
+Valkey, the open-source Redis fork) — plus a one-shot migration job that runs
+before the API starts. It reads your
 repositories through the forge's API and **never clones them**: nothing of your
 source is stored beyond the metrics and findings you see in the dashboard.
 
@@ -163,6 +164,10 @@ worker and served by the api). `down` keeps them; only `down -v` deletes them.
 `backup.sh` dumps the database only. A report whose files are gone still shows
 in Reports with its parameters, and can be generated again. Upgrading, rolling back and
 restoring are in [RUNBOOK.md](RUNBOOK.md).
+Upgrading an install from before November 2026 moves Redis 7.4 to Valkey on the
+same volume. The shipped `compose.yaml` handles it, and sessions and report
+schedules carry over. Read "Redis became Valkey (2026-11)" in the runbook before
+rolling such an upgrade back.
 
 ## Install on a Mac
 

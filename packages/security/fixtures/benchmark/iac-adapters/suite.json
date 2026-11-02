@@ -5,7 +5,7 @@
   "source": {
     "kind": "in-repo",
     "path": "packages/security/fixtures/benchmark/iac-adapters",
-    "licence": "Proprietary (RepoPulse)"
+    "licence": "Apache-2.0 (RepoPulse)"
   },
   "unlabelled": "fp",
   "lane": "adapters",

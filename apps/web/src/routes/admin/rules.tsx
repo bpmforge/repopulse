@@ -39,6 +39,14 @@ const NEUTRAL =
 
 type Move = { ruleId: string; from: RuleLifecycleStatus; to: RuleLifecycleStatus };
 
+/**
+ * Our own rules stored before the Apache-2.0 relicensing (W22-13) carry the old
+ * 'UNLICENSED-REPOPULSE' marker; they are Apache-2.0 now, so say that.
+ */
+export function displayLicence(license: string | undefined): string | undefined {
+  return license === 'UNLICENSED-REPOPULSE' ? 'Apache-2.0' : license;
+}
+
 export function RuleWorkbench() {
   const { data, isLoading, isError, error } = useApiQuery<{ items: RuleRow[] }>(LIST);
   const queryClient = useQueryClient();
@@ -155,7 +163,7 @@ export function RuleWorkbench() {
                   </th>
                   <td className="py-2">{RULE_STATUS_LABEL[rule.status]}</td>
                   <td className="py-2 text-xs text-fg-muted">
-                    {rule.provenance.source} · {rule.provenance.license}
+                    {rule.provenance.source} · {displayLicence(rule.provenance.license)}
                   </td>
                   <td className="py-2 text-right tabular-nums">{rule.evidence.findings}</td>
                   <td className="py-2 text-right tabular-nums">

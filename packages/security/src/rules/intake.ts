@@ -98,7 +98,7 @@ export function acceptDraft(
     status: 'proposed' as const,
     provenance: {
       source,
-      license: 'UNLICENSED-REPOPULSE',
+      license: 'Apache-2.0',
       author: 'analysis-gateway',
       date: now.toISOString().slice(0, 10),
     },

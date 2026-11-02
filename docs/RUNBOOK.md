@@ -198,6 +198,73 @@ is silent:
 podman ps        # uptimes should be seconds, not the age of the last deploy
 ```
 
+### Redis became Valkey (2026-11)
+
+From November 2026 the `redis` service runs **Valkey 9.0.7**
+(`valkey/valkey:9.0.7-alpine`, BSD-3-Clause) instead of `redis:7-alpine`, which
+had moved to Redis 7.4 and a licence (RSALv2/SSPLv1) this bundle cannot ship.
+The service is still called `redis`; the `repopulse_redisdata` volume,
+`REDIS_URL` and `REDIS_PASSWORD` are unchanged, and nothing in `deploy/.env`
+needs editing.
+
+**What an upgrading install sees: nothing, if it uses the new `compose.yaml`.**
+Installs from before November ran Redis 7.4, which writes its data in RDB
+format version 12. Valkey refuses that format by default and exits, which would
+take everyone's sessions and every report schedule with it. The shipped
+`compose.yaml` starts Valkey with `--rdb-version-check relaxed`, which loads it.
+Measured on 2026-11-02 against real Redis 7.4.12 volumes from earlier installs
+(Podman and Docker) and a synthetic one: every key came back, including both
+kinds of BullMQ schedule, streams with their consumer groups, and session TTLs.
+On a Podman install upgraded with the steps above, a browser session from
+before the upgrade was still signed in afterwards, and the report schedule made
+before it was still listed and still due on the same date. Valkey and Redis run
+as the same uid and gid (999:1000) in their images, so the volume's file
+ownership needs nothing.
+
+The flag stays in `compose.yaml` for good. The old Redis data is converted only
+when Valkey next rewrites its append-only file, which by default waits until
+the file has grown by 64 MB. On an install this size that can take years. Do not
+remove the flag. RDB version 12 adds only hash-field expiry, which neither
+RepoPulse nor BullMQ uses, so relaxed loading skips nothing here.
+
+**Check it after the upgrade:**
+
+```sh
+podman exec $(podman ps -q --filter label=com.docker.compose.service=redis) \
+  sh -c 'REDISCLI_AUTH="$REDIS_PASSWORD" valkey-cli INFO server' | grep -E 'server_name|valkey_version'
+# server_name:valkey
+# valkey_version:9.0.7
+```
+
+`INFO` also still reports `redis_version:7.2.4` (Valkey's compatibility
+version), and the image keeps `redis-cli` and `redis-server` as names for the
+Valkey programs, so existing scripts keep working. Reports → Schedules should
+list the same schedules as before.
+
+**If redis will not start after the upgrade** and its log says
+`Can't handle RDB format version 12`, the `compose.yaml` in use is not the one
+shipped with this version: one carried over from the old bundle, or edited. `up.sh`
+says so when it sees that log line. Use the shipped file, or add
+`"--rdb-version-check", "relaxed"` to the end of your redis `command:`, and run
+`./deploy/up.sh` again. **Do not delete the volume to get past it:** that is
+everyone's sessions and every report schedule, and a backup does not hold the
+schedules.
+
+**Rolling back across this change.** Until Valkey rewrites the append-only file,
+the old bundle's Redis 7.4 can still read the volume. After a rewrite it cannot:
+the file then starts `VALKEY080` and Redis stops with
+`Bad file format reading the append only file`. Both were measured. A rewrite
+happens after 64 MB of writes or a manual `BGREWRITEAOF`, so do not run one
+until you are sure you are keeping the new version. If you roll back after a
+rewrite, keep Valkey: copy the whole `redis:` service from the new
+`compose.yaml` into the old one. The Valkey image is already loaded, and the
+older application talks to it the same way. Removing the volume also works, at
+the cost above.
+
+**Developers:** `compose.dev.yaml` used `redis:7.2`, whose data (RDB version 11)
+Valkey reads without the flag. Recreate the container with
+`podman compose -f compose.dev.yaml up -d redis`.
+
 ---
 
 ## Rollback
@@ -212,6 +279,10 @@ back to the tag you were running; tag before you upgrade if you build your
 own images (`podman tag localhost/repopulse/api:dev localhost/repopulse/api:$(date +%F)`).
 
 **Data:**
+
+Rolling back to a bundle from before November 2026? Its `redis` is Redis 7.4
+and may not read a volume Valkey has used; see *Redis became Valkey (2026-11)*
+above before the `up -d` below.
 
 ```sh
 podman compose -f deploy/compose.yaml down                       # in the NEW directory
