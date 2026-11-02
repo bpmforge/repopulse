@@ -286,6 +286,16 @@ export const BENCHMARK_PRECISION: BenchmarkSummary = {
       ],
       "engine": "yaml"
     },
+    "bpm-perf-includes-in-loop": {
+      "tp": 0,
+      "fp": 3,
+      "fn": 0,
+      "precision": 0,
+      "suites": [
+        "juice-shop"
+      ],
+      "engine": "yaml"
+    },
     "bpm-perf-orm-call-in-loop": {
       "tp": 0,
       "fp": 0,
@@ -1513,7 +1523,7 @@ export const BENCHMARK_PRECISION: BenchmarkSummary = {
     }
   ],
   "measured": {
-    "date": "2026-10-16",
-    "commit": "e49421c6ccd61c52d3db5034859d1f4fa44a1e16"
+    "date": "2026-11-02",
+    "commit": "3a35f2468e5bd2f851525dde9d6669da40e8b111"
   }
 };
