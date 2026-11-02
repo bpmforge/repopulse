@@ -36,7 +36,7 @@ Recorded per bundle in `manifest.json` with the digest that was saved.
 | `nginx:1.27-alpine` | web |
 | `alpine:3.20` | scan sandbox |
 | `docker.io/library/postgres:16` | database (floating upstream tag; the digest in `manifest.json` is what you got) |
-| `docker.io/library/redis:7-alpine` | queue (same note) |
+| `docker.io/valkey/valkey:9.0.7-alpine` | queue, as the `redis` service (same note). Replaced `redis:7-alpine` on 2026-11-02 (W22-13); the amd64 emulated smoke above predates it |
 
 ## Adding a row
 

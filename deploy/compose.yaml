@@ -32,26 +32,30 @@ services:
       timeout: 5s
       retries: 20
 
+  # The service keeps the name "redis" (REDIS_URL, the redisdata volume, every
+  # doc and runbook) but runs Valkey, the BSD-3-Clause fork of Redis 7.2: Redis
+  # 7.4 and later are RSALv2/SSPLv1, which an Apache-2.0 bundle cannot ship as
+  # open source (W22-13). Valkey speaks the same protocol BullMQ uses.
   redis:
-    image: docker.io/library/redis:7-alpine
+    image: docker.io/valkey/valkey:9.0.7-alpine
     restart: unless-stopped
-    # Run AS redis rather than letting the entrypoint drop privileges: with
+    # Run AS valkey rather than letting the entrypoint drop privileges: with
     # cap_drop ALL it cannot setresuid, and the container exits 127 with only
     # a setpriv error to explain itself.
-    user: redis
+    user: valkey
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     environment:
       # The healthcheck needs the password too. Substituting it only into
-      # `command` leaves redis-cli unauthenticated, so the container runs fine
+      # `command` leaves valkey-cli unauthenticated, so the container runs fine
       # but reports unhealthy forever — and everything with a
       # depends_on: service_healthy then never starts at all.
       REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in deploy/.env}
-    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?set REDIS_PASSWORD in deploy/.env}", "--appendonly", "yes"]
+    command: ["valkey-server", "--requirepass", "${REDIS_PASSWORD:?set REDIS_PASSWORD in deploy/.env}", "--appendonly", "yes"]
     volumes:
       - redisdata:/data
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      test: ["CMD-SHELL", "valkey-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
       interval: 5s
       timeout: 5s
       retries: 20

@@ -52,7 +52,7 @@ Gitea) is done from inside the product after you sign in.
 | `VERSION` | the version tag, image prefix, platform and source commit |
 | `manifest.json` | every image by name, id and digest, plus the build host and runtime |
 | `SHA256SUMS` | checksum of every file here except itself |
-| `images/repopulse-images.tar` | one archive: `migrate`, `api`, `worker`, `scan-runner`, `web`, `scan`, and the `postgres:16` and `redis:7-alpine` they were tested with |
+| `images/repopulse-images.tar` | one archive: `migrate`, `api`, `worker`, `scan-runner`, `web`, `scan`, and the `postgres:16` and Valkey 9.0.7 (`valkey/valkey:9.0.7-alpine`, the BSD-3-Clause Redis fork, as the `redis` service) they were tested with |
 | `deploy/compose.yaml` | the stack; identical to the source repository's except no `build:` stanzas |
 | `deploy/.env` | written by `install.sh`; **back it up** — `TOKEN_ENC_KEY` decrypts stored forge credentials |
 | `deploy/scan-rules/` | rulepacks for code scanning, pre-installed; `deploy/scan-db-sync.sh` refreshes them and fetches the vulnerability database |

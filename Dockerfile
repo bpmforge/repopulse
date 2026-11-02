@@ -62,6 +62,10 @@ COPY apps/api/src apps/api/src
 COPY packages packages
 # W18-18: served to CI tokens at /api/v1/cli/repopulse.mjs. One file, no deps.
 COPY tools/repopulse-cli/repopulse.mjs tools/repopulse-cli/repopulse.mjs
+# Apache-2.0 section 4: every distributed image carries the licence, the NOTICE
+# and the third-party inventory (W22-13). api, worker, scan-runner and migrate
+# all build from this stage, so /app/ holds them in each.
+COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md ./
 
 # ---------- web build ----------
 # ON THE BUILD PLATFORM, not the target one (W11-01, 2026-09-23). The SPA's
@@ -267,6 +271,7 @@ CMD ["tsx", "apps/api/src/migrate.ts"]
 FROM docker.io/library/nginx:1.27-alpine AS web
 COPY --from=web-build /app/apps/web/dist /usr/share/nginx/html
 COPY deploy/nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md /usr/share/doc/repopulse/
 EXPOSE 8080
 # W17-06. `wget`, NOT node: this image is nginx:alpine and has no node at all
 # (verified in-image), so the api/worker probe copied here would mark every web

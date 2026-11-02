@@ -5,7 +5,7 @@ lists the third-party material that is either **in this repository** or **built
 into the container images** this repository produces, with the licence each one
 is under. It is an inventory, not legal advice.
 
-Checked 2026-10-31 against `main` (`ac4a2752`). Re-check when a pinned version in
+Checked 2026-10-31 against `main` (`ac4a2752`); Redis replaced by Valkey 2026-11-02. Re-check when a pinned version in
 `Dockerfile`, `Containerfile.scan`, `deploy/scan-tools/`, the checkov
 requirements or the rule-pack ledger changes.
 
@@ -22,7 +22,7 @@ requirements or the rule-pack ledger changes.
 | jwt-go (vendored in two fixtures) | `packages/security/fixtures/dependency/go-*/vendor/` | MIT | Test fixture for the reachability scanner |
 | CycloneDX 1.7, cryptography-defs and JSF 0.82 JSON schemas | `packages/security/src/vex/schemas/` | Apache-2.0 | Published by the CycloneDX project |
 | OpenVEX JSON schema | `packages/security/src/vex/schemas/openvex_json_schema.json` | Apache-2.0 | Published by the OpenVEX project |
-| SPDX JSON schema | `packages/security/src/vex/schemas/spdx.schema.json` | Published by the SPDX project | Licence of the schema file not yet confirmed; check before the first release |
+| SPDX licence-id JSON schema (CycloneDX's `spdx.schema.json`, an enum of SPDX identifiers) | `packages/security/src/vex/schemas/spdx.schema.json` | Apache-2.0 | Published by the CycloneDX project (its `$id` is cyclonedx.org/schema/spdx.schema.json); the identifiers are SPDX's list |
 
 **Not in this repository on purpose.** OWASP Benchmark (GPL-2.0) and the NIST
 Juliet suite are fetched at benchmark-prep time into a gitignored cache; only our
@@ -48,11 +48,22 @@ and one `(WTFPL OR MIT)` (spark-md5).
 ## 3. Built into the container images
 
 These are downloaded and pinned (by version and checksum) when an image is
-built. They are not in the git repository. **When images or bundles are
-distributed, the copyleft entries carry an obligation to make their
-corresponding source available** (a written offer or a source archive beside the
-bundle). Repo Pulse runs each as a separate program, so their licences do not
-extend to Repo Pulse's own code.
+built. They are not in the git repository. Repo Pulse runs each as a separate
+program, so their licences do not extend to Repo Pulse's own code. Every image
+carries this file, `LICENSE` and `NOTICE` (under `/app/` in the application
+images, `/usr/share/doc/repopulse/` in the web and scan images), and so does
+every bundle.
+
+**Source for the copyleft components.** Opengrep (LGPL-2.1), ShellCheck,
+hadolint and Cppcheck (GPL-3.0) are used unmodified, at exactly the versions
+listed below. The complete corresponding source of each is the upstream release
+of that version, published at the repository named in the table. We also offer,
+for at least three years from the date we distribute an image or bundle that
+contains them, to provide a copy of that source on request, at no charge beyond
+the cost of delivery. Ask by opening an issue on the Repo Pulse repository. The
+same applies to the GPL and LGPL packages in the Alpine and Debian base layers,
+whose source is published by those distributions for the base versions named
+here.
 
 ### Scan image (`Containerfile.scan`)
 
@@ -92,7 +103,7 @@ extend to Repo Pulse's own code.
 | Image | Licence | Note |
 |---|---|---|
 | `postgres:16` | PostgreSQL Licence | Permissive |
-| `redis:7-alpine` | **Not open source for 7.4 and later** (RSALv2 / SSPLv1). Redis 7.2 and earlier are BSD-3-Clause | The tag floats to the newest 7.x, which is 7.4+. See the release-prep report for the recommended fix (Valkey, BSD-3-Clause, or a pinned 7.2) |
+| `valkey/valkey:9.0.7-alpine` | BSD-3-Clause | Runs as the `redis` service. Replaced `redis:7-alpine` (W22-13), which had become Redis 7.4, licensed RSALv2 / SSPLv1 and not open source |
 
 ### Data fetched at run time, never bundled
 

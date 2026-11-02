@@ -271,7 +271,7 @@ async function seedRuleRows(
         shadowStartedAt: now,
         provenance: {
           source: `scanner:${SLOPSQUAT_SCANNER_KEY}`,
-          license: 'UNLICENSED-REPOPULSE',
+          license: 'Apache-2.0',
           author: 'repopulse',
           date: now.toISOString().slice(0, 10),
         },

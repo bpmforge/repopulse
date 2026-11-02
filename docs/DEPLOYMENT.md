@@ -26,7 +26,7 @@ Six images, built from this repository's `Dockerfile` targets and
 | `web` | the Vite build served by nginx, which also proxies `/api` and `/healthz` to `api` | long-running; the only published port |
 | `scan` | opengrep, lizard, jscpd, dependency-cruiser, syft, grype — pinned by version and checksum | per scan, `--network=none`, deleted afterwards |
 
-Plus `docker.io/library/postgres:16` and `redis:7-alpine`, saved into the
+Plus `docker.io/library/postgres:16` and `docker.io/valkey/valkey:9.0.7-alpine` (Valkey, the BSD-3-Clause Redis fork, running as the `redis` service), saved into the
 bundle with the digests that were tested.
 
 `localhost/` is the runtime's name for "loaded here". **No image is published

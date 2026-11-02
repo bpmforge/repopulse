@@ -46,12 +46,12 @@ services:
       retries: 20
 
   redis:
-    image: docker.io/library/redis:7-alpine
+    image: docker.io/valkey/valkey:9.0.7-alpine
     restart: unless-stopped
-    user: redis
-    command: ['redis-server', '--requirepass', 'demo-only-not-a-secret', '--appendonly', 'yes']
+    user: valkey
+    command: ['valkey-server', '--requirepass', 'demo-only-not-a-secret', '--appendonly', 'yes']
     healthcheck:
-      test: ['CMD-SHELL', 'redis-cli -a demo-only-not-a-secret ping | grep -q PONG']
+      test: ['CMD-SHELL', 'valkey-cli -a demo-only-not-a-secret ping | grep -q PONG']
       interval: 5s
       timeout: 5s
       retries: 20

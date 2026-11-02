@@ -12,11 +12,12 @@
 #     README.md                 how to install, upgrade, back up, troubleshoot
 #     RUNBOOK.md                the full operating guide (restore onto a new server, outages)
 #     ARCHITECTURES.md          what was built and smoke-tested, and what was NOT
+#     LICENSE, NOTICE, THIRD_PARTY_NOTICES.md   Apache-2.0 and what ships under other licences
 #     VERSION                   the version tag, and the commit it was built from
 #     manifest.json             images by name, id and digest; build host; runtime
 #     SHA256SUMS                every file above and the image archive
 #     images/repopulse-images.tar   ONE multi-image docker-archive: our six
-#                               images plus the postgres and redis they run with
+#                               images plus the postgres and valkey (redis) they run with
 #     deploy/compose.yaml       deploy/compose.yaml with every `build:` removed
 #     deploy/.env.example, configure.sh, configure.mjs, up.sh, backup.sh,
 #     deploy/restore.sh, rotate-token-key.sh, uninstall.sh, scan-db-sync.sh, smoke-report-pdf.sh,
@@ -170,7 +171,7 @@ echo "source:   $GIT_SHA (dirty=$GIT_DIRTY)"
 # reports "unavailable" and the Security tab is honest about it, but a bundle
 # whose scanners cannot run is not the product.
 OURS="migrate api worker scan-runner web scan"
-BASE_IMAGES="docker.io/library/postgres:16 docker.io/library/redis:7-alpine"
+BASE_IMAGES="docker.io/library/postgres:16 docker.io/valkey/valkey:9.0.7-alpine"
 
 if [ "$BUILD" = 1 ]; then
   for target in migrate api worker scan-runner web; do
@@ -259,6 +260,9 @@ cp deploy/bundle/ARCHITECTURES.md "$STAGE/ARCHITECTURES.md"
 # bundle README's restore line was the only restore guidance a customer had,
 # and restoring onto a new server needs the old key in place BEFORE install.sh.
 cp docs/RUNBOOK.md "$STAGE/RUNBOOK.md"
+# Apache-2.0 section 4 (W22-13): the bundle carries the licence, the NOTICE and
+# the third-party inventory, which names where each bundled tool's source is.
+cp LICENSE NOTICE THIRD_PARTY_NOTICES.md "$STAGE/"
 chmod +x "$STAGE/install.sh" "$STAGE"/deploy/*.sh
 
 # ------------------------------------------------------------- manifest -----

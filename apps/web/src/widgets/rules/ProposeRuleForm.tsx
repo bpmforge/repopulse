@@ -132,7 +132,7 @@ export function ruleBody(d: RuleDraft) {
       .filter(Boolean),
     severity: d.severity,
     status: 'proposed',
-    provenance: { source: d.source, license: 'UNLICENSED-REPOPULSE' },
+    provenance: { source: d.source, license: 'Apache-2.0' },
     ...(d.engineRule.trim() ? { engineRule: d.engineRule.trim() } : {}),
     ...(d.checklistItem.trim() ? { checklistItem: d.checklistItem.trim() } : {}),
     fixtures: { trigger: [d.trigger], clean: [d.clean] },
