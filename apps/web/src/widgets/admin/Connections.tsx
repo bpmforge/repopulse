@@ -447,9 +447,7 @@ function ConnectionActions({
           rekey.mutate(
             {
               credential: token.trim(),
-              ...(newAddress && newAddress !== (row.base_url ?? '')
-                ? { base_url: newAddress }
-                : {}),
+              ...(newAddress && newAddress !== (row.base_url ?? '') ? { base_url: newAddress } : {}),
             },
             {
               onSuccess: () => {
