@@ -3,7 +3,7 @@
   "rows": [
     {
       "model": "qwen/qwen3.8-27b",
-      "ranAt": "2026-10-18T02:54:58.635Z",
+      "ranAt": "2026-11-02T16:34:15.657Z",
       "checklistVersion": "triage.v1",
       "total": 12,
       "agree": 12,

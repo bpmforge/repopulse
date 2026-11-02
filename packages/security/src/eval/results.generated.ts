@@ -7,7 +7,7 @@ export const MODEL_EVAL_RESULTS: ModelEvalFile = {
     {
       "model": "qwen/qwen3.8-27b",
       "engine": "OpenAI-compatible endpoint at localhost:1234",
-      "ranAt": "2026-10-26T23:10:14.220Z",
+      "ranAt": "2026-11-02T17:00:39.811Z",
       "temperature": 0.1,
       "seed": 7,
       "checklistVersions": {
@@ -36,12 +36,12 @@ export const MODEL_EVAL_RESULTS: ModelEvalFile = {
           "cases": 8,
           "errored": 0,
           "formatFailures": 0,
-          "tp": 4,
-          "fp": 2,
-          "fn": 0,
+          "tp": 2,
+          "fp": 1,
+          "fn": 2,
           "duplicates": 0,
           "precision": 0.6666666666666666,
-          "recall": 1,
+          "recall": 0.5,
           "state": "scored"
         },
         "code_health": {
@@ -60,12 +60,12 @@ export const MODEL_EVAL_RESULTS: ModelEvalFile = {
           "cases": 4,
           "errored": 0,
           "formatFailures": 0,
-          "tp": 2,
-          "fp": 4,
-          "fn": 0,
+          "tp": 1,
+          "fp": 1,
+          "fn": 1,
           "duplicates": 0,
-          "precision": 0.3333333333333333,
-          "recall": 1,
+          "precision": 0.5,
+          "recall": 0.5,
           "state": "scored"
         },
         "best_practices": {
