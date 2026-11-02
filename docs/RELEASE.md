@@ -77,8 +77,9 @@ enforces it; the enforcing file is named so the step is never done from memory.
 
 Done on branch `claude/project-thread-06ulll` (W23-10): steps 2–5 — live-infra gate, e2e,
 evals, benchmark on 3a35f24 and version 0.2.0 (`docs/release-notes/v0.2.0.md`). Step 6: the
-arm64 and amd64 bundles are built from the `chore(release): v0.2.0` commit, which is the
-commit to tag; their smoke results are recorded in `docs/STATUS.md`.
+arm64 and amd64 bundles are built from `4a338f7b` (`fix(scan-image): …`), which is the commit
+to tag; later commits change only docs, `deploy/bundle/ARCHITECTURES.md` and `plan.json`.
+Smoke results: `docs/release-notes/v0.2.0-verification.md`.
 Open, each needing the owner's go: merge to `main`, step 7 (tag `v0.2.0` from
 `docs/release-notes/v0.2.0.md`, push, GitHub release with the tarballs), step 8 (W22-13
 public repositories) and step 9 (dogfood upgrade).
