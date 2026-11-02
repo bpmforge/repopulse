@@ -433,194 +433,204 @@ export function LlmRouting() {
           );
         })()}
 
-        <table className="table-plain w-full text-sm" data-testid="routing-table">
-          <caption className="sr-only">Connection chain per role</caption>
-          <thead>
-            <tr className="text-left text-xs text-fg-muted">
-              <th scope="col">Role</th>
-              <th scope="col">Chain (first choice first)</th>
-              <th scope="col">
-                <span className="sr-only">Add a connection</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {roles.map(({ role }) => {
-              const chain = chains[role] ?? [];
-              const pooled = chain.length === 0 && !OPTIONAL_ROLES.has(role);
-              return (
-                <tr
-                  key={role}
-                  className="border-t border-border align-top"
-                  data-testid={`routing-row-${role}`}
-                >
-                  <th scope="row" className="py-2 pr-3 text-left font-normal">
-                    {ROLE_LABEL[role] ?? role}
-                  </th>
-                  <td className="py-2">
-                    {chain.length === 0 ? null : (
-                      <ol className="flex flex-col gap-1">
-                        {chain.map((link, i) => (
-                          <li
-                            key={`${link.provider_id}-${i}`}
-                            className="flex flex-wrap items-center gap-2 text-xs"
-                          >
-                            <span className="text-fg-muted">{i + 1}.</span>
-                            <span>{link.provider_name ?? `connection ${link.provider_id}`}</span>
-                            {localOnly && leaves(link.provider_id) ? (
-                              <span
-                                className="font-semibold text-warn"
-                                data-testid={`routing-will-remove-${role}-${i}`}
+        {/* Scrolls on its own at phone widths (390px): the "Add a connection"
+            column is wider than the page there, and without this region the
+            whole Models page scrolled sideways. */}
+        <div
+          className="overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          role="region"
+          aria-label="Routing per role, scrolls sideways"
+          tabIndex={0}
+        >
+          <table className="table-plain w-full text-sm" data-testid="routing-table">
+            <caption className="sr-only">Connection chain per role</caption>
+            <thead>
+              <tr className="text-left text-xs text-fg-muted">
+                <th scope="col">Role</th>
+                <th scope="col">Chain (first choice first)</th>
+                <th scope="col">
+                  <span className="sr-only">Add a connection</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {roles.map(({ role }) => {
+                const chain = chains[role] ?? [];
+                const pooled = chain.length === 0 && !OPTIONAL_ROLES.has(role);
+                return (
+                  <tr
+                    key={role}
+                    className="border-t border-border align-top"
+                    data-testid={`routing-row-${role}`}
+                  >
+                    <th scope="row" className="py-2 pr-3 text-left font-normal">
+                      {ROLE_LABEL[role] ?? role}
+                    </th>
+                    <td className="py-2">
+                      {chain.length === 0 ? null : (
+                        <ol className="flex flex-col gap-1">
+                          {chain.map((link, i) => (
+                            <li
+                              key={`${link.provider_id}-${i}`}
+                              className="flex flex-wrap items-center gap-2 text-xs"
+                            >
+                              <span className="text-fg-muted">{i + 1}.</span>
+                              <span>{link.provider_name ?? `connection ${link.provider_id}`}</span>
+                              {localOnly && leaves(link.provider_id) ? (
+                                <span
+                                  className="font-semibold text-warn"
+                                  data-testid={`routing-will-remove-${role}-${i}`}
+                                >
+                                  leaves your network: will be removed
+                                </span>
+                              ) : null}
+                              <input
+                                aria-label={`Model override for ${ROLE_LABEL[role] ?? role} link ${i + 1}`}
+                                data-testid={`routing-model-${role}-${i}`}
+                                value={link.model ?? ''}
+                                placeholder="connection's model"
+                                onChange={(e) =>
+                                  update(
+                                    role,
+                                    chain.map((l, j) =>
+                                      j === i ? { ...l, model: e.target.value } : l,
+                                    ),
+                                  )
+                                }
+                                className="w-40 rounded-sm border border-border bg-surface-2 px-1.5 py-0.5 font-mono"
+                              />
+                              <button
+                                type="button"
+                                aria-label={`Move link ${i + 1} up`}
+                                disabled={i === 0}
+                                onClick={() => {
+                                  const next = [...chain];
+                                  [next[i - 1], next[i]] = [next[i]!, next[i - 1]!];
+                                  update(role, next);
+                                }}
+                                className="underline disabled:opacity-40"
                               >
-                                leaves your network: will be removed
-                              </span>
-                            ) : null}
-                            <input
-                              aria-label={`Model override for ${ROLE_LABEL[role] ?? role} link ${i + 1}`}
-                              data-testid={`routing-model-${role}-${i}`}
-                              value={link.model ?? ''}
-                              placeholder="connection's model"
-                              onChange={(e) =>
-                                update(
-                                  role,
-                                  chain.map((l, j) =>
-                                    j === i ? { ...l, model: e.target.value } : l,
-                                  ),
-                                )
-                              }
-                              className="w-40 rounded-sm border border-border bg-surface-2 px-1.5 py-0.5 font-mono"
-                            />
-                            <button
-                              type="button"
-                              aria-label={`Move link ${i + 1} up`}
-                              disabled={i === 0}
-                              onClick={() => {
-                                const next = [...chain];
-                                [next[i - 1], next[i]] = [next[i]!, next[i - 1]!];
-                                update(role, next);
-                              }}
-                              className="underline disabled:opacity-40"
-                            >
-                              ↑
-                            </button>
-                            {/* W20-11 (UX_TODO AI-25): a link could go up but not down. */}
-                            <button
-                              type="button"
-                              aria-label={`Move link ${i + 1} down`}
-                              data-testid={`routing-down-${role}-${i}`}
-                              disabled={i === chain.length - 1}
-                              onClick={() => {
-                                const next = [...chain];
-                                [next[i], next[i + 1]] = [next[i + 1]!, next[i]!];
-                                update(role, next);
-                              }}
-                              className="underline disabled:opacity-40"
-                            >
-                              ↓
-                            </button>
-                            <button
-                              type="button"
-                              aria-label={`Remove link ${i + 1}`}
-                              data-testid={`routing-remove-${role}-${i}`}
-                              onClick={() =>
-                                update(
-                                  role,
-                                  chain.filter((_, j) => j !== i),
-                                )
-                              }
-                              className="underline"
-                            >
-                              Remove
-                            </button>
-                          </li>
-                        ))}
-                      </ol>
-                    )}
-                    {pooled ? (
-                      <p className="text-xs" data-testid={`routing-effective-${role}`}>
-                        Shared pool
-                      </p>
-                    ) : (
-                      <p
-                        className="mt-1 text-xs text-fg-muted"
-                        data-testid={`routing-effective-${role}`}
-                      >
-                        {chain.length === 0
-                          ? OPTIONAL_UNROUTED_TEXT
-                          : effectiveChainText(chain, providers, localOnly)}
-                      </p>
-                    )}
-                    {/* W20-06 (UX_TODO AI-05): whether code leaves the network,
+                                ↑
+                              </button>
+                              {/* W20-11 (UX_TODO AI-25): a link could go up but not down. */}
+                              <button
+                                type="button"
+                                aria-label={`Move link ${i + 1} down`}
+                                data-testid={`routing-down-${role}-${i}`}
+                                disabled={i === chain.length - 1}
+                                onClick={() => {
+                                  const next = [...chain];
+                                  [next[i], next[i + 1]] = [next[i + 1]!, next[i]!];
+                                  update(role, next);
+                                }}
+                                className="underline disabled:opacity-40"
+                              >
+                                ↓
+                              </button>
+                              <button
+                                type="button"
+                                aria-label={`Remove link ${i + 1}`}
+                                data-testid={`routing-remove-${role}-${i}`}
+                                onClick={() =>
+                                  update(
+                                    role,
+                                    chain.filter((_, j) => j !== i),
+                                  )
+                                }
+                                className="underline"
+                              >
+                                Remove
+                              </button>
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+                      {pooled ? (
+                        <p className="text-xs" data-testid={`routing-effective-${role}`}>
+                          Shared pool
+                        </p>
+                      ) : (
+                        <p
+                          className="mt-1 text-xs text-fg-muted"
+                          data-testid={`routing-effective-${role}`}
+                        >
+                          {chain.length === 0
+                            ? OPTIONAL_UNROUTED_TEXT
+                            : effectiveChainText(chain, providers, localOnly)}
+                        </p>
+                      )}
+                      {/* W20-06 (UX_TODO AI-05): whether code leaves the network,
                         from the same summary the wizard's review uses. */}
-                    {(() => {
-                      if (chain.length === 0 && OPTIONAL_ROLES.has(role)) {
+                      {(() => {
+                        if (chain.length === 0 && OPTIONAL_ROLES.has(role)) {
+                          return (
+                            <p
+                              className="mt-0.5 text-xs text-fg"
+                              data-testid={`routing-egress-${role}`}
+                              data-tone="unavailable"
+                            >
+                              <span className="font-semibold">{EGRESS_MARK.unavailable}</span>{' '}
+                              Nothing is sent for this role.
+                            </p>
+                          );
+                        }
+                        const e = summarizeRole({
+                          chain: egressLinks(chain, providers),
+                          providers: egressProviders,
+                          localOnly,
+                        });
+                        if (pooled) {
+                          return (
+                            <p
+                              className="text-xs text-fg-muted"
+                              data-testid={`routing-egress-${role}`}
+                              data-tone={e.tone}
+                            >
+                              {POOL_SHORT[e.tone]}
+                            </p>
+                          );
+                        }
                         return (
                           <p
                             className="mt-0.5 text-xs text-fg"
                             data-testid={`routing-egress-${role}`}
-                            data-tone="unavailable"
-                          >
-                            <span className="font-semibold">{EGRESS_MARK.unavailable}</span> Nothing
-                            is sent for this role.
-                          </p>
-                        );
-                      }
-                      const e = summarizeRole({
-                        chain: egressLinks(chain, providers),
-                        providers: egressProviders,
-                        localOnly,
-                      });
-                      if (pooled) {
-                        return (
-                          <p
-                            className="text-xs text-fg-muted"
-                            data-testid={`routing-egress-${role}`}
                             data-tone={e.tone}
                           >
-                            {POOL_SHORT[e.tone]}
+                            <span className="font-semibold">{egressMark(e.tone, e.text)}</span>{' '}
+                            {e.text}
                           </p>
                         );
-                      }
-                      return (
-                        <p
-                          className="mt-0.5 text-xs text-fg"
-                          data-testid={`routing-egress-${role}`}
-                          data-tone={e.tone}
-                        >
-                          <span className="font-semibold">{egressMark(e.tone, e.text)}</span>{' '}
-                          {e.text}
-                        </p>
-                      );
-                    })()}
-                  </td>
-                  <td className="py-2 pl-2 text-right">
-                    <select
-                      aria-label={`Add a connection to ${ROLE_LABEL[role] ?? role}`}
-                      data-testid={`routing-add-${role}`}
-                      value=""
-                      onChange={(e) => {
-                        const p = providers.find((x) => x.id === Number(e.target.value));
-                        if (p)
-                          update(role, [
-                            ...chain,
-                            { provider_id: p.id, provider_name: p.name, model: null },
-                          ]);
-                      }}
-                      className="rounded-sm border border-border bg-surface-2 px-1.5 py-0.5 text-xs"
-                    >
-                      <option value="">Add a connection…</option>
-                      {providers.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                      })()}
+                    </td>
+                    <td className="py-2 pl-2 text-right">
+                      <select
+                        aria-label={`Add a connection to ${ROLE_LABEL[role] ?? role}`}
+                        data-testid={`routing-add-${role}`}
+                        value=""
+                        onChange={(e) => {
+                          const p = providers.find((x) => x.id === Number(e.target.value));
+                          if (p)
+                            update(role, [
+                              ...chain,
+                              { provider_id: p.id, provider_name: p.name, model: null },
+                            ]);
+                        }}
+                        className="rounded-sm border border-border bg-surface-2 px-1.5 py-0.5 text-xs"
+                      >
+                        <option value="">Add a connection…</option>
+                        {providers.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <button

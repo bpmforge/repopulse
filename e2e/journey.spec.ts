@@ -56,8 +56,18 @@ test('the persona is changeable from the user menu (R-A2)', async ({ page }) => 
     'true',
   );
 
-  // Leave the fixture as the suite found it.
+  // Leave the fixture as the suite found it — and wait until the server has it.
+  // The click alone was the test's last line, so the page could close before
+  // the save landed; the fixture then stayed `security`, whose home is
+  // /findings, and every later spec that starts at `/` failed behind it.
+  const saved = page.waitForResponse(
+    (r) => r.url().includes('/me/persona') && r.request().method() === 'PATCH',
+  );
   await page.getByTestId('user-menu-persona-lead').click();
+  expect((await saved).ok()).toBe(true);
+  await page.reload();
+  await page.getByTestId('user-menu').click();
+  await expect(page.getByTestId('user-menu-persona-lead')).toHaveAttribute('aria-checked', 'true');
 });
 
 test('the onboarding checklist shows the admin variant and stays dismissed (R-A1)', async ({
