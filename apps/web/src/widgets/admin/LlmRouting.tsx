@@ -130,6 +130,26 @@ const EGRESS_MARK = {
   unavailable: '— Not used.',
 } as const;
 
+/**
+ * W24-02 (UX review: cryptic routing rows): the mark and the sentence often said
+ * the same words twice ("✓ Stays on your network. Stays on your network. Uses
+ * LM Studio."). When the sentence already opens with the mark's words, only the
+ * symbol is kept.
+ */
+export function egressMark(tone: keyof typeof EGRESS_MARK, text: string): string {
+  const mark = EGRESS_MARK[tone];
+  const [symbol, ...words] = mark.split(' ');
+  return text.startsWith(words.join(' ')) ? symbol! : mark;
+}
+
+/** W24-02: what a role on the shared pool shows in its own row; the full sentence is said once, above the table. */
+const POOL_SHORT: Record<keyof typeof EGRESS_MARK, string> = {
+  stays: '✓ stays on your network',
+  gateway: '⚠ through a gateway',
+  leaves: '⚠ may leave your network',
+  unavailable: '— skips: no usable connection',
+};
+
 export function LlmRouting() {
   const query = useApiQuery<RoutingState>(ROUTING);
   const [localOnly, setLocalOnly] = useState(false);
@@ -378,17 +398,56 @@ export function LlmRouting() {
           </p>
         ) : null}
 
+        {/* W24-02 (UX review: cryptic routing rows): every role without a chain
+            repeated the same two long sentences, so eight rows said one thing
+            sixteen times. The shared pool is described once, here, and those
+            rows say "Shared pool" and whether it leaves the network. */}
+        {(() => {
+          const pooled = roles.filter(
+            ({ role }) => (chains[role] ?? []).length === 0 && !OPTIONAL_ROLES.has(role),
+          );
+          if (pooled.length === 0) return null;
+          const e = summarizeRole({ chain: [], providers: egressProviders, localOnly });
+          return (
+            <div
+              className="flex flex-col gap-0.5 rounded-sm border border-border bg-surface-2 px-2 py-1.5 text-xs"
+              data-testid="routing-shared-pool"
+            >
+              <p>
+                <strong>Shared pool.</strong> The {pooled.length} role
+                {pooled.length === 1 ? '' : 's'} marked &ldquo;Shared pool&rdquo; below{' '}
+                {pooled.length === 1 ? 'has' : 'have'} no chain of{' '}
+                {pooled.length === 1 ? 'its' : 'their'} own.{' '}
+                <span data-testid="routing-shared-pool-text">
+                  {effectiveChainText([], providers, localOnly)}
+                </span>
+              </p>
+              {/* With no usable connection the sentence above already says the
+                  roles skip; the egress line would only say it again. */}
+              {e.tone === 'unavailable' ? null : (
+                <p data-testid="routing-shared-pool-egress" data-tone={e.tone}>
+                  <span className="font-semibold">{egressMark(e.tone, e.text)}</span> {e.text}
+                </p>
+              )}
+            </div>
+          );
+        })()}
+
         <table className="table-plain w-full text-sm" data-testid="routing-table">
           <caption className="sr-only">Connection chain per role</caption>
           <thead>
             <tr className="text-left text-xs text-fg-muted">
               <th scope="col">Role</th>
               <th scope="col">Chain (first choice first)</th>
+              <th scope="col">
+                <span className="sr-only">Add a connection</span>
+              </th>
             </tr>
           </thead>
           <tbody>
             {roles.map(({ role }) => {
               const chain = chains[role] ?? [];
+              const pooled = chain.length === 0 && !OPTIONAL_ROLES.has(role);
               return (
                 <tr
                   key={role}
@@ -477,14 +536,20 @@ export function LlmRouting() {
                         ))}
                       </ol>
                     )}
-                    <p
-                      className="mt-1 text-xs text-fg-muted"
-                      data-testid={`routing-effective-${role}`}
-                    >
-                      {chain.length === 0 && OPTIONAL_ROLES.has(role)
-                        ? OPTIONAL_UNROUTED_TEXT
-                        : effectiveChainText(chain, providers, localOnly)}
-                    </p>
+                    {pooled ? (
+                      <p className="text-xs" data-testid={`routing-effective-${role}`}>
+                        Shared pool
+                      </p>
+                    ) : (
+                      <p
+                        className="mt-1 text-xs text-fg-muted"
+                        data-testid={`routing-effective-${role}`}
+                      >
+                        {chain.length === 0
+                          ? OPTIONAL_UNROUTED_TEXT
+                          : effectiveChainText(chain, providers, localOnly)}
+                      </p>
+                    )}
                     {/* W20-06 (UX_TODO AI-05): whether code leaves the network,
                         from the same summary the wizard's review uses. */}
                     {(() => {
@@ -505,16 +570,30 @@ export function LlmRouting() {
                         providers: egressProviders,
                         localOnly,
                       });
+                      if (pooled) {
+                        return (
+                          <p
+                            className="text-xs text-fg-muted"
+                            data-testid={`routing-egress-${role}`}
+                            data-tone={e.tone}
+                          >
+                            {POOL_SHORT[e.tone]}
+                          </p>
+                        );
+                      }
                       return (
                         <p
                           className="mt-0.5 text-xs text-fg"
                           data-testid={`routing-egress-${role}`}
                           data-tone={e.tone}
                         >
-                          <span className="font-semibold">{EGRESS_MARK[e.tone]}</span> {e.text}
+                          <span className="font-semibold">{egressMark(e.tone, e.text)}</span>{' '}
+                          {e.text}
                         </p>
                       );
                     })()}
+                  </td>
+                  <td className="py-2 pl-2 text-right">
                     <select
                       aria-label={`Add a connection to ${ROLE_LABEL[role] ?? role}`}
                       data-testid={`routing-add-${role}`}
@@ -527,7 +606,7 @@ export function LlmRouting() {
                             { provider_id: p.id, provider_name: p.name, model: null },
                           ]);
                       }}
-                      className="mt-1 rounded-sm border border-border bg-surface-2 px-1.5 py-0.5 text-xs"
+                      className="rounded-sm border border-border bg-surface-2 px-1.5 py-0.5 text-xs"
                     >
                       <option value="">Add a connection…</option>
                       {providers.map((p) => (

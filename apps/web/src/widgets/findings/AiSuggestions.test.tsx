@@ -434,7 +434,7 @@ describe('AiSuggestions', () => {
     respond({ raised_by: null, suggestions: [] });
     render(<AiSuggestions findingId={1} onOfferDismiss={() => {}} finding={ctx} />);
     expect(screen.getByTestId('ai-start-pass-link').getAttribute('href')).toBe(
-      '/repos/3/security?ai_path=src%2Fusers.ts#ai-review-pass',
+      '/repos/3/ai-review?ai_path=src%2Fusers.ts#ai-review-pass',
     );
   });
 });

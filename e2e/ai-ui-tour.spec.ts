@@ -107,7 +107,8 @@ test.describe('AI layer UI tour', () => {
   }
   const securityTab = async (page: Page) => {
     await loginAsFixture(page);
-    await page.goto(`/repos/${REPO}/security`);
+    // W24-04: the AI review pass has its own tab.
+    await page.goto(`/repos/${REPO}/ai-review`);
     await expect(page.getByTestId('ai-pass-panel')).toBeVisible();
     await expect(page.getByTestId('scheduled-passes')).toBeVisible();
   };
@@ -123,7 +124,7 @@ test.describe('AI layer UI tour', () => {
     await securityTab(page);
     await expect(page.getByTestId('ai-pass-not-run')).toBeVisible();
     await expect(page.getByTestId('schedule-off')).toBeVisible();
-    await themes(page, '01-panel-not-run', () => page.getByTestId('security-ai-pass'));
+    await themes(page, '01-panel-not-run', () => page.getByTestId('repo-ai-pass'));
   });
 
   test('enable form: models stay on the network', async ({ page }) => {
@@ -272,7 +273,7 @@ test.describe('AI layer UI tour', () => {
       .values({ workspaceId: WS, monthlyCallCap: 300, updatedBy: USER });
     await securityTab(page);
     await expect(page.getByTestId('ai-pass-runs')).toBeVisible();
-    await themes(page, '06-panel-with-history', () => page.getByTestId('security-ai-pass'));
+    await themes(page, '06-panel-with-history', () => page.getByTestId('repo-ai-pass'));
   });
 
   test('finding drawer: no AI review recorded yet', async ({ page }) => {
@@ -391,6 +392,9 @@ test.describe('AI layer UI tour', () => {
       .values({ workspaceId: WS, role: 'security', position: 0, providerId: lm });
     await loginAsFixture(page);
     await page.goto('/admin/models');
+    // W24-01: with connections, the setup (guided and by hand) is folded.
+    await expect(page.getByTestId('models-setup-toggle')).toBeVisible();
+    await page.getByTestId('models-setup-toggle').click();
     await expect(page.getByTestId('llm-advanced')).toBeVisible();
     await expect(page.getByTestId('routing-effective-security')).toBeVisible();
     await expect(page.getByTestId('model-eval-table')).toBeVisible();
@@ -415,17 +419,10 @@ test.describe('AI layer UI tour', () => {
     );
   });
 
-  test('Security tab: the AI review pass sits right under the scanner coverage', async ({
-    page,
-  }) => {
+  test('AI review tab: the pass has a tab of its own (W24-04)', async ({ page }) => {
     await db.delete(read.aiPassSchedules).where(eq(read.aiPassSchedules.workspaceId, WS));
     await securityTab(page);
-    await themes(
-      page,
-      '17-security-tab-ai-panel-up',
-      () => page.getByTestId('security-tab'),
-      false,
-    );
+    await themes(page, '17-ai-review-tab', () => page.getByTestId('ai-review-tab'), false);
   });
 
   test('phone width: the enable form and a suggestion', async ({ page }) => {

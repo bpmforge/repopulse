@@ -86,7 +86,10 @@ const SUBPAGE_LABELS: Record<string, string> = {
   performance: 'Performance findings',
   hotspots: 'Hotspots',
   'pr-flow': 'PR Flow',
-  'ai-reviewers': 'AI Reviewers',
+  // W24-04: the third-party bots' tab, renamed so it is not confused with
+  // RepoPulse's own AI review tab beside Security.
+  'ai-reviewers': 'Review bots',
+  'ai-review': 'AI review',
   ci: 'CI',
   // W20-23 (UX_TODO ADM-34, DSH-33): the repo tab's name, the rail's word.
   findings: 'Findings',

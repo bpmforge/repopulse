@@ -1,4 +1,3 @@
-import { Fragment } from 'react';
 import { WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 
@@ -51,7 +50,11 @@ export const MEASURE_COMMAND =
 function ScoreCells({ score, testId }: { score: RoleScore | undefined; testId: string }) {
   if (!score) {
     return (
-      <td colSpan={2} className="py-2 pr-3 text-xs text-fg-faint" data-testid={testId}>
+      <td
+        colSpan={2}
+        className="border-l border-border px-3 py-1.5 text-right text-xs text-fg-faint"
+        data-testid={testId}
+      >
         not yet run
       </td>
     );
@@ -61,7 +64,11 @@ function ScoreCells({ score, testId }: { score: RoleScore | undefined; testId: s
       // W20-11 (UX_TODO AI-27): the explanation was a title tooltip, which
       // keyboard and touch users never see; it is text, and the errors are
       // listed under the row.
-      <td colSpan={2} className="py-2 pr-3 text-xs text-warn" data-testid={testId}>
+      <td
+        colSpan={2}
+        className="border-l border-border px-3 py-1.5 text-xs text-warn"
+        data-testid={testId}
+      >
         incomplete: {score.errored} of {score.cases} case{score.cases === 1 ? '' : 's'} hit a
         provider error (listed below)
       </td>
@@ -69,10 +76,13 @@ function ScoreCells({ score, testId }: { score: RoleScore | undefined; testId: s
   }
   return (
     <>
-      <td className="py-2 pr-2 text-right text-xs tabular-nums" data-testid={`${testId}-p`}>
+      <td
+        className="border-l border-border px-3 py-1.5 text-right text-xs tabular-nums"
+        data-testid={`${testId}-p`}
+      >
         {pct(score.precision)}
       </td>
-      <td className="py-2 pr-3 text-right text-xs tabular-nums" data-testid={`${testId}-r`}>
+      <td className="py-1.5 pr-3 text-right text-xs tabular-nums" data-testid={`${testId}-r`}>
         {pct(score.recall)}
       </td>
     </>
@@ -119,127 +129,163 @@ export function ModelEval() {
           </a>
           .
         </p>
-        {/* Wider now that precision and recall are separate columns, so it can scroll
-            sideways: a scrollable region has to be reachable from the keyboard. */}
+        {/* W24-03 (UX review: "the quality table is cramped"). It had a column
+            pair per ROLE: fourteen number columns plus the model, triage and
+            date, so a model id wrapped over three lines and the numbers ran
+            together. Turned on its side: a row per role and a column pair per
+            MODEL. There are eight roles and usually one to three models, so it
+            fits, and comparing models for one role is reading across a row. */}
         <div
           className="overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           role="region"
           aria-label="Quality per model, scrolls sideways"
           tabIndex={0}
         >
-          <table className="table-plain w-full text-sm" data-testid="model-eval-table">
+          <table className="table-plain w-auto text-sm" data-testid="model-eval-table">
             <caption className="mb-2 text-left text-xs text-fg-muted">
               The cases are small and their labels have not been reviewed by a person: a rough
               guide, not a guarantee. &ldquo;Not yet run&rdquo; means nothing was measured.
             </caption>
             <thead>
-              <tr className="text-left text-xs text-fg-muted">
-                <th scope="col" rowSpan={2}>
-                  Model
+              <tr className="text-left align-bottom text-xs text-fg-muted">
+                <th scope="col" rowSpan={2} className="pr-6">
+                  Role
                 </th>
-                {roles.map((r) => (
-                  <th key={r.id} scope="colgroup" colSpan={2} className="pr-3 text-center">
-                    {r.label}
+                {models.map((m) => (
+                  <th
+                    key={`${m.model}-${m.provider_name ?? 'x'}`}
+                    scope="colgroup"
+                    colSpan={2}
+                    className="border-l border-border px-3 pb-1 font-normal"
+                    data-testid={`model-eval-row-${m.model}`}
+                  >
+                    <span className="block font-mono text-xs font-semibold break-all text-fg">
+                      {m.model}
+                    </span>
+                    {m.configured ? (
+                      <span className="block">{m.provider_name}</span>
+                    ) : (
+                      <span className="block text-fg-faint">not configured here</span>
+                    )}
+                    {m.result ? (
+                      <>
+                        <span className="block whitespace-nowrap">
+                          measured {m.result.ranAt.slice(0, 10)}
+                        </span>
+                        <span className="block max-w-xs">{m.result.engine}</span>
+                      </>
+                    ) : null}
+                    {m.result && !m.result.complete ? (
+                      <span
+                        className="block text-warn"
+                        data-testid={`model-eval-incomplete-${m.model}`}
+                      >
+                        incomplete — {m.result.errors.length} provider error
+                        {m.result.errors.length === 1 ? '' : 's'}
+                      </span>
+                    ) : null}
                   </th>
                 ))}
-                <th scope="col" rowSpan={2} className="pl-3">
-                  Triage agreement
-                </th>
-                <th scope="col" rowSpan={2}>
-                  Measured on
-                </th>
               </tr>
               <tr className="text-xs text-fg-muted">
-                {roles.flatMap((r) => [
-                  <th key={`${r.id}-p`} scope="col" className="pr-2 text-right font-normal">
+                {models.flatMap((m) => [
+                  <th
+                    key={`${m.model}-${m.provider_name ?? 'x'}-p`}
+                    scope="col"
+                    className="border-l border-border px-3 text-right font-normal"
+                  >
                     <abbr title="Precision: of what it reported, how much was real">P</abbr>
                   </th>,
-                  <th key={`${r.id}-r`} scope="col" className="pr-3 text-right font-normal">
+                  <th
+                    key={`${m.model}-${m.provider_name ?? 'x'}-r`}
+                    scope="col"
+                    className="pr-3 text-right font-normal"
+                  >
                     <abbr title="Recall: of the planted defects, how many it found">R</abbr>
                   </th>,
                 ])}
               </tr>
             </thead>
             <tbody>
-              {models.map((m) => (
-                <Fragment key={`${m.model}-${m.provider_name ?? 'x'}`}>
-                  <tr
-                    className="border-t border-border align-top"
-                    data-testid={`model-eval-row-${m.model}`}
+              {roles.map((r) => (
+                <tr
+                  key={r.id}
+                  className="border-t border-border align-top"
+                  data-testid={`model-eval-role-${r.id}`}
+                >
+                  <th
+                    scope="row"
+                    className="py-1.5 pr-6 text-left text-xs font-normal whitespace-nowrap"
                   >
-                    <th scope="row" className="py-2 pr-3 text-left font-normal">
-                      <span className="font-mono text-xs">{m.model}</span>
-                      {m.configured ? (
-                        <span className="block text-xs text-fg-muted">{m.provider_name}</span>
-                      ) : (
-                        <span className="block text-xs text-fg-faint">not configured here</span>
-                      )}
-                    </th>
-                    {roles.map((r) => (
-                      <ScoreCells
-                        key={r.id}
-                        score={m.result?.roles[r.id]}
-                        testId={`model-eval-${m.model}-${r.id}`}
-                      />
-                    ))}
-                    <td className="py-2 pr-3 text-xs">
-                      {m.result?.triage ? (
-                        <span>
-                          {pct(m.result.triage.agreement)}
-                          {m.result.triage.missedReal > 0
-                            ? ` · ${m.result.triage.missedReal} real missed`
-                            : ''}
-                        </span>
-                      ) : (
-                        <span className="text-fg-faint">not yet run</span>
-                      )}
-                    </td>
-                    <td className="py-2 text-xs text-fg-muted">
-                      {m.result ? (
-                        <>
-                          {m.result.ranAt.slice(0, 10)}
-                          <span className="block">{m.result.engine}</span>
-                          {!m.result.complete ? (
-                            <span
-                              className="block text-warn"
-                              data-testid={`model-eval-incomplete-${m.model}`}
-                            >
-                              incomplete — {m.result.errors.length} provider error
-                              {m.result.errors.length === 1 ? '' : 's'}
-                            </span>
-                          ) : null}
-                        </>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                  </tr>
-                  {m.result && m.result.errors.length > 0 ? (
-                    <tr data-testid={`model-eval-errors-${m.model}`}>
-                      <td colSpan={roles.length * 2 + 3} className="pb-2 text-xs">
-                        <details>
-                          <summary className="cursor-pointer text-warn">
-                            Why {m.model} is incomplete: {m.result.errors.length} provider error
-                            {m.result.errors.length === 1 ? '' : 's'}
-                          </summary>
-                          <ul className="mt-1 ml-4 list-disc text-fg-muted">
-                            {m.result.errors.map((e, i) => (
-                              <li key={`${e.role}-${e.caseId}-${i}`}>
-                                {roles.find((r) => r.id === e.role)?.label ?? e.role}, case{' '}
-                                <span className="font-mono">{e.caseId}</span>:{' '}
-                                <span className="font-mono break-words">{e.error}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </details>
-                      </td>
-                    </tr>
-                  ) : null}
-                </Fragment>
+                    {r.label}
+                  </th>
+                  {models.map((m) => (
+                    <ScoreCells
+                      key={`${m.model}-${m.provider_name ?? 'x'}`}
+                      score={m.result?.roles[r.id]}
+                      testId={`model-eval-${m.model}-${r.id}`}
+                    />
+                  ))}
+                </tr>
               ))}
+              <tr
+                className="border-t border-border align-top"
+                data-testid="model-eval-role-triage-agreement"
+              >
+                <th
+                  scope="row"
+                  className="py-1.5 pr-6 text-left text-xs font-normal whitespace-nowrap"
+                >
+                  Triage agreement
+                </th>
+                {models.map((m) => (
+                  <td
+                    key={`${m.model}-${m.provider_name ?? 'x'}`}
+                    colSpan={2}
+                    className="border-l border-border px-3 py-1.5 text-right text-xs tabular-nums"
+                    data-testid={`model-eval-${m.model}-triage`}
+                  >
+                    {m.result?.triage ? (
+                      <span>
+                        {pct(m.result.triage.agreement)}
+                        {m.result.triage.missedReal > 0
+                          ? ` · ${m.result.triage.missedReal} real missed`
+                          : ''}
+                      </span>
+                    ) : (
+                      <span className="text-fg-faint">not yet run</span>
+                    )}
+                  </td>
+                ))}
+              </tr>
             </tbody>
           </table>
         </div>
+        {models
+          .filter((m) => m.result && m.result.errors.length > 0)
+          .map((m) => (
+            <div
+              key={`${m.model}-${m.provider_name ?? 'x'}`}
+              className="text-xs"
+              data-testid={`model-eval-errors-${m.model}`}
+            >
+              <details>
+                <summary className="cursor-pointer text-warn">
+                  Why {m.model} is incomplete: {m.result!.errors.length} provider error
+                  {m.result!.errors.length === 1 ? '' : 's'}
+                </summary>
+                <ul className="mt-1 ml-4 list-disc text-fg-muted">
+                  {m.result!.errors.map((e, i) => (
+                    <li key={`${e.role}-${e.caseId}-${i}`}>
+                      {roles.find((r) => r.id === e.role)?.label ?? e.role}, case{' '}
+                      <span className="font-mono">{e.caseId}</span>:{' '}
+                      <span className="font-mono break-words">{e.error}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            </div>
+          ))}
         {unmeasured.length > 0 ? (
           <p className="text-xs text-fg-muted" data-testid="model-eval-how-to-measure">
             <strong>Not measured yet:</strong> {unmeasured.join(', ')}. Measuring is not run from

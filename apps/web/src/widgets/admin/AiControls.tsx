@@ -198,7 +198,7 @@ export function AiControls() {
                     >
                       <th scope="row" className="py-1 text-left text-xs font-normal">
                         <Link
-                          to="/repos/$repoId/security"
+                          to="/repos/$repoId/ai-review"
                           params={{ repoId: String(s.repo.id) } as never}
                           hash="ai-review-pass"
                           className="underline underline-offset-2"

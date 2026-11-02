@@ -320,6 +320,11 @@ test('the Models wizard states what leaves the network, per choice, and steps th
 }) => {
   await loginAsFixture(page);
   await page.goto('/admin/models');
+  // W24-01: once a connection exists, the setup is folded behind a toggle.
+  await expect(page.getByTestId('models-setup')).toBeVisible();
+  if (await page.getByTestId('models-setup-toggle').isVisible()) {
+    await page.getByTestId('models-setup-toggle').click();
+  }
   const wizard = page.getByTestId('models-wizard');
   await expect(wizard).toBeVisible();
 

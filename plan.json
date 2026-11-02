@@ -12514,6 +12514,127 @@
       "notes": [
         "Procedure: docs/RELEASE.md. The W22-13 release-day steps (public Lodestone/bpm-rulepacks, licence items) are separate and need the owner's go on the day."
       ]
+    },
+    {
+      "id": "W24-01",
+      "title": "Models page: open on what is configured; fold the guided setup and the by-hand form together",
+      "phase": 24,
+      "module": "web",
+      "stories": [],
+      "write_scope": [
+        "apps/web/src/routes/admin/models.tsx",
+        "apps/web/src/widgets/admin/LlmProviders.tsx",
+        "e2e/admin.spec.ts",
+        "e2e/a11y.spec.ts",
+        "e2e/ai-ui-tour.spec.ts"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "With no connection the Models page opens on the Set up a model wizard, with the by-hand form folded behind Advanced inside it (no second full-size Models form)",
+        "With connections, Configured providers comes first and the wizard plus the by-hand form fold behind one 'Set up another model' toggle; saving the first connection in the wizard does not unmount it mid-flow",
+        "Before/after screenshots in docs/screenshots/w24; e2e admin and a11y specs green"
+      ],
+      "points": 3,
+      "status": "done",
+      "notes": [
+        "UX review finding: the setup wizard sat above a duplicate Models form, even once connections existed."
+      ]
+    },
+    {
+      "id": "W24-02",
+      "title": "Routing: describe the shared pool once; role rows say 'Shared pool' and whether it leaves the network",
+      "phase": 24,
+      "module": "web",
+      "stories": [],
+      "write_scope": [
+        "apps/web/src/widgets/admin/LlmRouting.tsx",
+        "apps/web/src/widgets/admin/LlmRouting.test.tsx"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "The shared-pool sentence and its egress line appear once above the routing table; each role on the pool shows 'Shared pool' plus a short network mark",
+        "The egress mark no longer repeats the sentence's opening words ('Stays on your network. Stays on your network.')",
+        "Add-a-connection picker moves to its own right-hand column; LlmRouting tests updated and green"
+      ],
+      "points": 3,
+      "status": "done",
+      "notes": [
+        "UX review finding: routing rows were cryptic (seven rows repeating the same two long sentences)."
+      ]
+    },
+    {
+      "id": "W24-03",
+      "title": "Quality per model: a row per role and a column pair per model",
+      "phase": 24,
+      "module": "web",
+      "stories": [],
+      "write_scope": [
+        "apps/web/src/widgets/admin/ModelEval.tsx",
+        "apps/web/src/widgets/admin/ModelEval.test.tsx"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "The table has a row per role plus Triage agreement, and a P/R column pair per model with model, provider, date and engine in the column header",
+        "Incomplete runs and their provider errors still show as text (not tooltips); ModelEval tests green"
+      ],
+      "points": 2,
+      "status": "done",
+      "notes": [
+        "UX review finding: the quality table was cramped (fourteen number columns, the model id wrapping over three lines)."
+      ]
+    },
+    {
+      "id": "W24-04",
+      "title": "Repository AI review tab: move the AI review pass out of the Security tab",
+      "phase": 24,
+      "module": "web",
+      "stories": [],
+      "write_scope": [
+        "apps/web/src/routes/repos/$repoId/ai-review.tsx",
+        "apps/web/src/routes/repos/$repoId/security.tsx",
+        "apps/web/src/routes/repos/$repoId/security.test.tsx",
+        "apps/web/src/routes/repos/$repoId/route.tsx",
+        "apps/web/src/routes/__root.tsx",
+        "apps/web/src/routeTree.gen.ts",
+        "apps/web/src/widgets/admin/AiControls.tsx",
+        "apps/web/src/widgets/me/Inbox.tsx",
+        "apps/web/src/widgets/repo/ReviewBots.tsx",
+        "apps/web/src/widgets/findings/AiSuggestions.tsx",
+        "e2e/security.spec.ts"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "A repository tab 'AI review' beside Security holds the AI review pass panel and scheduled passes; the Security tab keeps one line pointing to it",
+        "Old /security?ai_path= and /security#ai-review-pass links redirect to the new tab with the path kept (tested); every in-app link points at the new tab",
+        "The third-party bots tab is renamed 'Review bots' (same route and test id) so it is not confused with RepoPulse's own AI review"
+      ],
+      "points": 3,
+      "status": "done",
+      "notes": [
+        "UX review finding: the AI panel was buried in the Security tab under an 18-row scanner table and the open findings."
+      ]
+    },
+    {
+      "id": "W24-05",
+      "title": "Screenshot tour for the W24 screens, and the axe link-in-text-block fix it found",
+      "phase": 24,
+      "module": "web",
+      "stories": [],
+      "write_scope": [
+        "e2e/ux-w24-tour.spec.ts",
+        "docs/screenshots/w24/**",
+        "apps/web/src/widgets/rules/RuleFindingsLink.tsx"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "E2E_UX24_TOUR=1 pnpm e2e e2e/ux-w24-tour.spec.ts writes whole-page light and dark pictures of the four screens and passes axe on each",
+        "The Settings -> Rules link in the Security tab's coverage map is underlined (axe link-in-text-block was failing on the Security tab)"
+      ],
+      "points": 2,
+      "status": "done",
+      "notes": [
+        "Before pictures were taken on main 273dfdd0 with axe off (UX24_SKIP_AXE=1), because the Security tab failed axe before this fix."
+      ]
     }
   ]
 }

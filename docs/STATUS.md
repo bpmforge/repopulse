@@ -4179,3 +4179,10 @@ on the Mac:**
   runner; today's dispatched run sat queued an hour) — likely an Actions billing/spending
   limit; until that is fixed the live-infra gate runs only on a developer machine. The
   product site (W22-12) is still blocked on W22-10/11 (measured examples).
+- 2026-11-02 — W24 (UX review findings, W24-01..05): the Models page opens on what is
+  configured with the guided setup and the by-hand form folded together behind "Set up
+  another model"; Routing describes the shared pool once instead of on every role; Quality
+  per model is a row per role and a column pair per model; the AI review pass has its own
+  repository tab (old Security-tab links redirect) and "AI Reviewers" is renamed "Review
+  bots". Before/after pictures in `docs/screenshots/w24/`. Gated in the cloud only; the Mac
+  real-engine run (scripts/ci-local.sh) has not been run on this change.

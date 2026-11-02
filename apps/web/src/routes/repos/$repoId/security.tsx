@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useParams, useSearch } from '@tanstack/react-router';
+import { createFileRoute, Link, redirect, useParams } from '@tanstack/react-router';
 import { WidgetFrame, frameState } from '../../../components/index.js';
 import { useApiQuery, queryKeyFor } from '../../../api/useApiQuery.js';
 import { API_BASE } from '../../../api/client.js';
@@ -8,7 +8,6 @@ import { SarifImport } from '../../../widgets/security/SarifImport.js';
 import { LicensesPanel } from '../../../widgets/security/LicensesPanel.js';
 import { ChainsPanel } from '../../../widgets/security/ChainsPanel.js';
 import { CoverageMap } from '../../../widgets/trust/CoverageMap.js';
-import { AiPassPanel } from '../../../widgets/repo/AiPassPanel.js';
 // W8-14. OUT OF THAT TICKET'S DECLARED WRITE SCOPE and mounted anyway: a
 // funnel widget nobody renders is a widget that does not exist, and FR-SEC-15
 // is about what the Security tab SHOWS. Declared in the handoff.
@@ -37,9 +36,9 @@ import {
 // and linked, so a scan that found something is a screen with something on it.
 
 /**
- * `?ai_path=` (W20-11, UX_TODO AI-44): a finding's "start a pass on this file"
- * link lands here with the file already in the AI review pass box. Lenient: a
- * junk value is dropped, never a white screen.
+ * `?ai_path=` (W20-11, UX_TODO AI-44) used to land a finding's "start a pass on
+ * this file" link here. The AI review pass has its own tab now (W24-04), so a
+ * saved or shared link of the old shape is sent on to it, file and all.
  */
 export function validateSecuritySearch(search: Record<string, unknown>): { ai_path?: string } {
   const raw = search.ai_path;
@@ -48,12 +47,21 @@ export function validateSecuritySearch(search: Record<string, unknown>): { ai_pa
 
 export const Route = createFileRoute('/repos/$repoId/security')({
   validateSearch: validateSecuritySearch,
+  beforeLoad: ({ params, search, location }) => {
+    if (search.ai_path || location.hash === 'ai-review-pass') {
+      throw redirect({
+        to: '/repos/$repoId/ai-review',
+        params: { repoId: params.repoId },
+        search: search.ai_path ? { ai_path: search.ai_path } : {},
+        hash: 'ai-review-pass',
+      } as never);
+    }
+  },
   component: SecurityTab,
 });
 
 function SecurityTab() {
   const { repoId } = useParams({ from: '/repos/$repoId/security' });
-  const aiPath = (useSearch({ strict: false }) as { ai_path?: string }).ai_path;
   const descriptor = { endpoint: '/repos/{id}/security', path: { id: repoId } } as const;
   // The hook needs the latest payload to decide whether to keep polling, and
   // the query needs the hook's interval. A ref breaks the order: the query is
@@ -192,9 +200,20 @@ function SecurityTab() {
 
       {/* W19-10: the AI review pass - start one, watch it, and see what it did
           and did not cover. Its answers appear on the findings. */}
-      <WidgetFrame title="AI review pass" state="ready" testId="security-ai-pass">
-        <AiPassPanel repoId={repoId} initialPaths={aiPath} />
-      </WidgetFrame>
+      {/* W24-04 (UX review: the AI panel was buried here, under the scanner
+          table and the open findings). It has its own tab now; one line says
+          where it went, for people who learned to look here. */}
+      <p className="text-xs text-fg-muted" data-testid="security-ai-pass-moved">
+        The AI review pass (start a pass, its history and its schedule) is on the{' '}
+        <Link
+          to="/repos/$repoId/ai-review"
+          params={{ repoId } as never}
+          className="underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+        >
+          AI review tab
+        </Link>
+        .
+      </p>
 
       {/* W18-22: the holes beside the scanner table — languages, skipped
           files, absent scanners, shadow rules. */}
