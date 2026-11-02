@@ -94,7 +94,11 @@ function harness(opts: { plan?: IncrementalPlan; files?: Record<string, string |
   mkdirSync(path.join(top, 'src'), { recursive: true });
   for (let i = 0; i < TREE_SIZE; i += 1) writeFileSync(path.join(top, `src/t${i}.js`), `// ${i}\n`);
   const archive = path.join(stage, 'a.tar.gz');
-  execFileSync('tar', ['-czf', archive, '-C', stage, path.basename(top)]);
+  // COPYFILE_DISABLE: no macOS AppleDouble `._name` sidecars, which a forge
+  // archive never holds (same as snapshot.test.ts).
+  execFileSync('tar', ['-czf', archive, '-C', stage, path.basename(top)], {
+    env: { ...process.env, COPYFILE_DISABLE: '1' },
+  });
   const bytes = new Uint8Array(readFileSync(archive));
 
   const provider = {

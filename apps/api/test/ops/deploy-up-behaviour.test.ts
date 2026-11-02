@@ -81,6 +81,8 @@ describe('deploy/up.sh behaviour (W17-04)', () => {
       buildxRc?: number;
       /** W22-15: seconds `compose up` blocks before answering (the timeout case). */
       composeUpSleep?: number;
+      /** W22-13: what `logs <cid>` prints, for every container. */
+      logsOut?: string;
     },
   ): string {
     const bin = path.join(dir, 'bin');
@@ -126,6 +128,11 @@ fi
 if [ "$1" = "build" ]; then
   # W22-15: up.sh builds the scan image itself in a checkout.
   echo "$*" >> "${path.join(dir, 'build-args.txt')}"
+  exit 0
+fi
+
+if [ "$1" = "logs" ]; then
+  echo "${opts.logsOut ?? 'stub logs'}"
   exit 0
 fi
 
@@ -333,6 +340,32 @@ exit 1
     expect(code).not.toBe(0);
     expect(out).toContain('STACK IS NOT HEALTHY');
     expect(out).toMatch(/not running:.*worker/);
+  });
+
+  it('names an old Redis 7.4 volume when Valkey refuses it (W22-13)', { timeout: 20000 }, async () => {
+    stubRuntime('podman', {
+      services: { ...allHealthy, redis: 'exited:1:none' },
+      logsOut: "# Can't handle RDB format version 12",
+    });
+    const { code, out } = await runUp({});
+
+    expect(code).not.toBe(0);
+    expect(out).toMatch(/not running:.*redis/);
+    expect(out).toContain('written by Redis 7.4');
+    expect(out).toContain('--rdb-version-check relaxed');
+    expect(out).toContain('Do not delete');
+  });
+
+  it('says nothing about Redis 7.4 when redis fails for another reason', { timeout: 20000 }, async () => {
+    stubRuntime('podman', {
+      services: { ...allHealthy, redis: 'exited:1:none' },
+      logsOut: 'Fatal error loading the DB: Permission denied',
+    });
+    const { code, out } = await runUp({});
+
+    expect(code).not.toBe(0);
+    expect(out).toMatch(/not running:.*redis/);
+    expect(out).not.toContain('written by Redis 7.4');
   });
 
   it('surfaces the real compose error when compose itself fails', { timeout: 20000 }, async () => {

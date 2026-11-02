@@ -60,7 +60,11 @@ function tarball(): Uint8Array {
   for (const f of ['a', 'b', 'c', 'd'])
     writeFileSync(path.join(top, `src/${f}.ts`), `// ${f} v1\n`);
   const out = path.join(stage, 'archive.tar.gz');
-  execFileSync('tar', ['-czf', out, '-C', stage, path.basename(top)]);
+  // COPYFILE_DISABLE: no macOS AppleDouble `._name` sidecars, which a forge
+  // archive never holds (same as snapshot.test.ts).
+  execFileSync('tar', ['-czf', out, '-C', stage, path.basename(top)], {
+    env: { ...process.env, COPYFILE_DISABLE: '1' },
+  });
   return new Uint8Array(readFileSync(out));
 }
 

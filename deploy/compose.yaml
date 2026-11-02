@@ -51,7 +51,19 @@ services:
       # but reports unhealthy forever — and everything with a
       # depends_on: service_healthy then never starts at all.
       REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in deploy/.env}
-    command: ["valkey-server", "--requirepass", "${REDIS_PASSWORD:?set REDIS_PASSWORD in deploy/.env}", "--appendonly", "yes"]
+    # --rdb-version-check relaxed is PERMANENT, not a one-off for the upgrade.
+    # Installs from before 2026-11 ran redis:7-alpine, which had floated to
+    # Redis 7.4: its append-only file starts with an RDB version 12 base, and
+    # Valkey refuses that ("Can't handle RDB format version 12") and exits,
+    # taking sessions and report schedules with it. Relaxed loads it; tested on
+    # a real 7.4 volume and a synthetic one (BullMQ job schedulers, hashes,
+    # streams with a consumer group, TTLs), every key back. Version 12 adds
+    # only hash-field expiry, which neither RepoPulse nor BullMQ uses. The old
+    # base is replaced only when Valkey rewrites the AOF, which by default
+    # waits for 64 MB of writes, so an install this size may carry it for
+    # years. On a fresh volume the flag does nothing. RUNBOOK: "Redis became
+    # Valkey (2026-11)".
+    command: ["valkey-server", "--requirepass", "${REDIS_PASSWORD:?set REDIS_PASSWORD in deploy/.env}", "--appendonly", "yes", "--rdb-version-check", "relaxed"]
     volumes:
       - redisdata:/data
     healthcheck:

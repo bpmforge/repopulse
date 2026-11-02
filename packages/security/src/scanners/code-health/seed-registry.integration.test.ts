@@ -75,7 +75,7 @@ describeIfLiveInfra('seedAdapterRegistry (W20-08)', () => {
     expect(rows.every((r) => r.status === 'candidate')).toBe(true);
     expect(rows.every((r) => r.shadowStartedAt?.getTime() === now.getTime())).toBe(true);
     expect(rows[0]!.provenance).toMatchObject({
-      license: 'UNLICENSED-REPOPULSE',
+      license: 'Apache-2.0',
       author: 'repopulse',
       date: '2026-10-01',
     });

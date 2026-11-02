@@ -568,6 +568,21 @@ if [ -n "$failed" ]; then
     echo "compose exited $compose_rc — its output is above." >&2
   fi
   echo "STACK IS NOT HEALTHY after ${REPOPULSE_UP_TIMEOUT}s — these services are not running:$failed" >&2
+  # W22-13: the one redis failure worth naming. Valkey replaced Redis 7.4 on
+  # 2026-11-02 and reads a 7.4 volume only with --rdb-version-check relaxed,
+  # which deploy/compose.yaml passes; a compose file carried over from an older
+  # install, or edited, does not, and Valkey exits on the old data.
+  case " $failed " in *" redis "*)
+    redis_id="$(container_for redis)"
+    if [ -n "$redis_id" ] && "$RT" logs "$redis_id" 2>&1 | grep -q "Can't handle RDB format version"; then
+      echo >&2
+      echo "redis (Valkey) refused the data volume '${REPOPULSE_PROJECT}_redisdata': it was" >&2
+      echo "written by Redis 7.4. Use the compose.yaml shipped with this version (its redis" >&2
+      echo "command ends in --rdb-version-check relaxed) and run up.sh again. Do not delete" >&2
+      echo "the volume: it holds sessions and report schedules. RUNBOOK: \"Redis became Valkey\"." >&2
+    fi
+    ;;
+  esac
   echo >&2
   echo "The web tier may still answer on the published port, so do not take a" >&2
   echo "loading page as proof the stack came up. Logs for one of them:" >&2
