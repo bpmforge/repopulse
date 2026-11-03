@@ -82,10 +82,11 @@ that needs **a container runtime and nothing else**: no source checkout, no
 Node, no registry access, no network at install time. There is one bundle per
 CPU architecture, and `install.sh` refuses to load one onto another.
 
-Bundles are **not published anywhere yet**, and v1 ships as a bundle only:
-publishing images to a registry is deliberately deferred past v1. There is no
-download URL and no registry; a bundle is built with `deploy/bundle.sh` from a checkout and handed
-to you as a `.tar.gz` with a `.sha256` beside it.
+Released bundles are published on the
+[GitHub releases page](https://github.com/bpmforge/repopulse/releases) as a
+`.tar.gz` with a `.sha256` beside it, one per architecture. v1 ships as a
+bundle only: publishing images to a registry is deliberately deferred past v1.
+You can also build a bundle yourself with `deploy/bundle.sh` from a checkout.
 
 ```bash
 shasum -a 256 -c repopulse-<version>-linux-<arch>.tar.gz.sha256   # or: sha256sum -c
