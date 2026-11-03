@@ -12697,6 +12697,30 @@
       "notes": [
         "Before pictures were taken on main 273dfdd0 with axe off (UX24_SKIP_AXE=1), because the Security tab failed axe before this fix."
       ]
+    },
+    {
+      "id": "W24-06",
+      "title": "Install docs say where released bundles are downloaded",
+      "phase": 24,
+      "module": "deploy",
+      "stories": [],
+      "write_scope": [
+        "README.md",
+        "docs/INSTALL.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W23-10"
+      ],
+      "acceptance": [
+        "README and docs/INSTALL.md point at the GitHub releases page for bundles instead of saying bundles are not published",
+        "The README capability table states what the clean installs tested and that the 0.2.0 amd64 bundle is tested only under emulation"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "2026-11-03 found while checking bpmforge.com/repopulse for launch (owner: 'fix what you found'). Docs and plan.json only."
+      ]
     }
   ]
 }

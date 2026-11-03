@@ -19,9 +19,11 @@ with Podman or Docker.
 ## Install from a bundle
 
 The bundle is a `.tar.gz` plus a `.sha256` beside it, built by
-`deploy/bundle.sh` from this repository. **Bundles are not published anywhere
-yet**: none of the commands below downloads anything, and there is no URL to
-fetch one from. Someone builds it and hands it to you.
+`deploy/bundle.sh` from this repository. Released bundles are on the
+[GitHub releases page](https://github.com/bpmforge/repopulse/releases), one per
+CPU architecture (`linux-amd64`, `linux-arm64`). Download the one for your host
+and its `.sha256`; the bundle carries every image it runs, so none of the
+commands below downloads anything else. There is no image registry.
 
 What you need on the host:
 
@@ -94,7 +96,7 @@ amd64 are untested, not unsupported.
 
 | Capability | Required configuration | Evidence type | Status | Known limits |
 |---|---|---|---|---|
-| Install from bundle; data survives restart | container runtime only | recorded smoke (W17-28); repeated for this document (W17-33) | **Tested** on linux/arm64, rootless Podman | amd64, Docker, rootful Podman, Windows/WSL2 untested; no registry, no download URL |
+| Install from bundle; data survives restart | container runtime only | recorded smoke (W17-28); repeated for this document (W17-33) | **Tested** on linux/arm64, rootless Podman; clean installs on Ubuntu 26.04 (Podman 5.7) and Ubuntu 24.04 (Docker) (W22-15) | the 0.2.0 amd64 bundle is tested only under emulation, not on a real amd64 machine; rootful Podman and Windows/WSL2 untested; no registry |
 | First admin sign-in, forced password change | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | recorded smoke + browser journey (W17-28, W17-30) | **Tested** | one bootstrap admin only; further people from Settings → Members |
 | Single sign-on (OIDC) | the `OIDC_*` group | unit tests of the callback and half-configuration refusal | Supported | no real identity provider was connected in release evidence |
 | Sign in with GitHub | `GITHUB_APP_CLIENT_ID` / `_SECRET` | e2e with a mocked OAuth boundary | Supported | real GitHub OAuth not run in release evidence |
