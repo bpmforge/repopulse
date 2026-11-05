@@ -81,6 +81,9 @@ import {
   PR_SCAN_MAX_TARGETS,
   pendingPrPatternTargets,
   runPrPatternScans,
+  buildCodeIndex,
+  CODE_INDEX_EXTRACTOR,
+  indexSnapshot,
 } from '@repopulse/security';
 import { security } from '@repopulse/shared';
 
@@ -539,6 +542,35 @@ async function main(): Promise<void> {
               (snapshot) => fn({ dir: snapshot.dir, commitSha: snapshot.commitSha }),
             );
           },
+          // W22-01: the code map, names and line numbers only (decision 4).
+          indexTree: async ({ workspaceId, repoId, commitSha }, snapshot) => {
+            try {
+              const result = await indexSnapshot(
+                db,
+                { workspaceId, repoId, commitSha },
+                snapshot.dir,
+                buildCodeIndex,
+                CODE_INDEX_EXTRACTOR,
+              );
+              if (result.status === 'built') {
+                const { index } = result;
+                log.info(
+                  {
+                    repoId,
+                    files: index.files.length,
+                    defs: index.defs.length,
+                    refs: index.refs.length,
+                    calls: index.calls.length,
+                    ms: index.buildMs,
+                    truncated: index.truncated,
+                  },
+                  '[worker] code map built',
+                );
+              }
+            } catch (err) {
+              log.warn({ err, repoId }, '[worker] code map not built');
+            }
+          },
         },
         weeklyRunners: {
           semgrep: async ({ workspaceId, repoId, force }, opts) => {
@@ -663,7 +695,11 @@ async function main(): Promise<void> {
               // "Full rescan" passes none and gets today's full scan.
               baseRun: force
                 ? undefined
-                : await latestBaseRun(db, { workspaceId, repoId, scannerKey: DEPENDENCY_SCANNER_KEY }),
+                : await latestBaseRun(db, {
+                    workspaceId,
+                    repoId,
+                    scannerKey: DEPENDENCY_SCANNER_KEY,
+                  }),
               repo: resolved.repoFullName,
               commitSha: opts?.snapshot?.commitSha ?? head.sha,
               ...(opts?.snapshot ? { snapshot: opts.snapshot } : {}),
@@ -989,7 +1025,11 @@ async function main(): Promise<void> {
               // "Full rescan" passes none and gets today's full scan.
               baseRun: force
                 ? undefined
-                : await latestBaseRun(db, { workspaceId, repoId, scannerKey: ARCHITECTURE_SCANNER_KEY }),
+                : await latestBaseRun(db, {
+                    workspaceId,
+                    repoId,
+                    scannerKey: ARCHITECTURE_SCANNER_KEY,
+                  }),
               repo: resolved.repoFullName,
               commitSha: opts?.snapshot?.commitSha ?? head.sha,
               ...(opts?.snapshot ? { snapshot: opts.snapshot } : {}),

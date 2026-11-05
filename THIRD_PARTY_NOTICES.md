@@ -18,6 +18,7 @@ requirements or the rule-pack ledger changes.
 | GitLab sast-rules (270 files) | `packages/security/rulepacks/third-party/gitlab/` | 244 MIT, 26 Apache-2.0 (gosec-derived `go/` rules) | Imported by per-file `License:` header; the GPL, LGPL, Commons Clause and GitLab EE folders are excluded |
 | bpmforge/bpm-rulepacks (219 files) | `packages/security/rulepacks/third-party/bpm-rulepacks/` | MIT | The owner's own rules |
 | gitleaks default config (`config/gitleaks.toml`, 222 secrets rules) | `packages/security/rulepacks/third-party/gitleaks/` | MIT (Zachary Rice) | Verbatim, pinned by commit; read by the secrets scanner, not Opengrep |
+| bpmforge/lodestone 0.1.0 at bd1e554 (packed npm tarball) | `vendor/lodestone/` | MIT | The owner's own code map; installed as `@bpmforge/lodestone` (W22-01) |
 | OWASP Juice Shop excerpts | `packages/security/fixtures/benchmark/juice-shop/` | MIT | Benchmark fixture, LICENSE kept beside it |
 | SampleCo (from bpmforge/slop-scorecard) | `packages/security/fixtures/benchmark/sampleco/` | MIT | The owner's own code |
 | jwt-go (vendored in two fixtures) | `packages/security/fixtures/dependency/go-*/vendor/` | MIT | Test fixture for the reachability scanner |
@@ -35,7 +36,9 @@ TruffleHog's detectors (AGPL-3.0) are not used.
 
 Production dependencies of the workspace (`pnpm licenses list --prod`, 145
 packages): MIT 120, Apache-2.0 10, ISC 6, BSD-3-Clause 4, Unlicense 3,
-BSD-2-Clause 1, 0BSD 1. No copyleft licences.
+BSD-2-Clause 1, 0BSD 1. No copyleft licences. W22-01 (2026-11-05) added
+`@bpmforge/lodestone` (MIT), `web-tree-sitter` 0.25.10 (MIT) and
+`tree-sitter-wasms` 0.1.13 (Unlicense, prebuilt grammar WASM files).
 
 Development-only dependencies also include MPL-2.0 (axe-core,
 @axe-core/playwright, lightningcss), CC-BY-4.0 (caniuse-lite data),

@@ -104,6 +104,15 @@ export * from './registers/spdx.js';
 export * from './registers/attribution.js';
 export * from './triage/index.js';
 export { capturePackets, fitPacket, PACKET_MAX_BYTES } from './index/capture.js';
+export { buildCodeIndex, isIndexable, CODE_INDEX_CAPS, CODE_INDEX_EXTRACTOR } from './index/code-index.js';
+export type { CodeIndex } from './index/code-index.js';
+export {
+  callersOf,
+  definitionsOf,
+  indexSnapshot,
+  saveCodeIndex,
+  storedCodeIndex,
+} from './index/code-index-store.js';
 export * from './eval/index.js';
 export * from './rules/triage-clusters.js';
 export * from './updates/index.js';

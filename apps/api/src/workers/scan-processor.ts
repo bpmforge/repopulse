@@ -196,6 +196,15 @@ export interface ScanProcessorDeps {
       args: { workspaceId: number; repoId: number; commitSha: string },
       fn: (snapshot: SnapshotHandle) => Promise<T>,
     ) => Promise<T>;
+    /**
+     * W22-01. Builds the code map (names, line spans, hashes and edges, never
+     * code) from the batch's tree while it exists, after the scanners. Its
+     * failure is its own: logged by the hook, never a scanner's failed row.
+     */
+    indexTree?: (
+      args: { workspaceId: number; repoId: number; commitSha: string },
+      snapshot: SnapshotHandle,
+    ) => Promise<void>;
   };
   /**
    * W21-02. The pattern scanners over one pull-request head (`mode: 'pr'`,
@@ -411,8 +420,7 @@ async function runHistoryJob(
   // asking for that work, not for a different kind of it.
   //
   // Still a lookup rather than a branch on the key, so FR-SEC-1 holds.
-  const runner =
-    deps.historyRunners?.[data.scannerKey] ?? deps.weeklyRunners?.[data.scannerKey];
+  const runner = deps.historyRunners?.[data.scannerKey] ?? deps.weeklyRunners?.[data.scannerKey];
   if (!runner) {
     // NOT a silent return (W16-20).
     //
@@ -522,6 +530,14 @@ async function runBatch(deps: ScanProcessorDeps, data: ScanJobData): Promise<voi
       async (snapshot) => {
         for (const key of remaining) {
           await alone(key, { snapshot, upToDateChecked: true });
+        }
+        // The map is built from the same tree, inside the same bracket, so the
+        // source exists no longer than the batch (C1a). Its failure must not
+        // read as the scanners' (NFR-15): swallowed, the hook logs it.
+        if (batch.indexTree) {
+          await batch
+            .indexTree({ workspaceId: data.workspaceId, repoId: data.repoId, commitSha }, snapshot)
+            .catch(() => undefined);
         }
       },
     );

@@ -25,7 +25,8 @@
     "drizzle-orm": "^0.45.2",
     "@repopulse/forge": "workspace:*",
     "zod": "^3.25.76",
-    "@repopulse/insights": "workspace:*"
+    "@repopulse/insights": "workspace:*",
+    "@bpmforge/lodestone": "file:../../vendor/lodestone/bpmforge-lodestone-0.1.0-bd1e554.tgz"
   },
   "devDependencies": {
     "typescript": "^5.9.3"

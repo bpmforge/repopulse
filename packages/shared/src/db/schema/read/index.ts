@@ -9,3 +9,4 @@ export * from './egress-audit.js';
 export * from './verified-patches.js';
 export * from './ai-pass.js';
 export * from './audit-events.js';
+export * from './code-index.js';
