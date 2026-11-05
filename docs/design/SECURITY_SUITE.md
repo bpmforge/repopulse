@@ -429,8 +429,35 @@ source, no id colliding with ours.
 opengrep/opengrep-rules (Commons Clause over LGPL, Semgrep as licensor), Trail of Bits
 (AGPL-3.0), Bearer (Elastic License 2.0), Decurity and parsiya (CC BY-NC-SA), GitLab
 `c/` (GPL-2.0) and `rules/lgpl*` (LGPL / Commons Clause, pending the owner's call on
-LGPL rule files). gitleaks (MIT, 222 secrets rules) is TOML for its own engine and is a
-separate slice.
+LGPL rule files).
+
+**gitleaks secrets rules (2026-11-05).** gitleaks' default config (MIT, 222 rules,
+commit `5f6ec56`) is in the same ledger with `engine: "gitleaks"`: copied verbatim,
+read by the secrets scanner (`scanners/secrets/gitleaks.ts`), never handed to Opengrep.
+The TOML is read by a strict subset parser that throws on anything it does not know,
+and the Go RE2 patterns are translated to JavaScript (inline `(?i)` mid-pattern,
+`(?-i:…)`, `(?s:.)`, `(?P<name>…)`, `\z`, POSIX classes, a `]` first in a class). Match
+semantics follow gitleaks: the secret is the first non-empty capture group, an entropy
+floor drops a value at or below it, generic rules need a digit, allowlists test the
+secret, the match or the line as each says (OR or AND), the global allowlist applies,
+`gitleaks:allow` on a line is honoured, and a generic hit yields to a specific one.
+39 gitleaks ids are also ours: ours run, theirs are not loaded and not listed as
+third-party ids, so they can never put our rule in shadow. `pkcs12-file` matches a file
+name and is skipped. That leaves 182 rules, every one a shadow candidate at severity 3,
+behind the same `SCAN_THIRD_PARTY_RULES` switch; a gitleaks hit on a secret one of our
+rules already found on that line is not stored twice. Findings carry
+`secrets.v1+gitleaks.5f6ec56` as the pack version.
+
+*Checked against the real engine.* gitleaks 8.30.1 (checksum-verified) with this config
+over the gitleaks repository itself (rules' own true/false-positive examples and
+`testdata/`), our fixtures and `apps/`: 422 gitleaks findings, 388 from the port, 385
+identical by file, line, rule and secret. The 37 gitleaks-only hits are multi-line
+(private keys, `curl` across lines) or base64-decoded values; this scanner reads one
+added line at a time and does not decode. Over this repository (615,709 lines of
+`apps/` and `packages/`) the port adds 15 hits: 14 `generic-api-key` on fingerprint
+labels such as `w9-06-…` (false) and 1 `stripe-access-token` on a planted fixture.
+Cost: 10.2 s → 26.7 s for those lines (~44 µs a line), so a 5,000-line diff pays about
+0.2 s more. Hits on the walkthrough repos per rule are still to be counted on the Mac.
 
 ## 4. Scheduling & triggers (FR-SEC-9)
 

@@ -18,7 +18,7 @@ interface LedgerFile {
 }
 interface Ledger {
   allowed: string[];
-  sources: { key: string; commit: string; files: LedgerFile[] }[];
+  sources: { key: string; engine?: string; commit: string; files: LedgerFile[] }[];
 }
 
 const ledger = JSON.parse(
@@ -50,7 +50,7 @@ describe('third-party rule ledger (W22-07)', () => {
 
   it('no rule file sits beside the ledger without being listed', () => {
     const listed = new Set(files.map((f) => f.path));
-    const onDisk = walk(THIRD_PARTY_RULEPACK_DIR).filter((p) => /\.ya?ml$/.test(p));
+    const onDisk = walk(THIRD_PARTY_RULEPACK_DIR).filter((p) => /\.(ya?ml|toml)$/.test(p));
     expect(onDisk.filter((p) => !listed.has(p))).toEqual([]);
   });
 
@@ -77,7 +77,10 @@ describe('third-party rule ledger (W22-07)', () => {
 
   it('reads the pack from the ledger, with a version naming the ledger', () => {
     const pack = readThirdPartyPack();
-    expect(pack?.files.length).toBe(files.length);
+    // Opengrep gets the rule files; gitleaks' TOML goes to the secrets scanner.
+    const secrets = ledger.sources.filter((s) => s.engine === 'gitleaks').flatMap((s) => s.files);
+    expect(pack?.files.length).toBe(files.length - secrets.length);
+    expect(pack?.secretsFiles).toEqual(secrets.map((f) => f.path));
     expect(pack?.version).toMatch(/^ledger:[0-9a-f]{12}$/);
   });
 

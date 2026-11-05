@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readThirdPartyPack, THIRD_PARTY_RULEPACK_DIR } from '../../rules/third-party.js';
+import { loadGitleaks } from './gitleaks.js';
 
 // Rulepack loading (W8-04, SECURITY_SUITE.md 3.1).
 //
@@ -32,6 +34,18 @@ export interface SecretRule {
    * flagged experimental so they stay out of scores until an admin promotes it.
    */
   candidate: boolean;
+  /**
+   * Imported rules (gitleaks, W22-07) carry their engine's own semantics: which
+   * capture group is the secret, and the checks that run after a match
+   * (entropy, allowlists by target, path). Ours use the fields above instead.
+   */
+  secretOf?: (match: RegExpExecArray) => string;
+  keep?: (hit: { secret: string; match: string; line: string; file: string }) => boolean;
+  /**
+   * A catch-all rule (gitleaks' generic-api-key): its hit is dropped when a
+   * more specific rule found the same secret on the same line, as gitleaks does.
+   */
+  yieldsToSpecific?: boolean;
 }
 
 export interface Rulepack {
@@ -246,8 +260,29 @@ export const RULEPACK_DIR = path.resolve(
 
 let cached: Rulepack | undefined;
 
+/**
+ * Our pack plus, when SCAN_THIRD_PARTY_RULES=on, gitleaks' rules from the
+ * third-party ledger (W22-07) as shadow candidates. The version tag names the
+ * gitleaks commit, so a finding says which rules produced it.
+ */
+export function withThirdParty(ours: Rulepack, thirdPartyDir: string = THIRD_PARTY_RULEPACK_DIR): Rulepack {
+  const pack = readThirdPartyPack(thirdPartyDir);
+  const file = pack?.secretsFiles.find((f) => f.endsWith('gitleaks.toml'));
+  if (!pack || !file) return ours;
+  const commit = pack.secretsCommits[file] ?? 'unknown';
+  const { rules } = loadGitleaks(path.join(thirdPartyDir, file), new Set(ours.rules.map((r) => r.id)));
+  return {
+    version: ours.version,
+    versionTag: `${ours.versionTag}+gitleaks.${commit.slice(0, 7)}`,
+    rules: [...ours.rules, ...rules],
+  };
+}
+
 /** The shipped pack. Cached: a regex set is compiled once per process. */
 export function loadRulepack(): Rulepack {
-  cached ??= loadRulepackFrom(path.join(RULEPACK_DIR, 'secrets.v1.yaml'));
+  if (!cached) {
+    const ours = loadRulepackFrom(path.join(RULEPACK_DIR, 'secrets.v1.yaml'));
+    cached = process.env['SCAN_THIRD_PARTY_RULES'] === 'on' ? withThirdParty(ours) : ours;
+  }
   return cached;
 }

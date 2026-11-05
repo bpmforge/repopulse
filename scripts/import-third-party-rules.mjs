@@ -28,6 +28,11 @@ const OUT = path.join(ROOT, 'packages/security/rulepacks/third-party');
 
 const ALLOWED = new Set(['MIT', 'Apache-2.0']);
 
+/** Ids in our own secrets pack (rulepacks/secrets.v1.yaml). */
+const OUR_SECRET_IDS = new Set(
+  [...readFileSync(path.join(ROOT, 'packages/security/rulepacks/secrets.v1.yaml'), 'utf8').matchAll(/^ {2}- id: (\S+)\s*$/gm)].map((m) => m[1]),
+);
+
 /** GitLab's per-file header → SPDX, or null for anything not admitted. */
 function gitlabHeaderLicence(text) {
   const m = /^#\s*License:\s*(?:License:\s*)?(.+)$/m.exec(text);
@@ -81,16 +86,31 @@ export const SOURCES = [
   },
   {
     // Our own rule packs, opened into Repo Pulse by the owner on 2026-10-28 and
-    // relicensed MIT in their own repository (bpm-rulepacks#45). The repository is
-    // private until release day (W22-13), so this source is imported with --src only.
+    // relicensed MIT in their own repository (bpm-rulepacks#45). Public since the
+    // 0.2.0 release (W22-13), so it is fetched like the others.
     key: 'bpm-rulepacks',
     upstream: 'https://github.com/bpmforge/bpm-rulepacks',
     commit: '84481162a147d68bc7221ef17fd3cce67975e4f8',
     licence: 'MIT',
     licenceFile: 'LICENSE',
-    private: true,
     include: (rel) => /^packs\//.test(rel) && /\.ya?ml$/.test(rel),
     fileLicence: () => 'MIT',
+  },
+  {
+    // gitleaks' default secrets rules (222 at this commit). TOML for gitleaks'
+    // own engine, so engine "gitleaks": the secrets scanner reads it
+    // (scanners/secrets/gitleaks.ts translates the Go regexes), Opengrep never
+    // sees it. Rule ids come from `id = "..."` lines.
+    key: 'gitleaks',
+    engine: 'gitleaks',
+    upstream: 'https://github.com/gitleaks/gitleaks',
+    commit: '5f6ec56cfa6f8c67648d863582c7ae2f206d5c1c',
+    licence: 'MIT',
+    licenceFile: 'LICENSE',
+    include: (rel) => rel === 'config/gitleaks.toml',
+    fileLicence: () => 'MIT',
+    isRuleFile: (text) => /^\[\[rules\]\]\s*$/m.test(text),
+    ruleIdsOf: (text) => [...text.matchAll(/^id = "([^"]+)"\s*$/gm)].map((m) => m[1]),
   },
 ];
 
@@ -157,13 +177,22 @@ function main() {
         continue;
       }
       const text = readFileSync(path.join(dir, rel), 'utf8');
-      if (!isRuleFile(text)) continue;
+      if (!(src.isRuleFile ?? isRuleFile)(text)) continue;
       const licence = src.fileLicence(text);
       if (!licence || !ALLOWED.has(licence)) {
         refused.push(rel);
         continue;
       }
-      const ids = ruleIdsOf(text);
+      let ids = (src.ruleIdsOf ?? ruleIdsOf)(text);
+      if (src.engine === 'gitleaks') {
+        // Ids our own secrets pack already ships are not loaded from this file
+        // (scanners/secrets/gitleaks.ts skips them), so they are not listed as
+        // third-party ids either: isThirdPartyRule() must never put OUR rule in
+        // shadow because gitleaks happens to use the same name.
+        const covered = ids.filter((id) => OUR_SECRET_IDS.has(id));
+        ids = ids.filter((id) => !OUR_SECRET_IDS.has(id));
+        if (covered.length) excluded.push(...covered.map((id) => ({ path: `${src.key}/${rel}#${id}`, reason: 'our secrets rule of the same id covers it' })));
+      }
       for (const id of ids) {
         if (seen.has(id)) throw new Error(`rule id ${id} in ${src.key}/${rel} also in ${seen.get(id)}`);
         seen.set(id, `${src.key}/${rel}`);
@@ -181,6 +210,7 @@ function main() {
     copyFileSync(path.join(dir, src.licenceFile), path.join(OUT, src.key, 'LICENSE'));
     ledger.sources.push({
       key: src.key,
+      ...(src.engine ? { engine: src.engine } : {}),
       upstream: src.upstream,
       commit: src.commit,
       licence: src.licence,

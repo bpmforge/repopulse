@@ -1,3 +1,4 @@
+import { shannonEntropy } from './entropy.js';
 import { loadRulepack, type Rulepack, type SecretRule } from './rulepack.js';
 
 // Secret detection over a unified diff (W8-04, SECURITY_SUITE.md 3.1).
@@ -25,18 +26,7 @@ export interface SecretMatch {
   entropy: number;
 }
 
-/** Shannon entropy in bits per character. */
-export function shannonEntropy(value: string): number {
-  if (value.length === 0) return 0;
-  const counts = new Map<string, number>();
-  for (const ch of value) counts.set(ch, (counts.get(ch) ?? 0) + 1);
-  let bits = 0;
-  for (const count of counts.values()) {
-    const p = count / value.length;
-    bits -= p * Math.log2(p);
-  }
-  return bits;
-}
+export { shannonEntropy } from './entropy.js';
 
 export interface AddedLine {
   /** Line number in the new file. */
@@ -95,6 +85,12 @@ export function scanPatch(file: string, patch: string, opts: ScanDiffOptions = {
   const pack = opts.rulepack ?? loadRulepack();
   const maxPerFile = opts.maxMatchesPerFile ?? 50;
   const matches: SecretMatch[] = [];
+  // An imported rule (gitleaks) that finds the same secret on the same line as
+  // one of our rules adds nothing but a duplicate finding: only what
+  // our own rules miss is worth measuring it on. Imported hits are therefore
+  // held back and added after this file's own hits.
+  const ours = new Set<string>();
+  const imported: (SecretMatch & { generic: boolean })[] = [];
 
   for (const { line, text } of addedLines(patch)) {
     for (const rule of pack.rules) {
@@ -106,12 +102,14 @@ export function scanPatch(file: string, patch: string, opts: ScanDiffOptions = {
         // an assignment rule matches `aws_secret_key = "..."` but only the
         // value is the credential, and hashing the assignment would give the
         // same secret a different fingerprint in a different file.
-        const secret = m[1] ?? m[0];
+        const secret = rule.secretOf ? rule.secretOf(m) : (m[1] ?? m[0]);
         if (m[0].length === 0) break; // zero-width match: never advance forever
+        if (rule.secretOf && secret.length === 0) continue;
         if (allowed(rule, text, secret)) continue;
+        if (rule.keep && !rule.keep({ secret, match: m[0], line: text, file })) continue;
         const entropy = shannonEntropy(secret);
         if (rule.entropy !== undefined && entropy < rule.entropy) continue;
-        matches.push({
+        const match: SecretMatch = {
           ruleId: rule.id,
           kind: rule.kind,
           severity: rule.severity,
@@ -119,10 +117,31 @@ export function scanPatch(file: string, patch: string, opts: ScanDiffOptions = {
           line,
           secret,
           entropy,
-        });
+        };
+        if (rule.secretOf) {
+          imported.push({ ...match, generic: rule.yieldsToSpecific === true });
+          continue;
+        }
+        ours.add(`${line}\u0000${secret}`);
+        matches.push(match);
         if (matches.length >= maxPerFile) return matches;
       }
     }
+  }
+  const specific = [...matches, ...imported.filter((c) => !c.generic)];
+  for (const { generic, ...c } of imported) {
+    if (matches.length >= maxPerFile) break;
+    if (ours.has(`${c.line}\u0000${c.secret}`)) continue;
+    // gitleaks drops a generic hit that a specific rule also found on that line.
+    if (
+      generic &&
+      specific.some(
+        (o) => o.line === c.line && (o.secret.includes(c.secret) || c.secret.includes(o.secret)),
+      )
+    ) {
+      continue;
+    }
+    matches.push(c);
   }
   return matches;
 }

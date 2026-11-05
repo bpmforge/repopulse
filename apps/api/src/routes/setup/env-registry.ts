@@ -452,7 +452,7 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     scope: 'worker',
     required: false,
     purpose:
-      "Whether the full security scan also runs the imported MIT/Apache third-party rule files listed in rulepacks/third-party/LEDGER.json (W22-07). Their findings land in shadow until a rule earns its place. 'on' runs them; off until they have been checked on a live engine.",
+      "Whether the full security scan also runs the imported MIT/Apache third-party rule files listed in rulepacks/third-party/LEDGER.json (W22-07), and the secrets scanner also runs gitleaks' secrets rules from the same ledger. Their findings land in shadow until a rule earns its place. 'on' runs them; off until they have been checked on a live engine.",
     ifWrong:
       "Left 'off', those rules never run and their checks are missing. Turned on before the pack has been checked against the installed Opengrep, a rule the engine rejects can stop a full scan from closing fixed findings.",
     default: 'off',

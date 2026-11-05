@@ -19,15 +19,26 @@ export const THIRD_PARTY_MOUNT_PATH = '/rules-tp';
 
 export interface ThirdPartyPack {
   dir: string;
-  /** Ledger paths, relative to `dir`. */
+  /** Opengrep rule files: ledger paths, relative to `dir`. */
   files: string[];
+  /**
+   * Secrets rule files for the secrets scanner (gitleaks TOML, engine
+   * "gitleaks" in the ledger). Never handed to Opengrep.
+   */
+  secretsFiles: string[];
+  /** Upstream commit per secrets file, for the version tag on findings. */
+  secretsCommits: Record<string, string>;
   ruleIds: string[];
   /** The ledger's own hash: which upstream commits produced a finding. */
   version: string;
 }
 
 interface LedgerShape {
-  sources?: { files?: { path?: unknown; ruleIds?: unknown }[] }[];
+  sources?: {
+    engine?: unknown;
+    commit?: unknown;
+    files?: { path?: unknown; ruleIds?: unknown }[];
+  }[];
 }
 
 /**
@@ -41,18 +52,33 @@ export function readThirdPartyPack(dir: string = THIRD_PARTY_RULEPACK_DIR): Thir
   const raw = readFileSync(ledgerPath, 'utf8');
   const ledger = JSON.parse(raw) as LedgerShape;
   const files: string[] = [];
+  const secretsFiles: string[] = [];
+  const secretsCommits: Record<string, string> = {};
   const ruleIds: string[] = [];
   for (const source of ledger.sources ?? []) {
+    const secrets = source.engine === 'gitleaks';
+    // An engine this reader does not know is not run by anything.
+    if (source.engine !== undefined && !secrets) continue;
     for (const file of source.files ?? []) {
       if (typeof file.path !== 'string') continue;
-      files.push(file.path);
+      if (secrets) {
+        secretsFiles.push(file.path);
+        if (typeof source.commit === 'string') secretsCommits[file.path] = source.commit;
+      } else files.push(file.path);
       if (Array.isArray(file.ruleIds)) {
         for (const id of file.ruleIds) if (typeof id === 'string') ruleIds.push(id);
       }
     }
   }
   const version = `ledger:${createHash('sha256').update(raw).digest('hex').slice(0, 12)}`;
-  return { dir, files: files.sort(), ruleIds, version };
+  return {
+    dir,
+    files: files.sort(),
+    secretsFiles: secretsFiles.sort(),
+    secretsCommits,
+    ruleIds,
+    version,
+  };
 }
 
 let shippedIds: Set<string> | undefined;
