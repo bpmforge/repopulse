@@ -100,6 +100,11 @@ rules:
       - pattern-either:
           - pattern: $INNER.includes(<... $X ...>)
           - pattern: $INNER.indexOf(<... $X ...>)
+      # A receiver the code declares as a string (a parameter or variable typed
+      # `string`) is a substring search, not a membership test (0.2.0 benchmark:
+      # Juice Shop's `url.includes(...)`, three false positives).
+      - pattern-not: '($S: string).includes(...)'
+      - pattern-not: '($S: string).indexOf(...)'
       - pattern-not: $OUTER.$M2(($X, ...) => ...)
       - metavariable-comparison:
           comparison: str($INNER) != str($OUTER) and str($INNER) != str($X)

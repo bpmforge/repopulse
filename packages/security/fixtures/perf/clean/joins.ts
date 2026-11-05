@@ -41,6 +41,24 @@ export function mentions(lines: string[], needles: string[]): string[] {
   return lines.filter((line) => needles.some((n) => line.toLowerCase().includes(n.toLowerCase())));
 }
 
+// A receiver declared as a string: substring search, nothing to index
+// (Juice Shop's redirect allowlist, found by the 0.2.0 benchmark).
+export function isAllowed(url: string, allowlist: Set<string>): boolean {
+  let allowed = false;
+  for (const allowedUrl of allowlist) {
+    allowed = allowed || url.includes(encodeURI(allowedUrl));
+  }
+  return allowed;
+}
+
+export function firstMatch(text: string, words: string[]): number {
+  const body: string = text.trim();
+  for (const w of words) {
+    if (body.indexOf(w) >= 0) return body.indexOf(w);
+  }
+  return -1;
+}
+
 // The same collection's own predicate is one pass, not two.
 export function open(prs: Pr[]): Pr[] {
   return prs.filter((p) => p.state === 'open');
