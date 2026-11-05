@@ -17,6 +17,7 @@ requirements or the rule-pack ledger changes.
 | elttam/semgrep-rules (60 files) | `packages/security/rulepacks/third-party/elttam/` | MIT | Verbatim, pinned by commit |
 | GitLab sast-rules (270 files) | `packages/security/rulepacks/third-party/gitlab/` | 244 MIT, 26 Apache-2.0 (gosec-derived `go/` rules) | Imported by per-file `License:` header; the GPL, LGPL, Commons Clause and GitLab EE folders are excluded |
 | bpmforge/bpm-rulepacks (219 files) | `packages/security/rulepacks/third-party/bpm-rulepacks/` | MIT | The owner's own rules |
+| gitleaks default config (`config/gitleaks.toml`, 222 secrets rules) | `packages/security/rulepacks/third-party/gitleaks/` | MIT (Zachary Rice) | Verbatim, pinned by commit; read by the secrets scanner, not Opengrep |
 | OWASP Juice Shop excerpts | `packages/security/fixtures/benchmark/juice-shop/` | MIT | Benchmark fixture, LICENSE kept beside it |
 | SampleCo (from bpmforge/slop-scorecard) | `packages/security/fixtures/benchmark/sampleco/` | MIT | The owner's own code |
 | jwt-go (vendored in two fixtures) | `packages/security/fixtures/dependency/go-*/vendor/` | MIT | Test fixture for the reachability scanner |

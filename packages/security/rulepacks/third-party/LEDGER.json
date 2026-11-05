@@ -4860,6 +4860,364 @@
         }
       ],
       "refusedCount": 0
+    },
+    {
+      "key": "gitleaks",
+      "engine": "gitleaks",
+      "upstream": "https://github.com/gitleaks/gitleaks",
+      "commit": "5f6ec56cfa6f8c67648d863582c7ae2f206d5c1c",
+      "licence": "MIT",
+      "files": [
+        {
+          "path": "gitleaks/config/gitleaks.toml",
+          "licence": "MIT",
+          "ruleIds": [
+            "1password-secret-key",
+            "1password-service-account-token",
+            "adafruit-api-key",
+            "adobe-client-id",
+            "adobe-client-secret",
+            "airtable-api-key",
+            "airtable-personnal-access-token",
+            "algolia-api-key",
+            "alibaba-secret-key",
+            "anthropic-admin-api-key",
+            "artifactory-reference-token",
+            "asana-client-id",
+            "asana-client-secret",
+            "authress-service-client-access-key",
+            "aws-access-token",
+            "aws-amazon-bedrock-api-key-long-lived",
+            "aws-amazon-bedrock-api-key-short-lived",
+            "beamer-api-token",
+            "bitbucket-client-id",
+            "bitbucket-client-secret",
+            "bittrex-access-key",
+            "bittrex-secret-key",
+            "cisco-meraki-api-key",
+            "clickhouse-cloud-api-secret-key",
+            "clojars-api-token",
+            "cloudflare-api-key",
+            "cloudflare-global-api-key",
+            "codecov-access-token",
+            "cohere-api-token",
+            "coinbase-access-token",
+            "confluent-access-token",
+            "confluent-secret-key",
+            "contentful-delivery-api-token",
+            "curl-auth-header",
+            "curl-auth-user",
+            "databricks-api-token",
+            "datadog-access-token",
+            "defined-networking-api-token",
+            "digitalocean-access-token",
+            "discord-api-token",
+            "discord-client-id",
+            "discord-client-secret",
+            "doppler-api-token",
+            "droneci-access-token",
+            "dropbox-api-token",
+            "dropbox-long-lived-api-token",
+            "dropbox-short-lived-api-token",
+            "easypost-api-token",
+            "easypost-test-api-token",
+            "etsy-access-token",
+            "facebook-access-token",
+            "facebook-page-access-token",
+            "facebook-secret",
+            "fastly-api-token",
+            "finicity-api-token",
+            "finicity-client-secret",
+            "finnhub-access-token",
+            "flickr-access-token",
+            "flutterwave-encryption-key",
+            "flutterwave-public-key",
+            "flyio-access-token",
+            "frameio-api-token",
+            "freemius-secret-key",
+            "freshbooks-access-token",
+            "gcp-api-key",
+            "generic-api-key",
+            "github-app-token",
+            "github-oauth",
+            "github-refresh-token",
+            "gitlab-cicd-job-token",
+            "gitlab-feature-flag-client-token",
+            "gitlab-kubernetes-agent-token",
+            "gitlab-pat-routable",
+            "gitlab-ptt",
+            "gitlab-rrt",
+            "gitlab-runner-authentication-token",
+            "gitlab-runner-authentication-token-routable",
+            "gitlab-scim-token",
+            "gitlab-session-cookie",
+            "gitter-access-token",
+            "gocardless-api-token",
+            "grafana-cloud-api-token",
+            "harness-api-key",
+            "hashicorp-tf-api-token",
+            "hashicorp-tf-password",
+            "heroku-api-key-v2",
+            "hubspot-api-key",
+            "huggingface-access-token",
+            "huggingface-organization-api-token",
+            "infracost-api-token",
+            "intercom-api-key",
+            "intra42-client-secret",
+            "jfrog-api-key",
+            "jfrog-identity-token",
+            "jwt-base64",
+            "kraken-access-token",
+            "kubernetes-secret-yaml",
+            "kucoin-access-token",
+            "kucoin-secret-key",
+            "launchdarkly-access-token",
+            "linear-client-secret",
+            "linkedin-client-id",
+            "linkedin-client-secret",
+            "lob-api-key",
+            "lob-pub-api-key",
+            "looker-client-id",
+            "looker-client-secret",
+            "mailgun-private-api-token",
+            "mailgun-pub-key",
+            "mailgun-signing-key",
+            "mapbox-api-token",
+            "mattermost-access-token",
+            "maxmind-license-key",
+            "messagebird-api-token",
+            "messagebird-client-id",
+            "microsoft-teams-webhook",
+            "netlify-access-token",
+            "new-relic-browser-api-token",
+            "new-relic-insert-key",
+            "new-relic-user-api-id",
+            "nuget-config-password",
+            "nytimes-access-token",
+            "octopus-deploy-api-key",
+            "okta-access-token",
+            "openshift-user-token",
+            "pkcs12-file",
+            "plaid-api-token",
+            "plaid-client-id",
+            "plaid-secret-key",
+            "planetscale-api-token",
+            "planetscale-oauth-token",
+            "planetscale-password",
+            "postman-api-token",
+            "prefect-api-token",
+            "private-key",
+            "privateai-api-token",
+            "pulumi-api-token",
+            "rapidapi-access-token",
+            "readme-api-token",
+            "rubygems-api-token",
+            "scalingo-api-token",
+            "sendbird-access-id",
+            "sendbird-access-token",
+            "sendgrid-api-token",
+            "sendinblue-api-token",
+            "sentry-access-token",
+            "sentry-org-token",
+            "sentry-user-token",
+            "settlemint-application-access-token",
+            "settlemint-personal-access-token",
+            "settlemint-service-access-token",
+            "shippo-api-token",
+            "shopify-custom-access-token",
+            "shopify-private-app-access-token",
+            "sidekiq-secret",
+            "sidekiq-sensitive-url",
+            "slack-bot-token",
+            "slack-config-access-token",
+            "slack-config-refresh-token",
+            "slack-legacy-bot-token",
+            "slack-legacy-token",
+            "slack-legacy-workspace-token",
+            "slack-user-token",
+            "snyk-api-token",
+            "sonar-api-token",
+            "sourcegraph-access-token",
+            "squarespace-access-token",
+            "stripe-access-token",
+            "sumologic-access-id",
+            "sumologic-access-token",
+            "telegram-bot-api-token",
+            "travisci-access-token",
+            "twitch-api-token",
+            "twitter-access-secret",
+            "twitter-access-token",
+            "twitter-api-key",
+            "twitter-api-secret",
+            "twitter-bearer-token",
+            "typeform-api-token",
+            "yandex-access-token",
+            "yandex-api-key",
+            "yandex-aws-access-token",
+            "zendesk-secret-key"
+          ],
+          "sha256": "e163e53b9e7e8a8511e77271e2b323ed057759542a6d988258afe3a1fa329caf"
+        }
+      ],
+      "refusedCount": 0,
+      "excluded": [
+        {
+          "path": "gitleaks/config/gitleaks.toml#age-secret-key",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#alibaba-access-key-id",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#anthropic-api-key",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#artifactory-api-key",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#atlassian-api-token",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#azure-ad-client-secret",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#cloudflare-origin-ca-key",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#digitalocean-pat",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#digitalocean-refresh-token",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#duffel-api-token",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#dynatrace-api-token",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#flutterwave-secret-key",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#github-fine-grained-pat",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#github-pat",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#gitlab-deploy-token",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#gitlab-feed-token",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#gitlab-incoming-mail-token",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#gitlab-oauth-app-secret",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#gitlab-pat",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#grafana-api-key",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#grafana-service-account-token",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#heroku-api-key",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#jwt",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#linear-api-key",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#mailchimp-api-key",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#new-relic-user-api-key",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#notion-api-token",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#npm-access-token",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#openai-api-key",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#perplexity-api-key",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#pypi-upload-token",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#shopify-access-token",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#shopify-shared-secret",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#slack-app-token",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#slack-webhook-url",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#square-access-token",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#twilio-api-key",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#vault-batch-token",
+          "reason": "our secrets rule of the same id covers it"
+        },
+        {
+          "path": "gitleaks/config/gitleaks.toml#vault-service-token",
+          "reason": "our secrets rule of the same id covers it"
+        }
+      ]
     }
   ]
 }

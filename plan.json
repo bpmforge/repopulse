@@ -11909,6 +11909,11 @@
         "packages/security/fixtures/**",
         "docs/design/SECURITY_SUITE.md",
         "docs/THIRD_PARTY_NOTICES.md",
+        "THIRD_PARTY_NOTICES.md",
+        "packages/security/src/scanners/secrets/**",
+        "scripts/import-third-party-rules.mjs",
+        "apps/api/src/routes/setup/env-registry.ts",
+        "docs/CONFIG.md",
         "plan.json"
       ],
       "depends_on": [],
@@ -11924,7 +11929,8 @@
         "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md.",
         "Slice 1 (2026-10-28): 0xdea, elttam rules-audit and GitLab sast-rules MIT/Apache folders imported verbatim with LEDGER.json (381 files, 397 rules); scanner mounts them at /rules-tp behind SCAN_THIRD_PARTY_RULES (off) until validated on the live engine; every imported rule ships shadow. Also fixes quoted rule ids in readRulepack and adds swift/scala to the PR-scan file filter.",
         "Slice 2 (2026-10-28): bpm-rulepacks opened by the owner ('open the rules'), imported as source bpm-rulepacks under an Apache-2.0 grant, through the same ledger, shadow and flag.",
-        "Slice 3 (2026-10-28): validated and graded. All 629 imported rules pass opengrep --validate; 975 live hits on the six walkthrough repos, 775 sampled and read: proposed precision 3.9% (30 true, 1 of them third-party), sheet in docs/benchmarks/rule-grade-w22-07 with the brad column empty. 376 third-party and 185 bpm rules never fired (ungradeable on this corpus). Two misfiring elttam files excluded in the importer (392 third-party rules left); third-party findings on test paths are dropped. bpm-rulepacks rule fixes land in that repo first; re-import here at the fixed commit is a follow-up."
+        "Slice 3 (2026-10-28): validated and graded. All 629 imported rules pass opengrep --validate; 975 live hits on the six walkthrough repos, 775 sampled and read: proposed precision 3.9% (30 true, 1 of them third-party), sheet in docs/benchmarks/rule-grade-w22-07 with the brad column empty. 376 third-party and 185 bpm rules never fired (ungradeable on this corpus). Two misfiring elttam files excluded in the importer (392 third-party rules left); third-party findings on test paths are dropped. bpm-rulepacks rule fixes land in that repo first; re-import here at the fixed commit is a follow-up.",
+        "Slice 4 (2026-11-05): gitleaks rules (acceptance 2's last source). gitleaks config/gitleaks.toml at 5f6ec56 (MIT, 222 rules) imported verbatim through the importer and LEDGER.json with engine gitleaks; readThirdPartyPack hands it to the secrets scanner (secretsFiles), never to Opengrep. scanners/secrets/gitleaks.ts: strict TOML-subset parser (throws on anything unknown), Go RE2 -> JS translation (mid-pattern (?i), (?-i:), (?s:.), (?P<>), \\z, POSIX classes, `]` first in a class) and gitleaks' match semantics (first non-empty group, entropy <=, generic needs a digit, allowlists by target with OR/AND, global allowlist, gitleaks:allow, generic yields to specific). 39 ids we already ship are not loaded and not listed as third-party ids; pkcs12-file (file name only) skipped; 182 rules run as shadow candidates at severity 3 behind SCAN_THIRD_PARTY_RULES (off), version tag secrets.v1+gitleaks.5f6ec56; a hit our own rule already made on that line is not stored twice. Checked against gitleaks 8.30.1 with the same config (gitleaks repo + our fixtures + apps/): 385 of the port's 388 hits identical to gitleaks' 422; the gap is multi-line and base64-decoded secrets (line-at-a-time scanner). On this repo: 15 new hits (14 generic-api-key false positives on fingerprint labels, 1 planted stripe fixture); ~44 us a line vs ~17 us. Also: bpm-rulepacks is public now, so the importer fetches it like the others (no --src), and a full re-import reproduces the other four sources byte for byte. Write scope widened to packages/security/src/scanners/secrets/** (loader, detect hooks), scripts/import-third-party-rules.mjs, apps/api/src/routes/setup/env-registry.ts and docs/CONFIG.md (the switch now covers secrets too). Still open: walkthrough-repo hit counts for the gitleaks rules (Mac), the bpm-rulepacks re-import once fixes land upstream (upstream HEAD is still the pinned 8448116), LGPL packs (decision 3), the brad column of the rule-grade sheet."
       ]
     },
     {
