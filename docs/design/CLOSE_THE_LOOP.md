@@ -72,6 +72,9 @@ bar for rules with no public benchmark); every model call goes through the gatew
    the import graph already is. Embeddings (vectors computed from code bodies) are a later,
    separate decision under C1a.
 
+   *Decision 4 taken by the owner on 2026-11-05* ("Yes, names and lines only"). Built in
+   W22-01 slice 1, below.
+
 5. **Licences of our own CPU tools.** *Decided by the owner 2026-10-28 ("Lodestone MIT,
    open the rules"):* Lodestone is MIT (bpmforge/lodestone#7), so an open-source RepoPulse
    can depend on it; the bpm-rulepacks rules go MIT (bpm-rulepacks#45) and are imported
@@ -293,6 +296,37 @@ bar for rules with no public benchmark); every model call goes through the gatew
 Embeddings (pgvector, Qwen3-Embedding-0.6B or CodeRankEmbed) are deliberately not a
 ticket yet: the research found graph and fact tools help local models more than vectors,
 and vectors need decision 4's follow-up.
+
+### W22-01 slice 1 (2026-11-05): the code map, names and lines only
+
+- **Lodestone, consumed.** Lodestone gained a graph-only entry, `@bpmforge/lodestone/graph`
+  (bpmforge/lodestone#10, bd1e554): `extractGraph`, `languageForPath`,
+  `isCrossFileGraphReliable`, with no SQLite, sqlite-vec or MCP SDK in its import graph
+  (its test walks the graph) and those four as optional peers. RepoPulse vendors the packed
+  tarball under `vendor/lodestone/` at that commit, so a Docker build needs no GitHub
+  credentials and installs no native addon. It adds web-tree-sitter (MIT) and the
+  tree-sitter-wasms grammars (Unlicense), about 50 MB.
+- **Built** by `security/index/code-index.ts` in the scan batch, after the scanners, while
+  the snapshot exists (`indexTree` hook; an error is logged and never fails the scan). It
+  walks the snapshot through `SnapshotReader` (same size, binary and symlink rules as the
+  scanners), skips generated files (`.min.js`, `.pb.go`, `_pb2.py`, `.d.ts`, ...) and keeps,
+  per file, path, sha256, language and which tier read it; definitions (name, kind, span);
+  references grouped per (file, name) and call edges, both only to names the repository
+  itself defines; and import edges. No field holds source text; the test asserts it.
+- **Stored** in six tables (migration 0068): `code_indexes` (one per repository: commit,
+  extractor, counts, `truncated`, build time) and `code_index_files/defs/refs/calls/imports`.
+  Every table carries `workspace_id` and leads its indexes with it. A newer commit, or a
+  newer Lodestone on the same commit, replaces the map in one transaction (the old rows
+  cascade); the same commit by the same Lodestone is skipped. `callersOf` and
+  `definitionsOf` read it, workspace-filtered.
+- **Measured on this repository** (cloud, 2026-11-05): 1,582 files in about 10 s; 6,908
+  definitions; 39.7k reference rows (from 498k raw, most of them names the repository does
+  not define); 45k call edges (from 114k).
+- **Left for W22-01:** tree-sitter refs and imports for the 8 call-only grammars (so
+  `crossFileGraphReliable` can be true for them), Kotlin and Swift grammars (they run on the
+  regex tier today), receiver/import-qualified call resolution, the Opengrep fact rules, and
+  size and build time on the six walkthrough repos (Mac). W22-02 then reads callers and
+  callees from the map instead of name-matching.
 
 ## Build on what we own (added 2026-10-28)
 

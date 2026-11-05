@@ -35,6 +35,7 @@ COPY packages/metrics/package.json /app/packages/metrics/
 COPY packages/reports/package.json /app/packages/reports/
 COPY packages/security/package.json /app/packages/security/
 COPY packages/shared/package.json /app/packages/shared/
+COPY vendor/lodestone/ /app/vendor/lodestone/
 
 # ---------- prod-deps ----------
 # The runtime stages must NOT carry the full dev install (only the web-build
@@ -91,6 +92,7 @@ COPY packages/metrics/package.json packages/metrics/
 COPY packages/reports/package.json packages/reports/
 COPY packages/security/package.json packages/security/
 COPY packages/shared/package.json packages/shared/
+COPY vendor/lodestone/ vendor/lodestone/
 RUN pnpm install --frozen-lockfile
 COPY . .
 # The SPA talks only to /api/v1 on its own origin (Law 4), so there is no API

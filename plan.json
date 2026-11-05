@@ -11700,6 +11700,17 @@
         "packages/shared/src/db/schema/read/code-index.ts",
         "packages/shared/src/db/migrations/**",
         "apps/api/src/workers/index.ts",
+        "apps/api/src/workers/scan-processor.ts",
+        "apps/api/src/workers/scan-batch.test.ts",
+        "packages/shared/drizzle/**",
+        "packages/shared/src/db/schema/read/index.ts",
+        "packages/security/src/index.ts",
+        "packages/security/package.json",
+        "pnpm-lock.yaml",
+        "vendor/lodestone/**",
+        "Dockerfile",
+        "docs/TECH_STACK.md",
+        "THIRD_PARTY_NOTICES.md",
         "docs/design/CLOSE_THE_LOOP.md",
         "plan.json"
       ],
@@ -11712,10 +11723,11 @@
         "Tenancy tests cover every new table"
       ],
       "points": 8,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
         "Planned 2026-10-28 from the owner's 'close the loop' request; design in docs/design/CLOSE_THE_LOOP.md.",
-        "2026-10-28: owner asked to use and extend our own CPU tools. Lodestone fix/packet-neighbors a174b02 already fixed regex-tier calls for 8 grammars and markdown callers (measured on gin). Licence decided: Lodestone is MIT (owner, 2026-10-28; bpmforge/lodestone#7)."
+        "2026-10-28: owner asked to use and extend our own CPU tools. Lodestone fix/packet-neighbors a174b02 already fixed regex-tier calls for 8 grammars and markdown callers (measured on gin). Licence decided: Lodestone is MIT (owner, 2026-10-28; bpmforge/lodestone#7).",
+        "2026-11-05 decision 4 taken (owner: 'Yes, names and lines only'): the map stores names, line spans, hashes and edges, never code. Slice 1: Lodestone gained a graph-only entry (@bpmforge/lodestone/graph, bpmforge/lodestone#10, bd1e554: no SQLite, sqlite-vec or MCP SDK in its import graph), vendored as a pinned tarball under vendor/lodestone (no GitHub credentials in the Docker build). security/index/code-index.ts walks the snapshot through SnapshotReader and keeps per file path, sha256, language and tier; defs (name, kind, span); refs grouped per (file, name) and calls only to names the repo defines; imports. Six tables (migration 0068), one map per repo replaced per commit (or when the extractor changes), all workspace-scoped with workspace-led indexes; callersOf/definitionsOf read it. The scan batch builds it after the scanners while the snapshot exists (indexTree hook, errors logged, never fail the scan). Repopulse itself: 1,582 files in ~10 s, 6.9k defs, 39.7k ref rows (from 498k raw), 45k calls (from 114k). Left: Lodestone tree-sitter refs/imports for the 8 call-only grammars, Kotlin and Swift grammars, receiver-qualified calls, the fact rules, and the size/time measurement on the six walkthrough repos (Mac)."
       ]
     },
     {

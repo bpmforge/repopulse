@@ -184,6 +184,64 @@ describe('one snapshot per scan batch (W23-02)', () => {
     expect(await readdir(root)).toEqual([]);
   });
 
+  it('W22-01: the code map is built from the same tree, after the scanners, inside the bracket', async () => {
+    const { provider, fetchTarball } = fakeProvider();
+    const { db } = stubDb();
+    const order: string[] = [];
+    const runner: HistoryRunner = async () => {
+      order.push('scanner');
+      return { scanned: 1, findingsCreated: 0, deferred: 0 };
+    };
+    let seenDir = '';
+    let seenArgs: unknown;
+    let hadMarker = false;
+    await scanProcessor({
+      db,
+      weeklyRunners: Object.fromEntries(KEYS.map((k) => [k, runner])),
+      batch: {
+        ...batchDeps(provider),
+        indexTree: async (args, snap) => {
+          // Recorded, not asserted here: the processor swallows the hook's errors.
+          order.push('map');
+          seenDir = snap.dir;
+          seenArgs = args;
+          hadMarker = existsSync(path.join(snap.dir, 'marker.ts'));
+        },
+      },
+    })({ data: batchJob() } as never);
+
+    expect(fetchTarball).toHaveBeenCalledTimes(1);
+    expect(order).toEqual([...KEYS.map(() => 'scanner'), 'map']);
+    expect(seenArgs).toEqual({ workspaceId: 1, repoId: 2, commitSha: SHA });
+    expect(hadMarker).toBe(true);
+    expect(existsSync(seenDir)).toBe(false); // C1a: gone with the batch
+    expect(await readdir(root)).toEqual([]);
+  });
+
+  it('W22-01: a code map that fails is not a scanner failure (NFR-15)', async () => {
+    const { provider } = fakeProvider();
+    const { db, inserted } = stubDb();
+    const runner: HistoryRunner = async () => {
+      inserted.push({ status: 'succeeded' });
+      return { scanned: 1, findingsCreated: 0, deferred: 0 };
+    };
+    await expect(
+      scanProcessor({
+        db,
+        weeklyRunners: Object.fromEntries(KEYS.map((k) => [k, runner])),
+        batch: {
+          ...batchDeps(provider),
+          indexTree: async () => {
+            throw new Error('map exploded');
+          },
+        },
+      })({ data: batchJob() } as never),
+    ).resolves.toBeUndefined();
+    expect(inserted).toHaveLength(5);
+    expect(inserted.every((r) => r['status'] === 'succeeded')).toBe(true);
+    expect(await readdir(root)).toEqual([]);
+  });
+
   it('a snapshot that cannot be fetched fails every scanner that needed it and leaves nothing', async () => {
     const { provider, fetchTarball } = fakeProvider();
     fetchTarball.mockRejectedValue(new Error('archive request returned 401'));
