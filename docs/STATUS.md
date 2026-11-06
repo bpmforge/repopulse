@@ -4318,3 +4318,9 @@ on the Mac:**
   the model for `reasoning_effort: none` (AI_QUICK_VERDICTS, on by default; a host that rejects
   the field is asked again without it). Measured on the Mac's LM Studio for one CVE check:
   125 s -> 17 s, same verdict. One sample: verdict quality still to be compared there.
+- 2026-11-06 — W27 wave opened from a design pass of every model call
+  (/mnt/project-files/repopulse/ai-speed/DESIGN.md): pertinent code only, no model call inside
+  a scan job, short answers don't reason, never ask the same question twice, first result
+  first. W27-04: triage, second opinions and second-model verify send reasoning none; a first
+  look no longer triages rule hits (the judge owns them) and gives that reserve to its review;
+  manual and scheduled triage skip test paths and hits an active judge run will take.

@@ -13562,7 +13562,7 @@
         "Manual and scheduled pass triage skips test paths"
       ],
       "points": 2,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "2026-11-06 design pass (/mnt/project-files/repopulse/ai-speed/DESIGN.md) after the Mac real check. Brad: 'I dont want to waste gpu cycles when we have an obvious mechanism or process defect' and 'only be pertinent'."
       ]
