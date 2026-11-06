@@ -377,7 +377,7 @@ describeIfReady('bpm-ch-* findings reach the store (W18-30)', () => {
   // skipped, so its own rules close on the files it scanned.
   describe('a partial pass closes pack findings by the files the pack scanned', () => {
     const tree = mkdtempSync(path.join(tmpdir(), 'slop-partial-'));
-    for (const rel of ['src/a.ts', 'src/b.ts', 'src/c.ts']) {
+    for (const rel of ['src/a.ts', 'src/b.ts', 'src/c.ts', 'tests/helpers.ts', 'vendor/lib/x.ts']) {
       mkdirSync(path.dirname(path.join(tree, rel)), { recursive: true });
       writeFileSync(path.join(tree, rel), 'const value = 1;\nconsole.log(value);\n');
     }
@@ -545,6 +545,56 @@ describeIfReady('bpm-ch-* findings reach the store (W18-30)', () => {
         scanRunId: run.scanRunId,
       });
     }, 300_000);
+
+    // W27-01: what earlier runs left on tests and vendored code closes on the
+    // next tree pass, capped or complete, whichever rule raised it; a hollow
+    // test (test integrity reads tests on purpose) is left alone.
+    it.each([
+      ['capped', false],
+      ['complete', true],
+    ])(
+      'a %s pass closes earlier findings on non-production files',
+      async (label, complete) => {
+        const repoId = await newRepo(`w27-01-${label}`);
+        const [run] = await db
+          .insert(security.scanRuns)
+          .values({
+            workspaceId,
+            repoId,
+            scannerKey: ANTI_SLOP_SCANNER_KEY,
+            scannerVersion: 'seed',
+            commitSha: `w27-01-${label}-seed`,
+            trigger: 'schedule',
+            status: 'succeeded',
+          })
+          .returning();
+        const offScope = {
+          wrapper: seed('slop.delegation_wrapper', 'tests/helpers.ts', 3),
+          judged: seed('slop.judgment', 'tests/helpers.ts', 13),
+          vendored: seed('slop.unused_export', 'vendor/lib/x.ts', 3),
+          hollow: {
+            ...seed('test.no_assertion', 'tests/helpers.ts', 23),
+            dimension: 'test_coverage',
+          },
+        };
+        await persistFindings(db, {
+          workspaceId,
+          repoId,
+          scanRunId: run!.id,
+          pullRequestId: null,
+          tier: 2,
+          findings: Object.values(offScope),
+        });
+        await pass(repoId, `w27-01-${label}-1`, complete);
+        const rows = await rowsOf(repoId);
+        const statusOf = (title: string) => rows.find((r) => r.title === title)?.status;
+        expect(statusOf(offScope.wrapper.title)).toBe('resolved');
+        expect(statusOf(offScope.judged.title)).toBe('resolved');
+        expect(statusOf(offScope.vendored.title)).toBe('resolved');
+        expect(statusOf(offScope.hollow.title)).toBe('open');
+      },
+      300_000,
+    );
 
     it('a complete pass behaves as before: every reviewed file, any rule but judgement', async () => {
       const { repoId, ids } = await seeded('complete');

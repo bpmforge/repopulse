@@ -1,7 +1,14 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { and, eq, inArray } from 'drizzle-orm';
-import { read, security, type Database, safeErrorText } from '@repopulse/shared';
+import {
+  isGeneratedOrVendoredPath,
+  isNonProductionPath,
+  read,
+  security,
+  type Database,
+  safeErrorText,
+} from '@repopulse/shared';
 import { attachExcerpts } from '../../excerpt.js';
 import {
   persistFindings,
@@ -214,7 +221,10 @@ export interface AntiSlopResult {
   deterministic: number;
   /** Of `deterministic`, the `bpm-ch-*` pack findings (W18-30). */
   pack: number;
-  /** Pack findings on test, script and fixture paths, dropped. */
+  /**
+   * Findings dropped for their path: pack findings on test, script and fixture
+   * paths, and (W27-01) any finding on a non-production path.
+   */
   excluded: number;
   judgment: number;
   /** Fast-lane candidates sent to the model (anti-slop.v2). */
@@ -267,6 +277,29 @@ async function shippedRuleStatus(
   return effectiveStatus('candidate', registry.get(ruleId));
 }
 
+const TEST_INTEGRITY_RULES: ReadonlySet<string> = new Set(TEST_INTEGRITY_RULE_IDS);
+
+/**
+ * W27-01, "pertinent code only": true for an anti-slop finding this scanner no
+ * longer reports because its file is not production code (tests, fixtures,
+ * generated, vendored or built code). Such a file gets no finding and no model
+ * candidate.
+ *
+ * The one exception is the test-integrity family (W18-03): a test that tests
+ * nothing is a fact ABOUT a test file, so those rules keep reading tests — but
+ * not vendored or generated ones, which nobody here maintains.
+ *
+ * The sweep uses the same answer, so an old finding on such a file closes as
+ * no longer reported instead of lingering open.
+ */
+export function isOutOfScopeSlop(row: { ruleId?: string | null; file?: string | null }): boolean {
+  if (!row.file) return false;
+  if (row.ruleId && TEST_INTEGRITY_RULES.has(row.ruleId)) {
+    return isGeneratedOrVendoredPath(row.file);
+  }
+  return isNonProductionPath(row.file);
+}
+
 /** The pack rules this scanner stores (W18-30); the rest belong to logging. */
 const PACK_RULE_PREFIX = 'bpm-ch-';
 
@@ -311,7 +344,7 @@ export function antiSlopSweep(
   reviewedFiles?: string[];
   fullSweep?: {
     treeFiles?: readonly string[];
-    keepOpen: (row: { ruleId: string | null }) => boolean;
+    keepOpen: (row: { ruleId: string | null; file?: string | null }) => boolean;
   };
 } {
   // An error naming no file (a rule that failed to load) means the run cannot
@@ -328,11 +361,20 @@ export function antiSlopSweep(
     const reviewed = new Set((deps.sources ?? []).map((s) => s.path));
     for (const p of pack.scannedPaths ?? []) reviewed.add(p);
     for (const p of errored) reviewed.delete(p);
+    const tree = listTreeFiles(deps.snapshotDir);
+    // W27-01: every non-production file in the tree is reviewed for the
+    // path rule, read or not; on one this pass did not read, only the
+    // out-of-scope rows close.
+    const pathOnly = new Set(tree.filter((f) => isNonProductionPath(f) && !reviewed.has(f)));
     return {
-      reviewedFiles: [...reviewed],
+      reviewedFiles: [...reviewed, ...pathOnly],
       fullSweep: {
-        treeFiles: listTreeFiles(deps.snapshotDir),
-        keepOpen: (row) => row.ruleId === 'slop.judgment',
+        treeFiles: tree,
+        // An out-of-scope row closes, a judgement included: the path alone
+        // says this scanner no longer reports it.
+        keepOpen: (row) =>
+          !isOutOfScopeSlop(row) &&
+          (row.ruleId === 'slop.judgment' || (!!row.file && pathOnly.has(row.file))),
       },
     };
   }
@@ -340,12 +382,19 @@ export function antiSlopSweep(
   const ran = new Set(packRuleIds.filter((id) => id.startsWith(PACK_RULE_PREFIX)));
   if (pack.scannedPaths === undefined || ran.size === 0) return {};
   const scanned = pack.scannedPaths.filter((p) => !errored.has(p));
-  if (scanned.length === 0) return {};
+  // W27-01: whether a non-production file's findings are in scope does not
+  // depend on how much of the tree was read, so a partial pass reviews every
+  // such file in the tree and closes what sits on it (test-integrity rows on
+  // tests excepted: isOutOfScopeSlop keeps them in scope).
+  const offScope = listTreeFiles(deps.snapshotDir ?? deps.targetDir!).filter(isNonProductionPath);
+  if (scanned.length === 0 && offScope.length === 0) return {};
   return {
-    reviewedFiles: scanned,
+    reviewedFiles: [...new Set([...scanned, ...offScope])],
     // No treeFiles and no repoLevel: a partial pass closes nothing on a file it
     // did not scan, and never a file-less row.
-    fullSweep: { keepOpen: (row) => row.ruleId === null || !ran.has(row.ruleId) },
+    fullSweep: {
+      keepOpen: (row) => !isOutOfScopeSlop(row) && (row.ruleId === null || !ran.has(row.ruleId)),
+    },
   };
 }
 
@@ -965,7 +1014,7 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
 
       for (const finding of result.findings) {
         if (!finding.ruleId.startsWith(PACK_RULE_PREFIX)) continue;
-        if (isExcluded(finding.file, globs)) {
+        if (isExcluded(finding.file, globs) || isOutOfScopeSlop(finding)) {
           excluded += 1;
           continue;
         }
@@ -997,6 +1046,16 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
       const kept = findings.filter(
         (f) => prKeep.has(f) || (f.file !== null && prScope.has(f.file)),
       );
+      findings.length = 0;
+      findings.push(...kept);
+    }
+    // W27-01: nothing on tests, fixtures, generated, vendored or built code,
+    // and so no model candidate either (candidates are drawn from this list).
+    // After every layer, not before: the whole-tree rules still read those
+    // files, so an export used only by a test is not called unused.
+    {
+      const kept = findings.filter((f) => !isOutOfScopeSlop(f));
+      excluded += findings.length - kept.length;
       findings.length = 0;
       findings.push(...kept);
     }

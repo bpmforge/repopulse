@@ -25,6 +25,7 @@ import {
   runCodeHealthTools,
   codeHealthDataVersion,
   CODE_HEALTH_SCANNER_KEY,
+  isOutOfScopeCodeHealth,
   type CodeHealthFinding,
   type ToolRunResult,
 } from './tools.js';
@@ -470,7 +471,10 @@ async function tryIncremental(
           ]),
         ],
         fullSweep: {
+          // W27-01: a finding on a non-production file is closed whatever its
+          // kind, a clone included: the path alone says it is no longer reported.
           keepOpen: (row) =>
+            !isOutOfScopeCodeHealth(row) &&
             row.ruleId !== null &&
             // a clone is a relation between files: only a full run may decide it is gone
             (row.ruleId.startsWith('duplication.') ||
@@ -632,9 +636,14 @@ export async function runCodeHealthScan(deps: CodeHealthRunDeps): Promise<CodeHe
           reviewedFiles: [
             ...new Set([...tree, ...findings.map((f) => f.file).filter((f): f is string => !!f)]),
           ],
+          // W27-01: test, fixture, generated and vendored files stay in the
+          // tree (and so reviewed), and nothing is reported on them any more,
+          // so a finding left on one from an earlier scan closes here as no
+          // longer reported. Even when its adapter failed: the path decides.
           fullSweep: {
             treeFiles: tree,
             keepOpen: (row) =>
+              !isOutOfScopeCodeHealth(row) &&
               row.ruleId !== null &&
               row.ruleId.startsWith('tool.') &&
               failedTools.has(row.ruleId.split('.')[1] ?? ''),

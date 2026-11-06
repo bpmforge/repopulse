@@ -458,6 +458,72 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
     expect(outside).toEqual([]);
   });
 
+  it('W27-01: tests and vendored code get no slop finding and no model candidate', async () => {
+    const offScope = ['src/accounts/load.test.ts', 'vendor/acme/thin.ts'];
+    const sources = [
+      ...SOURCES,
+      {
+        // The same wrapper shape as load.ts, in a test, plus a hollow test.
+        path: 'src/accounts/load.test.ts',
+        source: [
+          "import { fetchUser } from './api.js';",
+          'export function getUserForTest(id: string) {',
+          '  return fetchUser(id);',
+          '}',
+          "it('is green', () => { expect(true).toBe(true); });",
+        ].join('\n'),
+      },
+      {
+        // Low logic density, vendored.
+        path: 'vendor/acme/thin.ts',
+        source: [
+          ...Array.from({ length: 40 }, (_, i) => `// vendored note ${i}`),
+          'export const one = 1;',
+        ].join('\n'),
+      },
+    ];
+    const calls: CompleteOpts[] = [];
+    const prompts: string[] = [];
+    try {
+      const result = await runAntiSlopScan({
+        db,
+        gateway: fakeGateway(calls, JUDGMENT, prompts),
+        workspaceId,
+        repoId,
+        commitSha: 'w27-01-pertinent',
+        files: [],
+        sources,
+        trigger: 'schedule',
+        verify: async () => ({ refuted: false, reason: 'ok' }),
+      });
+      expect(result.status, result.error ?? '').toBe('succeeded');
+      // Only the production wrapper is judged.
+      expect(result.candidates).toBe(1);
+      expect(prompts.join('\n')).toContain('src/accounts/load.ts');
+      expect(prompts.join('\n')).not.toContain('load.test.ts');
+      expect(prompts.join('\n')).not.toContain('vendor/');
+      expect(result.excluded).toBeGreaterThan(0);
+
+      const rows = await db
+        .select()
+        .from(read.findings)
+        .where(and(eq(read.findings.repoId, repoId), inArray(read.findings.file, offScope)));
+      // The one exception: a test that tests nothing is a fact about the test.
+      expect(rows.map((r) => [r.file, r.ruleId])).toEqual([
+        ['src/accounts/load.test.ts', 'test.tautology'],
+      ]);
+    } finally {
+      const ids = db
+        .select({ id: read.findings.id })
+        .from(read.findings)
+        .where(and(eq(read.findings.repoId, repoId), inArray(read.findings.file, offScope)));
+      await db.delete(read.findingEvents).where(inArray(read.findingEvents.findingId, ids));
+      await db
+        .delete(read.findings)
+        .where(and(eq(read.findings.repoId, repoId), inArray(read.findings.file, offScope)));
+    }
+  });
+
   it('W18-10: a finding about anything but a listed candidate is rejected, not stored', async () => {
     // The model went back to searching: api.ts is in no candidate's excerpt.
     const searching = judgment({

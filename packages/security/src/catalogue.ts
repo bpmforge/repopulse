@@ -93,7 +93,10 @@ export const BUILTIN_SCANNERS: readonly Scanner[] = [
   sweeper({
     key: CODE_HEALTH_SCANNER_KEY,
     displayName: 'Code health (complexity, duplication)',
-    version: 'code_health.v1',
+    // v2 (W27-01): non-production paths are no longer measured. A new version
+    // changes the data stamp, so the next run is FULL and its sweep closes the
+    // findings earlier runs left on tests and vendored code.
+    version: 'code_health.v2',
     inputs: 'snapshot',
     triggers: ['schedule', 'manual'],
     requiredTools: ['lizard@1', 'jscpd@4'],
@@ -105,7 +108,9 @@ export const BUILTIN_SCANNERS: readonly Scanner[] = [
   sweeper({
     key: ANTI_SLOP_SCANNER_KEY,
     displayName: 'Anti-slop',
-    version: 'anti_slop.v1',
+    // v2 (W27-01): no findings or model candidates on non-production paths; the
+    // new data stamp keeps a rescan from being skipped as unchanged.
+    version: 'anti_slop.v2',
     inputs: 'snapshot',
     // W21-02: deterministic half only on a PR push, reporting on changed files.
     triggers: ['pr_synced', 'schedule', 'manual'],

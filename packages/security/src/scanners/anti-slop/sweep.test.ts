@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { DiffFile } from '@repopulse/analysis';
-import { antiSlopSweep } from './run.js';
+import { antiSlopSweep, isOutOfScopeSlop } from './run.js';
 
 // What an anti-slop pass may close (W20-08, UX_TODO FND-58). Only a complete
 // tree pass with the pack in hand sweeps; the judgement half never does.
@@ -84,5 +84,74 @@ describe('antiSlopSweep (W20-08)', () => {
     expect(antiSlopSweep(capped, pack, [])).toEqual({});
     expect(antiSlopSweep(capped, { pathlessErrors: 0 }, ran)).toEqual({});
     expect(antiSlopSweep(capped, { ...pack, scannedPaths: ['src/broken.ts'] }, ran)).toEqual({});
+  });
+});
+
+// W27-01, "pertinent code only": nothing is reported on tests, fixtures,
+// generated or vendored code, so what earlier runs left there must close.
+describe('non-production paths (W27-01)', () => {
+  it('isOutOfScopeSlop: every slop rule on a non-production path; test integrity only off vendored code', () => {
+    expect(isOutOfScopeSlop({ ruleId: 'slop.delegation_wrapper', file: 'tests/helpers.ts' })).toBe(
+      true,
+    );
+    expect(isOutOfScopeSlop({ ruleId: 'slop.judgment', file: 'src/cart.test.ts' })).toBe(true);
+    expect(isOutOfScopeSlop({ ruleId: 'slop.low_logic_density', file: 'vendor/x/y.ts' })).toBe(
+      true,
+    );
+    expect(isOutOfScopeSlop({ ruleId: 'bpm-ch-empty-catch', file: 'src/api.generated.ts' })).toBe(
+      true,
+    );
+    // A hollow test is a fact about a test: still reported on tests...
+    expect(isOutOfScopeSlop({ ruleId: 'test.no_assertion', file: 'src/cart.test.ts' })).toBe(false);
+    // ...but not on someone else's vendored tests.
+    expect(
+      isOutOfScopeSlop({ ruleId: 'test.no_assertion', file: 'node_modules/x/a.test.js' }),
+    ).toBe(true);
+    // Production look-alikes and file-less rows are in scope.
+    for (const file of ['src/latest.go', 'contest.py', 'src/Testimonial.tsx', 'src/builder/x.ts']) {
+      expect(isOutOfScopeSlop({ ruleId: 'slop.delegation_wrapper', file }), file).toBe(false);
+    }
+    expect(isOutOfScopeSlop({ ruleId: 'slop.duplicate_purpose', file: null })).toBe(false);
+  });
+
+  const dir = snapshot(['src/a.ts', 'src/b.ts', 'tests/helpers.ts', 'vendor/lib/x.ts']);
+  const deps = {
+    files: [] as readonly DiffFile[],
+    sources: [{ path: 'src/a.ts', source: '' }],
+    snapshotDir: dir,
+    targetDir: dir,
+    trigger: 'manual' as const,
+  };
+  const scanned = { scannedPaths: ['src/a.ts'], erroredPaths: [], pathlessErrors: 0 };
+
+  it('a complete pass reviews every non-production file and closes only out-of-scope rows there', () => {
+    const sweep = antiSlopSweep({ ...deps, sourcesComplete: true }, scanned);
+    expect(new Set(sweep.reviewedFiles)).toEqual(
+      new Set(['src/a.ts', 'tests/helpers.ts', 'vendor/lib/x.ts']),
+    );
+    const keep = sweep.fullSweep!.keepOpen;
+    expect(keep({ ruleId: 'slop.judgment', file: 'tests/helpers.ts' })).toBe(false);
+    expect(keep({ ruleId: 'slop.unused_export', file: 'vendor/lib/x.ts' })).toBe(false);
+    // Not read this pass, and in scope on a test: left as it is.
+    expect(keep({ ruleId: 'test.no_assertion', file: 'tests/helpers.ts' })).toBe(true);
+    // Production rows behave as before.
+    expect(keep({ ruleId: 'slop.judgment', file: 'src/a.ts' })).toBe(true);
+    expect(keep({ ruleId: 'slop.unused_export', file: 'src/a.ts' })).toBe(false);
+  });
+
+  it('a capped pass also closes out-of-scope rows, whatever rule raised them', () => {
+    const sweep = antiSlopSweep({ ...deps, sourcesComplete: false }, scanned, [
+      'bpm-ch-empty-catch',
+    ]);
+    expect(new Set(sweep.reviewedFiles)).toEqual(
+      new Set(['src/a.ts', 'tests/helpers.ts', 'vendor/lib/x.ts']),
+    );
+    const keep = sweep.fullSweep!.keepOpen;
+    expect(keep({ ruleId: 'slop.unused_export', file: 'tests/helpers.ts' })).toBe(false);
+    expect(keep({ ruleId: 'slop.judgment', file: 'vendor/lib/x.ts' })).toBe(false);
+    expect(keep({ ruleId: 'test.no_assertion', file: 'tests/helpers.ts' })).toBe(true);
+    // The capped rule for production files is unchanged.
+    expect(keep({ ruleId: 'slop.unused_export', file: 'src/a.ts' })).toBe(true);
+    expect(keep({ ruleId: 'bpm-ch-empty-catch', file: 'src/a.ts' })).toBe(false);
   });
 });
