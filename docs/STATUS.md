@@ -4269,3 +4269,12 @@ on the Mac:**
   sort key as Postgres rendered it (first_seen truncated to ms), with id as the tiebreak;
   unpriced risk stays last both ways. Every Findings header but Verification sorts and flips
   on a second press; Age shows first_seen reversed. Paging walks cover all 14 orders.
+- 2026-11-06 — W26-04: Findings filters in a grid (search on its own row; Rule, Rule stage and
+  Min confidence under More filters, open when one is set). Security tab opens with five
+  stats that jump to their panels; Coverage map and Exports/SARIF import start closed. One
+  section-label style (12 px semibold, sentence case) replaces the uppercase labels; a
+  help-text utility. Overview folds per-repo "AI review not configured" lines into one.
+  Findings File column keeps the file name and truncates the directories; Age hides between
+  md and 1440 px; phone rows are cards, title first. Setup shows required and set variables,
+  the rest behind a disclosure. Reports form stacked. UI-32 not built (needs API data).
+  e2e org-overview "heroes" test updated for the W26-01 8 + 4 Overview recipe (it failed on main).

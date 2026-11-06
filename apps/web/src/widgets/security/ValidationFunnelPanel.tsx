@@ -161,7 +161,7 @@ export function ValidationFunnelPanel({ funnel, recorded, vex, scanners, repoId 
       )}
 
       <div>
-        <h3 className="text-xs font-medium uppercase tracking-wide text-fg-muted">
+        <h3 className="section-label">
           Why each dismissal was made
         </h3>
         {vex.not_affected === 0 ? (

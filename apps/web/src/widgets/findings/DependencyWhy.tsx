@@ -15,7 +15,7 @@ export function DependencyWhy({ finding }: { finding: Finding }) {
   const tier = dep?.reachability ?? null;
   return (
     <div data-testid="dependency-why">
-      <h3 className="text-xs tracking-wide text-fg-muted uppercase">Why this applies</h3>
+      <h3 className="section-label">Why this applies</h3>
       {finding.rationale && (
         <p className="mt-1 text-sm" data-testid="finding-rationale">
           {finding.rationale}

@@ -242,7 +242,7 @@ export function RulePrecisionSummary({ ruleId }: { ruleId: string }) {
 
   return (
     <div data-testid="finding-rule-precision">
-      <h3 className="text-xs tracking-wide text-fg-muted uppercase">
+      <h3 className="section-label">
         Rule <span className="font-mono normal-case">{ruleId}</span>
       </h3>
       {isLoading && <p className="mt-1 text-xs text-fg-muted">Loading this rule’s record…</p>}

@@ -163,7 +163,7 @@ export function AiControls() {
         </div>
 
         <div className="flex flex-col gap-2" data-testid="ai-schedules">
-          <h4 className="text-xs tracking-wide text-fg-muted uppercase">Scheduled AI passes</h4>
+          <h4 className="section-label">Scheduled AI passes</h4>
           {data && (data.schedules ?? []).length === 0 ? (
             <p className="text-xs text-fg-muted" data-testid="ai-schedules-empty">
               No repository has a schedule. Nothing is sent to a model on a timer.

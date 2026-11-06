@@ -140,7 +140,7 @@ export function ViewEditor({ widgets, onChange, repos = [] }: ViewEditorProps) {
           <div className="flex flex-col gap-3" data-testid="widget-picker">
             {[...byCategory.entries()].map(([category, defs]) => (
               <div key={category}>
-                <h3 className="mb-1 text-xs tracking-wide text-fg-muted uppercase">
+                <h3 className="section-label mb-1">
                   {CATEGORY_LABEL[category]}
                 </h3>
                 <div className="flex flex-wrap gap-1.5">

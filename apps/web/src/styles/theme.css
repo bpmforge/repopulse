@@ -281,6 +281,24 @@
 /* UI-16/UI-17: width discipline. A form block caps at 40rem so an email or
    token field is not 1,100px wide; running copy inside a panel caps at a
    readable measure. Tables, charts and grids are unaffected. */
+/* W26-04 (UI-12): one section-label style inside a card. Sentence case, as
+   written; no more uppercase 11 px in some places and bold body in others. */
+@utility section-label {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 600;
+  color: var(--color-fg-muted);
+}
+
+/* W26-04 (UI-11): the one help-text tier. 12 px muted, a readable measure;
+   anything longer than two lines goes behind a disclosure. */
+@utility help-text {
+  font-size: 0.75rem;
+  line-height: 1.1rem;
+  color: var(--color-fg-muted);
+  max-width: 70ch;
+}
+
 @utility form-narrow {
   max-width: 40rem;
 }

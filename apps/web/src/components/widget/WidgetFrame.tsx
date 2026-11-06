@@ -58,6 +58,8 @@ export interface WidgetFrameProps {
   drillDown?: ReactNode;
   className?: string;
   testId?: string;
+  /** An in-page anchor target (W26-04: the Security summary links to panels). */
+  id?: string;
 }
 
 export function WidgetFrame({
@@ -76,9 +78,11 @@ export function WidgetFrame({
   drillDown,
   className = '',
   testId = 'widget-frame',
+  id,
 }: WidgetFrameProps) {
   return (
     <section
+      {...(id ? { id } : {})}
       className={`panel flex h-full flex-col ${className}`}
       data-testid={testId}
       data-state={state}

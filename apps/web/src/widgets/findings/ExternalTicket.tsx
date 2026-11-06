@@ -62,7 +62,7 @@ export function ExternalTicket({
 
   return (
     <div className="flex flex-col gap-1 text-xs" data-testid="finding-ticket">
-      <h3 className="text-xs tracking-wide text-fg-muted uppercase">External ticket</h3>
+      <h3 className="section-label">External ticket</h3>
       {!editing ? (
         <p className="flex flex-wrap items-center gap-2">
           {url ? (

@@ -207,50 +207,77 @@ export function SetupChecklist({ linkActions = true }: { linkActions?: boolean }
           Whether each variable is set — never its value. Full reference, including what breaks when
           one is wrong, is in docs/CONFIG.md.
         </p>
-        {/* Focusable and labelled: a scrollable region that cannot be reached
-            by keyboard is an axe violation and, more to the point, a table a
-            keyboard user cannot read the right-hand side of. */}
-        <div
-          className="overflow-x-auto"
-          tabIndex={0}
-          role="region"
-          aria-label="Configuration variables"
-        >
-          <table className="table-plain w-full text-left text-xs">
-            <thead className="text-fg-muted">
-              <tr>
-                <th scope="col" className="py-1">
-                  Variable
-                </th>
-                <th scope="col" className="py-1">
-                  Required
-                </th>
-                <th scope="col" className="py-1">
-                  Set
-                </th>
-                <th scope="col" className="py-1">
-                  Purpose
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {variables.map((variable) => (
-                <tr key={variable.name} className="border-t border-border">
-                  <th scope="row" className="py-1 font-mono font-normal">
-                    {variable.name}
-                    {variable.secret ? <span title="secret — never shown"> 🔒</span> : null}
-                  </th>
-                  <td className="py-1">{variable.required ? 'yes' : 'no'}</td>
-                  <td className="py-1" data-testid={`config-${variable.name}-set`}>
-                    {variable.set ? 'yes' : variable.required ? 'NO' : 'no (default)'}
-                  </td>
-                  <td className="py-1 text-fg-muted">{variable.purpose}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {/* W26-04 (UI-31): seventy rows inline buried the few that matter.
+            Required and set variables first; the rest, all on their
+            defaults, behind one disclosure. */}
+        <ConfigTable
+          label="Configuration variables"
+          variables={variables.filter((v) => v.required || v.set)}
+        />
+        {variables.some((v) => !v.required && !v.set) && (
+          <details className="mt-3" data-testid="setup-config-defaults">
+            <summary className="cursor-pointer text-xs text-fg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
+              Show the {variables.filter((v) => !v.required && !v.set).length} variables left on
+              their defaults (all {variables.length})
+            </summary>
+            <div className="mt-2">
+              <ConfigTable
+                label="Configuration variables on their defaults"
+                variables={variables.filter((v) => !v.required && !v.set)}
+              />
+            </div>
+          </details>
+        )}
       </WidgetFrame>
+    </div>
+  );
+}
+
+function ConfigTable({
+  label,
+  variables,
+}: {
+  label: string;
+  variables: { name: string; required: boolean; set: boolean; secret?: boolean; purpose: string }[];
+}) {
+  return (
+    // Focusable and labelled: a scrollable region that cannot be reached by
+    // keyboard is an axe violation and, more to the point, a table a keyboard
+    // user cannot read the right-hand side of.
+    <div className="overflow-x-auto" tabIndex={0} role="region" aria-label={label}>
+      <table className="table-plain table-roomy w-full text-left text-xs">
+        <thead className="text-fg-muted">
+          <tr>
+            <th scope="col" className="py-1">
+              Variable
+            </th>
+            <th scope="col" className="py-1">
+              Required
+            </th>
+            <th scope="col" className="py-1">
+              Set
+            </th>
+            <th scope="col" className="py-1">
+              Purpose
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {variables.map((variable) => (
+            <tr key={variable.name} className="border-t border-border">
+              <th scope="row" className="py-1 font-mono font-normal">
+                {variable.name}
+                {variable.secret ? <span title="secret — never shown"> 🔒</span> : null}
+              </th>
+              <td className="py-1">{variable.required ? 'yes' : 'no'}</td>
+              <td className="py-1" data-testid={`config-${variable.name}-set`}>
+                {variable.set ? 'yes' : variable.required ? 'NO' : 'no (default)'}
+              </td>
+              <td className="py-1 text-fg-muted">{variable.purpose}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

@@ -338,4 +338,29 @@ describe('coverage notices (W20-20, UX_TODO DSH-91)', () => {
       '/admin/models',
     );
   });
+
+  it('folds AI review notices for several repositories into one line (W26-04, UI-27)', () => {
+    const ai = (id: number, name: string) => ({
+      repo_id: id,
+      repo_name: name,
+      capability: 'ai_review',
+      label: 'AI review',
+      kind: 'ai_review',
+      state: 'not_configured',
+      detail: '',
+    });
+    renderWith({
+      data: response({
+        actions: [finding()],
+        coverage: { ...coverage, notices: [coverage.notices[0]!, ai(4, 'web'), ai(5, 'api')] },
+      }),
+    });
+    const line = screen.getByTestId('top-actions-notice-ai_review-not_configured');
+    expect(line).toHaveTextContent(
+      'AI review is not configured for 2 repositories · Set up a model',
+    );
+    expect(line.getAttribute('href')).toBe('/admin/models');
+    expect(screen.queryByTestId('top-actions-notice-4-ai_review')).toBeNull();
+    expect(screen.getByTestId('top-actions-notice-3-dependency_cves')).toBeInTheDocument();
+  });
 });
