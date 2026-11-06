@@ -512,6 +512,45 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
       expect((await runOf(runId)).reason).toMatch(/1 file it read is gone/);
     });
 
+    it('W25-16: a test file left out of the pass is not gone, so its findings stay open', async () => {
+      await firstPass();
+      const before = await findingsOf();
+      expect(before.length).toBeGreaterThan(0);
+      const runId = await newRun(['src']);
+      const { d } = deps({
+        loadSources: async () => ({
+          ok: true,
+          commitSha: 'dddd000011112222',
+          files: [UTIL],
+          // The first pass read src/routes/users.ts; say this one left it out on purpose.
+          leftOut: ['src/routes/users.ts'],
+          skipped: { unsupported: 0, tooLarge: 0, tests: 1 },
+        }),
+      });
+      const r = await aiPassProcessor(d)(job(runId));
+      expect(r).toMatchObject({ status: 'skipped', code: 'no_change' });
+      expect((await findingsOf()).map((f) => f.status)).toEqual(before.map((f) => f.status));
+      expect((await runOf(runId)).reason).not.toMatch(/gone/);
+    });
+
+    it('W25-16: passes Include tests to the loader only when the job asks', async () => {
+      const seen: (boolean | undefined)[] = [];
+      for (const includeTests of [undefined, true]) {
+        const runId = await newRun(['src']);
+        const { d } = deps({
+          loadSources: async (a) => {
+            seen.push(a.includeTests);
+            return twoFiles();
+          },
+        });
+        await aiPassProcessor(d)({
+          data: { workspaceId: WS, runId, ...(includeTests ? { includeTests } : {}) },
+        } as Job<AiPassJobData>);
+        await db.delete(read.aiPassRuns).where(eq(read.aiPassRuns.id, runId));
+      }
+      expect(seen).toEqual([undefined, true]);
+    });
+
     it('reviews every file when asked for a full review', async () => {
       await firstPass();
       const runId = await newRun(['src']);

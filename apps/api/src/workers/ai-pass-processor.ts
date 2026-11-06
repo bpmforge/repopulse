@@ -92,6 +92,8 @@ export interface AiPassJobData {
    * repository pass, even when an incremental re-review would do.
    */
   force?: boolean;
+  /** W25-16: a folder review reads test code too (off by default). */
+  includeTests?: boolean;
 }
 
 export interface PassFile {
@@ -104,8 +106,13 @@ export type LoadedSources =
       ok: true;
       commitSha: string;
       files: PassFile[];
-      /** W20-16 (AI-85): files in scope that were not read, by reason. */
-      skipped?: { unsupported: number; tooLarge: number };
+      /** W20-16 (AI-85): files in scope that were not read, by reason (W25-16: tests). */
+      skipped?: { unsupported: number; tooLarge: number; tests?: number };
+      /**
+       * W25-16: files that exist in scope but were left out on purpose (test
+       * code). An incremental pass must not close their findings as deleted.
+       */
+      leftOut?: string[];
     }
   | { ok: false; code: string; reason: string };
 
@@ -125,6 +132,8 @@ export interface AiPassDeps {
      * order up to the pass caps instead of refusing a scope over the caps.
      */
     fit?: boolean;
+    /** W25-16: read test code under the named folders too (Include tests). */
+    includeTests?: boolean;
   }) => Promise<LoadedSources>;
   /**
    * W25-01: the files a first-look pass reads (trigger `after_scan`, mode
@@ -453,7 +462,7 @@ export function aiPassProcessor(deps: AiPassDeps) {
       let input: Parameters<typeof runSpecialists>[0];
       let promptTitle: string;
       let filesRead: number;
-      let filesSkipped: { unsupported: number; tooLarge: number } | null = null;
+      let filesSkipped: { unsupported: number; tooLarge: number; tests?: number } | null = null;
       let unreadable: string[] = [];
       let diffRanges: Map<string, [number, number][]> | null = null;
       let commitSha: string;
@@ -462,6 +471,8 @@ export function aiPassProcessor(deps: AiPassDeps) {
       let fullDiff: readonly DiffEntry[] = [];
       // W25-07: a repository pass over the same paths as an earlier one.
       let pathsIncremental: Extract<PathsScopePlan, { scope: 'incremental' }> | null = null;
+      // W25-16: test files this pass left out on purpose (they still exist).
+      let leftOut = new Set<string>();
       let fileHashes: Record<string, string> | null = null;
       let allFiles: ReadonlyMap<string, string> = new Map();
       if (run.mode === 'paths') {
@@ -487,6 +498,7 @@ export function aiPassProcessor(deps: AiPassDeps) {
           repoId: run.repoId,
           paths,
           ...(firstLook ? { fit: true } : {}),
+          ...(job.data.includeTests === true ? { includeTests: true } : {}),
         });
         if (!loaded.ok) return fail(loaded.code, loaded.reason);
         commitSha = loaded.commitSha;
@@ -504,7 +516,13 @@ export function aiPassProcessor(deps: AiPassDeps) {
             force: job.data.force === true,
           });
           if (decision.scope === 'incremental') {
-            pathsIncremental = decision;
+            // W25-16: a test file left out of this pass still exists; it is
+            // not "gone", so its earlier findings are neither closed nor carried.
+            leftOut = new Set(loaded.leftOut ?? []);
+            pathsIncremental = {
+              ...decision,
+              removed: decision.removed.filter((p) => !leftOut.has(p)),
+            };
             reviewScope = { scope: 'incremental', baseRunId: decision.baseRunId };
             const changed = new Set(decision.changed);
             sentFiles = loaded.files.filter((f) => changed.has(f.path));
@@ -732,7 +750,9 @@ export function aiPassProcessor(deps: AiPassDeps) {
           repoId: run.repoId,
           baseAiPassRunId: pathsIncremental.baseRunId,
           newAiPassRunId: runId,
-          quoteInDiff: (file, quote) => quoteInText(quote, allFiles.get(file)),
+          // A file left out on purpose (W25-16) was not looked at: its
+          // findings stand as they were rather than close as "gone".
+          quoteInDiff: (file, quote) => leftOut.has(file) || quoteInText(quote, allFiles.get(file)),
         });
       }
 

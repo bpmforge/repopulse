@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import type { Job } from 'bullmq';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { core, createDb, read, security } from '@repopulse/shared';
 import { credentials } from '@repopulse/auth';
 import type {
@@ -29,6 +29,7 @@ import {
   type JudgeSummary,
 } from './ai-judge.js';
 import { monthlyCallsUsed } from './ai-pass-scheduler.js';
+import { TEST_PATH_PATTERN, isTestPath } from './code-kind.js';
 import type { PassEgress } from '../lib/ai-pass-egress.js';
 
 // W22-03. The AI judges every rule hit after a scan: local by default and
@@ -544,6 +545,10 @@ describeIfLiveInfra('the AI judge after a scan (W22-03)', () => {
     await ruleHit({ contextLines: null, contextStartLine: null }); // no stored code
     await ruleHit({ scannerKey: null, ruleId: null }); // not a rule hit
     await ruleHit({ status: 'dismissed', dismissReason: 'false_positive' });
+    // W25-16: rule hits in test code are listed but never judged.
+    await ruleHit({ file: 'src/routes/users.test.ts' });
+    await ruleHit({ file: 'tests/test_users.py' });
+    await ruleHit({ file: 'binding/binding_test.go' });
     expect(await queue()).toMatchObject({ queued: false, code: 'nothing_to_judge' });
     await ruleHit();
     expect(await queue({ config: { ...CFG, enabled: false } })).toMatchObject({
@@ -1369,5 +1374,32 @@ describeIfLiveInfra('the AI judge after a scan (W22-03)', () => {
         full_ms: 80_000,
       });
     });
+  });
+
+  it('W25-16: Postgres reads the test pattern exactly as the worker does', async () => {
+    const paths = [
+      'context_test.go',
+      'src/a.test.ts',
+      'web/a.spec.tsx',
+      'tests/test_api.py',
+      'conftest.py',
+      'src/test/java/FooTest.java',
+      'spec/models/user_spec.rb',
+      'test_helpers.go',
+      'internal/testdata/x.go',
+      'context.go',
+      'latest.go',
+      'contest.py',
+      'src/Testimonial.tsx',
+      'saleor/order/models.py',
+    ];
+    const rows = await db.execute<{ p: string; t: boolean }>(
+      sql`select p, p ~ ${TEST_PATH_PATTERN} as t from unnest(${sql.raw(
+        `array[${paths.map((p) => `'${p}'`).join(',')}]`,
+      )}::text[]) as p`,
+    );
+    const pg = Object.fromEntries([...rows].map((r) => [r.p, r.t]));
+    for (const p of paths) expect(pg[p], p).toBe(isTestPath(p));
+    expect(paths.filter(isTestPath)).toHaveLength(9);
   });
 });

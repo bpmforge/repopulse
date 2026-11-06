@@ -178,7 +178,7 @@ export interface AiPassRun {
     rejected?: number;
     filesRead?: number;
     /** W20-16 (AI-85): files in scope that were not read, by reason. */
-    filesSkipped?: { unsupported: number; tooLarge: number };
+    filesSkipped?: { unsupported: number; tooLarge: number; tests?: number };
     unreadable?: string[];
   } | null;
   triage_funnel: {

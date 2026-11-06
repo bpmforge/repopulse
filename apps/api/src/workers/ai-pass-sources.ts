@@ -4,6 +4,7 @@ import { and, desc, eq } from 'drizzle-orm';
 import { core, facts, type Database } from '@repopulse/shared';
 import type { ForgeProvider } from '@repopulse/forge';
 import { readSnapshotSources, snapshotForScan } from '@repopulse/security';
+import { isTestPath } from './code-kind.js';
 import {
   AI_PASS_MAX_BYTES,
   AI_PASS_MAX_FILES,
@@ -66,6 +67,35 @@ export function fitRanked<T extends { path: string; source: string }>(
   return chosen;
 }
 
+/**
+ * W25-16: the walk filter for a pass over `paths`. Test code is left out of a
+ * folder review unless the person asked for it (Include tests) or named a test
+ * path themselves; a file named outright is always read. The readable test
+ * files left out are collected: they still exist, so the processor must not
+ * treat them as deleted.
+ */
+export function passScope(
+  paths: readonly string[],
+  includeTests: boolean,
+): { include: (rel: string, isDir: boolean) => boolean; leftOut: string[] } {
+  // A named folder counts as a test path too ("src/__tests__" with no slash).
+  const skipTests =
+    !includeTests && !paths.some((p) => isTestPath(p) || isTestPath(`${p.replace(/\/+$/, '')}/`));
+  const leftOut: string[] = [];
+  return {
+    leftOut,
+    include: (rel, isDir) => {
+      if (isDir) return dirInScope(rel, paths);
+      if (!inScope(rel, paths)) return false;
+      if (skipTests && isTestPath(rel) && !paths.includes(rel)) {
+        if (AI_PASS_READABLE.test(path.basename(rel))) leftOut.push(rel);
+        return false;
+      }
+      return true;
+    },
+  };
+}
+
 export interface SnapshotSourceDeps {
   db: Database;
   forgeFor: (
@@ -75,7 +105,7 @@ export interface SnapshotSourceDeps {
 }
 
 export function snapshotSources(deps: SnapshotSourceDeps): AiPassDeps['loadSources'] {
-  return async ({ workspaceId, repoId, paths, fit }) => {
+  return async ({ workspaceId, repoId, paths, fit, includeTests }) => {
     // The repository must belong to the workspace asking (Law 5).
     const [repo] = await deps.db
       .select({ id: core.repos.id })
@@ -120,12 +150,15 @@ export function snapshotSources(deps: SnapshotSourceDeps): AiPassDeps['loadSourc
         // W20-16 (UX_TODO AI-85): walk ONLY the named paths. Walking the
         // whole tree and filtering after meant a folder that sorted after the
         // first 5,000 files of a monorepo was "not found".
+        const scope = passScope(paths, includeTests === true);
+        const leftOutTests = scope.leftOut;
         const all = readSnapshotSources(snapshot.dir, {
           maxFiles: AI_PASS_WALK_FILES,
           readable: AI_PASS_READABLE,
-          include: (rel, isDir) => (isDir ? dirInScope(rel, paths) : inScope(rel, paths)),
+          include: scope.include,
         });
         const picked = all.files;
+        const testsNote = leftOutTests.length > 0 ? { tests: leftOutTests.length } : {};
         const at = head.sha.slice(0, 8);
         if (all.truncated) {
           return {
@@ -147,6 +180,8 @@ export function snapshotSources(deps: SnapshotSourceDeps): AiPassDeps['loadSourc
           let reason: string;
           if (named.length === 0) {
             reason = `None of the paths (${paths.join(', ')}) exist at ${at}. Paths are relative to the repository root.`;
+          } else if (leftOutTests.length > 0) {
+            reason = `${named.join(', ')} ${named.length === 1 ? 'holds' : 'hold'} only test code at ${at} (${leftOutTests.length} ${leftOutTests.length === 1 ? 'file' : 'files'}), which a review leaves out. Tick Include tests to review it.`;
           } else if (all.unsupported > 0 && all.tooLarge.length === 0) {
             reason = singleFile
               ? `${named[0]} exists at ${at}, but the pass does not read that file type.`
@@ -169,7 +204,8 @@ export function snapshotSources(deps: SnapshotSourceDeps): AiPassDeps['loadSourc
             ok: true as const,
             commitSha: head.sha,
             files: chosen.map((f) => ({ path: f.path, content: f.source })),
-            skipped: { unsupported: all.unsupported, tooLarge: all.skipped },
+            skipped: { unsupported: all.unsupported, tooLarge: all.skipped, ...testsNote },
+            leftOut: leftOutTests,
           };
         }
         const bytes = picked.reduce((n, f) => n + Buffer.byteLength(f.source), 0);
@@ -185,7 +221,8 @@ export function snapshotSources(deps: SnapshotSourceDeps): AiPassDeps['loadSourc
           commitSha: head.sha,
           files: picked.map((f) => ({ path: f.path, content: f.source })),
           // Reported on the run, never silent (AI-85).
-          skipped: { unsupported: all.unsupported, tooLarge: all.skipped },
+          skipped: { unsupported: all.unsupported, tooLarge: all.skipped, ...testsNote },
+          leftOut: leftOutTests,
         };
       },
     );
