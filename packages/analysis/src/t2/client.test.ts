@@ -82,6 +82,53 @@ describe('tier-2 wrapper', () => {
     expect(real).toBe(1);
   });
 
+  it('W25-19: a quick verdict asks for no reasoning; ordinary calls do not', async () => {
+    const real: Record<string, unknown>[] = [];
+    const fetchImpl = vi.fn(async (_u: string | URL | Request, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      if (!String(init?.body).includes('ping')) real.push(body);
+      return ok();
+    }) as unknown as typeof fetch;
+    const c = client(fetchImpl);
+    await c.complete('verdict', { ...opts, reasoning: 'none' }, HOST);
+    await c.complete('review', opts, HOST);
+    expect(real[0]?.reasoning_effort).toBe('none');
+    expect(real[0]?.max_tokens).toBe(T2_MAX_TOKENS);
+    expect(real[1]).not.toHaveProperty('reasoning_effort');
+  });
+
+  it('W25-19: a host that rejects reasoning_effort is asked again without it, and remembered', async () => {
+    const real: Record<string, unknown>[] = [];
+    const fetchImpl = vi.fn(async (_u: string | URL | Request, init?: RequestInit) => {
+      if (String(init?.body).includes('ping')) return ok();
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      real.push(body);
+      if ('reasoning_effort' in body) {
+        return new Response('Unrecognized request argument supplied: reasoning_effort', { status: 400 });
+      }
+      return ok();
+    }) as unknown as typeof fetch;
+    const c = client(fetchImpl);
+    const r = await c.complete('verdict', { ...opts, reasoning: 'none' }, HOST);
+    expect(r.text).toContain('findings');
+    await c.complete('verdict 2', { ...opts, reasoning: 'none' }, HOST);
+    expect(real.map((b) => 'reasoning_effort' in b)).toEqual([true, false, false]);
+  });
+
+  it('W25-19: AI_QUICK_VERDICTS=off (quickReasoning false) never sends the field', async () => {
+    const real: Record<string, unknown>[] = [];
+    const fetchImpl = vi.fn(async (_u: string | URL | Request, init?: RequestInit) => {
+      if (!String(init?.body).includes('ping')) real.push(JSON.parse(String(init?.body)));
+      return ok();
+    }) as unknown as typeof fetch;
+    const c = new T2Client(
+      { ...T2_DEFAULTS, hosts: [HOST], concurrencyCap: 2, quickReasoning: false },
+      { fetchImpl, sleep: () => Promise.resolve() },
+    );
+    await c.complete('verdict', { ...opts, reasoning: 'none' }, HOST);
+    expect(real[0]).not.toHaveProperty('reasoning_effort');
+  });
+
   it('reports cost as NULL for a LAN call, not zero', async () => {
     // 0 reads as "measured and free"; null says the concept does not apply.
     const result = await client((() => ok()) as unknown as typeof fetch).complete('x', opts, HOST);

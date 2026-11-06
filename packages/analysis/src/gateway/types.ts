@@ -78,6 +78,14 @@ export interface CompleteOpts {
    * transport.
    */
   signal?: AbortSignal;
+  /**
+   * W25-19: a short yes/no style answer (a CVE check, a judge verdict) that
+   * needs no long reasoning. HTTP transports ask the model for
+   * `reasoning_effort: "none"` (measured on LM Studio: one CVE check 125 s ->
+   * 17 s, same verdict), unless AI_QUICK_VERDICTS=off. A host that rejects the
+   * field is asked again without it and remembered. Never changes max_tokens.
+   */
+  reasoning?: 'none';
 }
 
 export interface CompleteResult {

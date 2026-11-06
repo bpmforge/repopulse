@@ -136,6 +136,11 @@ export interface T2Config {
    * starts only once the call is sent.
    */
   queueTimeoutMs: number;
+  /**
+   * W25-19: honour CompleteOpts.reasoning 'none' by sending
+   * `reasoning_effort: "none"`. Off with AI_QUICK_VERDICTS=off.
+   */
+  quickReasoning?: boolean;
 }
 
 export const T2_DEFAULTS: Omit<T2Config, 'hosts'> = {
@@ -153,7 +158,17 @@ export const T2_DEFAULTS: Omit<T2Config, 'hosts'> = {
   requestTimeoutMs: Number(process.env.LMSTUDIO_REQUEST_TIMEOUT_MS ?? 20 * 60 * 1000),
   // 60 minutes: three 20-minute calls ahead of you is a busy host, not a hung one.
   queueTimeoutMs: Number(process.env.LMSTUDIO_QUEUE_TIMEOUT_MS ?? 60 * 60 * 1000),
+  quickReasoning: (process.env.AI_QUICK_VERDICTS ?? 'on') !== 'off',
 };
+
+/** A 400 from a host that does not know the reasoning_effort field (W25-19). */
+function rejectsReasoningField(err: unknown): boolean {
+  return (
+    err instanceof ProviderError &&
+    /responded 400/.test(err.message) &&
+    /reasoning/i.test(err.message)
+  );
+}
 
 export interface T2Deps {
   /** Injectable transport so tests can drive crash paths deterministically. */
@@ -369,6 +384,8 @@ function isCrash(error: unknown, matches: string[]): boolean {
 export class T2Client {
   /** Hosts that have completed a call since the last error — no warm-up needed. */
   private readonly warm = new Set<string>();
+  /** W25-19: hosts that answered 400 to reasoning_effort; never sent it again. */
+  private readonly noReasoningField = new Set<string>();
   private readonly inFlight = new Map<string, number>();
 
   constructor(
@@ -452,6 +469,8 @@ export class T2Client {
     timeoutMs?: number,
     parts?: PromptParts,
     signal?: AbortSignal,
+    /** W25-19: ask for no reasoning (a short verdict). */
+    noReasoning?: boolean,
   ): Promise<ChatResponse> {
     const controller = new AbortController();
     // W25-06: the caller's cancel aborts the HTTP request, so the model host
@@ -487,6 +506,7 @@ export class T2Client {
           max_tokens: maxTokens,
           temperature: 0.1,
           ...(host.seed !== undefined ? { seed: host.seed } : {}),
+          ...(noReasoning ? { reasoning_effort: 'none' } : {}),
           // STREAMED, and not for latency (W16-39).
           //
           // Non-streaming, the endpoint sends no response headers until the
@@ -580,6 +600,10 @@ export class T2Client {
       // own time, so a time-budgeted caller (the AI judge) can tell "waited
       // behind other analysis" from "the model was working".
       queuedMs = Date.now() - started;
+      let quick =
+        opts.reasoning === 'none' &&
+        this.config.quickReasoning !== false &&
+        !this.noReasoningField.has(host.baseUrl);
       for (let attempt = 0; attempt < this.config.crashRetry.attempts; attempt++) {
         // Cold or previously-errored host gets a warm-up FIRST. Retrying a
         // crashed model without reloading it just crashes again.
@@ -597,6 +621,7 @@ export class T2Client {
             this.config.requestTimeoutMs,
             opts.promptParts,
             opts.signal,
+            quick,
           );
           this.warm.add(host.baseUrl);
           // A model that thought and never concluded is a FAILURE with a name,
@@ -619,6 +644,14 @@ export class T2Client {
             queuedMs,
           };
         } catch (error) {
+          if (quick && rejectsReasoningField(error)) {
+            // W25-19: this host does not take the field. Ask again without it
+            // (not a crash, so no warm-up and no attempt used) and remember.
+            this.noReasoningField.add(host.baseUrl);
+            quick = false;
+            attempt -= 1;
+            continue;
+          }
           this.warm.delete(host.baseUrl);
           const last = attempt === this.config.crashRetry.attempts - 1;
           if (opts.signal?.aborted) throw abortReason(opts.signal);

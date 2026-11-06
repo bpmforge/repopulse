@@ -7,6 +7,7 @@ import { core, createDb, read, security, type Database } from '@repopulse/shared
 import {
   buildVerifyPrompt,
   HostUnavailableError,
+  ModelTimeoutError,
   pickVerifierHost,
   type AnalysisGateway,
   type CompleteOpts,
@@ -348,6 +349,37 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
     expect(run?.status).toBe('succeeded');
     expect(run?.partial).toBe(true);
     expect(run?.error).toMatch(/model was busy/);
+  });
+
+  it('W25-20: a model call that times out also keeps the rule findings and says why', async () => {
+    // 2026-11-06, outline on the real check: a 1200 s model timeout failed
+    // the whole anti-slop run, losing its rule findings.
+    const slow: AnalysisGateway = {
+      async complete() {
+        throw new ModelTimeoutError('the model did not finish within 1200s');
+      },
+      async health() {
+        return { ok: true };
+      },
+    };
+    const result = await runAntiSlopScan({
+      db,
+      gateway: slow,
+      workspaceId,
+      repoId,
+      commitSha: 'w25-20-model-timeout',
+      files,
+      sources: SOURCES,
+      trigger: 'pr_synced',
+    });
+    expect(result.status).toBe('succeeded');
+    expect(result.deterministic).toBeGreaterThan(0);
+    const [run] = await db
+      .select()
+      .from(security.scanRuns)
+      .where(eq(security.scanRuns.id, result.scanRunId!));
+    expect(run?.partial).toBe(true);
+    expect(run?.error).toMatch(/model call failed \(the model did not finish within 1200s\)/);
   });
 
   it('with NO verifier available, the finding is stored as unverified', async () => {

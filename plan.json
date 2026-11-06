@@ -13258,6 +13258,64 @@
       ]
     },
     {
+      "id": "W25-20",
+      "title": "A failed model call (timeout, no answer, host error) no longer fails anti-slop: the rule findings are kept and the run says why",
+      "phase": 25,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "packages/security/src/scanners/anti-slop/run.ts",
+        "packages/security/src/scanners/anti-slop/run.integration.test.ts",
+        "packages/analysis/src/gateway/index.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W25-18"
+      ],
+      "acceptance": [
+        "ModelTimeoutError, ModelNoAnswerError and ProviderError from the candidate judgement stop the judgement half only; the run succeeds, partial, with the call's reason, and the rule findings are saved",
+        "ModelTimeoutError and ModelNoAnswerError are exported from @repopulse/analysis"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "2026-11-06 real check on 3093daa: outline's anti-slop failed after the 1200 s model timeout and lost its rule findings (check c)."
+      ]
+    },
+    {
+      "id": "W25-19",
+      "title": "Quick verdicts: CVE checks and judge verdicts ask the model for no long reasoning (about 7x faster on a measured CVE check)",
+      "phase": 25,
+      "module": "analysis",
+      "stories": [],
+      "write_scope": [
+        "packages/analysis/src/gateway/types.ts",
+        "packages/analysis/src/t2/client.ts",
+        "packages/analysis/src/t2/client.test.ts",
+        "packages/security/src/validation/verify/run.ts",
+        "apps/api/src/workers/ai-judge.ts",
+        "apps/api/src/routes/setup/env-registry.ts",
+        "docs/CONFIG.md",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W25-12"
+      ],
+      "acceptance": [
+        "CompleteOpts.reasoning 'none' makes the T2 client send reasoning_effort: none; max_tokens stays 45000 (Law 8)",
+        "The CVE second opinion and the AI judge's verdict calls set it; finding reviews do not",
+        "A host that answers 400 naming the field is asked again without it, once, and never sent it again; AI_QUICK_VERDICTS=off turns it off",
+        "Verdict quality is compared on the Mac's model before anyone relies on it (W25-11 run)"
+      ],
+      "points": 2,
+      "status": "done",
+      "notes": [
+        "2026-11-06 Mac measurement on LM Studio, one real CVE check: default 125 s / 807 tokens (644 reasoning); reasoning_effort none 17 s / 126 tokens, same verdict; enable_thinking false 85 s (no effect on this model). One sample."
+      ]
+    },
+    {
       "id": "W26-01",
       "title": "UI polish: shell and shared components (buttons, selects, KPI tiles, form widths, phone header, Overview grid)",
       "phase": 26,

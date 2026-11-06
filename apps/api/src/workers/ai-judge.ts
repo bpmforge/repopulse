@@ -696,7 +696,8 @@ export async function runJudge(a: {
   const gateway: AnalysisGateway = {
     async complete(prompt, opts) {
       try {
-        const r = await a.wg.gateway.complete(prompt, opts);
+        // W25-19: a verdict on a rule hit is a short answer; no long reasoning.
+        const r = await a.wg.gateway.complete(prompt, { ...opts, reasoning: 'none' });
         queuedMs += r.queuedMs ?? 0;
         return r;
       } catch (err) {
