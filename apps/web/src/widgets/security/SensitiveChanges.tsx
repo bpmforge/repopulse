@@ -243,7 +243,7 @@ export function SensitiveChanges({ search }: { search: Record<string, string> })
             )}
             {confirmed.length > 0 && (
               <div data-testid="radar-confirmed">
-                <h3 className="mt-2 text-xs font-semibold tracking-wide text-fg-muted uppercase">
+                <h3 className="section-label mt-2">
                   Confirmed, awaiting a fix ({confirmed.length})
                 </h3>
                 <ItemList items={confirmed} shadow={false} testId="radar-confirmed-list" />
@@ -315,7 +315,7 @@ export function SensitiveChanges({ search }: { search: Record<string, string> })
           <div className="grid gap-3 sm:grid-cols-2">
             {[...grouped.entries()].map(([category, rules]) => (
               <div key={category}>
-                <h3 className="text-xs font-semibold tracking-wide text-fg-muted uppercase">
+                <h3 className="section-label">
                   {CATEGORY_LABEL[category]}
                 </h3>
                 <ul className="mt-1 flex flex-col gap-1 text-sm">

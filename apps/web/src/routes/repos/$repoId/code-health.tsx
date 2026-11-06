@@ -442,7 +442,7 @@ function RuleList({
 }) {
   return (
     <section data-testid={testId}>
-      <h3 className="text-xs uppercase tracking-wide text-fg-muted">{title}</h3>
+      <h3 className="section-label">{title}</h3>
       {rules.length === 0 ? (
         <p className="text-sm text-fg-muted">{emptyMessage}</p>
       ) : (

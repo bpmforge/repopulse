@@ -436,6 +436,8 @@ function FindingsExplorer() {
   } as const;
 
   const [filtersOpen, setFiltersOpen] = useState(false);
+  /** W26-04: the More filters disclosure starts open when one of its filters is on. */
+  const moreFiltersSet = ruleId !== '' || shadowMode !== 'exclude' || confidenceMin !== '';
   const activeFilterCount = Object.keys(filterQuery).filter(
     (k) => k !== 'repo_id' && k !== 'sort' && k !== 'dir',
   ).length;
@@ -754,25 +756,29 @@ function FindingsExplorer() {
       >
         Filters ({activeFilterCount})
       </button>
+      {/* W26-04 (UI-18): search on its own row, then one grid of equal
+          selects, then the two checkboxes and the rarely used filters (Rule,
+          Rule stage, Min confidence) behind More filters, open when one of
+          them is set. */}
       <div
         id="finding-filters"
-        className={`${filtersOpen ? 'flex' : 'hidden'} flex-wrap items-end gap-3 md:flex`}
+        className={`${filtersOpen ? 'flex' : 'hidden'} flex-col gap-3 md:flex`}
         data-testid="finding-filters"
       >
         {/* W20-13 (UX_TODO FND-20): "find the lodash one" without paging. */}
         <form
           role="search"
-          className="flex items-end gap-1"
+          className="flex w-full max-w-3xl items-end gap-1"
           onSubmit={(e) => {
             e.preventDefault();
             setFilters({ q: draft.trim() });
           }}
         >
-          <label className="flex flex-col gap-1 text-xs text-fg-muted">
+          <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs text-fg-muted">
             Search
             <input
               type="search"
-              className="panel w-56 px-2 py-1 text-sm"
+              className="panel w-full px-2 py-1 text-sm"
               data-testid="filter-q"
               placeholder="Title, file, CVE or rule"
               value={draft}
@@ -787,189 +793,200 @@ function FindingsExplorer() {
             Search
           </button>
         </form>
-        <label className="flex flex-col gap-1 text-xs text-fg-muted">
-          Dimension
-          <select
-            className="panel px-2 py-1 text-sm"
-            data-testid="filter-dimension"
-            value={dimension}
-            onChange={(e) => setFilters({ dimension: e.target.value })}
-          >
-            <option value="">Any</option>
-            {DIMENSIONS.map((d) => (
-              <option key={d} value={d}>
-                {/* Marked in the option itself, so the cost of choosing it is
-                    visible BEFORE the click rather than as an empty table
-                    afterwards (W9-14). */}
-                {dimensionLabel(d)}
-                {awaitingProducer(d) ? ' — not yet produced' : ''}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-fg-muted">
-          Status
-          <select
-            className="panel px-2 py-1 text-sm"
-            data-testid="filter-status"
-            value={status}
-            onChange={(e) => setFilters({ status: e.target.value })}
-          >
-            <option value="">Any</option>
-            {STATUS_FILTERS.map((s) => (
-              <option key={s.value} value={s.value}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-fg-muted">
-          Min severity
-          <select
-            className="panel px-2 py-1 text-sm"
-            data-testid="filter-severity"
-            value={severityMin}
-            onChange={(e) => setFilters({ severity_min: e.target.value })}
-          >
-            <option value="">Any</option>
-            {[5, 4, 3, 2].map((s) => (
-              <option key={s} value={s}>
-                {SEVERITY_LABEL[s]} and above
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-fg-muted">
-          Scanner
-          <select
-            className="panel px-2 py-1 text-sm"
-            data-testid="filter-scanner"
-            value={scannerKey}
-            onChange={(e) => setFilters({ scanner_key: e.target.value })}
-          >
-            <option value="">Any source</option>
-            {(scanners?.items ?? []).map((s) => (
-              <option key={s.key} value={s.key}>
-                {s.display_name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-fg-muted">
-          Risk
-          <select
-            className="panel px-2 py-1 text-sm"
-            data-testid="filter-risk-band"
-            value={riskBand}
-            onChange={(e) => setFilters({ risk_band: e.target.value })}
-          >
-            <option value="">Any</option>
-            {Object.entries(RISK_BAND_LABEL).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-fg-muted">
-          Min confidence
-          <select
-            className="panel px-2 py-1 text-sm"
-            data-testid="filter-confidence"
-            value={confidenceMin}
-            onChange={(e) => setFilters({ confidence_min: e.target.value })}
-          >
-            <option value="">Any</option>
-            {[5, 4, 3, 2].map((c) => (
-              <option key={c} value={c}>
-                {c}/5 and above
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-fg-muted">
-          Sort
-          <select
-            className="panel px-2 py-1 text-sm"
-            data-testid="filter-sort"
-            value={sort ?? ''}
-            onChange={(e) => setFilters({ sort: e.target.value, dir: '' })}
-          >
-            {SORT_COLUMNS.map((c) => (
-              <option key={c.key} value={c.key === 'risk' ? '' : c.key}>
-                {c.option}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex items-center gap-2 text-xs text-fg-muted">
-          <input
-            type="checkbox"
-            data-testid="filter-kev"
-            checked={kev}
-            onChange={(e) => setFilters({ kev: e.target.checked })}
-          />
-          Known exploited (KEV)
-        </label>
-        <label className="flex items-center gap-2 text-xs text-fg-muted">
-          <input
-            type="checkbox"
-            data-testid="filter-in-chain"
-            checked={inChain}
-            onChange={(e) => setFilters({ in_chain: e.target.checked })}
-          />
-          In an attack chain
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-fg-muted">
-          Rule
-          <select
-            className="panel max-w-[18rem] px-2 py-1 text-sm"
-            data-testid="filter-rule"
-            value={ruleId}
-            onChange={(e) => setFilters({ rule_id: e.target.value })}
-          >
-            <option value="">Any rule</option>
-            {groupRules(facets?.rules ?? []).map(([scanner, rules]) => (
-              <optgroup key={scanner} label={scannerName(scanner)}>
-                {rules.map((r) => (
-                  <option key={r.rule_id} value={r.rule_id}>
-                    {r.rule_id} ({ruleCounts(r)})
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-fg-muted">
-          Rule stage
-          <select
-            className="panel px-2 py-1 text-sm"
-            data-testid="filter-shadow"
-            value={shadowMode}
-            onChange={(e) => setFilters({ experimental: e.target.value })}
-          >
-            {SHADOW_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-                {o.value === 'only' && facets ? ` (${facets.shadow_total})` : ''}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-fg-muted">
-          Verification
-          <select
-            className="panel px-2 py-1 text-sm"
-            data-testid="filter-verify"
-            value={verifyStatus}
-            onChange={(e) => setFilters({ verify_status: e.target.value })}
-          >
-            <option value="">Any</option>
-            <option value="confirmed">Confirmed on AI review</option>
-            <option value="unverified">Not independently verified</option>
-            <option value="contradicted">Contradicted on review</option>
-          </select>
-        </label>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+          <label className="flex min-w-0 flex-col gap-1 text-xs text-fg-muted">
+            Dimension
+            <select
+              className="panel w-full px-2 py-1 text-sm"
+              data-testid="filter-dimension"
+              value={dimension}
+              onChange={(e) => setFilters({ dimension: e.target.value })}
+            >
+              <option value="">Any</option>
+              {DIMENSIONS.map((d) => (
+                <option key={d} value={d}>
+                  {/* Marked in the option itself, so the cost of choosing it is
+                      visible BEFORE the click rather than as an empty table
+                      afterwards (W9-14). */}
+                  {dimensionLabel(d)}
+                  {awaitingProducer(d) ? ' — not yet produced' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-0 flex-col gap-1 text-xs text-fg-muted">
+            Status
+            <select
+              className="panel w-full px-2 py-1 text-sm"
+              data-testid="filter-status"
+              value={status}
+              onChange={(e) => setFilters({ status: e.target.value })}
+            >
+              <option value="">Any</option>
+              {STATUS_FILTERS.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-0 flex-col gap-1 text-xs text-fg-muted">
+            Min severity
+            <select
+              className="panel w-full px-2 py-1 text-sm"
+              data-testid="filter-severity"
+              value={severityMin}
+              onChange={(e) => setFilters({ severity_min: e.target.value })}
+            >
+              <option value="">Any</option>
+              {[5, 4, 3, 2].map((s) => (
+                <option key={s} value={s}>
+                  {SEVERITY_LABEL[s]} and above
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-0 flex-col gap-1 text-xs text-fg-muted">
+            Risk
+            <select
+              className="panel w-full px-2 py-1 text-sm"
+              data-testid="filter-risk-band"
+              value={riskBand}
+              onChange={(e) => setFilters({ risk_band: e.target.value })}
+            >
+              <option value="">Any</option>
+              {Object.entries(RISK_BAND_LABEL).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-0 flex-col gap-1 text-xs text-fg-muted">
+            Scanner
+            <select
+              className="panel w-full px-2 py-1 text-sm"
+              data-testid="filter-scanner"
+              value={scannerKey}
+              onChange={(e) => setFilters({ scanner_key: e.target.value })}
+            >
+              <option value="">Any source</option>
+              {(scanners?.items ?? []).map((s) => (
+                <option key={s.key} value={s.key}>
+                  {s.display_name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-0 flex-col gap-1 text-xs text-fg-muted">
+            Verification
+            <select
+              className="panel w-full px-2 py-1 text-sm"
+              data-testid="filter-verify"
+              value={verifyStatus}
+              onChange={(e) => setFilters({ verify_status: e.target.value })}
+            >
+              <option value="">Any</option>
+              <option value="confirmed">Confirmed on AI review</option>
+              <option value="unverified">Not independently verified</option>
+              <option value="contradicted">Contradicted on review</option>
+            </select>
+          </label>
+          <label className="flex min-w-0 flex-col gap-1 text-xs text-fg-muted">
+            Sort
+            <select
+              className="panel w-full px-2 py-1 text-sm"
+              data-testid="filter-sort"
+              value={sort ?? ''}
+              onChange={(e) => setFilters({ sort: e.target.value, dir: '' })}
+            >
+              {SORT_COLUMNS.map((c) => (
+                <option key={c.key} value={c.key === 'risk' ? '' : c.key}>
+                  {c.option}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          <label className="flex items-center gap-2 text-xs text-fg-muted">
+            <input
+              type="checkbox"
+              data-testid="filter-kev"
+              checked={kev}
+              onChange={(e) => setFilters({ kev: e.target.checked })}
+            />
+            Known exploited (KEV)
+          </label>
+          <label className="flex items-center gap-2 text-xs text-fg-muted">
+            <input
+              type="checkbox"
+              data-testid="filter-in-chain"
+              checked={inChain}
+              onChange={(e) => setFilters({ in_chain: e.target.checked })}
+            />
+            In an attack chain
+          </label>
+          <details className="group" data-testid="filters-more" open={moreFiltersSet || undefined}>
+            <summary className="cursor-pointer text-xs text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
+              More filters{moreFiltersSet ? ' (on)' : ''}
+            </summary>
+            <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3 md:w-[44rem] md:max-w-full">
+              <label className="flex min-w-0 flex-col gap-1 text-xs text-fg-muted">
+                Rule
+                <select
+                  className="panel w-full px-2 py-1 text-sm"
+                  data-testid="filter-rule"
+                  value={ruleId}
+                  onChange={(e) => setFilters({ rule_id: e.target.value })}
+                >
+                  <option value="">Any rule</option>
+                  {groupRules(facets?.rules ?? []).map(([scanner, rules]) => (
+                    <optgroup key={scanner} label={scannerName(scanner)}>
+                      {rules.map((r) => (
+                        <option key={r.rule_id} value={r.rule_id}>
+                          {r.rule_id} ({ruleCounts(r)})
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </label>
+              <label className="flex min-w-0 flex-col gap-1 text-xs text-fg-muted">
+                Rule stage
+                <select
+                  className="panel w-full px-2 py-1 text-sm"
+                  data-testid="filter-shadow"
+                  value={shadowMode}
+                  onChange={(e) => setFilters({ experimental: e.target.value })}
+                >
+                  {SHADOW_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                      {o.value === 'only' && facets ? ` (${facets.shadow_total})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex min-w-0 flex-col gap-1 text-xs text-fg-muted">
+                Min confidence
+                <select
+                  className="panel w-full px-2 py-1 text-sm"
+                  data-testid="filter-confidence"
+                  value={confidenceMin}
+                  onChange={(e) => setFilters({ confidence_min: e.target.value })}
+                >
+                  <option value="">Any</option>
+                  {[5, 4, 3, 2].map((c) => (
+                    <option key={c} value={c}>
+                      {c}/5 and above
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </details>
+        </div>
       </div>
       {/* Filters that only arrive by link are said, and can be removed. */}
       {linkFilters.length > 0 && (
@@ -1187,6 +1204,7 @@ function FindingsExplorer() {
                     <th
                       key={c.key}
                       scope="col"
+                      {...(c.className ? { className: c.className } : {})}
                       aria-sort={
                         shown === null ? undefined : shown === 'asc' ? 'ascending' : 'descending'
                       }
@@ -1213,7 +1231,9 @@ function FindingsExplorer() {
                 // so the list says which row the panel belongs to.
                 <tr
                   key={f.id}
-                  className={`cursor-pointer border-t border-border max-md:block max-md:py-2 [&>td]:max-md:mr-3 [&>td]:max-md:inline-block [&>th]:max-md:block ${f.id === openId ? 'bg-accent/5' : ''}`}
+                  // W26-04 (UI-35): on a phone each row is a card, title
+                  // first, with a divider and room between records.
+                  className={`cursor-pointer border-t border-border max-md:flex max-md:flex-wrap max-md:items-center max-md:gap-x-3 max-md:gap-y-1 max-md:py-3 [&>th]:max-md:order-first [&>th]:max-md:basis-full ${f.id === openId ? 'bg-accent/5' : ''}`}
                   data-testid={`finding-${f.id}`}
                   aria-current={f.id === openId ? 'true' : undefined}
                   onClick={onRowClick(f)}
@@ -1280,11 +1300,11 @@ function FindingsExplorer() {
                   </th>
                   <td className="py-1 text-xs">{f.repo.name}</td>
                   <td className="py-1 font-mono text-xs" data-testid={`finding-file-${f.id}`}>
-                    {locationOf(f)}
+                    <MiddlePath text={locationOf(f)} />
                   </td>
                   <td className="py-1 text-xs">{statusLabel(f.status)}</td>
                   <td
-                    className="py-1 text-xs whitespace-nowrap tabular-nums"
+                    className={`py-1 text-xs whitespace-nowrap tabular-nums ${AGE_CELL}`}
                     title={`First seen ${f.first_seen_at.slice(0, 10)}`}
                   >
                     {ageOf(f.first_seen_at)}
@@ -1455,12 +1475,44 @@ const SORT_DEFAULT_DIR: Record<FindingSortKey, SortDir> = {
   first_seen: 'asc',
 };
 
-const SORT_COLUMNS: { key: FindingSortKey; label: string; option: string; invert?: boolean }[] = [
+/** Age hides between md and 1440 px wide (W26-04, UI-29); a phone card keeps it. */
+const AGE_CELL = 'md:max-[1440px]:hidden';
+
+/**
+ * A path that keeps its file name (W26-04, UI-29): the directories truncate in
+ * the middle, the name and line stay. The text content is the whole path.
+ */
+function MiddlePath({ text }: { text: string }) {
+  const cut = text.lastIndexOf('/');
+  if (cut <= 0) return <span className="break-all">{text}</span>;
+  return (
+    <span className="flex max-w-[16rem] min-w-0" title={text}>
+      <span className="min-w-0 truncate">{text.slice(0, cut + 1)}</span>
+      <span className="shrink-0">{text.slice(cut + 1)}</span>
+    </span>
+  );
+}
+
+const SORT_COLUMNS: {
+  key: FindingSortKey;
+  label: string;
+  option: string;
+  invert?: boolean;
+  className?: string;
+}[] = [
   { key: 'severity', label: 'Severity', option: 'Severity (highest first)' },
   { key: 'risk', label: 'Risk', option: 'Risk (highest first)' },
   { key: 'title', label: 'Finding', option: 'Finding (A to Z)' },
   { key: 'repository', label: 'Repository', option: 'Repository (A to Z)' },
   { key: 'file', label: 'File', option: 'File (A to Z)' },
   { key: 'status', label: 'Status', option: 'Status (open first)' },
-  { key: 'first_seen', label: 'Age', option: 'Age (oldest first)', invert: true },
+  // W26-04 (UI-29): Age gives way first on a laptop-width table, so Status
+  // stays on screen; the Sort menu still sorts by it.
+  {
+    key: 'first_seen',
+    label: 'Age',
+    option: 'Age (oldest first)',
+    invert: true,
+    className: AGE_CELL,
+  },
 ];

@@ -403,7 +403,7 @@ export function ScheduledPasses({ repoId, isAdmin }: { repoId: string; isAdmin: 
             data-testid="schedule-egress"
             data-leaves={egress.leaves_network ? 'true' : 'false'}
           >
-            <h4 className="text-xs tracking-wide text-fg-muted uppercase">
+            <h4 className="section-label">
               Where source would be sent
             </h4>
             <p className="mt-1" data-testid="schedule-egress-sentence">
@@ -531,7 +531,7 @@ export function ScheduledPasses({ repoId, isAdmin }: { repoId: string; isAdmin: 
       ) : null}
 
       <div>
-        <h4 className="text-xs tracking-wide text-fg-muted uppercase">Last scheduled runs</h4>
+        <h4 className="section-label">Last scheduled runs</h4>
         {data.runs.length === 0 ? (
           <p className="mt-1 text-xs text-fg-muted" data-testid="schedule-runs-empty">
             None yet.{' '}

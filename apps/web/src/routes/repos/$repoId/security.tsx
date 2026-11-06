@@ -12,7 +12,7 @@ import { CoverageMap } from '../../../widgets/trust/CoverageMap.js';
 // funnel widget nobody renders is a widget that does not exist, and FR-SEC-15
 // is about what the Security tab SHOWS. Declared in the handoff.
 import { ValidationFunnelPanel } from '../../../widgets/security/ValidationFunnelPanel.js';
-import { useRef } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { useScanRun, type ScanRun } from '../../../widgets/security/useScanRun.js';
 import { FindingSeverityBadge } from '../../../widgets/findings/FindingSeverity.js';
 import {
@@ -94,11 +94,16 @@ function SecurityTab() {
 
   return (
     <div className="flex flex-col gap-4" data-testid="security-tab">
+      {/* W26-04 (UI-30): the tab was 3,500 px of open panels. Five numbers
+          first, each a jump to its panel; the reference sections below start
+          closed. */}
+      {data && <SecuritySummary data={data} />}
       <WidgetFrame
         title="Coverage"
         state={state}
         {...(error ? { error } : {})}
         testId="security-coverage"
+        id="security-coverage"
       >
         {/* W20-08 (UX_TODO FND-07): admins switch scanners on and off here. */}
         {data && (
@@ -126,7 +131,12 @@ function SecurityTab() {
       {/* W20-13 (UX_TODO FND-32): the findings themselves sit right under
           Coverage. Below the AI pass and the coverage map they were several
           screens down on a phone. */}
-      <WidgetFrame title="Open findings" state={state} testId="security-findings">
+      <WidgetFrame
+        title="Open findings"
+        state={state}
+        testId="security-findings"
+        id="security-findings"
+      >
         {data &&
           (findings.length === 0 ? (
             <p className="text-sm text-fg-muted" data-testid="security-findings-empty">
@@ -217,10 +227,12 @@ function SecurityTab() {
 
       {/* W18-22: the holes beside the scanner table — languages, skipped
           files, absent scanners, shadow rules. */}
-      <CoverageMap repoId={repoId} />
+      <Collapsible title="Coverage map: what was not looked at" testId="security-more-coverage">
+        <CoverageMap repoId={repoId} />
+      </Collapsible>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <WidgetFrame title="Secrets" state={state} testId="security-secrets">
+        <WidgetFrame title="Secrets" state={state} testId="security-secrets" id="security-secrets">
           {data && (
             <dl className="flex flex-col gap-1 text-sm" data-testid="secrets-summary">
               <div className="flex justify-between">
@@ -276,7 +288,12 @@ function SecurityTab() {
           )}
         </WidgetFrame>
 
-        <WidgetFrame title="Vulnerable dependencies" state={state} testId="security-cves">
+        <WidgetFrame
+          title="Vulnerable dependencies"
+          state={state}
+          testId="security-cves"
+          id="security-cves"
+        >
           {data &&
             (data.cves.length === 0 ? (
               <p
@@ -388,53 +405,143 @@ function SecurityTab() {
           attribution existed on the API with no link anywhere in the UI.
           Plain links, not fetch(): the browser streams the download and the
           server's content-disposition names the file. */}
-      <WidgetFrame title="Exports" state="ready" testId="security-exports">
-        <ul className="flex flex-col gap-1 text-sm">
-          <li>
-            <a
-              href={`${API_BASE}/repos/${repoId}/vex.json`}
-              download
-              className="underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-              data-testid="download-vex"
-            >
-              Download VEX
-            </a>{' '}
-            <span className="text-xs text-fg-muted">
-              OpenVEX statements recorded for this repository&apos;s dependencies.
-            </span>
-          </li>
-          <li>
-            <a
-              href={`${API_BASE}/repos/${repoId}/attribution`}
-              download
-              className="underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-              data-testid="download-attribution"
-            >
-              Download attribution (NOTICE)
-            </a>{' '}
-            <span className="text-xs text-fg-muted">
-              Third-party licenses, from the last SBOM the dependency scanner stored
-              {dependencyScanner && !ranSuccessfully(dependencyScanner)
-                ? ' (none yet: the dependency scanner has not completed a run here)'
-                : ''}
-              .
-            </span>
-          </li>
-        </ul>
-      </WidgetFrame>
-
-      {/* W20-15 (UX_TODO X-09): SARIF import was API-only. */}
-      {isAdmin && (
-        <WidgetFrame title="Import results from another tool" state="ready" testId="security-sarif">
-          <SarifImport repoId={repoId} />
+      <Collapsible title="Exports and imports" testId="security-more-exports">
+        <WidgetFrame title="Exports" state="ready" testId="security-exports">
+          <ul className="flex flex-col gap-1 text-sm">
+            <li>
+              <a
+                href={`${API_BASE}/repos/${repoId}/vex.json`}
+                download
+                className="underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                data-testid="download-vex"
+              >
+                Download VEX
+              </a>{' '}
+              <span className="text-xs text-fg-muted">
+                OpenVEX statements recorded for this repository&apos;s dependencies.
+              </span>
+            </li>
+            <li>
+              <a
+                href={`${API_BASE}/repos/${repoId}/attribution`}
+                download
+                className="underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                data-testid="download-attribution"
+              >
+                Download attribution (NOTICE)
+              </a>{' '}
+              <span className="text-xs text-fg-muted">
+                Third-party licenses, from the last SBOM the dependency scanner stored
+                {dependencyScanner && !ranSuccessfully(dependencyScanner)
+                  ? ' (none yet: the dependency scanner has not completed a run here)'
+                  : ''}
+                .
+              </span>
+            </li>
+          </ul>
         </WidgetFrame>
-      )}
 
-      <WidgetFrame title="Attack chains" state={state} testId="security-chains">
+        {/* W20-15 (UX_TODO X-09): SARIF import was API-only. */}
+        {isAdmin && (
+          <WidgetFrame
+            title="Import results from another tool"
+            state="ready"
+            testId="security-sarif"
+          >
+            <SarifImport repoId={repoId} />
+          </WidgetFrame>
+        )}
+      </Collapsible>
+
+      <WidgetFrame
+        title="Attack chains"
+        state={state}
+        testId="security-chains"
+        id="security-chains"
+      >
         {data && (
           <ChainsPanel chains={data.chains} computed={data.chains_computed} repoId={repoId} />
         )}
       </WidgetFrame>
     </div>
+  );
+}
+
+/** A closed-by-default reference section: one summary line, the panel inside. */
+function Collapsible({
+  title,
+  testId,
+  children,
+}: {
+  title: string;
+  testId: string;
+  children: ReactNode;
+}) {
+  return (
+    <details className="group flex flex-col gap-4" data-testid={testId}>
+      <summary className="panel cursor-pointer select-none px-4 py-3 text-[15px] font-semibold text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
+        {title}
+      </summary>
+      <div className="mt-4 flex flex-col gap-4">{children}</div>
+    </details>
+  );
+}
+
+function SecuritySummary({ data }: { data: RepoSecurity }) {
+  const ran = data.scanners.filter(ranSuccessfully).length;
+  const kev = data.cves.filter((c) => c.kev).length;
+  const stats: { label: string; value: string; sub?: string; href: string; key: string }[] = [
+    {
+      key: 'findings',
+      label: 'Open security findings',
+      value: (data.security_open_total ?? data.top_findings?.length ?? 0).toLocaleString(),
+      href: '#security-findings',
+    },
+    {
+      key: 'secrets',
+      label: 'Open secrets',
+      value: data.secrets.open.toLocaleString(),
+      ...(data.secrets.verified > 0 ? { sub: `${data.secrets.verified} verified live` } : {}),
+      href: '#security-secrets',
+    },
+    {
+      key: 'cves',
+      label: 'Vulnerable dependencies',
+      value: data.cves.length.toLocaleString(),
+      ...(kev > 0 ? { sub: `${kev} known exploited` } : {}),
+      href: '#security-cves',
+    },
+    {
+      key: 'chains',
+      label: 'Attack chains',
+      value: data.chains_computed ? data.chains.length.toLocaleString() : 'not run',
+      href: '#security-chains',
+    },
+    {
+      key: 'scanners',
+      label: 'Scanners with a completed run',
+      value: `${ran} of ${data.scanners.length}`,
+      href: '#security-coverage',
+    },
+  ];
+  return (
+    <ul
+      className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5"
+      data-testid="security-summary"
+    >
+      {stats.map((s) => (
+        <li key={s.key} className="min-w-0">
+          <a
+            href={s.href}
+            className="panel flex h-full flex-col gap-0.5 px-4 py-3 hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            data-testid={`security-summary-${s.key}`}
+          >
+            <span className="text-xs text-fg-muted">{s.label}</span>
+            <span className="text-xl font-semibold tabular-nums text-fg">{s.value}</span>
+            {s.sub && <span className="text-xs text-fg-muted">{s.sub}</span>}
+          </a>
+        </li>
+      ))}
+    </ul>
   );
 }

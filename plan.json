@@ -13029,9 +13029,10 @@
         "Help text over two lines sits behind a disclosure or (i) popover; section labels use one style"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "UI review items UI-11, 12, 17, 18, 27..33, 35 (moved from W26-02)"
+        "UI review items UI-11, 12, 17, 18, 27..33, 35 (moved from W26-02)",
+        "Done: UI-18 filters, UI-30 Security summary and collapsed sections, UI-11/12 section-label and help-text utilities, UI-27 AI-review notices folded, UI-29 middle-ellipsis paths and Age hidden below 1440, UI-31 Setup config defaults behind a disclosure, UI-33 Reports form stacked, UI-35 phone rows title-first cards. UI-28 superseded by Brad's single-column card list (W26-02); UI-32 (repo list sparkline) not built: needs new API data."
       ]
     },
     {

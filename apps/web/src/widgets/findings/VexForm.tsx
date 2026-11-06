@@ -72,7 +72,7 @@ export function VexForm({
         });
       }}
     >
-      <h3 className="tracking-wide text-fg-muted uppercase">VEX statement</h3>
+      <h3 className="section-label">VEX statement</h3>
       <label className="flex flex-col gap-1 text-fg-muted">
         Status
         <select

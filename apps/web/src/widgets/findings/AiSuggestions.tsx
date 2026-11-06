@@ -175,7 +175,7 @@ function Suggestion({
 
       {s.citations.length > 0 ? (
         <div data-testid="ai-citations">
-          <h4 className="text-xs tracking-wide text-fg-muted uppercase">
+          <h4 className="section-label">
             Cited lines (our copy of the file)
           </h4>
           <ul className="mt-1 flex flex-col gap-1">
@@ -472,7 +472,7 @@ export function AiSuggestions({
   const second = data.second_opinion ?? null;
   return (
     <div data-testid="ai-section">
-      <h3 className="text-xs tracking-wide text-fg-muted uppercase">AI review</h3>
+      <h3 className="section-label">AI review</h3>
       {raisedBy ? (
         <p className="mt-1 text-xs text-fg-muted" data-testid="ai-raised-by">
           This finding was raised by an AI specialist ({specialistLabel(raisedBy.specialist)}),{' '}

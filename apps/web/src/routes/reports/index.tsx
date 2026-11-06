@@ -261,42 +261,46 @@ function ReportCenter() {
         description="Point-in-time reports, pinned to their window so a regenerated copy shows the same numbers."
       />
       <WidgetFrame title="Generate a report" state="ready">
-        <div className="flex flex-wrap items-end gap-3" data-testid="generate-form">
-          <label className="flex flex-col gap-1 text-xs text-fg-muted">
-            Report
-            <select
-              className="panel px-2 py-1 text-sm"
-              data-testid="report-type"
-              value={type}
-              onChange={(e) => setType(e.target.value)}
-            >
-              {TYPES.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-fg-muted">
-            Window
-            <select
-              className="panel px-2 py-1 text-sm"
-              data-testid="report-window"
-              value={windowDays}
-              onChange={(e) => setWindowDays(Number(e.target.value))}
-            >
-              {[7, 30, 90, 365].map((d) => (
-                <option key={d} value={d}>
-                  {d} days
-                </option>
-              ))}
-            </select>
-          </label>
+        {/* W26-04 (UI-33): a small stacked form, not five controls on one
+            line with a disclosure in the middle. */}
+        <div className="form-narrow flex flex-col gap-3" data-testid="generate-form">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label className="flex flex-col gap-1 text-xs text-fg-muted">
+              Report
+              <select
+                className="w-full panel px-2 py-1 text-sm"
+                data-testid="report-type"
+                value={type}
+                onChange={(e) => setType(e.target.value)}
+              >
+                {TYPES.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-fg-muted">
+              Window
+              <select
+                className="w-full panel px-2 py-1 text-sm"
+                data-testid="report-window"
+                value={windowDays}
+                onChange={(e) => setWindowDays(Number(e.target.value))}
+              >
+                {[7, 30, 90, 365].map((d) => (
+                  <option key={d} value={d}>
+                    {d} days
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
           {single ? (
             <label className="flex flex-col gap-1 text-xs text-fg-muted">
               Repository
               <select
-                className="panel px-2 py-1 text-sm"
+                className="w-full panel px-2 py-1 text-sm"
                 data-testid="report-repo"
                 value={effectiveScope[0] ?? ''}
                 onChange={(e) => setScope(e.target.value ? [Number(e.target.value)] : [])}
@@ -343,7 +347,7 @@ function ReportCenter() {
           <label className="flex flex-col gap-1 text-xs text-fg-muted">
             Context (optional)
             <input
-              className="w-72 panel px-2 py-1 text-sm"
+              className="w-full panel px-2 py-1 text-sm"
               data-testid="report-annotation"
               placeholder="e.g. this quarter includes the payments migration"
               value={annotation}
@@ -355,32 +359,34 @@ function ReportCenter() {
               Printed in the report; every member of the workspace can read it.
             </span>
           </label>
-          <button
-            type="button"
-            className="rounded-md btn-primary px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-            data-testid="generate-report"
-            disabled={generate.isPending || missingRepo}
-            title={missingRepo ? 'Choose the repository this report is about' : undefined}
-            onClick={() =>
-              generate.mutate(
-                { type, window_days: windowDays, annotation, repo_ids: effectiveScope },
-                { onSuccess: () => setAnnotation('') },
-              )
-            }
-          >
-            {generate.isPending ? 'Queuing…' : 'Generate'}
-          </button>
-          {/* W20-04 (UX_TODO ADM-08). A refused Generate showed nothing at all,
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              className="rounded-md btn-primary px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              data-testid="generate-report"
+              disabled={generate.isPending || missingRepo}
+              title={missingRepo ? 'Choose the repository this report is about' : undefined}
+              onClick={() =>
+                generate.mutate(
+                  { type, window_days: windowDays, annotation, repo_ids: effectiveScope },
+                  { onSuccess: () => setAnnotation('') },
+                )
+              }
+            >
+              {generate.isPending ? 'Queuing…' : 'Generate'}
+            </button>
+            {/* W20-04 (UX_TODO ADM-08). A refused Generate showed nothing at all,
               so the button simply seemed broken; and a successful one gave no
               sign either until the row appeared in History. */}
-          {generate.isSuccess && !generate.isPending ? (
-            <span className="text-xs text-fg-muted" role="status" data-testid="generate-queued">
-              Queued — it appears in History below and updates when it is ready.
-            </span>
-          ) : null}
+            {generate.isSuccess && !generate.isPending ? (
+              <span className="text-xs text-fg-muted" role="status" data-testid="generate-queued">
+                Queued — it appears in History below and updates when it is ready.
+              </span>
+            ) : null}
+          </div>
         </div>
         <ErrorNote error={generate.error} testId="generate-error" className="mt-2" />
-        <p className="mt-2 text-xs text-fg-muted">
+        <p className="help-text mt-2">
           The window and the snapshot high-watermark are pinned when you press Generate, so
           regenerating this report later reproduces the same numbers.
         </p>

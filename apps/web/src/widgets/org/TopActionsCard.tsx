@@ -132,6 +132,31 @@ function ActionRow({ action, search }: { action: TopActionItem; search: Record<s
  * the detail that summary cannot carry. Never "you're all clear" — the sentence
  * states what WAS measured and lets the reader judge the silence.
  */
+type Notice = TopActionsCoverage['notices'][number];
+
+function isAi(n: Notice): boolean {
+  return n.kind === 'ai_review' || n.capability === 'ai_review';
+}
+
+function inAiGroup(all: Notice[], n: Notice): boolean {
+  return isAi(n) && all.filter((m) => isAi(m) && m.state === n.state).length > 1;
+}
+
+function aiGroups(all: Notice[]): { state: string; label: string; repos: string[] }[] {
+  const byState = new Map<string, Notice[]>();
+  for (const n of all) {
+    if (!isAi(n)) continue;
+    byState.set(n.state, [...(byState.get(n.state) ?? []), n]);
+  }
+  return [...byState]
+    .filter(([, ns]) => ns.length > 1)
+    .map(([state, ns]) => ({
+      state,
+      label: ns[0]?.label ?? 'AI review',
+      repos: ns.map((n) => n.repo_name),
+    }));
+}
+
 function CoverageNote({ coverage }: { coverage: TopActionsCoverage }) {
   return (
     <div
@@ -141,23 +166,41 @@ function CoverageNote({ coverage }: { coverage: TopActionsCoverage }) {
     >
       {coverage.notices.length > 0 && (
         <ul className="flex flex-col gap-1 text-xs" data-testid="top-actions-notices">
-          {coverage.notices.map((n) => (
-            <li key={`${n.repo_id}:${n.capability}`} data-state={n.state}>
-              {/* W20-20 (UX_TODO DSH-91): plain capability names, and a way
-                  to act: AI review goes to Settings -> Models, a scanner to
-                  that repository's Security tab. */}
+          {/* W26-04 (UI-27): AI review is a workspace setting, so the same
+              "not configured" line repeated once per repository said one
+              thing many times. Two or more fold into one line. */}
+          {aiGroups(coverage.notices).map((g) => (
+            <li key={`ai:${g.state}`} data-state={g.state}>
               <Link
-                {...noticeTarget(n)}
+                to={'/admin/models' as never}
                 className="hover:underline"
-                data-testid={`top-actions-notice-${n.repo_id}-${n.capability}`}
+                data-testid={`top-actions-notice-ai_review-${g.state}`}
+                title={g.repos.join(', ')}
               >
-                <span className="text-fg">{n.repo_name}</span>
-                {' · '}
-                {n.label ?? n.capability} {noticeLabel(n.state)}
-                {n.detail ? ` — ${n.detail}` : ''}
+                <span className="text-fg">{g.label}</span> is {noticeLabel(g.state)} for{' '}
+                {g.repos.length} repositories · Set up a model
               </Link>
             </li>
           ))}
+          {coverage.notices
+            .filter((n) => !inAiGroup(coverage.notices, n))
+            .map((n) => (
+              <li key={`${n.repo_id}:${n.capability}`} data-state={n.state}>
+                {/* W20-20 (UX_TODO DSH-91): plain capability names, and a way
+                  to act: AI review goes to Settings -> Models, a scanner to
+                  that repository's Security tab. */}
+                <Link
+                  {...noticeTarget(n)}
+                  className="hover:underline"
+                  data-testid={`top-actions-notice-${n.repo_id}-${n.capability}`}
+                >
+                  <span className="text-fg">{n.repo_name}</span>
+                  {' · '}
+                  {n.label ?? n.capability} {noticeLabel(n.state)}
+                  {n.detail ? ` — ${n.detail}` : ''}
+                </Link>
+              </li>
+            ))}
         </ul>
       )}
       {coverage.unsupported.length > 0 && (

@@ -136,22 +136,23 @@ test('the org overview composes through WidgetGrid with 2x2 heroes (W4-21, R-D2)
     new Set(spans).size,
     'every panel is the same width — that is a spreadsheet',
   ).toBeGreaterThan(1);
-  // The two heroes are half-width and two rows tall, side by side as the first
-  // half-width panels. They are named rather than counted: W18-20 added the AI
-  // governance card at half width further DOWN the page, which is a third 6x2
-  // panel but not a hero, and a count of 6-wide panels stopped meaning "two
-  // heroes".
-  const halves = await grid.locator('> div').evaluateAll((nodes) =>
+  // The two heroes sit side by side, two rows tall. W26-01 (UI-26) moved them
+  // from 6 + 6 to 8 + 4 on a 12-column recipe: Repo health is the wider one,
+  // Needs attention the narrow column beside it. Named, not counted.
+  const heroes = await grid.locator('> div').evaluateAll((nodes) =>
     nodes
       .map((n) => n as HTMLElement)
-      .filter((n) => n.dataset['w'] === '6')
-      .map((n) => ({ id: n.dataset['testid'], h: n.dataset['h'] })),
+      .filter((n) =>
+        ['widget-health-grid-org-health', 'widget-attention-feed-org-attention'].includes(
+          n.dataset['testid'] ?? '',
+        ),
+      )
+      .map((n) => ({ id: n.dataset['testid'], w: n.dataset['w'], h: n.dataset['h'] })),
   );
-  expect(halves.slice(0, 2)).toEqual([
-    { id: 'widget-health-grid-org-health', h: '2' },
-    { id: 'widget-attention-feed-org-attention', h: '2' },
+  expect(heroes).toEqual([
+    { id: 'widget-health-grid-org-health', w: '8', h: '2' },
+    { id: 'widget-attention-feed-org-attention', w: '4', h: '2' },
   ]);
-  for (const half of halves) expect(half.h).toBe('2');
 
   // And every panel still renders its real content, not the registry's
   // unknown-type placeholder — an unregistered type degrades silently, which
