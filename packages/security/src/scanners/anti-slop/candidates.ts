@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { estimateTokens, PROMPT_BUDGET_TOKENS, type Finding } from '@repopulse/analysis';
 import type { IncomingFinding } from '@repopulse/insights';
 import type { Checklist } from '../owasp/checklist.js';
@@ -239,4 +240,20 @@ export function candidateFor(
     return named && fits(named) ? named : null;
   }
   return candidates.find(fits) ?? null;
+}
+
+/**
+ * A candidate's identity for verdict memory (W27-02): the checklist version,
+ * the rule, the file and the excerpt the model reads, whitespace collapsed.
+ *
+ * Line numbers are left out on purpose: code that moved down a file is the
+ * same question with the same answer. A changed excerpt (an edit inside or
+ * just around the flagged lines) is a new hash, and is judged again; so is
+ * every candidate after the checklist changes, since the question changed.
+ */
+export function candidateHash(checklistVersion: string, c: SlopCandidate): string {
+  const snippet = c.excerpt.text.replace(/\s+/g, ' ').trim();
+  return createHash('sha256')
+    .update(JSON.stringify([checklistVersion, c.rule, c.file, snippet]))
+    .digest('hex');
 }

@@ -33,6 +33,7 @@ import {
 } from './ai-first-look.js';
 import { fixConfigFor } from './ai-fix.js';
 import { createSecondModelVerifier, cveVerifyHook, inBackground } from './second-model.js';
+import { createJudgementLane } from './slop-judgement.js';
 import { snapshotSources } from './ai-pass-sources.js';
 import { forgeCompareHeads, forgeDiffSources } from './ai-pass-diff.js';
 import { SCHEDULER_TICK_MS, runScheduleTick } from './ai-pass-scheduler.js';
@@ -154,6 +155,8 @@ async function main(): Promise<void> {
   // have analysed on the first one's model, or silently got none at all while
   // its own configured provider sat there enabled.
   const gateways = createGatewayResolver(db, process.env, credentials.loadTokenKey());
+  // W27-02: anti-slop judgements, after their scan job, one per repository.
+  const slopJudgements = createJudgementLane();
 
   // W21-03: a second-model verifier for one scan run of one repository. The
   // pinned gateway is built fresh per connection (as a second opinion's is),
@@ -831,6 +834,11 @@ async function main(): Promise<void> {
             const analysisGateway = (await isAiPaused(db, workspaceId))
               ? null
               : await gateways.for(workspaceId);
+            // W27-02: the slop judgement runs after the job, on the BACKGROUND
+            // gateway, so the first look's calls go first on a one-slot model.
+            const slopJudgeGateway = analysisGateway
+              ? await gateways.forBackground(workspaceId)
+              : null;
             const resolved = await providerForRepo(scanForgeDeps, workspaceId, repoId);
             if (!resolved) {
               return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_connection' };
@@ -874,6 +882,13 @@ async function main(): Promise<void> {
                 const verifier = analysisGateway
                   ? secondModelFor(workspaceId, repoId, analysisGateway.hosts)
                   : null;
+                // W27-02: the slop judgement's own verifier, background too; its
+                // calls go on the cap when the judgement ends, not the job.
+                const slopVerifier = slopJudgeGateway
+                  ? secondModelFor(workspaceId, repoId, slopJudgeGateway.hosts, {
+                      background: true,
+                    })
+                  : null;
                 let slop: Awaited<ReturnType<typeof runAntiSlopScan>>;
                 let logging: Awaited<ReturnType<typeof runLoggingScan>>;
                 try {
@@ -899,8 +914,32 @@ async function main(): Promise<void> {
                       // call — `deps.gateway ? ... : { chunks: [] }` meant every
                       // scheduled run reported judgment: 0 and nobody noticed,
                       // because that is also what a clean repository looks like.
-                      ...(analysisGateway ? { gateway: analysisGateway.gateway } : {}),
-                      ...(verifier ? { verify: verifier.verify } : {}),
+                      ...(slopJudgeGateway
+                        ? {
+                            gateway: slopJudgeGateway.gateway,
+                            // W27-02: the job ends after the rule half; the
+                            // judgement runs afterwards, one per repository.
+                            deferJudgement: slopJudgements.deferFor({
+                              workspaceId,
+                              repoId,
+                              ...(slopVerifier ? { finish: () => slopVerifier.finish() } : {}),
+                              report: (outcome) => {
+                                if ('err' in outcome) {
+                                  log.warn(
+                                    { err: outcome.err, repoId, scanRunId: outcome.scanRunId },
+                                    '[worker] slop judgement failed',
+                                  );
+                                } else {
+                                  log.info(
+                                    { repoId, scanRunId: outcome.scanRunId, ...outcome.summary },
+                                    '[worker] slop judgement done',
+                                  );
+                                }
+                              },
+                            }),
+                          }
+                        : {}),
+                      ...(slopVerifier ? { verify: slopVerifier.verify } : {}),
                     }),
                     await runLoggingScan({
                       db,
