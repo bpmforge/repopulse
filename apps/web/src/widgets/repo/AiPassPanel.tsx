@@ -163,6 +163,10 @@ function RunRow({
   const now = Date.now();
   const elapsed = minutesSince(run.started_at, now);
   const waiting = minutesSince(run.created_at, now);
+  // W25-13: which call is in flight, and whether it waits for the model's slot
+  // behind other analysis or the model is answering it.
+  const live = run.plan?.live;
+  const liveFor = live ? minutesSince(live.since, now) : null;
   const fix = failureFix(run, isAdmin);
   // W20-11 (UX_TODO AI-60): findings a failed pass's specialists had already
   // written are real findings on the repository; the row now says so.
@@ -201,6 +205,21 @@ function RunRow({
             ? `, ${run.calls} of at most ${PASS_CAPS.calls} model calls so far`
             : ''}
           . A pass on a local model can take several minutes.
+        </p>
+      ) : null}
+      {run.status === 'running' && live ? (
+        <p className="text-xs text-fg-muted" data-testid="ai-pass-live-call">
+          {live.state === 'waiting' ? (
+            <span data-testid="ai-pass-live-waiting">
+              Call {live.call}: waiting for the model
+              {liveFor !== null ? ` for ${duration(liveFor)}` : ''} (another analysis is using it).
+            </span>
+          ) : (
+            <span data-testid="ai-pass-live-answering">
+              Call {live.call}: the model is answering
+              {liveFor !== null ? `, ${duration(liveFor)} so far` : ''}.
+            </span>
+          )}
         </p>
       ) : null}
       {isAdmin && ACTIVE(run.status) ? (

@@ -390,6 +390,99 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
     expect(seen?.aborted).toBe(true);
   });
 
+  it('shows the call in flight: waiting, then answering, keeping other plan keys (W25-13)', async () => {
+    // A pass on a one-slot local model looked stuck (11 calls in 3 hours): the
+    // screen could not tell waiting for the model from the model answering.
+    const runId = await newRun();
+    await db
+      .update(read.aiPassRuns)
+      .set({ status: 'running', plan: { judge: { queued_ms: 1234 } } })
+      .where(eq(read.aiPassRuns.id, runId));
+    const slot = { open: () => {} };
+    const slotFree = new Promise<void>((r) => (slot.open = r));
+    const answer = { give: () => {} };
+    const answered = new Promise<void>((r) => (answer.give = r));
+    let callerSent = 0;
+    const inner: AnalysisGateway = {
+      complete: async (_p, o) => {
+        await slotFree;
+        o.onSent?.();
+        await answered;
+        return { text: '{}', model: 'm', tokensIn: 1, tokensOut: 1, costUsd: null, durationMs: 1 };
+      },
+      health: async () => ({ ok: true }),
+    };
+    const tracked = trackPassGateway(inner, db, { workspaceId: WS, runId }, 3);
+    const planOf = async () => (await runOf(runId)).plan as Record<string, unknown>;
+    const call = tracked.complete('p', {
+      tier: 'T2',
+      maxTokens: 1,
+      expectJson: true,
+      meta: {
+        repoId: '1',
+        prNumber: 0,
+        dimension: 'security',
+        checklistVersion: 'v',
+        initiator: 't',
+      },
+      onSent: () => (callerSent += 1),
+    });
+    await vi.waitFor(async () =>
+      expect((await planOf()).live).toMatchObject({ call: 4, state: 'waiting' }),
+    );
+    expect((await planOf()).judge).toEqual({ queued_ms: 1234 });
+    slot.open();
+    await vi.waitFor(async () =>
+      expect((await planOf()).live).toMatchObject({ call: 4, state: 'answering' }),
+    );
+    const live = (await planOf()).live as { since: string };
+    expect(Number.isNaN(Date.parse(live.since))).toBe(false);
+    expect((await planOf()).judge).toEqual({ queued_ms: 1234 });
+    // The caller's own onSent still runs.
+    expect(callerSent).toBe(1);
+    answer.give();
+    await call;
+    const after = await runOf(runId);
+    expect(after.calls).toBe(4);
+    expect(after.plan).toEqual({ judge: { queued_ms: 1234 } });
+  });
+
+  it('writes no answering state once the run stopped running (W25-13)', async () => {
+    const runId = await newRun();
+    await db
+      .update(read.aiPassRuns)
+      .set({ status: 'running', plan: { waves: [] } })
+      .where(eq(read.aiPassRuns.id, runId));
+    const inner: AnalysisGateway = {
+      complete: async (_p, o) => {
+        // Cancelled while the call waited; the answer still comes back.
+        await db
+          .update(read.aiPassRuns)
+          .set({ status: 'failed', reasonCode: 'cancelled' })
+          .where(eq(read.aiPassRuns.id, runId));
+        o.onSent?.();
+        return { text: '{}', model: 'm', tokensIn: 1, tokensOut: 1, costUsd: null, durationMs: 1 };
+      },
+      health: async () => ({ ok: true }),
+    };
+    const tracked = trackPassGateway(inner, db, { workspaceId: WS, runId });
+    await tracked.complete('p', {
+      tier: 'T2',
+      maxTokens: 1,
+      expectJson: true,
+      meta: {
+        repoId: '1',
+        prNumber: 0,
+        dimension: 'security',
+        checklistVersion: 'v',
+        initiator: 't',
+      },
+    });
+    const plan = (await runOf(runId)).plan as Record<string, unknown>;
+    expect(plan.live).toMatchObject({ state: 'waiting' });
+    expect(plan.waves).toEqual([]);
+  });
+
   describe('a repository pass over the same paths again (W25-07)', () => {
     // Brad, 2026-11-06: "everytime someone looks at a repo we dont want them
     // to have to run a full run again". A pass over folders read every file

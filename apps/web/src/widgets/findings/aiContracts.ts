@@ -168,6 +168,12 @@ export interface AiPassRun {
   plan: {
     waves?: { wave: number; specialists: { id: string; reason: string }[] }[];
     skipped?: unknown;
+    /**
+     * W25-13: the model call in flight while the run is running. 'waiting' =
+     * for the model's slot behind other analysis; 'answering' = sent, the model
+     * is working. `since` is when it entered that state (ISO).
+     */
+    live?: { call: number; state: 'waiting' | 'answering'; since: string };
   } | null;
   specialists: {
     usage?: Record<string, { calls?: number; findings?: number }>;

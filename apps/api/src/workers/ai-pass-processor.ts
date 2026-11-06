@@ -259,12 +259,30 @@ export class PassCancelledError extends Error {
   }
 }
 
+/** W25-13: the model call in flight, on `ai_pass_runs.plan.live` while it runs. */
+export interface PassLive {
+  /** 1-based number of the call within the run. */
+  call: number;
+  /** 'waiting' = for the model's slot behind other analysis; 'answering' = sent. */
+  state: 'waiting' | 'answering';
+  /** ISO time the call entered this state. */
+  since: string;
+}
+
 /**
  * The pass's view of the gateway (W20-21, UX_TODO AI-33, AI-64): before each
  * model call it checks that the row is still running (an admin may have
  * cancelled it; then it throws and nothing more is sent), and after each call
  * it writes the number of calls so far, so a long pass shows progress instead
  * of nothing until it ends.
+ *
+ * W25-13: while a call is in flight it also keeps `plan.live` on the row
+ * ({ call, state: 'waiting' | 'answering', since }): 'waiting' from the moment
+ * the call is made, 'answering' once the host's slot is ours and the request
+ * is sent (CompleteOpts.onSent). A pass on a one-slot local model looked stuck
+ * (11 calls in 3 hours) because the screen could not tell waiting behind other
+ * analysis from the model working. Merged into `plan` (jsonb ||), so the
+ * judge's and other keys are kept, and removed when no call is in flight.
  */
 export function trackPassGateway(
   inner: AnalysisGateway,
@@ -276,6 +294,8 @@ export function trackPassGateway(
   cancelPollMs = PASS_CANCEL_POLL_MS,
 ): AnalysisGateway {
   let calls = startAt;
+  let started = startAt;
+  let inFlight = 0;
   const where = and(
     eq(read.aiPassRuns.id, ids.runId),
     eq(read.aiPassRuns.workspaceId, ids.workspaceId),
@@ -288,6 +308,18 @@ export function trackPassGateway(
       .limit(1);
     return row?.status === 'running';
   };
+  /** Merges plan.live into the row while it runs; never fails the call. */
+  const writeLive = (live: PassLive): Promise<void> =>
+    db
+      .update(read.aiPassRuns)
+      .set({
+        plan: sql`coalesce(${read.aiPassRuns.plan}, '{}'::jsonb) || jsonb_build_object('live', ${JSON.stringify(live)}::jsonb)`,
+      })
+      .where(and(where, eq(read.aiPassRuns.status, 'running')))
+      .then(
+        () => undefined,
+        () => undefined,
+      );
   return {
     async complete(prompt, opts) {
       if (!(await stillRunning())) throw new PassCancelledError();
@@ -307,17 +339,36 @@ export function trackPassGateway(
       const signal = opts.signal
         ? AbortSignal.any([opts.signal, controller.signal])
         : controller.signal;
+      started += 1;
+      inFlight += 1;
+      const call = started;
+      // Only the newest call's state is shown; writes are chained so an
+      // 'answering' never lands after the block was cleared.
+      let liveWrites = writeLive({ call, state: 'waiting', since: new Date().toISOString() });
+      await liveWrites;
+      const onSent = (): void => {
+        opts.onSent?.();
+        liveWrites = liveWrites.then(() =>
+          writeLive({ call, state: 'answering', since: new Date().toISOString() }),
+        );
+      };
       try {
-        return await inner.complete(prompt, { ...opts, signal });
+        return await inner.complete(prompt, { ...opts, signal, onSent });
       } catch (err) {
         if (controller.signal.aborted) throw new PassCancelledError();
         throw err;
       } finally {
         clearInterval(timer);
         calls += 1;
+        inFlight -= 1;
+        await liveWrites;
         await db
           .update(read.aiPassRuns)
-          .set({ calls })
+          .set(
+            inFlight === 0
+              ? { calls, plan: sql`coalesce(${read.aiPassRuns.plan}, '{}'::jsonb) - 'live'` }
+              : { calls },
+          )
           .where(and(where, eq(read.aiPassRuns.status, 'running')))
           .catch(() => undefined);
       }

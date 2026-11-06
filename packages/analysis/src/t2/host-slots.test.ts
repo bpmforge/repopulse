@@ -182,3 +182,112 @@ describe('a cancelled call leaves the queue and frees the host (W25-06)', () => 
     expect(slots.active(HOST.baseUrl)).toBe(0);
   });
 });
+
+// W25-13: a pass on a one-slot local model looked stuck; the screen could not
+// tell "waiting behind other analysis" from "the model is answering".
+describe('onSent (W25-13)', () => {
+  const meta = {
+    repoId: '1',
+    prNumber: 0,
+    dimension: 'security' as const,
+    checklistVersion: 'v',
+    initiator: 't',
+  };
+  const answer = () =>
+    new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), {
+      headers: { 'content-type': 'application/json' },
+    });
+
+  it('is called once the slot is acquired, before the request goes out', async () => {
+    const slots = new HostSlots();
+    const config = { ...T2_DEFAULTS, hosts: [HOST], concurrencyCap: 1, queueTimeoutMs: 5_000 };
+    const order: string[] = [];
+    const fetchImpl = (async (_u: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { max_tokens: number };
+      if (body.max_tokens !== 8) order.push('request');
+      return answer();
+    }) as unknown as typeof fetch;
+    const other = new T2Client(config, { slots });
+    const client = new T2Client(config, { slots, fetchImpl, sleep: async () => {} });
+    const busy = gate();
+    const holder = other.track(HOST, () => busy.wait);
+    await new Promise((r) => setTimeout(r, 5));
+
+    const call = client.complete(
+      'p',
+      {
+        tier: 'T2',
+        maxTokens: 1,
+        expectJson: true,
+        meta,
+        onSent: () => order.push('sent'),
+      },
+      HOST,
+    );
+    await new Promise((r) => setTimeout(r, 10));
+    // Still waiting for the slot: nothing is reported as sent.
+    expect(order).toEqual([]);
+    busy.open();
+    await holder;
+    await call;
+    expect(order).toEqual(['sent', 'request']);
+  });
+
+  it('is not called for a call aborted while it waited in the queue', async () => {
+    const slots = new HostSlots();
+    const config = { ...T2_DEFAULTS, hosts: [HOST], concurrencyCap: 1, queueTimeoutMs: 5_000 };
+    const other = new T2Client(config, { slots });
+    const client = new T2Client(config, {
+      slots,
+      fetchImpl: (async () => answer()) as unknown as typeof fetch,
+      sleep: async () => {},
+    });
+    const busy = gate();
+    const holder = other.track(HOST, () => busy.wait);
+    await new Promise((r) => setTimeout(r, 5));
+    const cancel = new AbortController();
+    let sent = 0;
+    const call = client.complete(
+      'p',
+      {
+        tier: 'T2',
+        maxTokens: 1,
+        expectJson: true,
+        meta,
+        signal: cancel.signal,
+        onSent: () => (sent += 1),
+      },
+      HOST,
+    );
+    cancel.abort(new Error('pass cancelled'));
+    await expect(call).rejects.toThrow('pass cancelled');
+    busy.open();
+    await holder;
+    expect(sent).toBe(0);
+  });
+
+  it('a throwing onSent never fails the call', async () => {
+    const client = new T2Client(
+      { ...T2_DEFAULTS, hosts: [HOST], concurrencyCap: 1, queueTimeoutMs: 5_000 },
+      {
+        slots: new HostSlots(),
+        fetchImpl: (async () => answer()) as unknown as typeof fetch,
+        sleep: async () => {},
+      },
+    );
+    const r = await client.complete(
+      'p',
+      {
+        tier: 'T2',
+        maxTokens: 1,
+        expectJson: true,
+        meta,
+        onSent: () => {
+          throw new Error('db down');
+        },
+      },
+      HOST,
+    );
+    expect(r.text).toBe('ok');
+  });
+});

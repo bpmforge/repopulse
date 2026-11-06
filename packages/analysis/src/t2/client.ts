@@ -1,4 +1,5 @@
 import {
+  notifySent,
   usablePromptParts,
   type CompleteOpts,
   type CompleteResult,
@@ -600,6 +601,9 @@ export class T2Client {
       // own time, so a time-budgeted caller (the AI judge) can tell "waited
       // behind other analysis" from "the model was working".
       queuedMs = Date.now() - started;
+      if (opts.signal?.aborted) throw abortReason(opts.signal);
+      // W25-13: the slot is ours; the request goes out now.
+      notifySent(opts);
       let quick =
         opts.reasoning === 'none' &&
         this.config.quickReasoning !== false &&

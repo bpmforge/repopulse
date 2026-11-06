@@ -20,6 +20,7 @@ import {
 } from '../routing/index.js';
 import { contentDigest, isLocalHost, type EgressAuditor } from './egress-auditor.js';
 import {
+  notifySent,
   TierNotPermittedError,
   type AnalysisGateway,
   type CompleteOpts,
@@ -206,6 +207,7 @@ export function createAnalysisGateway(deps: GatewayDeps): AnalysisGateway {
             // is audited above like any host that leaves the network: its nominal
             // destination is Anthropic.
             t2.track(host, async () => {
+              notifySent(opts);
               const r = await runClaudeCli(prompt, host.modelSlot, deps.cli, opts.promptParts);
               return {
                 text: r.text,
