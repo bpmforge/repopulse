@@ -329,3 +329,36 @@ export function cveVerifyHook(deps: {
     };
   };
 }
+
+/**
+ * W25-12: run the CVE second opinion WITHOUT holding the scan job.
+ *
+ * The run row was already closed before the check (W21-03), but the scan JOB
+ * still awaited it, so the repository's scans counted as running for the whole
+ * check: about 2h50 on saleor and outline with a local model (10 CVEs, minutes
+ * each), and the first look and the judge waited behind it. Now the check is
+ * started and the job ends at once; it uses the background gateway (the caller
+ * builds it), so the first look's calls go first on a one-slot model. Verdicts
+ * land on the stored findings when each call returns; a worker that stops
+ * mid-check leaves the rest "not independently verified", as before.
+ */
+export function inBackground(
+  hook: (args: {
+    candidates: VerifyCandidate[];
+    scanRunId: number;
+    commitSha: string;
+  }) => Promise<CveVerifySummary>,
+  report: (outcome: { summary?: CveVerifySummary; err?: unknown; scanRunId: number }) => void,
+): (args: {
+  candidates: VerifyCandidate[];
+  scanRunId: number;
+  commitSha: string;
+}) => Promise<CveVerifySummary> {
+  return async (args) => {
+    void hook(args).then(
+      (summary) => report({ summary, scanRunId: args.scanRunId }),
+      (err: unknown) => report({ err, scanRunId: args.scanRunId }),
+    );
+    return { asked: 0, confirmed: 0, contradicted: 0, deferred: true };
+  };
+}

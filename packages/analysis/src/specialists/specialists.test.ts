@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { budgetForContext, chunkDiff, splitHunks } from '../chunker/index.js';
 import { buildChunkPrompt } from '../chunker/prompt.js';
 import type { AnalysisGateway, CompleteOpts, CompleteResult } from '../gateway/types.js';
-import { ModelTimeoutError, ProviderError } from '../t2/client.js';
+import { ModelNoAnswerError, ModelTimeoutError, ProviderError } from '../t2/client.js';
 import { classifyPath, planWaves } from './planner.js';
 import { SPECIALISTS, specialistById, type SpecialistId } from './registry.js';
 import { extractJson, runSpecialists } from './run.js';
@@ -408,6 +408,37 @@ describe('the runner', () => {
     const run = await runSpecialists(inputWithAllSignals, { gateway, prTitle: 't', meta });
     expect(run.failures).toHaveLength(1);
     expect(run.failures[0]?.error).toMatch(/model crashed/);
+  });
+
+  it('W25-18: a reasoning-only reply is retried once, then recorded against that chunk only', async () => {
+    let n = 0;
+    const { gateway, calls } = scripted(() => {
+      // The first specialist's two tries both reason without answering.
+      if (n++ < 2) throw new ModelNoAnswerError('Model returned no answer: reasoning only');
+      return '{"findings":[]}';
+    });
+    const run = await runSpecialists(inputWithAllSignals, { gateway, prTitle: 't', meta });
+    expect(calls[1]?.prompt).toMatch(/reasoning but no answer/);
+    expect(run.failures).toHaveLength(1);
+    expect(run.failures[0]?.error).toMatch(/no answer/);
+    // Every other specialist still ran.
+    expect(calls.length).toBe(Object.keys(run.usage).length + 1);
+  });
+
+  it('W25-18: recovers when the retry after a reasoning-only reply answers', async () => {
+    let n = 0;
+    const { gateway } = scripted(() => {
+      if (n++ === 0) throw new ModelNoAnswerError('Model returned no answer: reasoning only');
+      return '{"findings":[]}';
+    });
+    const run = await runSpecialists(inputWithAllSignals, {
+      gateway,
+      prTitle: 't',
+      meta,
+      only: ['security'],
+    });
+    expect(run.failures).toEqual([]);
+    expect(run.calls).toBe(2);
   });
 
   it('still throws when no call answered at all, so a dead host fails the pass', async () => {
