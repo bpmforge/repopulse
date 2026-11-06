@@ -162,6 +162,43 @@ describe('filters live in the URL (FND-03, FND-04)', () => {
     );
   });
 
+  // W26-05: any column sorts, and pressing the sorted one flips it.
+  it('sorts by a text column, flips it, and sends the direction', async () => {
+    const { param } = renderAt();
+    const user = userEvent.setup();
+    await screen.findByTestId('finding-1');
+    await user.click(screen.getByTestId('sort-title'));
+    await waitFor(() => expect(param('sort')).toBe('title'));
+    expect(param('dir')).toBeNull();
+    expect(screen.getByTestId('sort-title').closest('th')).toHaveAttribute(
+      'aria-sort',
+      'ascending',
+    );
+    await user.click(screen.getByTestId('sort-title'));
+    await waitFor(() => expect(param('dir')).toBe('desc'));
+    expect(screen.getByTestId('sort-title').closest('th')).toHaveAttribute(
+      'aria-sort',
+      'descending',
+    );
+    await waitFor(() => {
+      const last = listRequests().at(-1)!.searchParams;
+      expect(last.get('sort')).toBe('title');
+      expect(last.get('dir')).toBe('desc');
+    });
+  });
+
+  it('shows Age the way a reader counts it: oldest first is age descending', async () => {
+    const { param } = renderAt();
+    const user = userEvent.setup();
+    await screen.findByTestId('finding-1');
+    await user.click(screen.getByTestId('sort-first_seen'));
+    await waitFor(() => expect(param('sort')).toBe('first_seen'));
+    expect(screen.getByTestId('sort-first_seen').closest('th')).toHaveAttribute(
+      'aria-sort',
+      'descending',
+    );
+  });
+
   it('validates every filter and drops junk rather than failing', () => {
     expect(
       validateFindingsSearch({
@@ -173,6 +210,7 @@ describe('filters live in the URL (FND-03, FND-04)', () => {
         in_chain: 'true',
         experimental: 'sometimes',
         sort: 'severity',
+        dir: 'sideways',
       }),
     ).toEqual({
       finding: 4,
@@ -185,6 +223,10 @@ describe('filters live in the URL (FND-03, FND-04)', () => {
     expect(validateFindingsSearch({ dimension: 'nonsense', status: 'any' })).toEqual({
       status: 'any',
     });
+    // W26-05: risk is the default and never written; a default direction is dropped.
+    expect(validateFindingsSearch({ sort: 'risk', dir: 'asc' })).toEqual({ dir: 'asc' });
+    expect(validateFindingsSearch({ sort: 'title', dir: 'asc' })).toEqual({ sort: 'title' });
+    expect(validateFindingsSearch({ sort: 'colour' })).toEqual({});
   });
 });
 

@@ -13055,7 +13055,7 @@
         "Tenancy and cursor tests cover every sort in both directions"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "2026-11-06 Brad on the canvas: 'can we have this table sortable? so they can click on each header and sort it'. W26-02 ships Severity and Risk, the two sorts the API has"
       ]
