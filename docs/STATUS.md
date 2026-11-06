@@ -4251,3 +4251,8 @@ on the Mac:**
   style, styled selects, KPI tiles with the label on its own line, form and copy widths, a
   one-row phone header, an 8+4 Overview grid and no horizontal scroll at 390px. W26-02 (page
   layouts) and W26-03 (Repository and Settings tab grouping, Brad's call) follow.
+- 2026-11-06 — W26-03: Repository tabs grouped 13 → 6 (Pulse, Delivery, Findings, Security,
+  Code health, AI review; multi-page groups show a second row) and Settings tabs grouped into
+  a left menu (Workspace, Sources, Analysis, System). URLs and repo-tab-*/admin-tab-* ids
+  unchanged; tab strips scroll the active tab into view on a phone. KPI sparkline now shrinks
+  (fixed a 3px sideways scroll at 768px found by e2e).

@@ -217,27 +217,60 @@ const REPO_7 = {
 };
 
 describe('repo detail layout — the workspace tabs (W17-19)', () => {
-  it('offers Activity and Performance beside the tabs that already existed', async () => {
+  it('groups the pages into six tabs and every page keeps its URL (W26-03)', async () => {
     repoResponse = REPO_7;
     renderRepo('/repos/7');
 
-    await screen.findByTestId('repo-tabs');
-    // Every previously bookmarkable tab keeps its place — the new ones are an
-    // addition, not a rearrangement someone's saved link falls out of.
+    const strip = await screen.findByTestId('repo-tabs');
+    expect(Array.from(strip.querySelectorAll('a')).map((a) => a.textContent)).toEqual([
+      'Pulse',
+      'Delivery',
+      'Findings',
+      'Security',
+      'Code health',
+      'AI review',
+    ]);
+    // Pulse is a one-page group: no second row.
+    expect(screen.queryByTestId('repo-subtabs')).not.toBeInTheDocument();
+    // A group links to its first page; one-page groups keep the page's id.
+    expect(screen.getByTestId('repo-group-delivery')).toHaveAttribute(
+      'href',
+      expect.stringContaining('/repos/7/activity'),
+    );
+    expect(screen.getByTestId('repo-group-code-health')).toHaveAttribute(
+      'href',
+      expect.stringContaining('/repos/7/code-health'),
+    );
     for (const id of [
       'repo-tab-pulse',
-      'repo-tab-activity',
-      'repo-tab-performance',
-      'repo-tab-hotspots',
-      'repo-tab-pr-flow',
-      'repo-tab-ai-reviewers',
-      'repo-tab-ci',
       'repo-tab-findings',
       'repo-tab-security',
-      'repo-tab-code-health',
+      'repo-tab-ai-review',
     ]) {
       expect(screen.getByTestId(id)).toBeInTheDocument();
     }
+  });
+
+  it('a page inside a group marks the group and shows its pages (W26-03)', async () => {
+    repoResponse = REPO_7;
+    renderRepo('/repos/7/ci');
+
+    await screen.findByTestId('repo-subtabs');
+    expect(screen.getByTestId('repo-group-delivery')).toHaveAttribute('data-active', 'true');
+    for (const [id, seg] of [
+      ['repo-tab-activity', 'activity'],
+      ['repo-tab-pull-requests', 'prs'],
+      ['repo-tab-pr-flow', 'pr-flow'],
+      ['repo-tab-ci', 'ci'],
+      ['repo-tab-ai-reviewers', 'ai-reviewers'],
+    ] as const) {
+      expect(screen.getByTestId(id)).toHaveAttribute(
+        'href',
+        expect.stringContaining(`/repos/7/${seg}`),
+      );
+    }
+    expect(screen.getByTestId('repo-tab-ci')).toHaveAttribute('data-active', 'true');
+    expect(screen.getByTestId('repo-tab-ci')).toHaveAttribute('aria-current', 'page');
   });
 
   it('a pasted tab URL restores that tab and its window', async () => {
@@ -249,10 +282,9 @@ describe('repo detail layout — the workspace tabs (W17-19)', () => {
     expect(screen.getByTestId('repo-tab-pulse')).not.toHaveAttribute('data-active');
     // The window rides the tab links, or moving between tabs silently resets
     // the reader's filter to the default.
-    expect(screen.getByTestId('repo-tab-activity')).toHaveAttribute(
-      'href',
-      expect.stringContaining('window=90d'),
-    );
+    for (const id of ['repo-tab-hotspots', 'repo-group-delivery']) {
+      expect(screen.getByTestId(id)).toHaveAttribute('href', expect.stringContaining('window=90d'));
+    }
   });
 
   it('back returns to the tab and window you came from', async () => {

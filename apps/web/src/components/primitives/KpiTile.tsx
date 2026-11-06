@@ -74,7 +74,13 @@ export function KpiTile({
           </span>
           {unit && value !== null && <span className="text-sm text-fg-muted">{unit}</span>}
         </div>
-        {aside ? <div className="shrink-0">{aside}</div> : null}
+        {/* Shrinks before the number does: at 768px with the rail open a
+            tile is ~150px and a fixed 96px chart pushed <main> sideways. */}
+        {aside ? (
+          <div className="flex min-w-0 shrink justify-end [&>svg]:h-auto [&>svg]:max-w-full">
+            {aside}
+          </div>
+        ) : null}
       </div>
       <TrendDelta
         deltaPct={deltaPct ?? null}

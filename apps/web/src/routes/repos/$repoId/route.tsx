@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { createFileRoute, Link, Outlet, useParams } from '@tanstack/react-router';
+import { createFileRoute, Link, Outlet, useParams, useRouterState } from '@tanstack/react-router';
 import { serializeGlobalSearch } from '@repopulse/shared/url-state';
 import { WidgetFrame } from '../../../components/index.js';
 import { useApiQuery } from '../../../api/useApiQuery.js';
@@ -13,6 +13,7 @@ import { forgeLabel, type RepoDetail } from '../../../widgets/repo/contracts.js'
 import { asOfLabel } from '../../../widgets/org/contracts.js';
 import { orgWidgets } from '../../../widgets/org/OrgOverview.js';
 import { SaveAsViewButton } from '../../../views/SaveAsViewButton.js';
+import { useActiveTabInView } from '../../../components/shell/useActiveTabInView.js';
 
 /**
  * The repository's sync state in words (W20-12, UX_TODO DSH-24, UX_SPEC
@@ -65,37 +66,84 @@ export const Route = createFileRoute('/repos/$repoId')({
 // CURRENT route, so once you are on /hotspots the Hotspots link becomes
 // /hotspots/hotspots. Caught by the deep-link e2e, which is exactly the case a
 // click-through walk would have kept passing.
-const TABS: { to: string; label: string; exact?: boolean; testId?: string }[] = [
-  { to: '/repos/$repoId/', label: 'Pulse', exact: true },
-  // Activity and Performance sit next to Pulse because they are the two
-  // questions asked before any drill-down: "what has been happening here" and
-  // "how fast does work get out". Neither owns an endpoint of its own —
-  // Activity links the analyses that already exist, Performance reads the
-  // delivery metrics nothing else on this screen shows.
-  { to: '/repos/$repoId/activity', label: 'Activity' },
-  // W20-12 (UX_TODO DSH-25): the PR list had no tab — it was reachable only
-  // through Activity → "All pull requests →".
-  { to: '/repos/$repoId/prs', label: 'Pull requests' },
-  // Renamed (DSH-25): this tab reviews performance FINDINGS; delivery cadence
-  // lives under Activity, so "Performance" sent people to the wrong one.
-  { to: '/repos/$repoId/performance', label: 'Performance findings', testId: 'performance' },
-  { to: '/repos/$repoId/hotspots', label: 'Hotspots' },
-  { to: '/repos/$repoId/pr-flow', label: 'PR Flow' },
-  // W18-23. Beside PR Flow because it is the other half of the review story:
-  // PR Flow measures human review, this measures the tools.
-  // W24-04: "AI Reviewers" (third-party bots) sat a few tabs from RepoPulse's
-  // own AI review, and people looking for one landed on the other (UX_TODO AI-15).
-  // Same route and test id; a plainer name.
-  { to: '/repos/$repoId/ai-reviewers', label: 'Review bots', testId: 'ai-reviewers' },
-  { to: '/repos/$repoId/ci', label: 'CI' },
-  // W20-23 (UX_TODO ADM-34, DSH-33): the place is "Findings" everywhere (rail, trail,
-  // heading, palette, this tab); a "finding" is one item in it.
-  { to: '/repos/$repoId/findings', label: 'Findings', testId: 'findings' },
-  { to: '/repos/$repoId/security', label: 'Security' },
-  // W24-04 (UX review: the AI panel was buried in the Security tab).
-  { to: '/repos/$repoId/ai-review', label: 'AI review', testId: 'ai-review' },
-  { to: '/repos/$repoId/code-health', label: 'Code Health' },
+interface RepoTab {
+  /** Route path below /repos/$repoId (empty for Pulse). */
+  seg: string;
+  label: string;
+  testId: string;
+}
+
+interface RepoTabGroup {
+  key: string;
+  label: string;
+  tabs: RepoTab[];
+}
+
+/**
+ * W26-03 (UI review 2026-11-06, UI-06; Brad chose "group both"): thirteen
+ * tabs in one row did not fit a laptop and scrolled blind on a phone. They
+ * are now six groups; a group with more than one page shows a second row.
+ * Every page keeps its own route, URL and `repo-tab-*` test id, so saved links
+ * and bookmarks land exactly where they did.
+ */
+export const TAB_GROUPS: RepoTabGroup[] = [
+  { key: 'pulse', label: 'Pulse', tabs: [{ seg: '', label: 'Pulse', testId: 'pulse' }] },
+  {
+    key: 'delivery',
+    label: 'Delivery',
+    tabs: [
+      { seg: 'activity', label: 'Activity', testId: 'activity' },
+      { seg: 'prs', label: 'Pull requests', testId: 'pull-requests' },
+      { seg: 'pr-flow', label: 'PR flow', testId: 'pr-flow' },
+      { seg: 'ci', label: 'CI', testId: 'ci' },
+      { seg: 'ai-reviewers', label: 'Review bots', testId: 'ai-reviewers' },
+    ],
+  },
+  {
+    key: 'findings',
+    label: 'Findings',
+    tabs: [{ seg: 'findings', label: 'Findings', testId: 'findings' }],
+  },
+  {
+    key: 'security',
+    label: 'Security',
+    tabs: [{ seg: 'security', label: 'Security', testId: 'security' }],
+  },
+  {
+    key: 'code-health',
+    label: 'Code health',
+    tabs: [
+      { seg: 'code-health', label: 'Overview', testId: 'code-health' },
+      { seg: 'hotspots', label: 'Hotspots', testId: 'hotspots' },
+      { seg: 'performance', label: 'Performance', testId: 'performance' },
+    ],
+  },
+  {
+    key: 'ai-review',
+    label: 'AI review',
+    tabs: [{ seg: 'ai-review', label: 'AI review', testId: 'ai-review' }],
+  },
 ];
+
+/** The group and page a pathname under /repos/:id belongs to. */
+export function activeTab(pathname: string): { group: RepoTabGroup; tab: RepoTab } {
+  const seg = pathname.replace(/^\/repos\/[^/]+\/?/, '').split('/')[0] ?? '';
+  for (const group of TAB_GROUPS) {
+    const tab = group.tabs.find((t) => t.seg === seg);
+    if (tab) return { group, tab };
+  }
+  // files/... and anything unknown: no tab claims it; Pulse's group is shown
+  // without marking a page active.
+  return { group: TAB_GROUPS[0]!, tab: { seg: '__none', label: '', testId: '' } };
+}
+
+const tabPath = (seg: string) => (seg === '' ? '/repos/$repoId/' : `/repos/$repoId/${seg}`);
+
+const TAB_CLASS =
+  'relative shrink-0 whitespace-nowrap rounded-md px-3 py-2 text-sm text-fg-muted hover:text-fg data-[active=true]:font-medium data-[active=true]:text-fg data-[active=true]:after:absolute data-[active=true]:after:inset-x-3 data-[active=true]:after:-bottom-px data-[active=true]:after:h-0.5 data-[active=true]:after:rounded-full data-[active=true]:after:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent';
+
+const SUBTAB_CLASS =
+  'shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-[13px] text-fg-muted hover:bg-surface-2 hover:text-fg data-[active=true]:bg-surface-2 data-[active=true]:font-medium data-[active=true]:text-fg data-[active=true]:shadow-[inset_0_0_0_1px_var(--color-border)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent';
 
 /**
  * Read the transport status off the query error the way useApiQuery does,
@@ -155,50 +203,74 @@ function RepoLayout() {
     return () => setEntityCrumb(null);
   }, [repoId, repoName, setEntityCrumb]);
 
+  const pathname = useRouterState({ select: (st) => st.location.pathname });
+  const current = activeTab(pathname);
+  const groupStrip = useActiveTabInView<HTMLElement>(pathname);
+  const subStrip = useActiveTabInView<HTMLElement>(pathname);
   const tabs = (
-    // W17-31: ten tabs in a row scroll within the strip, not the page. Measured
-    // at 390px the unscrollable strip pushed <main> 292px wide of the viewport
-    // on every repository tab. Same fix as the Settings strip.
-    // W20-12 (UX_TODO DSH-25): a fade on the strip's right edge below `lg`
-    // says there are more tabs to scroll to; eleven tabs scrolled sideways on
-    // a phone with nothing showing they were there.
-    <div className="relative">
-      <nav
-        className="flex gap-0.5 overflow-x-auto border-b border-border pb-px"
-        data-testid="repo-tabs"
-        aria-label="Repository sections"
-      >
-        {TABS.map((tab) => (
-          <Link
-            key={tab.label}
-            to={tab.to as never}
-            params={{ repoId } as never}
-            search={preserved as never}
-            // includeSearch off (W18-28): an EXACT match also compares the search
-            // params in full, and the filters in the URL never equal the preserved
-            // subset this link carries — so the default tab (Pulse, Connections) was
-            // never marked active on the screen it was showing.
-            activeOptions={{ exact: tab.exact ?? false, includeSearch: false }}
-            activeProps={{ 'data-active': 'true' }}
-            className="relative shrink-0 whitespace-nowrap rounded-md px-3 py-2 text-sm text-fg-muted hover:text-fg data-[active=true]:font-medium data-[active=true]:text-fg data-[active=true]:after:absolute data-[active=true]:after:inset-x-3 data-[active=true]:after:-bottom-px data-[active=true]:after:h-0.5 data-[active=true]:after:rounded-full data-[active=true]:after:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-            // A stable id across a relabel, so bookmarked tests and e2e keep working.
-            data-testid={`repo-tab-${tab.testId ?? tab.label.toLowerCase().replace(/\s/g, '-')}`}
-          >
-            {tab.label}
-          </Link>
-        ))}
-      </nav>
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-bg to-transparent lg:hidden"
-      />
+    <div className="flex flex-col gap-2">
+      <div className="relative">
+        <nav
+          ref={groupStrip}
+          className="flex gap-0.5 overflow-x-auto border-b border-border pb-px"
+          data-testid="repo-tabs"
+          aria-label="Repository sections"
+        >
+          {TAB_GROUPS.map((group) => {
+            const active = group.key === current.group.key && current.tab.seg !== '__none';
+            const single = group.tabs.length === 1;
+            const first = group.tabs[0]!;
+            return (
+              <Link
+                key={group.key}
+                to={tabPath(first.seg) as never}
+                params={{ repoId } as never}
+                search={preserved as never}
+                data-active={active ? 'true' : undefined}
+                aria-current={active && single ? 'page' : undefined}
+                className={TAB_CLASS}
+                // A one-page group IS that page, so it keeps the page's id.
+                data-testid={single ? `repo-tab-${first.testId}` : `repo-group-${group.key}`}
+              >
+                {group.label}
+              </Link>
+            );
+          })}
+        </nav>
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-bg to-transparent sm:hidden"
+        />
+      </div>
+      {current.group.tabs.length > 1 && (
+        <nav
+          ref={subStrip}
+          className="flex gap-1 overflow-x-auto"
+          data-testid="repo-subtabs"
+          aria-label={`${current.group.label} pages`}
+        >
+          {current.group.tabs.map((tab) => {
+            const active = tab.seg === current.tab.seg;
+            return (
+              <Link
+                key={tab.seg}
+                to={tabPath(tab.seg) as never}
+                params={{ repoId } as never}
+                search={preserved as never}
+                data-active={active ? 'true' : undefined}
+                aria-current={active ? 'page' : undefined}
+                className={SUBTAB_CLASS}
+                data-testid={`repo-tab-${tab.testId}`}
+              >
+                {tab.label}
+              </Link>
+            );
+          })}
+        </nav>
+      )}
     </div>
   );
 
-  // A failing repo query used to return the error frame ALONE, which took the
-  // tab bar down with it and left a pasted or bookmarked URL with no way onward
-  // but the back button. Whatever went wrong, the screen still has to offer a
-  // route out — the repository list at minimum.
   if (isError) {
     const status = statusOf(error);
     // GET /repos/:id looks the repository up already filtered by workspace
