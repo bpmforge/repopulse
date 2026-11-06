@@ -4311,3 +4311,6 @@ on the Mac:**
 - 2026-11-06 — W25-18: a model reply that is only reasoning (no answer) is retried once with a
   "short reasoning, JSON only" note, then recorded against that chunk; the rest of the review
   carries on. Before, one such reply failed saleor's whole first look after 2 calls.
+- 2026-11-06 — W25-20: a model call that times out, answers with reasoning only or errors no
+  longer fails anti-slop; the run is partial, names the reason and keeps its rule findings
+  (outline lost them to a 1200 s timeout on the real check).

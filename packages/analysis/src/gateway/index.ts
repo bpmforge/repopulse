@@ -406,6 +406,8 @@ export {
   T2_DEFAULTS,
   T2_MAX_TOKENS,
   ProviderError,
+  ModelTimeoutError,
+  ModelNoAnswerError,
   chatCompletionsUrl,
 } from '../t2/client.js';
 export type { T2Config, T2Host } from '../t2/client.js';

@@ -14,6 +14,9 @@ import {
   FindingParseError,
   HostBusyError,
   HostUnavailableError,
+  ModelNoAnswerError,
+  ModelTimeoutError,
+  ProviderError,
   mayBeSurfacedLoudly,
   needsVerification,
   findingVerdict,
@@ -1031,6 +1034,11 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
     // busy model failed the whole run and threw them away (outline, 2026-10-30:
     // two scans in a row, while the weekly rule-tweak pass held LM Studio).
     let modelBusy = false;
+    // W25-20: the model was reached but this call failed (it did not finish
+    // within the timeout, answered with reasoning only, or the host errored).
+    // Same rule as busy: the judgement half stops, the rule findings are kept.
+    // Seen on outline 2026-11-06: a 1200 s timeout failed the whole run.
+    let modelFailed: string | null = null;
 
     for (const batch of batches) {
       const bare = buildCandidatePrompt(checklist, batch);
@@ -1057,6 +1065,14 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
       } catch (err) {
         // W25-02: the gateway now WAITS for a busy host, so this is reached
         // only after the whole queue timeout (HostBusyError) or with no host.
+        if (
+          err instanceof ModelTimeoutError ||
+          err instanceof ModelNoAnswerError ||
+          err instanceof ProviderError
+        ) {
+          modelFailed = err.message;
+          break;
+        }
         if (!(err instanceof HostUnavailableError) && !(err instanceof HostBusyError)) throw err;
         modelBusy = true;
         break;
@@ -1166,7 +1182,12 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
               error:
                 'The model was busy, so the AI review of slop candidates was skipped this run; the rule-based findings were saved.',
             }
-          : {}),
+          : modelFailed
+            ? {
+                partial: true,
+                error: `The AI review of slop candidates stopped because a model call failed (${modelFailed.slice(0, 200)}); the rule-based findings were saved.`,
+              }
+            : {}),
       })
       .where(eq(security.scanRuns.id, runId));
 

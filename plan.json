@@ -13258,6 +13258,32 @@
       ]
     },
     {
+      "id": "W25-20",
+      "title": "A failed model call (timeout, no answer, host error) no longer fails anti-slop: the rule findings are kept and the run says why",
+      "phase": 25,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "packages/security/src/scanners/anti-slop/run.ts",
+        "packages/security/src/scanners/anti-slop/run.integration.test.ts",
+        "packages/analysis/src/gateway/index.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W25-18"
+      ],
+      "acceptance": [
+        "ModelTimeoutError, ModelNoAnswerError and ProviderError from the candidate judgement stop the judgement half only; the run succeeds, partial, with the call's reason, and the rule findings are saved",
+        "ModelTimeoutError and ModelNoAnswerError are exported from @repopulse/analysis"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "2026-11-06 real check on 3093daa: outline's anti-slop failed after the 1200 s model timeout and lost its rule findings (check c)."
+      ]
+    },
+    {
       "id": "W26-01",
       "title": "UI polish: shell and shared components (buttons, selects, KPI tiles, form widths, phone header, Overview grid)",
       "phase": 26,
