@@ -117,3 +117,68 @@ describe('per-host slots shared across clients', () => {
     expect(order).toEqual(['s1', 's2', 'bg1', 'bg2']);
   });
 });
+
+// W25-06: cancelling an AI pass must stop its model call and free the slot.
+describe('a cancelled call leaves the queue and frees the host (W25-06)', () => {
+  it('a waiter whose signal aborts leaves the queue; the next waiter gets the slot', async () => {
+    const slots = new HostSlots();
+    const release = await slots.acquire('h', 1, 5_000);
+    const cancel = new AbortController();
+    const cancelled = slots.acquire('h', 1, 5_000, { signal: cancel.signal });
+    const next = slots.acquire('h', 1, 5_000);
+    cancel.abort(new Error('pass cancelled'));
+    await expect(cancelled).rejects.toThrow('pass cancelled');
+    release();
+    const releaseNext = await next;
+    expect(slots.active('h')).toBe(1);
+    releaseNext();
+    expect(slots.active('h')).toBe(0);
+  });
+
+  it('an in-flight completion is aborted at the HTTP request and its slot freed', async () => {
+    const slots = new HostSlots();
+    let seen: AbortSignal | undefined;
+    const fetchImpl = (async (_url: string, init?: RequestInit) => {
+      const body = init?.body ? JSON.parse(String(init.body)) : {};
+      if (body.max_tokens === 8) {
+        return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), {
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      seen = init?.signal ?? undefined;
+      // A model that would answer in 20 minutes, unless the request is aborted.
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(init.signal!.reason));
+      });
+    }) as unknown as typeof fetch;
+    const client = new T2Client(
+      { ...T2_DEFAULTS, hosts: [HOST], concurrencyCap: 1, queueTimeoutMs: 5_000 },
+      { slots, fetchImpl, sleep: async () => {} },
+    );
+    const cancel = new AbortController();
+    const call = client.complete(
+      'p',
+      {
+        tier: 'T2',
+        maxTokens: 1,
+        expectJson: true,
+        meta: {
+          repoId: '1',
+          prNumber: 0,
+          dimension: 'security',
+          checklistVersion: 'v',
+          initiator: 't',
+        },
+        signal: cancel.signal,
+      },
+      HOST,
+    );
+    await new Promise((r) => setTimeout(r, 10));
+    expect(slots.active(HOST.baseUrl)).toBe(1);
+    cancel.abort(new Error('pass cancelled'));
+    await expect(call).rejects.toThrow('pass cancelled');
+    expect(seen?.aborted).toBe(true);
+    // No crash-retry after a cancel, and the slot is free at once.
+    expect(slots.active(HOST.baseUrl)).toBe(0);
+  });
+});

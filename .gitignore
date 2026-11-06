@@ -29,3 +29,6 @@ deploy/journey/.rules/
 
 # Operator-supplied internal CA certificates (deploy/up.sh creates the dir).
 deploy/ca/
+
+# Redis/Valkey snapshot written when a local server runs in the repo root
+dump.rdb

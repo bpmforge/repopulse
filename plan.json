@@ -12885,6 +12885,36 @@
       "notes": [
         "2026-11-06 0.2.0 install: the supply-chain register ran ~25 s before the SBOM existed on every repo (no_sbom) and Supply Chain read 100/100."
       ]
+    },
+    {
+      "id": "W25-06",
+      "title": "Cancelling an AI pass or judge run aborts its in-flight model call",
+      "phase": 25,
+      "module": "analysis",
+      "stories": [],
+      "write_scope": [
+        "packages/analysis/src/gateway/types.ts",
+        "packages/analysis/src/t2/client.ts",
+        "packages/analysis/src/t2/host-slots.ts",
+        "packages/analysis/src/t2/host-slots.test.ts",
+        "apps/api/src/workers/ai-pass-processor.ts",
+        "apps/api/src/workers/ai-pass-processor.test.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W25-02"
+      ],
+      "acceptance": [
+        "CompleteOpts carries an AbortSignal: a call waiting for the host slot leaves the queue, and a call in flight aborts its HTTP request and frees the slot, with no crash retry",
+        "trackPassGateway checks the pass row every 5 s during a call and aborts it when the pass is no longer running, rejecting with PassCancelledError",
+        "Tests cover the queue, the in-flight abort and the tracked gateway against the real table"
+      ],
+      "points": 2,
+      "status": "done",
+      "notes": [
+        "2026-11-06 tutorial thread on the 0.2.0 install: saleor and outline judges cancelled at 00:51 and 00:55 UTC still wrote verdicts at 01:10 and 01:18 and held the single LM Studio slot. The claude_cli transport does not honour the signal yet."
+      ]
     }
   ]
 }

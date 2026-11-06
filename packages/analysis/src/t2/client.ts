@@ -4,7 +4,7 @@ import {
   type CompleteResult,
   type PromptParts,
 } from '../gateway/types.js';
-import { type HostSlots, SHARED_HOST_SLOTS } from './host-slots.js';
+import { abortReason, type HostSlots, SHARED_HOST_SLOTS } from './host-slots.js';
 import { requestHeadersFor, type HostAuth } from '../config/hosts.js';
 
 // Tier-2 LM Studio client (W6-01, ANALYSIS_TIERS.md §2, FR-ANALYSIS-2/NFR-8/C2).
@@ -419,10 +419,11 @@ export class T2Client {
   }
 
   /** Waits for this host's turn across every client in the process. */
-  private acquireSlot(host: T2Host): Promise<() => void> {
+  private acquireSlot(host: T2Host, signal?: AbortSignal): Promise<() => void> {
     const slots = this.deps.slots ?? SHARED_HOST_SLOTS;
     return slots.acquire(host.baseUrl, this.config.concurrencyCap, this.config.queueTimeoutMs, {
       background: this.deps.background ?? false,
+      ...(signal ? { signal } : {}),
     });
   }
 
@@ -437,8 +438,14 @@ export class T2Client {
     maxTokens: number,
     timeoutMs?: number,
     parts?: PromptParts,
+    signal?: AbortSignal,
   ): Promise<ChatResponse> {
     const controller = new AbortController();
+    // W25-06: the caller's cancel aborts the HTTP request, so the model host
+    // stops generating and its slot is free for the next call.
+    if (signal?.aborted) throw abortReason(signal);
+    const onAbort = () => controller.abort(abortReason(signal!));
+    signal?.addEventListener('abort', onAbort, { once: true });
     // The reason travels with the abort, so the scan_run says "the model did
     // not finish in 20 minutes" rather than the bare "This operation was
     // aborted" that an argument-less abort() produces (W16-39).
@@ -508,8 +515,13 @@ export class T2Client {
         return (await res.json()) as ChatResponse;
       }
       return await readChatStream(res.body);
+    } catch (error) {
+      // The abort's own reason, not "fetch failed", when the caller cancelled.
+      if (signal?.aborted) throw abortReason(signal);
+      throw error;
     } finally {
       if (timer) clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
     }
   }
 
@@ -550,7 +562,7 @@ export class T2Client {
     let queuedMs = 0;
 
     try {
-      release = await this.acquireSlot(host);
+      release = await this.acquireSlot(host, opts.signal);
       // W25-02: time spent waiting for the host's slot, apart from the call's
       // own time, so a time-budgeted caller (the AI judge) can tell "waited
       // behind other analysis" from "the model was working".
@@ -558,6 +570,7 @@ export class T2Client {
       for (let attempt = 0; attempt < this.config.crashRetry.attempts; attempt++) {
         // Cold or previously-errored host gets a warm-up FIRST. Retrying a
         // crashed model without reloading it just crashes again.
+        if (opts.signal?.aborted) throw abortReason(opts.signal);
         if (!this.warm.has(host.baseUrl)) await this.warmUp(host);
 
         try {
@@ -570,6 +583,7 @@ export class T2Client {
             T2_MAX_TOKENS,
             this.config.requestTimeoutMs,
             opts.promptParts,
+            opts.signal,
           );
           this.warm.add(host.baseUrl);
           // A model that thought and never concluded is a FAILURE with a name,
@@ -594,6 +608,7 @@ export class T2Client {
         } catch (error) {
           this.warm.delete(host.baseUrl);
           const last = attempt === this.config.crashRetry.attempts - 1;
+          if (opts.signal?.aborted) throw abortReason(opts.signal);
           if (last || !isCrash(error, this.config.crashRetry.matches)) throw error;
           await this.sleep(this.config.crashRetry.backoffMs[attempt] ?? 60_000);
         }

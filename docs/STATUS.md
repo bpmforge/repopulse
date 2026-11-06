@@ -4242,3 +4242,6 @@ on the Mac:**
     after the tree scanners, so the first scan's supply chain reads the SBOM.
   - Not verified in the cloud: real LM Studio queueing, saleor's real output size, and the
     first look on a real first scan. Needs the Mac real-engine gate and a fresh first scan.
+- 2026-11-06 — W25-06: cancelling an AI pass or judge run now aborts its in-flight model call
+  (the HTTP request is cancelled and the host slot freed; a queued call leaves the queue).
+  Found by the tutorial thread: cancelled judges still wrote verdicts 15-23 min later.
