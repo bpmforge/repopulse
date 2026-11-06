@@ -25,7 +25,12 @@ import {
   type LoadedSources,
   type PassFile,
 } from './ai-pass-processor.js';
-import { queueFirstLookAfterScan, rankFirstLookPaths, rankPaths } from './ai-first-look.js';
+import {
+  pathTier,
+  queueFirstLookAfterScan,
+  rankFirstLookPaths,
+  rankPaths,
+} from './ai-first-look.js';
 import type { PassEgress } from '../lib/ai-pass-egress.js';
 
 // W19-09. The AI pass, end to end against the real tables with a scripted model:
@@ -632,6 +637,51 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
       expect(gw.calls.length).toBeGreaterThan(0);
       // The row names exactly the files that were read.
       expect((await runOf(runId)).paths).toEqual(FILES.map((f) => f.path));
+    });
+
+    it('W25-09: ranks production source before tests, and the code map adds core files', async () => {
+      await ruleFinding({ file: 'src/a.test.ts', severity: 5 });
+      await ruleFinding({ file: 'src/a.test.ts', severity: 5 });
+      await ruleFinding({ file: 'src/a.ts', severity: 2 });
+      await db.delete(read.codeIndexes).where(eq(read.codeIndexes.repoId, REPO));
+      const [idx] = await db
+        .insert(read.codeIndexes)
+        .values({
+          workspaceId: WS,
+          repoId: REPO,
+          commitSha: 'abc',
+          extractor: 'test',
+          fileCount: 2,
+          defCount: 3,
+          refCount: 0,
+          callCount: 0,
+          importCount: 0,
+          buildMs: 1,
+        })
+        .returning({ id: read.codeIndexes.id });
+      const def = (path: string, symbol: string) => ({
+        workspaceId: WS,
+        indexId: idx!.id,
+        path,
+        symbol,
+        kind: 'function',
+        startLine: 1,
+        endLine: 2,
+      });
+      try {
+        await db
+          .insert(read.codeIndexDefs)
+          .values([def('src/core.ts', 'a'), def('src/core.ts', 'b'), def('src/a.ts', 'c')]);
+        expect(await rankFirstLookPaths(db, WS, REPO, new Date())).toEqual([
+          'src/a.ts',
+          'src/core.ts',
+          'src/a.test.ts',
+        ]);
+        // Another workspace's ranking never sees this repository's map (Law 5).
+        expect(await rankFirstLookPaths(db, OTHER, REPO, new Date())).toEqual([]);
+      } finally {
+        await db.delete(read.codeIndexes).where(eq(read.codeIndexes.id, idx!.id));
+      }
     });
 
     it('nothing to rank is a skip with the reason, and no model call', async () => {
@@ -1726,7 +1776,94 @@ describe('rankPaths (W25-01)', () => {
           { path: 'web/app.min.js', weight: 30 },
         ],
       ),
-    ).toEqual(['src/a.py', 'go.mod', 'lib/b.go']);
+    ).toEqual(['src/a.py', 'lib/b.go', 'go.mod']);
+  });
+
+  it('W25-09: ranks production source before config and tests, keeping tests as the fallback', () => {
+    // The gin shape from the real check: tests and config carry the most rule hits.
+    expect(
+      rankPaths(
+        [
+          { path: 'context_test.go', weight: 90 },
+          { path: 'binding/binding_test.go', weight: 80 },
+          { path: 'codecov.yml', weight: 70 },
+          { path: 'go.mod', weight: 60 },
+          { path: 'doc.go', weight: 50 },
+          { path: 'context.go', weight: 10 },
+          { path: 'src/__tests__/a.ts', weight: 9 },
+          { path: 'web/a.spec.tsx', weight: 8 },
+          { path: 'tests/test_api.py', weight: 7 },
+        ],
+        [
+          { path: 'tree.go', weight: 40 },
+          { path: 'pkg/user.py', weight: 30 },
+        ],
+      ),
+    ).toEqual([
+      'context.go',
+      'tree.go',
+      'pkg/user.py',
+      'codecov.yml',
+      'go.mod',
+      'doc.go',
+      'context_test.go',
+      'binding/binding_test.go',
+      'src/__tests__/a.ts',
+      'web/a.spec.tsx',
+      'tests/test_api.py',
+    ]);
+  });
+
+  it('W25-09: definitions in the code map rank source the other keys missed, after them', () => {
+    expect(
+      rankPaths(
+        [
+          { path: 'context.go', weight: 3 },
+          { path: 'gin_test.go', weight: 9 },
+        ],
+        [],
+        120,
+        [
+          { path: 'gin.go', weight: 80 },
+          { path: 'context.go', weight: 70 },
+          { path: 'render/json.go', weight: 20 },
+        ],
+      ),
+    ).toEqual(['context.go', 'gin.go', 'render/json.go', 'gin_test.go']);
+  });
+
+  it('W25-09: pathTier sorts the common test and config shapes', () => {
+    for (const p of [
+      'a_test.go',
+      'x/y.test.ts',
+      'x/y.spec.js',
+      'spec/models/user_spec.rb',
+      'src/test/java/FooTest.java',
+      'tests/conftest.py',
+      'test_util.py',
+      'FooTests.cs',
+    ]) {
+      expect(pathTier(p), p).toBe(2);
+    }
+    for (const p of [
+      '.github/workflows/ci.yml',
+      'go.mod',
+      'doc.go',
+      'api/v1/x.pb.go',
+      'examples/main.go',
+    ]) {
+      expect(pathTier(p), p).toBe(1);
+    }
+    for (const p of [
+      'context.go',
+      'src/app.ts',
+      'saleor/order/models.py',
+      'infra/main.tf',
+      'contest.py',
+      'latest.go',
+    ]) {
+      expect(pathTier(p), p).toBe(0);
+    }
   });
 
   it('stops at the limit', () => {

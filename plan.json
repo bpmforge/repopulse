@@ -12984,6 +12984,32 @@
       ]
     },
     {
+      "id": "W25-09",
+      "title": "First look reads production source first: tests and config only as the fallback, code-map definitions as a third key",
+      "phase": 25,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers/ai-first-look.ts",
+        "apps/api/src/workers/ai-pass-processor.test.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W25-01"
+      ],
+      "acceptance": [
+        "rankPaths orders candidates in tiers: production source, then non-runtime files (yaml, go.mod, doc.go, generated code, examples/docs/scripts), then tests; each tier findings, then churn, then definitions; the limit is applied after ordering",
+        "rankFirstLookPaths adds definitions per file from the repository's code map (code_index_defs joined to code_indexes), workspace-filtered",
+        "Tests: the gin shape from the real check, the test/config path shapes (latest.go and contest.py are not tests), and the code-map key against the real tables including a second workspace"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "2026-11-06 real LM Studio check on the Mac (rpw25): gin's first look read 17 files, of which 10 were tests and 3 config (go.mod, codecov.yml, doc.go). Tests collect the most rule hits. The code-map key was the Mac session's design: gin has no recent commits and few findings on source."
+      ]
+    },
+    {
       "id": "W26-01",
       "title": "UI polish: shell and shared components (buttons, selects, KPI tiles, form widths, phone header, Overview grid)",
       "phase": 26,

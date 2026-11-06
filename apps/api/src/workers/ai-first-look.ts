@@ -149,9 +149,10 @@ export function isFirstLook(run: { mode: string; trigger: string }): boolean {
 }
 
 /**
- * The files a first look reads, best first: open findings on the file
+ * The files a first look reads, best first (production source before config
+ * before tests, W25-09; see rankPaths): open findings on the file
  * (severity-weighted, shadow rules left out), then commits that touched it in
- * the last CHURN_DAYS. Only file types a pass reads, never vendored or built
+ * the last CHURN_DAYS, then definitions in the code map. Only file types a pass reads, never vendored or built
  * paths. Workspace- and repository-filtered (Law 5); reads only our database.
  */
 export async function rankFirstLookPaths(
@@ -197,31 +198,75 @@ export async function rankFirstLookPaths(
     .orderBy(desc(sql`count(*)`), facts.commitFiles.path)
     .limit(limit * 4);
 
+  // W25-09: third key, definitions per file from the code map (W22-01). A
+  // mirror with no recent commits and few findings on source (gin) still has
+  // its core files: the ones that define the most functions and types.
+  const byDefs = await db
+    .select({ path: read.codeIndexDefs.path, n: sql<number>`count(*)::int` })
+    .from(read.codeIndexDefs)
+    .innerJoin(
+      read.codeIndexes,
+      and(
+        eq(read.codeIndexes.id, read.codeIndexDefs.indexId),
+        eq(read.codeIndexes.workspaceId, read.codeIndexDefs.workspaceId),
+      ),
+    )
+    .where(
+      and(eq(read.codeIndexDefs.workspaceId, workspaceId), eq(read.codeIndexes.repoId, repoId)),
+    )
+    .groupBy(read.codeIndexDefs.path)
+    .orderBy(desc(sql`count(*)`), read.codeIndexDefs.path)
+    .limit(limit * 4);
+
   return rankPaths(
     byFindings.map((r) => ({ path: r.file ?? '', weight: Number(r.weight) })),
     byChurn.map((r) => ({ path: r.path, weight: Number(r.n) })),
     limit,
+    byDefs.map((r) => ({ path: r.path, weight: Number(r.n) })),
   );
 }
 
-/** Findings first, then churn; readable source only; no duplicates. Pure, for tests. */
+// W25-09. Test files collect the most rule hits (fixtures, fake secrets,
+// copy-paste setups), so ranking by findings alone made them the first look's
+// favourite: on gin 13 of 17 files read were tests or config (go.mod,
+// codecov.yml, doc.go) and 4 were production code. A first look is for the
+// code that runs, so it is ranked in tiers: production source, then config
+// and other readable non-code, then tests, each tier findings-then-churn.
+// Tests stay as the fallback for a repository that is mostly tests.
+const TEST_PATH =
+  /(^|\/)(tests?|__tests__|__mocks__|mocks?|specs?|e2e|testutils?|testing)\/|(_test\.(go|py|rs|exs|dart|c|cc|cpp)|\.(test|spec)\.[cm]?[jt]sx?|_spec\.rb|Tests?\.(java|kt|kts|cs|swift|scala)|Spec\.(kt|scala|swift))$|(^|\/)(test_[^/]*\.py|conftest\.py)$/;
+/** Readable but not code that runs: manifests, CI and tool config, package docs, generated code. */
+const NOT_RUNTIME =
+  /\.(ya?ml)$|(^|\/)(go\.mod|doc\.go)$|(\.pb\.go|_gen\.go|\.generated\.[a-z]+|\.d\.ts)$|(^|\/)(examples?|docs?|scripts)\//;
+
+/** 0 production source, 1 config and other non-runtime files, 2 tests. Pure, for tests. */
+export function pathTier(path: string): 0 | 1 | 2 {
+  if (TEST_PATH.test(path)) return 2;
+  if (NOT_RUNTIME.test(path)) return 1;
+  return 0;
+}
+
+/**
+ * Production source first, then non-runtime files, then tests; within a tier
+ * findings, then churn, then definitions in the code map; readable source only; no duplicates. Pure, for tests.
+ */
 export function rankPaths(
   byFindings: readonly { path: string; weight: number }[],
   byChurn: readonly { path: string; weight: number }[],
   limit = FIRST_LOOK_CANDIDATES,
+  byDefs: readonly { path: string; weight: number }[] = [],
 ): string[] {
-  const out: string[] = [];
+  const tiers: string[][] = [[], [], []];
   const seen = new Set<string>();
-  for (const list of [byFindings, byChurn]) {
+  for (const list of [byFindings, byChurn, byDefs]) {
     for (const { path } of list) {
-      if (out.length >= limit) return out;
       const clean = path.replace(/^\.?\/+/, '');
       if (!clean || seen.has(clean)) continue;
       const base = clean.split('/').pop() ?? clean;
       if (!AI_PASS_READABLE.test(base) || NOT_SOURCE.test(clean)) continue;
       seen.add(clean);
-      out.push(clean);
+      tiers[pathTier(clean)]!.push(clean);
     }
   }
-  return out;
+  return tiers.flat().slice(0, limit);
 }
