@@ -68,9 +68,11 @@ export class HostSlots {
     host: string,
     cap: number,
     maxWaitMs: number,
-    opts: { background?: boolean } = {},
+    opts: { background?: boolean; signal?: AbortSignal } = {},
   ): Promise<() => void> {
     const background = opts.background ?? false;
+    // W25-06: a call cancelled before it is sent never takes the slot.
+    if (opts.signal?.aborted) return Promise.reject(abortReason(opts.signal));
     const s = this.slot(host);
     let released = false;
     const release = () => {
@@ -86,25 +88,43 @@ export class HostSlots {
     }
     const started = Date.now();
     return new Promise((resolve, reject) => {
+      const onAbort = () => {
+        clearTimeout(timer);
+        const at = s.waiters.indexOf(waiter);
+        if (at >= 0) s.waiters.splice(at, 1);
+        reject(abortReason(opts.signal!));
+      };
       const waiter = {
         background,
         grant: () => {
           clearTimeout(timer);
+          opts.signal?.removeEventListener('abort', onAbort);
           s.active += 1;
           resolve(release);
         },
       };
       const timer = setTimeout(() => {
+        opts.signal?.removeEventListener('abort', onAbort);
         const at = s.waiters.indexOf(waiter);
         if (at >= 0) s.waiters.splice(at, 1);
         reject(new HostBusyError(host, Date.now() - started, s.active + Math.max(0, at)));
       }, maxWaitMs);
+      opts.signal?.addEventListener('abort', onAbort, { once: true });
       // Ahead of the first background waiter, unless this is one.
       const at = background ? -1 : s.waiters.findIndex((w) => w.background);
       if (at < 0) s.waiters.push(waiter);
       else s.waiters.splice(at, 0, waiter);
     });
   }
+}
+
+/** The reason an aborted signal carries, as an Error. */
+export function abortReason(signal: AbortSignal): Error {
+  const r: unknown = signal.reason;
+  if (r instanceof Error) return r;
+  const e = new Error(typeof r === 'string' ? r : 'The call was cancelled.');
+  e.name = 'AbortError';
+  return e;
 }
 
 /** The process-wide table every T2Client uses unless a test injects its own. */

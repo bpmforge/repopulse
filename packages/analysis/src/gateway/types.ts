@@ -70,6 +70,14 @@ export interface CompleteOpts {
    * argument stays the full text and remains what is audited.
    */
   promptParts?: PromptParts;
+  /**
+   * W25-06: aborts the call: while it waits for the host's slot (it leaves the
+   * queue) and while the model is answering (the HTTP request is cancelled, so
+   * the host's slot is freed). A cancelled AI pass or judge run uses it; the
+   * call rejects with the signal's reason. Not honoured by the claude_cli
+   * transport.
+   */
+  signal?: AbortSignal;
 }
 
 export interface CompleteResult {

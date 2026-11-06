@@ -18,6 +18,8 @@ import type { ForgeDiffFile, ForgeProvider } from '@repopulse/forge';
 import {
   aiPassProcessor,
   inScope,
+  PassCancelledError,
+  trackPassGateway,
   type AiPassDeps,
   type AiPassJobData,
   type PassFile,
@@ -335,6 +337,48 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
       },
     };
   }
+
+  it('a cancel during a model call aborts that call (W25-06)', async () => {
+    // 0.2.0 install: cancelled judges went on writing verdicts 15-23 minutes
+    // later and held the one LM Studio slot the whole time.
+    const runId = await newRun();
+    await db
+      .update(read.aiPassRuns)
+      .set({ status: 'running' })
+      .where(eq(read.aiPassRuns.id, runId));
+    let seen: AbortSignal | undefined;
+    const inner: AnalysisGateway = {
+      complete: (_p, o) => {
+        seen = o.signal;
+        return new Promise((_resolve, reject) => {
+          o.signal?.addEventListener('abort', () => reject(o.signal!.reason));
+        });
+      },
+      health: async () => ({ ok: true }),
+    };
+    const tracked = trackPassGateway(inner, db, { workspaceId: WS, runId }, 0, 20);
+    const call = tracked.complete('p', {
+      tier: 'T2',
+      maxTokens: 1,
+      expectJson: true,
+      meta: {
+        repoId: '1',
+        prNumber: 0,
+        dimension: 'security',
+        checklistVersion: 'v',
+        initiator: 't',
+      },
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(seen?.aborted).toBe(false);
+    // What POST .../cancel does to the row.
+    await db
+      .update(read.aiPassRuns)
+      .set({ status: 'failed', reasonCode: 'cancelled' })
+      .where(eq(read.aiPassRuns.id, runId));
+    await expect(call).rejects.toBeInstanceOf(PassCancelledError);
+    expect(seen?.aborted).toBe(true);
+  });
 
   describe('the first look after a first scan (W25-01)', () => {
     const local: () => Promise<PassEgress> = async () => ({

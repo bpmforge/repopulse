@@ -224,6 +224,9 @@ export function inScope(file: string, paths: readonly string[]): boolean {
 
 const stripPatchPrefix = (s: string): string => s.replace(/^\+/gm, '');
 
+/** W25-06: how often a model call in flight looks for a cancel of its pass. */
+export const PASS_CANCEL_POLL_MS = 5_000;
+
 /** Thrown inside a pass whose row an admin cancelled (W20-21, UX_TODO AI-33). */
 export class PassCancelledError extends Error {
   constructor() {
@@ -245,23 +248,48 @@ export function trackPassGateway(
   ids: { workspaceId: number; runId: number },
   /** Calls the pass already made through another tracker (W21-03 verify step). */
   startAt = 0,
+  /** W25-06: how often a call in flight checks whether its pass was cancelled. */
+  cancelPollMs = PASS_CANCEL_POLL_MS,
 ): AnalysisGateway {
   let calls = startAt;
   const where = and(
     eq(read.aiPassRuns.id, ids.runId),
     eq(read.aiPassRuns.workspaceId, ids.workspaceId),
   );
+  const stillRunning = async (): Promise<boolean> => {
+    const [row] = await db
+      .select({ status: read.aiPassRuns.status })
+      .from(read.aiPassRuns)
+      .where(where)
+      .limit(1);
+    return row?.status === 'running';
+  };
   return {
     async complete(prompt, opts) {
-      const [row] = await db
-        .select({ status: read.aiPassRuns.status })
-        .from(read.aiPassRuns)
-        .where(where)
-        .limit(1);
-      if (!row || row.status !== 'running') throw new PassCancelledError();
+      if (!(await stillRunning())) throw new PassCancelledError();
+      // W25-06: a cancel DURING the call aborts it. Before, the row read
+      // "cancelled" at once but the model call went on: on the 0.2.0 install
+      // saleor's and outline's cancelled judges still wrote verdicts 15-23
+      // minutes later and held the one LM Studio slot all that time.
+      const controller = new AbortController();
+      const timer = setInterval(() => {
+        stillRunning()
+          .then((running) => {
+            if (!running) controller.abort(new PassCancelledError());
+          })
+          .catch(() => undefined);
+      }, cancelPollMs);
+      timer.unref?.();
+      const signal = opts.signal
+        ? AbortSignal.any([opts.signal, controller.signal])
+        : controller.signal;
       try {
-        return await inner.complete(prompt, opts);
+        return await inner.complete(prompt, { ...opts, signal });
+      } catch (err) {
+        if (controller.signal.aborted) throw new PassCancelledError();
+        throw err;
       } finally {
+        clearInterval(timer);
         calls += 1;
         await db
           .update(read.aiPassRuns)
