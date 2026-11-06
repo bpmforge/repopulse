@@ -152,7 +152,8 @@ export type PassStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'skipp
 export interface AiPassRun {
   id: number;
   status: PassStatus;
-  trigger?: 'manual' | 'scheduled';
+  /** W25-01: 'after_scan' is a first look queued after a repository's first scan. */
+  trigger?: 'manual' | 'scheduled' | 'after_scan';
   mode?: PassMode;
   paths: string[];
   base_ref?: string | null;

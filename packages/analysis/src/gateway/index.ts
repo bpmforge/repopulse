@@ -320,9 +320,13 @@ export function createAnalysisGateway(deps: GatewayDeps): AnalysisGateway {
 
       // No chain for this role: the shared pool, exactly as before W19-02.
       if (chain === undefined) {
-        const host = t2.pickHost();
-        // Null means every host is at its cap. Surfaced so the SCHEDULER parks
-        // and retries, rather than an unbounded in-process queue nobody can see.
+        // W25-02: a host at its cap is WAITED for (host-slots.ts, bounded by
+        // queueTimeoutMs and failing as HostBusyError by name), not refused.
+        // Refusing meant a second repository's judge failed five times in
+        // 16 ms and anti-slop skipped its AI review whenever another call of
+        // the same client held a one-slot local model (0.2.0 install, A1/P9);
+        // nothing ever parked and retried. Null now means an empty pool only.
+        const host = t2.pickHost() ?? t2.leastLoadedHost();
         if (!host) throw new HostUnavailableError();
         const result = await callHost(host, prompt, opts);
         const route = recordOf(role, host, deps.hosts.indexOf(host), []);
@@ -340,19 +344,21 @@ export function createAnalysisGateway(deps: GatewayDeps): AnalysisGateway {
       }
 
       // A chain. Each link is tried in order; only a PROVIDER error moves on.
+      // W25-02: links with a free slot first, in chain order; then the busy
+      // ones, in chain order, where the call waits for the slot instead of the
+      // whole chain failing with "No Tier-2 host is available".
       const failed: RouteRecord['failedLinks'] = [];
-      let saturated = false;
-      for (let i = 0; i < chain.length; i++) {
-        const link = chain[i]!;
+      for (const link of chain) {
         // Defence in depth: the chain was valid when it was saved, but a
         // connection can be edited afterwards.
         if (localOnly && !hostIsLocal(link.host)) {
           throw new LocalOnlyViolationError(role, link.providerName, hostOf(link.host));
         }
-        if (!t2.hasCapacity(link.host)) {
-          saturated = true;
-          continue;
-        }
+      }
+      const free = chain.map((_, i) => i).filter((i) => t2.hasCapacity(chain[i]!.host));
+      const busy = chain.map((_, i) => i).filter((i) => !free.includes(i));
+      for (const i of [...free, ...busy]) {
+        const link = chain[i]!;
         try {
           const result = await callHost(link.host, prompt, opts);
           const route = recordOf(role, link.host, i, failed, link.providerName);
@@ -367,7 +373,6 @@ export function createAnalysisGateway(deps: GatewayDeps): AnalysisGateway {
           });
         }
       }
-      if (failed.length === 0 && saturated) throw new HostUnavailableError();
       throw new Error(
         `Every connection for role "${role}" failed: ` +
           failed.map((f) => `${f.providerName} (${f.error})`).join('; '),
@@ -404,3 +409,6 @@ export {
   chatCompletionsUrl,
 } from '../t2/client.js';
 export type { T2Config, T2Host } from '../t2/client.js';
+// W25-02: a call that waited its whole queue timeout for a busy host fails by
+// this name, so callers that skip on a busy model can recognise it.
+export { HostBusyError, HostSlots } from '../t2/host-slots.js';

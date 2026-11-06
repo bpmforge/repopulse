@@ -26,6 +26,11 @@ import { scanProcessor } from './scan-processor.js';
 import { patchProcessor } from './patch-processor.js';
 import { aiPassProcessor } from './ai-pass-processor.js';
 import { judgeConfigFromEnv, queueJudgeAfterScan } from './ai-judge.js';
+import {
+  firstLookConfigFromEnv,
+  queueFirstLookAfterScan,
+  rankFirstLookPaths,
+} from './ai-first-look.js';
 import { fixConfigFor } from './ai-fix.js';
 import { createSecondModelVerifier, cveVerifyHook } from './second-model.js';
 import { snapshotSources } from './ai-pass-sources.js';
@@ -207,6 +212,8 @@ async function main(): Promise<void> {
     AI_JUDGE_FAST_MIN_CONFIDENCE: process.env.AI_JUDGE_FAST_MIN_CONFIDENCE,
     AI_JUDGE_BATCH_SIZE: process.env.AI_JUDGE_BATCH_SIZE,
   });
+  // W25-01: the first-look pass after a repository's first scan.
+  const firstLookConfig = firstLookConfigFromEnv({ AI_FIRST_LOOK: process.env.AI_FIRST_LOOK });
   // W22-09: verified fixes for the top confirmed findings, drafted in the
   // judge run after judging and within its budget.
   const fixConfig = fixConfigFor(judgeConfig);
@@ -432,6 +439,26 @@ async function main(): Promise<void> {
           } catch (err) {
             log.warn({ err, repoId }, '[worker] reprice after scan not queued');
           }
+          // W25-01: the AI's first look for code issues, queued BEFORE the
+          // judge so it is ahead of it for the model (it uses the foreground
+          // gateway; the judge's calls wait behind every other analysis).
+          try {
+            const looked = await queueFirstLookAfterScan(
+              {
+                db,
+                config: firstLookConfig,
+                enqueue: async (data) => {
+                  await judgeQueue.add('ai.pass', data, { jobId: `ai-pass-${data.runId}` });
+                },
+              },
+              { workspaceId, repoId },
+            );
+            if (looked.queued)
+              log.info({ repoId, runId: looked.runId }, '[worker] AI first look queued');
+            else log.debug({ repoId, code: looked.code }, '[worker] AI first look not queued');
+          } catch (err) {
+            log.warn({ err, repoId }, '[worker] AI first look after scan not queued');
+          }
           // W22-03: the AI judges the rule hits this scan left open, within
           // the workspace's budget (local by default; hosted only when opted in).
           try {
@@ -528,6 +555,14 @@ async function main(): Promise<void> {
             getScanner(key)?.inputs === 'snapshot' ||
             key === 'dependency_cve' ||
             key === 'container_image',
+          // W25-05: readers of other scanners' output go after the tree: the
+          // supply-chain register and owasp_llm read the SBOM dependency_cve
+          // writes, and every `findings` scanner (the attack chainer first)
+          // reads what the batch has just found.
+          runsAfterTree: (key) =>
+            getScanner(key)?.inputs === 'findings' ||
+            key === 'supply_chain_register' ||
+            key === 'owasp_llm',
           // No connection or no ingested commit: null, and each scanner records
           // its own no_connection / no_head_sha row on its own path.
           headSha: async (workspaceId, repoId) =>
@@ -1044,6 +1079,13 @@ async function main(): Promise<void> {
               // distribution — carried out rather than logged and lost.
               deferred: result.notRun.length,
               ...(result.error ? { error: result.error } : {}),
+              // W25-03: no tool for these languages (gin is Go) is a named
+              // skip; a real run, or an up-to-date one, wrote its own row.
+              ...(result.status === 'skipped'
+                ? { skipped: 'no_supported_language' }
+                : result.status === 'succeeded'
+                  ? { recordedRun: true }
+                  : {}),
             };
           },
           // W10-01, wired here rather than left as an unreferenced export.
@@ -1054,6 +1096,10 @@ async function main(): Promise<void> {
               findingsCreated: result.created,
               deferred: 0,
               ...(result.error ? { error: result.error } : {}),
+              // W25-03: zero modules is "no history in the window", by name.
+              ...(result.status === 'succeeded' && result.modules === 0
+                ? { skipped: 'no_history_in_window' }
+                : {}),
             };
           },
           // W8-08's OWASP checklists, wired at last (W16-33).
@@ -1160,6 +1206,8 @@ async function main(): Promise<void> {
               findingsCreated: result.created,
               deferred: 0,
               ...(result.error ? { error: result.error } : {}),
+              // W25-03: the chainer wrote its own row; no chain is a measurement.
+              ...(result.status === 'succeeded' ? { recordedRun: true } : {}),
             };
           },
         },
@@ -1329,6 +1377,9 @@ async function main(): Promise<void> {
               }
             : null;
         },
+        // W25-01: a first look's files, ranked from our database when it starts.
+        rankFirstLook: ({ workspaceId, repoId }) =>
+          rankFirstLookPaths(db, workspaceId, repoId, new Date()),
         loadSources: snapshotSources({
           db,
           forgeFor: (workspaceId, repoId) => providerForRepo(scanForgeDeps, workspaceId, repoId),

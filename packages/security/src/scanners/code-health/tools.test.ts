@@ -4,7 +4,14 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { parseJscpdReport, parseLizardCsv, percentile, runCodeHealthTools } from './tools.js';
+import {
+  CODE_HEALTH_MAX_STDOUT_BYTES,
+  JSCPD_PROJECT,
+  parseJscpdReport,
+  parseLizardCsv,
+  percentile,
+  runCodeHealthTools,
+} from './tools.js';
 import { CANON_THRESHOLDS, resolveThresholds, verdictsForFunction } from './thresholds.js';
 
 // code_health_tools (W9-02, CODE_HEALTH_SUITE.md §2, FR-CH-2).
@@ -193,4 +200,38 @@ describeIfScanImage('lizard + jscpd, actually run (FR-CH-2)', () => {
     expect(result.findings).toEqual([]);
     expect(result.metrics.ch_complexity_p90).toBeNull();
   }, 120_000);
+});
+
+describe('the jscpd report is reduced before it reaches stdout (W25-04)', () => {
+  it('keeps exactly what parseJscpdReport reads and drops the clone source text', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'jscpd-'));
+    const file = path.join(dir, 'jscpd-report.json');
+    const fragment = 'x = 1\n'.repeat(10_000);
+    const full = {
+      statistics: {
+        total: { percentage: 4.24, sources: 2 },
+        formats: { python: { sources: { '/scan/a.py': { lines: 9 } } } },
+      },
+      duplicates: [
+        {
+          format: 'python',
+          lines: 12,
+          fragment,
+          firstFile: { name: '/scan/a.py', start: 3, end: 15, startLoc: { line: 3 } },
+          secondFile: { name: '/scan/b.py', start: 40, end: 52 },
+        },
+      ],
+    };
+    writeFileSync(file, JSON.stringify(full));
+    // The same invocation the container makes: node -e <script> <report>.
+    const out = execFileSync(process.execPath, ['-e', JSCPD_PROJECT, file]).toString();
+    expect(out.length).toBeLessThan(400);
+    expect(out).not.toContain('x = 1');
+    expect(parseJscpdReport(out)).toEqual(parseJscpdReport(JSON.stringify(full)));
+  });
+
+  it('asks the sandbox for a stdout cap above the 32 MB default', () => {
+    expect(CODE_HEALTH_MAX_STDOUT_BYTES).toBeGreaterThan(32 * 1024 * 1024);
+    expect(CODE_HEALTH_MAX_STDOUT_BYTES).toBeLessThanOrEqual(256 * 1024 * 1024);
+  });
 });

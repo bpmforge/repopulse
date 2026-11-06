@@ -63,6 +63,8 @@ export async function passesInLastDay(
         sql`${read.aiPassRuns.status} <> 'skipped'`,
         // W22-03: judge runs follow scans, not people; not on the daily limit.
         sql`${read.aiPassRuns.mode} <> 'judge'`,
+        // W25-01: nor is a repository's one first look after its first scan.
+        sql`${read.aiPassRuns.trigger} <> 'after_scan'`,
       ),
     );
   return n;

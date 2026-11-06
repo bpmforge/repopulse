@@ -76,6 +76,14 @@ export const JUDGE_PER_RULE = 25;
 export const JUDGE_MAX_CANDIDATES = 2000;
 /** On a hosted link: most calls one judge run may make (the same ceiling as a pass). */
 export const JUDGE_MAX_CALLS_HOSTED = 30;
+/**
+ * W25-02: most minutes of waiting for a busy model one judge run is NOT charged
+ * for. On the 0.2.0 install axum's run took 71 minutes for two calls because
+ * its 30-minute clock ran while scan reviews held the one-slot local model;
+ * gin's reached 35 minutes with no call made. Waiting is now added to the
+ * run's deadline (bounded by this), so the budget is the model's time.
+ */
+export const JUDGE_MAX_QUEUE_ALLOWANCE_MINUTES = 120;
 /** Consecutive model errors after which the run stops (the model is down, not one finding). */
 export const JUDGE_MAX_CONSECUTIVE_ERRORS = 5;
 /**
@@ -164,7 +172,8 @@ export async function judgeMinutesPerDay(
 export async function judgeMsUsed(db: Database, workspaceId: number, now: Date): Promise<number> {
   const [row] = await db
     .select({
-      ms: sql<number>`coalesce(sum(extract(epoch from (coalesce(${read.aiPassRuns.finishedAt}, ${now.toISOString()}::timestamptz) - ${read.aiPassRuns.startedAt})) * 1000), 0)::float8`,
+      // W25-02: less what a finished run spent waiting for the model.
+      ms: sql<number>`coalesce(sum(greatest(0, extract(epoch from (coalesce(${read.aiPassRuns.finishedAt}, ${now.toISOString()}::timestamptz) - ${read.aiPassRuns.startedAt})) * 1000 - coalesce((${read.aiPassRuns.plan} -> 'judge' ->> 'queued_ms')::float8, 0))), 0)::float8`,
     })
     .from(read.aiPassRuns)
     .where(
@@ -445,7 +454,10 @@ export async function queueJudgeAfterScan(
   }
 
   // A judge run a crashed worker left active would block every later one.
-  const staleBefore = new Date(now.getTime() - (deps.config.scanMinutes + 60) * 60_000);
+  // W25-02: a run may also wait up to JUDGE_MAX_QUEUE_ALLOWANCE_MINUTES for the model.
+  const staleBefore = new Date(
+    now.getTime() - (deps.config.scanMinutes + JUDGE_MAX_QUEUE_ALLOWANCE_MINUTES + 60) * 60_000,
+  );
   await db
     .update(read.aiPassRuns)
     .set({
@@ -547,6 +559,12 @@ export interface JudgeSummary {
   batch_retried: number;
   stopped: 'done' | 'time_budget' | 'call_cap' | 'errors' | 'local_only';
   elapsed_ms: number;
+  /**
+   * W25-02: milliseconds the run's calls spent waiting for a busy model
+   * (scans and other analysis go first). Not charged to the run's minutes, up
+   * to JUDGE_MAX_QUEUE_ALLOWANCE_MINUTES, nor to the workspace's daily ones.
+   */
+  queued_ms?: number;
 }
 
 export function verifyOf(p: {
@@ -665,12 +683,31 @@ export async function runJudge(a: {
   const failedBefore = await recentlyFailedIds(db, ws, run.repoId, started);
   const rows = (await judgeCandidates(db, ws, run.repoId)).filter((r) => !failedBefore.has(r.id));
   const queue = orderJudgeQueue(rows);
-  const deadline = started.getTime() + ok.minutes * 60_000;
+  const baseDeadline = started.getTime() + ok.minutes * 60_000;
+  // W25-02: time waiting for the model's slot moves the deadline, bounded.
+  let queuedMs = 0;
+  const deadlineNow = () =>
+    baseDeadline + Math.min(queuedMs, JUDGE_MAX_QUEUE_ALLOWANCE_MINUTES * 60_000);
+  const gateway: AnalysisGateway = {
+    async complete(prompt, opts) {
+      try {
+        const r = await a.wg.gateway.complete(prompt, opts);
+        queuedMs += r.queuedMs ?? 0;
+        return r;
+      } catch (err) {
+        // A call that waited its whole queue timeout (HostBusyError) waited too.
+        const waited = (err as { waitedMs?: unknown } | null)?.waitedMs;
+        if (typeof waited === 'number' && Number.isFinite(waited)) queuedMs += waited;
+        throw err;
+      }
+    },
+    health: (tier) => a.wg.gateway.health(tier),
+  };
   const maxCalls = ok.budget === 'calls' ? ok.maxCalls : Number.POSITIVE_INFINITY;
   let calls = 0;
   const budgetLeft = () => ({
     kind: ok.budget,
-    deadlineMs: deadline,
+    deadlineMs: deadlineNow(),
     callsLeft: Math.max(0, maxCalls - calls),
   });
   const summary: JudgeSummary = {
@@ -727,7 +764,7 @@ export async function runJudge(a: {
   const funnel = emptyTriageFunnel();
   let fixable = a.fixReserve?.pending ?? false;
   const reserveMs = a.fixReserve ? Math.floor(ok.minutes * 60_000 * a.fixReserve.share) : 0;
-  const judgeDeadline = () => deadline - (fixable ? reserveMs : 0);
+  const judgeDeadline = () => deadlineNow() - (fixable ? reserveMs : 0);
   let consecutiveErrors = 0;
   let verdicts = 0;
   let fatal: string | null = null;
@@ -907,7 +944,7 @@ export async function runJudge(a: {
       const escalate: FullItem[] = [];
       try {
         const fast = await runTriageBatch(plan, {
-          gateway: a.wg.gateway,
+          gateway,
           maxCalls: batchCalls,
           meta,
           role: 'triage_fast',
@@ -988,7 +1025,7 @@ export async function runJudge(a: {
     let result: Awaited<ReturnType<typeof runTriageBatch>>;
     try {
       result = await runTriageBatch(plan, {
-        gateway: a.wg.gateway,
+        gateway,
         maxCalls: batchCalls,
         meta,
       });
@@ -1064,6 +1101,7 @@ export async function runJudge(a: {
   }
 
   summary.elapsed_ms = a.now().getTime() - started.getTime();
+  summary.queued_ms = queuedMs;
   const patch: Partial<typeof read.aiPassRuns.$inferInsert> = {
     plan: { judge: summary },
     triageFunnel: funnel as unknown as Record<string, unknown>,
@@ -1084,7 +1122,7 @@ export async function runJudge(a: {
     patch.reason = fatal.slice(0, 2000);
   } else if (summary.stopped === 'time_budget') {
     patch.reasonCode = 'time_budget';
-    patch.reason = `Stopped at this run's ${ok.minutes}-minute budget${judgeDeadline() < deadline ? ' (part of it kept for drafting fixes)' : ''}; ${summary.not_reached} rule hit(s) wait for the next scan.`;
+    patch.reason = `Stopped at this run's ${ok.minutes}-minute budget${judgeDeadline() < deadlineNow() ? ' (part of it kept for drafting fixes)' : ''}${queuedMs > 0 ? ` (not counting ${Math.round(queuedMs / 60_000)} min waiting for the model)` : ''}; ${summary.not_reached} rule hit(s) wait for the next scan.`;
   } else if (summary.stopped === 'call_cap') {
     patch.reasonCode = 'call_cap';
     patch.reason = `Stopped at this run's ${summary.max_calls}-call cap; ${summary.not_reached} rule hit(s) wait for the next scan.`;

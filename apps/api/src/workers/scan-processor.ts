@@ -86,6 +86,15 @@ export interface HistoryRunner {
      * sweep, with the error thrown away.
      */
     error?: string;
+    /**
+     * W25-03. The runner wrote its OWN succeeded scan_runs row, so `scanned: 0`
+     * is a measurement ("no attack chains", "nothing changed"), not "nobody
+     * looked". The processor then writes no "nothing was scanned" row of its
+     * own: on the 0.2.0 install the attack chainer, the knowledge register and
+     * the architecture register all wrote a good row and then had it buried
+     * under a second one reading "No commits in range to sweep".
+     */
+    recordedRun?: boolean;
   }>;
 }
 
@@ -139,10 +148,22 @@ const NOTHING_SCANNED: Record<string, string> = {
   // the same commit with the same tool and data versions already holds it.
   up_to_date:
     'Nothing changed since the last successful run at this commit with these tool versions, so nothing was re-scanned. Use "Full rescan" to force it.',
+  // W25-03, the architecture register: no dependency-graph tool for the
+  // repository's languages (dependency-cruiser for JS/TS, grimp for Python).
+  no_supported_language:
+    "No architecture tool reads this repository's languages yet, so no module graph was built and nothing was measured.",
+  // W25-03, the knowledge register: its window holds no commit that touched a module.
+  no_history_in_window:
+    "No ingested commit in the register's window touched a module, so there was no ownership to measure — ingest more history or widen the window.",
+  // W25-03: what a runner that gave NO reason gets. It used to be `no_targets`'
+  // sentence about commits, which was false for every runner that is not a
+  // history sweep.
+  no_reason:
+    'Nothing was scanned, and the scanner did not say why — which is not the same as nothing being found.',
 };
 
 function nothingScannedMessage(reason: string | undefined): string {
-  if (reason === undefined) return NOTHING_SCANNED['no_targets']!;
+  if (reason === undefined) return NOTHING_SCANNED['no_reason']!;
   return NOTHING_SCANNED[reason] ?? `Nothing was scanned, and the scanner gave: ${reason}`;
 }
 
@@ -191,6 +212,12 @@ export interface ScanProcessorDeps {
    */
   batch?: {
     usesSnapshot: (scannerKey: string) => boolean;
+    /**
+     * W25-05. True for a scanner that reads what other scanners of the same
+     * batch write (an SBOM, findings): it runs after the tree scanners instead
+     * of before them. Absent = every non-tree scanner runs first, as before.
+     */
+    runsAfterTree?: (scannerKey: string) => boolean;
     headSha: (workspaceId: number, repoId: number) => Promise<string | null>;
     withSnapshot: <T>(
       args: { workspaceId: number; repoId: number; commitSha: string },
@@ -325,7 +352,7 @@ async function runSweep(
   // table went on reading "has never run" after someone pressed Run scans now
   // and was told it had started — the same silent nothing W16-20 fixed for the
   // unwired branch, arriving by a different route.
-  if (outcome.scanned === 0) {
+  if (outcome.scanned === 0 && !outcome.recordedRun) {
     await deps.db.insert(security.scanRuns).values({
       ...row,
       status: 'succeeded',
@@ -495,9 +522,32 @@ async function runBatch(deps: ScanProcessorDeps, data: ScanJobData): Promise<voi
 
   const batch = deps.batch;
   const treeKeys = batch ? keys.filter((k) => runnerFor(k) && batch.usesSnapshot(k)) : [];
-  const ownKeys = keys.filter((k) => !treeKeys.includes(k));
+  // W25-05. Scanners that READ another scanner's output (the supply-chain
+  // register reads the SBOM dependency_cve builds; the attack chainer reads
+  // every finding) run AFTER the tree scanners. They ran first, so on the 0.2.0
+  // install's first scan the supply-chain register found no SBOM ~25 s before
+  // one existed and the Supply Chain tile read 100/100.
+  const late = (k: string) => batch?.runsAfterTree?.(k) ?? false;
+  const ownKeys = keys.filter((k) => !treeKeys.includes(k) && !late(k));
+  const lateKeys = keys.filter((k) => !treeKeys.includes(k) && late(k));
 
   for (const key of ownKeys) await alone(key);
+  try {
+    await runTreeKeys(deps, data, treeKeys, alone, asJob);
+  } finally {
+    for (const key of lateKeys) await alone(key);
+  }
+}
+
+/** The tree half of a batch: one archive, every snapshot scanner inside it (W23-02). */
+async function runTreeKeys(
+  deps: ScanProcessorDeps,
+  data: ScanJobData,
+  treeKeys: string[],
+  alone: (key: string, opts?: Parameters<typeof runHistoryJob>[2]) => Promise<void>,
+  asJob: (scannerKey: string) => ScanJobData,
+): Promise<void> {
+  const batch = deps.batch;
   if (treeKeys.length === 0 || !batch) return;
 
   const commitSha = await batch.headSha(data.workspaceId, data.repoId).catch(() => null);

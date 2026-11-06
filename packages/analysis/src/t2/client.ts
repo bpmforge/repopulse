@@ -387,6 +387,21 @@ export class T2Client {
   }
 
   /**
+   * The least-loaded host whatever its load, or null when the pool is empty
+   * (W25-02). For a caller that will WAIT for the host's slot (host-slots.ts)
+   * rather than fail: the 0.2.0 install's judge failed five times in 16 ms with
+   * "No Tier-2 host is available" because pickHost() said null while another
+   * repository's call held the one slot, and anti-slop skipped its AI review
+   * for the same reason.
+   */
+  leastLoadedHost(): T2Host | null {
+    const sorted = this.config.hosts
+      .map((h) => ({ host: h, load: this.inFlight.get(h.baseUrl) ?? 0 }))
+      .sort((a, b) => a.load - b.load);
+    return sorted[0]?.host ?? null;
+  }
+
+  /**
    * Runs `fn` while counting it against the host's concurrency cap. For
    * transports that are not HTTP chat-completions (the CLI), which still must
    * not exceed the cap or share a machine more than the operator allowed.
@@ -532,9 +547,14 @@ export class T2Client {
     const load = this.inFlight.get(host.baseUrl) ?? 0;
     this.inFlight.set(host.baseUrl, load + 1);
     let release: (() => void) | undefined;
+    let queuedMs = 0;
 
     try {
       release = await this.acquireSlot(host);
+      // W25-02: time spent waiting for the host's slot, apart from the call's
+      // own time, so a time-budgeted caller (the AI judge) can tell "waited
+      // behind other analysis" from "the model was working".
+      queuedMs = Date.now() - started;
       for (let attempt = 0; attempt < this.config.crashRetry.attempts; attempt++) {
         // Cold or previously-errored host gets a warm-up FIRST. Retrying a
         // crashed model without reloading it just crashes again.
@@ -569,6 +589,7 @@ export class T2Client {
             // "measured and free" rather than "does not apply".
             costUsd: null,
             durationMs: Date.now() - started,
+            queuedMs,
           };
         } catch (error) {
           this.warm.delete(host.baseUrl);

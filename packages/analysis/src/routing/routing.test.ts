@@ -381,3 +381,71 @@ describe('host names are not on the network (IPs only, 2026-10-18)', () => {
     ).toEqual(['NAS by IP']);
   });
 });
+
+describe('a busy one-slot host is waited for, not refused (W25-02)', () => {
+  /** fetch that holds each answer until `release()` is called. */
+  function heldFetch() {
+    const waiting: (() => void)[] = [];
+    let sent = 0;
+    const impl = vi.fn(async (_url: string, init?: RequestInit) => {
+      const body = init?.body ? JSON.parse(String(init.body)) : {};
+      if (body.max_tokens === 8) return ok(body.model);
+      sent += 1;
+      await new Promise<void>((r) => waiting.push(r));
+      return ok(body.model);
+    });
+    return {
+      impl: impl as unknown as typeof fetch,
+      sent: () => sent,
+      release: () => waiting.shift()?.(),
+    };
+  }
+  const tick = () => new Promise((r) => setTimeout(r, 5));
+
+  it('the shared pool: a second call on the same client waits and then succeeds', async () => {
+    const { HostSlots } = await import('../t2/host-slots.js');
+    const f = heldFetch();
+    const gw = createAnalysisGateway({
+      hosts: [lan(1)],
+      concurrencyCap: 1,
+      fetchImpl: f.impl,
+      sleep: async () => {},
+      slots: new HostSlots(),
+    });
+    const first = gw.complete('a', opts);
+    await tick();
+    // Before W25-02 this threw HostUnavailableError at once.
+    const second = gw.complete('b', opts);
+    await tick();
+    expect(f.sent()).toBe(1);
+    f.release();
+    await expect(first).resolves.toMatchObject({ model: 'lan-1' });
+    await tick();
+    expect(f.sent()).toBe(2);
+    f.release();
+    const r = await second;
+    expect(r.model).toBe('lan-1');
+    // The wait is reported apart from the model's time.
+    expect(r.queuedMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it('a chain: prefers a free link, and waits on a busy one rather than failing', async () => {
+    const { HostSlots } = await import('../t2/host-slots.js');
+    const f = heldFetch();
+    const gw = gatewayFor(
+      [lan(1)],
+      { localOnly: false, chains: { security: [link(lan(1))] } },
+      f.impl,
+      { concurrencyCap: 1, slots: new HostSlots() },
+    );
+    const first = gw.complete('a', opts);
+    await tick();
+    const second = gw.complete('b', opts);
+    await tick();
+    f.release();
+    await first;
+    await tick();
+    f.release();
+    await expect(second).resolves.toMatchObject({ route: { linkIndex: 0 } });
+  });
+});

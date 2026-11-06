@@ -4225,3 +4225,20 @@ on the Mac:**
     found only fixtures and one false positive.
   - Not done: the dogfood upgrade of repopulse.bpmforge.com (needs the owner's yes), the
     Lodestone pin (W22-13, waits for W22-01), and a real amd64 host test (W11-05).
+- 2026-11-06 — **W25 opened and done in one PR: AI scan gaps from the fresh 0.2.0 install**
+  (tutorial thread, `/mnt/project-files/repopulse/tutorial-0.2.0/CAPTURE_NOTES.md`; owner chose
+  "fix them in one PR").
+  - W25-01: after a repository's first scan the worker queues one AI "first look" pass
+    (trigger `after_scan`) over the files with the most open findings and churn, before the
+    judge. Local models by default; hosted only with the repo opted in. `AI_FIRST_LOOK=off`.
+  - W25-02: a call to a busy one-slot model now waits for the slot instead of failing with
+    "No Tier-2 host is available" (the judge's 16 ms failure, anti-slop's skipped review);
+    the judge's 30-minute budget no longer counts time spent waiting (up to 120 min).
+  - W25-03: no more false "No commits in range to sweep" on the architecture and knowledge
+    registers and the attack chainer.
+  - W25-04: code health trims jscpd's report in the container and raises the stdout cap to
+    128 MB (saleor's "stdout cap exceeded").
+  - W25-05: in a scan batch the supply-chain register, owasp_llm and the findings readers run
+    after the tree scanners, so the first scan's supply chain reads the SBOM.
+  - Not verified in the cloud: real LM Studio queueing, saleor's real output size, and the
+    first look on a real first scan. Needs the Mac real-engine gate and a fresh first scan.

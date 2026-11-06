@@ -12740,6 +12740,151 @@
       "notes": [
         "2026-11-03 found while checking bpmforge.com/repopulse for launch (owner: 'fix what you found'). Docs and plan.json only."
       ]
+    },
+    {
+      "id": "W25-01",
+      "title": "AI first look for code issues after a repository's first scan",
+      "phase": 25,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers/ai-first-look.ts",
+        "apps/api/src/workers/ai-pass-processor.ts",
+        "apps/api/src/workers/ai-pass-sources.ts",
+        "apps/api/src/workers/index.ts",
+        "apps/api/src/workers/ai-pass-processor.test.ts",
+        "apps/api/src/workers/ai-pass-sources.test.ts",
+        "apps/api/src/routes/setup/env-registry.ts",
+        "apps/web/src/widgets/repo/AiPassPanel.tsx",
+        "apps/web/src/widgets/findings/aiContracts.ts",
+        "apps/api/src/routes/ai-pass/index.ts",
+        "docs/STATUS.md",
+        "docs/CONFIG.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W23-10"
+      ],
+      "acceptance": [
+        "After a repository's first scan the worker queues one paths pass (trigger after_scan) before the judge, on by default when every pass role is local, opt-in for hosted models, within the monthly call cap, and never again once one is queued, running or succeeded",
+        "The pass waits for the repository's scans, then reads the files with the most open (non-shadow) findings, then churn, in rank order up to 40 files and 400 KB, and the row names the files read",
+        "Nothing to rank is a skipped row with a reason and no model call; AI_FIRST_LOOK=off turns it off; tests cover queueing, ranking, fitting and waiting"
+      ],
+      "points": 5,
+      "status": "done",
+      "notes": [
+        "2026-11-06 found on the fresh 0.2.0 install (tutorial thread): the first scan ran only the CVE verify step and the judge, so no AI-raised code finding existed. Brad: 'we need it to find code issues ... on top with our mechanical scans and ai scans'. A slice of W22-04 (ranked repo map, per-language checklists stay there)."
+      ]
+    },
+    {
+      "id": "W25-02",
+      "title": "A busy one-slot model is waited for, and the judge is not charged for the wait",
+      "phase": 25,
+      "module": "analysis",
+      "stories": [],
+      "write_scope": [
+        "packages/analysis/src/gateway/index.ts",
+        "packages/analysis/src/gateway/types.ts",
+        "packages/analysis/src/t2/client.ts",
+        "packages/analysis/src/t2/host-slots.ts",
+        "packages/analysis/src/routing/routing.test.ts",
+        "packages/security/src/scanners/anti-slop/run.ts",
+        "apps/api/src/workers/ai-judge.ts",
+        "apps/api/src/workers/ai-judge.test.ts",
+        "apps/api/src/routes/setup/env-registry.ts",
+        "docs/CONFIG.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W23-10"
+      ],
+      "acceptance": [
+        "A gateway call to a host at its concurrency cap waits for the shared host slot (bounded, HostBusyError by name) instead of throwing HostUnavailableError, on the shared pool and on a routing chain (free links first)",
+        "Completions report queuedMs; the judge adds time spent waiting to its deadline (at most 120 minutes) and leaves it out of the workspace's daily minutes, and its stale cutoff allows for it",
+        "anti-slop treats HostBusyError like a busy model (rule findings kept); tests cover both"
+      ],
+      "points": 3,
+      "status": "done",
+      "notes": [
+        "2026-11-06 0.2.0 install: nowinandroid's judge failed in 16 ms ('No Tier-2 host is available under the configured concurrency cap', 5 errors) because another repo's judge held the background client's one slot; axum's judge took 71 min for 2 calls queued behind scan reviews."
+      ]
+    },
+    {
+      "id": "W25-03",
+      "title": "Scanners that did nothing say why, and runners that recorded their own run are not overwritten",
+      "phase": 25,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers/scan-processor.ts",
+        "apps/api/src/workers/scan-processor.test.ts",
+        "apps/api/src/workers/index.ts",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W23-10"
+      ],
+      "acceptance": [
+        "A runner that returns scanned 0 with no reason gets a neutral sentence, never 'No commits in range to sweep'",
+        "The architecture register names no_supported_language, the knowledge register no_history_in_window, and the attack chainer and a real architecture run mark recordedRun so no second row buries theirs",
+        "scan-processor tests cover each case"
+      ],
+      "points": 2,
+      "status": "done",
+      "notes": [
+        "2026-11-06 0.2.0 install, gin coverage: architecture register, knowledge register and attack chainer all read 'No commits in range to sweep' (scan-processor.ts default reason)."
+      ]
+    },
+    {
+      "id": "W25-04",
+      "title": "Code health survives a large repository's output",
+      "phase": 25,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "packages/security/src/scanners/code-health/tools.ts",
+        "packages/security/src/scanners/code-health/tools.test.ts",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W23-10"
+      ],
+      "acceptance": [
+        "The jscpd report is reduced in the container to the fields parseJscpdReport reads (no clone source text, no per-file statistics), falling back to the raw report",
+        "code_health_tools asks the sandbox for a 128 MB stdout cap (protocol max 256 MB)",
+        "A unit test runs the reduction through node and parses the result identically"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "2026-11-06 0.2.0 install: saleor code_health_tools failed 'stdout cap exceeded' (32 MB default). Needs a Mac real-engine run on saleor to confirm."
+      ]
+    },
+    {
+      "id": "W25-05",
+      "title": "A scan batch runs readers of other scanners' output after the tree scanners",
+      "phase": 25,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers/scan-processor.ts",
+        "apps/api/src/workers/scan-batch.test.ts",
+        "apps/api/src/workers/index.ts",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W23-10"
+      ],
+      "acceptance": [
+        "In a batch, scanners marked runsAfterTree (findings inputs, the supply-chain register, owasp_llm) run after the snapshot scanners, including when the archive cannot be had",
+        "The first scan's supply-chain register reads the SBOM dependency_cve wrote in the same batch",
+        "scan-batch tests cover the order"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "2026-11-06 0.2.0 install: the supply-chain register ran ~25 s before the SBOM existed on every repo (no_sbom) and Supply Chain read 100/100."
+      ]
     }
   ]
 }

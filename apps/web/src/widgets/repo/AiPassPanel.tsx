@@ -181,7 +181,11 @@ function RunRow({
         <span data-testid="ai-pass-status">{WORD[run.status]}</span>
         <span className="text-xs text-fg-muted">
           {' '}
-          {run.trigger === 'scheduled' ? ' · scheduled' : ''} · {localDateTime(run.created_at)}
+          {run.trigger === 'scheduled' ? ' · scheduled' : ''}
+          {run.trigger === 'after_scan' && (run.mode ?? 'paths') === 'paths'
+            ? ' · first look after the first scan'
+            : ''}{' '}
+          · {localDateTime(run.created_at)}
           {run.requested_by ? ` · started by ${run.requested_by}` : ''}
           {run.calls !== null ? ` · ${run.calls} model call${run.calls === 1 ? '' : 's'}` : ''}
         </span>

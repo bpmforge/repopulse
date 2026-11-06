@@ -10,12 +10,7 @@ import type { LlmRole, RouteRecord } from '../routing/index.js';
 export type Tier = 'T2' | 'T3';
 
 export type Dimension =
-  | 'code_health'
-  | 'security'
-  | 'performance'
-  | 'test_coverage'
-  | 'best_practices'
-  | 'ai_slop';
+  'code_health' | 'security' | 'performance' | 'test_coverage' | 'best_practices' | 'ai_slop';
 
 export interface CompleteMeta {
   repoId: string;
@@ -90,6 +85,12 @@ export interface CompleteResult {
    */
   cacheReadTokens?: number;
   durationMs: number;
+  /**
+   * W25-02: of `durationMs`, the part spent waiting for the host's slot behind
+   * other analysis (host-slots.ts), before anything was sent. Absent when the
+   * transport does not report it.
+   */
+  queuedMs?: number;
   /** Which routing link served this call (W19-02). Absent for Tier-3. */
   route?: RouteRecord;
 }

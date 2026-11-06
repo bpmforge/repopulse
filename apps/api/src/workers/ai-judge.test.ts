@@ -21,6 +21,7 @@ import {
 import {
   judgeConfigFromEnv,
   judgeEligibility,
+  judgeMsUsed,
   orderJudgeQueue,
   queueJudgeAfterScan,
   type EgressOf,
@@ -795,6 +796,55 @@ describeIfLiveInfra('the AI judge after a scan (W22-03)', () => {
         egress: egressOf(false),
       }),
     ).toMatchObject({ ok: true, budget: 'time', perDay: 60, minutes: 1 });
+  });
+
+  it('time spent waiting for a busy model is not charged to the run or the day (W25-02)', async () => {
+    // 0.2.0 install: axum's judge took 71 minutes for two calls, its clock
+    // running while scan reviews held the one-slot local model.
+    for (let i = 0; i < 5; i++) await ruleHit({ ruleId: `q${i}`, effectiveRisk: String(90 - i) });
+    let clock = new Date('2026-10-29T10:00:00Z').getTime();
+    const now = () => new Date(clock);
+    // Each call waits 60 s for the host's slot, then the model works 40 s.
+    const inner = scripted({ onCall: () => (clock += 100_000) });
+    const gw = {
+      ...inner,
+      gateway: {
+        ...inner.gateway,
+        complete: async (p: string, o: CompleteOpts) => ({
+          ...(await inner.gateway.complete(p, o)),
+          queuedMs: 60_000,
+        }),
+      },
+    };
+    const config = { ...CFG, scanMinutes: 1, minutesPerDay: 10 };
+    const { runId } = await queue({ config });
+    await processor(gw, { config, now })(job(runId!));
+    const run = await runOf(runId!);
+    // Charged on wall clock alone it would have stopped after ONE call.
+    expect(inner.prompts).toHaveLength(2);
+    const summary = (run.plan as { judge: JudgeSummary }).judge;
+    expect(summary).toMatchObject({ stopped: 'time_budget', judged: 2, queued_ms: 120_000 });
+    expect(run.reason).toMatch(/not counting 2 min waiting for the model/);
+    // The day is charged the model's 80 s, not the 200 s of wall clock.
+    expect(await judgeMsUsed(db, WS, now())).toBe(80_000);
+  });
+
+  it('a run waiting longer than the allowance is not closed as stalled (W25-02)', async () => {
+    await ruleHit();
+    const t0 = new Date('2026-10-29T10:00:00Z');
+    const first = await queueJudgeAfterScan(
+      { db, config: CFG, egress: egressOf(false), now: () => t0, enqueue: async () => {} },
+      { workspaceId: WS, repoId: REPO },
+    );
+    expect(first.queued).toBe(true);
+    // 31 + 60 minutes later: the old cutoff (scan minutes + 60) closed it.
+    const later = new Date(t0.getTime() + 91 * 60_000);
+    const again = await queueJudgeAfterScan(
+      { db, config: CFG, egress: egressOf(false), now: () => later, enqueue: async () => {} },
+      { workspaceId: WS, repoId: REPO },
+    );
+    expect(again).toMatchObject({ queued: false, code: 'already_queued' });
+    expect((await runOf(first.runId!)).status).toBe('pending');
   });
 
   it('a hosted link keeps the W19-12 opt-in and the monthly call cap', async () => {
