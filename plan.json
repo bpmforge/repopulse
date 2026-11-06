@@ -12942,7 +12942,7 @@
         "No page scrolls horizontally at 390px; before/after screenshots of all 41 routes at 1440 light, 1440 dark and 390 phone"
       ],
       "points": 3,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "2026-11-06 UI review (thread 'Polish the UI across all pages'): items UI-01..05, 11..16, 19..26, 34 of /mnt/project-files/repopulse/ui-polish/UI_REVIEW_2026-11-06.md"
       ]
