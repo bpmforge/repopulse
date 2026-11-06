@@ -61,6 +61,7 @@ export const PURGED_REPO_TABLES = [
   'repo_scanner_config',
   'file_intents',
   'file_hotspot_scores',
+  'code_indexes',
   'pr_review_requests',
   'pr_review_comments',
   'pr_reviews',
@@ -148,6 +149,8 @@ export async function purgeRepoHistory(
     ['repo_scanner_config', security.repoScannerConfig],
     ['file_intents', plans.fileIntents],
     ['file_hotspot_scores', read.fileHotspotScores],
+    // The code map (W22): its file/def/ref/call/import rows cascade from it.
+    ['code_indexes', read.codeIndexes],
     ['pr_review_requests', facts.prReviewRequests],
     ['pr_review_comments', facts.prReviewComments],
     ['pr_reviews', facts.prReviews],

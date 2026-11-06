@@ -13483,7 +13483,7 @@
         "Findings left open in such files by earlier scans close on the next scan"
       ],
       "points": 3,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "2026-11-06 design pass (/mnt/project-files/repopulse/ai-speed/DESIGN.md) after the Mac real check. Brad: 'I dont want to waste gpu cycles when we have an obvious mechanism or process defect' and 'only be pertinent'."
       ]
@@ -13510,7 +13510,7 @@
         "A candidate judged before with unchanged content is not sent again; a failure never fails the scan run"
       ],
       "points": 3,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "2026-11-06 design pass (/mnt/project-files/repopulse/ai-speed/DESIGN.md) after the Mac real check. Brad: 'I dont want to waste gpu cycles when we have an obvious mechanism or process defect' and 'only be pertinent'. outline: anti-slop held its scan job 24-30 min."
       ]

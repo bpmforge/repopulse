@@ -238,6 +238,9 @@ describe('coverage ingestion is provably absent (acceptance item 3)', () => {
           // W21-05: lists of popular package NAMES (PyPI ships `codecov`), the
           // targets typosquats imitate. Data, not a parser.
           ':(exclude)packages/security/rulepacks/slopsquat/popular',
+          // Imported third-party rules (gitleaks): a `codecov-access-token`
+          // SECRETS rule detects leaked tokens. Data, not a coverage parser.
+          ':(exclude)packages/security/rulepacks/third-party',
         ],
         {
           cwd: repoRoot,

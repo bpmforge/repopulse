@@ -2027,7 +2027,7 @@ describe('rankPaths (W25-01)', () => {
         [
           { path: 'context_test.go', weight: 90 },
           { path: 'binding/binding_test.go', weight: 80 },
-          { path: 'codecov.yml', weight: 70 },
+          { path: '.goreleaser.yml', weight: 70 },
           { path: 'go.mod', weight: 60 },
           { path: 'doc.go', weight: 50 },
           { path: 'context.go', weight: 10 },
@@ -2044,7 +2044,7 @@ describe('rankPaths (W25-01)', () => {
       'context.go',
       'tree.go',
       'pkg/user.py',
-      'codecov.yml',
+      '.goreleaser.yml',
       'go.mod',
       'doc.go',
       'context_test.go',

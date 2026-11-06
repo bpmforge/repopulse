@@ -230,7 +230,7 @@ export async function rankFirstLookPaths(
 // W25-09. Test files collect the most rule hits (fixtures, fake secrets,
 // copy-paste setups), so ranking by findings alone made them the first look's
 // favourite: on gin 13 of 17 files read were tests or config (go.mod,
-// codecov.yml, doc.go) and 4 were production code. A first look is for the
+// a CI yml, doc.go) and 4 were production code. A first look is for the
 // code that runs, so it is ranked in tiers: production source, then config
 // and other readable non-code, then tests, each tier findings-then-churn.
 // Tests stay as the fallback for a repository that is mostly tests. What

@@ -21,6 +21,9 @@ import type { AdapterFinding } from './adapters/types.js';
 const databaseUrl = process.env.DATABASE_URL;
 const describeIfReady = databaseUrl ? describe : describe.skip;
 const FP = 'w27-01-fp';
+// hadolint is a shadow adapter: its findings are stored only for an active
+// rule. A rule of this test's own, so no other test's registry rows decide.
+const HADOLINT_RULE = 'tool.hadolint.W27X1';
 
 const FILES = [
   'src/server.go',
@@ -53,7 +56,7 @@ const ours = (ruleId: string, file: string): CodeHealthFinding => ({
 });
 
 const adapter = (tool: string, file: string): AdapterFinding => ({
-  ruleId: `tool.${tool}.X1`,
+  ruleId: tool === 'hadolint' ? HADOLINT_RULE : `tool.${tool}.X1`,
   file,
   lineStart: 2,
   lineEnd: 2,
@@ -134,6 +137,25 @@ describeIfReady('code health: findings on non-production files close on rescan (
       })
       .returning();
     repoId = repo!.id;
+    await db
+      .delete(security.ruleRegistry)
+      .where(
+        and(
+          eq(security.ruleRegistry.workspaceId, workspaceId),
+          eq(security.ruleRegistry.ruleId, HADOLINT_RULE),
+        ),
+      );
+    await db.insert(security.ruleRegistry).values({
+      workspaceId,
+      ruleId: HADOLINT_RULE,
+      status: 'active',
+      provenance: {
+        source: 'w27-01-test',
+        license: 'proprietary',
+        author: 'RepoPulse',
+        date: '2026-11-06',
+      },
+    });
   });
 
   afterAll(async () => {
@@ -146,6 +168,14 @@ describeIfReady('code health: findings on non-production files close on rescan (
     await db.delete(read.metricSnapshots).where(eq(read.metricSnapshots.repoId, repoId));
     await db.delete(security.scanRuns).where(eq(security.scanRuns.repoId, repoId));
     await db.delete(core.repos).where(eq(core.repos.id, repoId));
+    await db
+      .delete(security.ruleRegistry)
+      .where(
+        and(
+          eq(security.ruleRegistry.workspaceId, workspaceId),
+          eq(security.ruleRegistry.ruleId, HADOLINT_RULE),
+        ),
+      );
     await db
       .delete(core.forgeConnections)
       .where(eq(core.forgeConnections.credentialFingerprint, FP));

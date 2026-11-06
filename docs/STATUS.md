@@ -4331,3 +4331,14 @@ on the Mac:**
 - 2026-11-06 — W25-13: a running AI pass or judge run shows its live state: "Call 4: waiting
   for the model for 3 min (another analysis is using it)" or "Call 4: the model is answering,
   2 min so far" (CompleteOpts.onSent; plan.live).
+- 2026-11-06 — W27-01: code health and anti-slop look only at pertinent code. Tests,
+  fixtures, generated and vendored paths (shared isNonProductionPath in @repopulse/shared)
+  are skipped by lizard/jscpd and closed out of the findings and score; test-integrity
+  anti-slop rules still read tests; the secrets scan still covers them. Catalogue
+  code_health.v2, anti_slop.v2.
+- 2026-11-06 — W27-02: anti-slop's model judgement leaves the scan job. The scan records the
+  candidates, closes its run, and the judgement runs after it on the background model lane
+  (slop-judgement.ts); a judged candidate is remembered by content hash
+  (slop_candidate_verdicts, migration 0070) and never asked again. A model failure marks the
+  judgement partial and keeps every rule finding. Main green: code_indexes added to the repo
+  purge; the test-gap coverage grep ignores the imported gitleaks codecov secrets rule.
