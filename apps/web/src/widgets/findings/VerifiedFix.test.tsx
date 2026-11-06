@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { VerifiedFix, type PatchResponse } from './VerifiedFix.js';
 
@@ -72,8 +72,9 @@ describe('VerifiedFix', () => {
     expect(note).toContain('abcdef1');
     expect(note).toContain('security rules, code-health checks');
     expect(note).toContain('nothing has been written to your repository');
+    // W26-02: drawn by the shared diff view, which marks the line as added.
     expect(screen.getByTestId('verified-fix-diff').textContent).toContain(
-      '+  return JSON.parse(cmd);',
+      'added:   return JSON.parse(cmd);',
     );
 
     fireEvent.click(screen.getByTestId('verified-fix-copy'));
@@ -230,9 +231,8 @@ describe('VerifiedFix', () => {
     expect(screen.getByTestId('verified-fix-limits')).toHaveTextContent(
       /not built and no tests were run/,
     );
-    const pre = screen.getByTestId('verified-fix-diff');
-    expect(pre.getAttribute('tabindex')).toBe('0');
-    expect(pre.getAttribute('role')).toBe('region');
+    const region = within(screen.getByTestId('verified-fix-diff')).getByRole('region');
+    expect(region.getAttribute('tabindex')).toBe('0');
   });
 
   // W20-11 (UX_TODO AI-66): an admin can see the diff that failed, collapsed.

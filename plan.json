@@ -12949,7 +12949,7 @@
     },
     {
       "id": "W26-02",
-      "title": "UI polish: page layouts (finding detail side panel, Findings filters, Security tab summary, Setup config table, help-text tier)",
+      "title": "UI polish: page layouts from the design canvas (finding detail card list, suggested-change diff views, Findings table, Overview card row)",
       "phase": 26,
       "module": "web",
       "stories": [],
@@ -12965,15 +12965,16 @@
         "W26-01"
       ],
       "acceptance": [
-        "Finding detail uses two columns at >=1280px with actions in a sticky side panel",
-        "Findings filters: search on its own row, equal-width selects, rarely used filters under More filters",
-        "Security tab opens with a summary row; Coverage map, Exports and SARIF import collapsed by default",
-        "Help text over two lines sits behind a disclosure or (i) popover; section labels use one style"
+        "Finding detail is a list of full-width cards: title, The issue (code), What to do, Suggested change, AI review, History, Status, Details",
+        "Suggested change shows the verified patch in the shared diff view with Unified, Split and Patch views, changed-word marks and Hide whitespace; the choice is kept per browser",
+        "Findings table has even cell padding, row lines and banded rows from md up; the Severity and Risk headers sort the list and carry aria-sort",
+        "Widget cards keep their closing link or button at the bottom, so cards in one row line up; every change reads in both the dark and the light theme"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "UI review items UI-11, 12, 17, 18, 27..33, 35"
+        "2026-11-06 Brad reviewed the design canvas (https://claude.ai/artifact/Lz4mLkBXokPUQuAZrzgZBK) by comment and said 'I like this layout and design ... can we implement this'",
+        "The earlier scope (Findings filters, Security tab summary, help-text tier) moved to W26-04"
       ]
     },
     {
@@ -13003,6 +13004,60 @@
       "status": "done",
       "notes": [
         "2026-11-06 Brad chose 'Group both' on the decision card in thread 'Polish the UI across all pages'"
+      ]
+    },
+    {
+      "id": "W26-04",
+      "title": "UI polish: Findings filters, Security tab summary, help-text tier",
+      "phase": 26,
+      "module": "web",
+      "stories": [],
+      "write_scope": [
+        "apps/web/src/styles/theme.css",
+        "apps/web/src/components/**",
+        "apps/web/src/widgets/**",
+        "apps/web/src/routes/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W26-02"
+      ],
+      "acceptance": [
+        "Findings filters: search on its own row, equal-width selects, rarely used filters under More filters",
+        "Security tab opens with a summary row; Coverage map, Exports and SARIF import collapsed by default",
+        "Help text over two lines sits behind a disclosure or (i) popover; section labels use one style"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": [
+        "UI review items UI-11, 12, 17, 18, 27..33, 35 (moved from W26-02)"
+      ]
+    },
+    {
+      "id": "W26-05",
+      "title": "Findings list: sort by any column, both directions",
+      "phase": 26,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/routes/findings/**",
+        "apps/web/src/routes/findings/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W26-02"
+      ],
+      "acceptance": [
+        "GET /findings takes sort (risk, severity, title, repository, file, status, age) and dir (asc, desc), each with its own keyset cursor that never skips or repeats a row",
+        "Every Findings column header sorts; pressing the sorted column flips the direction; the sort lives in the URL",
+        "Tenancy and cursor tests cover every sort in both directions"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": [
+        "2026-11-06 Brad on the canvas: 'can we have this table sortable? so they can click on each header and sort it'. W26-02 ships Severity and Risk, the two sorts the API has"
       ]
     }
   ]

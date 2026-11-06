@@ -376,3 +376,45 @@ main[tabindex='-1']:focus,
     transition-duration: 0.01ms !important;
   }
 }
+
+/* W26-02: in the finding's card list, a card whose content brings its own
+   small uppercase heading (AI review) shows that heading as the card title,
+   and a card with nothing to say is not drawn. */
+.finding-card-lead > :first-child > h3:first-child {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--color-fg);
+}
+.finding-card-lead:empty {
+  display: none;
+}
+
+/* W26-02 (canvas feedback 2026-11-06: "tight or running together"): a data
+   table with room to read. Even cell padding, a line under the header and
+   every row, a light band on every other row, and a hover row. md and up
+   only: below md the findings rows are stacked cards (W20-21). */
+@utility table-roomy {
+  @media (width >= 48rem) {
+    & thead th {
+      padding-block: 0.5rem;
+      border-bottom: 1px solid var(--color-border);
+      font-weight: 600;
+    }
+    & tbody :is(td, th) {
+      padding-block: 0.6rem;
+      vertical-align: middle;
+    }
+    & :is(th, td) {
+      padding-inline-start: 0.5rem;
+      padding-inline-end: 0.75rem;
+    }
+    & tbody tr:nth-child(even) {
+      background: color-mix(in srgb, var(--color-surface-2) 55%, transparent);
+    }
+    & tbody tr:hover {
+      background: color-mix(in srgb, var(--color-accent) 7%, transparent);
+    }
+  }
+}

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ErrorNote } from '../../components/index.js';
+import { DiffView } from '../../components/code/index.js';
 import { useApiMutation, useApiQuery, queryKeyFor } from '../../api/useApiQuery.js';
 import { pausedLine, type AiPause } from './aiContracts.js';
 
@@ -64,14 +65,14 @@ function DrafterNote({ drafter }: { drafter: Drafter | undefined }) {
   if (!drafter) return null;
   if (drafter.destinations.length === 0) {
     return (
-      <p className="mt-1 text-xs text-fg-muted" data-testid="verified-fix-drafter">
+      <p className="text-xs text-fg-muted" data-testid="verified-fix-drafter">
         No model is set up to draft fixes, so a request will fail and say so. An admin adds one in
         Settings → Models.
       </p>
     );
   }
   return (
-    <p className="mt-1 text-xs text-fg" data-testid="verified-fix-drafter">
+    <p className="text-xs text-fg" data-testid="verified-fix-drafter">
       Drafted by{' '}
       {drafter.destinations.map((d, i) => (
         <span key={`${d.provider_name}-${i}`}>
@@ -94,6 +95,12 @@ function DrafterNote({ drafter }: { drafter: Drafter | undefined }) {
   );
 }
 
+/** The card every state of this section sits in (W26-02). */
+const CARD = 'panel flex scroll-mt-4 flex-col gap-2 px-4 pt-3.5 pb-4';
+
+/** Where a reader's diff view choice is kept (W26-02). */
+export const DIFF_VIEW_KEY = 'repopulse.diffView';
+
 const ACTION_BUTTON =
   'rounded-md border border-border px-2 py-1 text-xs hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent';
 
@@ -105,15 +112,6 @@ const RULE_SET_LABEL: Record<string, string> = {
   anti_slop_fast_lane: 'code-health checks',
   anti_slop_pack: 'AI-slop rules',
 };
-
-function lineClass(line: string): string {
-  if (line.startsWith('+++') || line.startsWith('---')) return 'text-fg-muted';
-  if (line.startsWith('@@')) return 'text-info';
-  // Paired with the +/- mark the line already carries — never colour alone (UX_SPEC §7).
-  if (line.startsWith('+')) return 'text-ok';
-  if (line.startsWith('-')) return 'text-crit';
-  return '';
-}
 
 /**
  * A failed attempt's reason code, in words a member can act on (W20-11, UX_TODO
@@ -159,12 +157,14 @@ export function VerifiedFix({ findingId }: { findingId: number }) {
   );
   const [copied, setCopied] = useState<'idle' | 'copied' | 'failed'>('idle');
 
-  const heading = <h3 className="text-xs tracking-wide text-fg-muted uppercase">Verified fix</h3>;
+  // W26-02: its own card in the finding's card list, titled for what a reader
+  // wants from it (the change to make), whatever state the draft is in.
+  const heading = <h3 className="text-[15px] font-semibold text-fg">Suggested change</h3>;
   // W20-18 (UX_TODO AI-77; decision 2026-10-20: off means off). With AI off a
   // person cannot ask for a draft either; said here, and no button is offered.
   const off = pausedLine(data?.ai_paused, 'no fix can be drafted');
   const pausedNote = off ? (
-    <p className="mt-1 text-xs text-fg-muted" data-testid="verified-fix-paused">
+    <p className="text-xs text-fg-muted" data-testid="verified-fix-paused">
       {off}
     </p>
   ) : null;
@@ -175,28 +175,26 @@ export function VerifiedFix({ findingId }: { findingId: number }) {
   // why one finding offers a fix and another does not.
   if (data.eligible !== true) {
     return data.reason ? (
-      <div data-testid="verified-fix-ineligible">
+      <section id="finding-verified-fix" className={CARD} data-testid="verified-fix-ineligible">
         {heading}
-        <p className="mt-1 text-xs text-fg-faint">
-          No verified fix for this finding: {data.reason}
-        </p>
-      </div>
+        <p className="text-xs text-fg-faint">No verified fix for this finding: {data.reason}</p>
+      </section>
     ) : null;
   }
   const patch = data.patch;
 
   if (patch?.status === 'rejected' && !request.isPending) {
     return (
-      <div data-testid="verified-fix-rejected">
+      <section id="finding-verified-fix" className={CARD} data-testid="verified-fix-rejected">
         {heading}
-        <p className="mt-1 text-xs text-fg-muted">
+        <p className="text-xs text-fg-muted">
           A drafted fix did not pass the re-scan: applied to commit{' '}
           <span className="font-mono">{patch.commit_sha.slice(0, 7)}</span>, it did not clear this
           finding or it raised a new one. It is not shown, because Repo Pulse does not stand behind
           it. You can ask the model again.
         </p>
         {patch.reason ? (
-          <p className="mt-1 text-xs text-fg-faint" data-testid="verified-fix-admin-reason">
+          <p className="text-xs text-fg-faint" data-testid="verified-fix-admin-reason">
             Admin only: {patch.reason}
           </p>
         ) : null}
@@ -204,7 +202,7 @@ export function VerifiedFix({ findingId }: { findingId: number }) {
             whoever decides whether the model or the rule needs attention can
             see what failed. Collapsed, and labelled as not to be applied. */}
         {patch.diff ? (
-          <details className="mt-1 text-xs" data-testid="verified-fix-rejected-diff">
+          <details className="text-xs" data-testid="verified-fix-rejected-diff">
             <summary className="cursor-pointer text-fg-muted">
               Admin only: show the rejected diff (do not apply it)
             </summary>
@@ -222,7 +220,7 @@ export function VerifiedFix({ findingId }: { findingId: number }) {
         {pausedNote ?? (
           <button
             type="button"
-            className={`mt-2 ${ACTION_BUTTON}`}
+            className={`self-start ${ACTION_BUTTON}`}
             data-testid="verified-fix-retry"
             onClick={() => request.mutate({ tier: 't2', retry: true })}
           >
@@ -230,7 +228,7 @@ export function VerifiedFix({ findingId }: { findingId: number }) {
           </button>
         )}
         <ErrorNote error={request.error} testId="verified-fix-error" className="mt-1" />
-      </div>
+      </section>
     );
   }
 
@@ -249,63 +247,67 @@ export function VerifiedFix({ findingId }: { findingId: number }) {
         .catch(() => setCopied('failed'));
     };
     return (
-      <div data-testid="verified-fix">
-        {heading}
-        <p className="mt-1 text-xs text-fg-muted" data-testid="verified-fix-note">
-          Re-scanned: this patch was applied to commit{' '}
-          <span className="font-mono">{patch.commit_sha.slice(0, 7)}</span>
-          {ruleSets.length > 0 ? ` and the ${ruleSets.join(', ')} were run again` : ''}. The finding
-          clears and no new finding appears in the file. Review it like any change — nothing has
-          been written to your repository.
-        </p>
+      <section id="finding-verified-fix" className={CARD} data-testid="verified-fix">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-[1_1_24rem] flex-col gap-1">
+            <div className="flex flex-wrap items-center gap-2">
+              {heading}
+              <span
+                className="inline-flex items-center gap-1 rounded-sm bg-ok/15 px-1.5 py-0.5 text-xs font-medium text-ok"
+                data-testid="verified-fix-badge"
+              >
+                <span aria-hidden="true">✓</span>
+                <span>Verified fix</span>
+              </span>
+            </div>
+            <p className="text-xs text-fg-muted" data-testid="verified-fix-note">
+              Re-scanned: this patch was applied to commit{' '}
+              <span className="font-mono">{patch.commit_sha.slice(0, 7)}</span>
+              {ruleSets.length > 0 ? ` and the ${ruleSets.join(', ')} were run again` : ''}. The
+              finding clears and no new finding appears in the file. Review it like any change —
+              nothing has been written to your repository.
+            </p>
+          </div>
+          <div className="flex flex-none flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className={ACTION_BUTTON}
+              data-testid="verified-fix-copy"
+              onClick={copy}
+            >
+              {copied === 'copied'
+                ? 'Copied'
+                : copied === 'failed'
+                  ? 'Copy failed — select the text instead'
+                  : 'Copy patch'}
+            </button>
+            <button
+              type="button"
+              className={ACTION_BUTTON}
+              data-testid="verified-fix-download"
+              onClick={() => downloadPatch(diff, patch.filename ?? `finding-${findingId}.patch`)}
+            >
+              Download .patch
+            </button>
+          </div>
+        </div>
         {/* W20-11 (UX_TODO AI-45): "verified" proves the rules stop firing on
             this file, nothing more; said next to the diff, where it is read. */}
-        <p className="mt-1 text-xs text-fg" data-testid="verified-fix-limits">
+        <p className="text-xs text-fg" data-testid="verified-fix-limits">
           <strong>Not tested:</strong> the code was not built and no tests were run, so this change
           may alter behaviour. Run your tests before merging it.
         </p>
-        {/* W20-11 (UX_TODO AI-46): a scrolling block must be reachable from the
-            keyboard (axe scrollable-region-focusable), as W19-12 did for citations. */}
-        <pre
-          className="mt-1 max-h-80 overflow-auto panel-inset p-2 font-mono text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-          data-testid="verified-fix-diff"
-          tabIndex={0}
-          role="region"
-          aria-label="Verified patch diff"
-        >
-          {diff.split('\n').map((line, i) => (
-            <span key={i} className={`block ${lineClass(line)}`}>
-              {line === '' ? ' ' : line}
-            </span>
-          ))}
-        </pre>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            className={ACTION_BUTTON}
-            data-testid="verified-fix-copy"
-            onClick={copy}
-          >
-            {copied === 'copied'
-              ? 'Copied'
-              : copied === 'failed'
-                ? 'Copy failed — select the text instead'
-                : 'Copy patch'}
-          </button>
-          <button
-            type="button"
-            className={ACTION_BUTTON}
-            data-testid="verified-fix-download"
-            onClick={() => downloadPatch(diff, patch.filename ?? `finding-${findingId}.patch`)}
-          >
-            Download .patch
-          </button>
-          {patch.model_id && (
-            <span className="text-xs text-fg-faint">drafted by {patch.model_id}</span>
-          )}
-        </div>
-        {/* W20-16 (UX_TODO AI-70): how to apply it, and against what. */}
-        <p className="mt-1 text-xs text-fg-muted" data-testid="verified-fix-apply">
+        {/* W26-02: the shared diff view, so a reader picks unified, split or
+            the raw patch, with changed words marked; the choice is kept per
+            browser. Its scrolling body is a focusable region (W20-11, AI-46). */}
+        <DiffView
+          diff={diff}
+          testId="verified-fix-diff"
+          storageKey={DIFF_VIEW_KEY}
+          copyButton={false}
+        />
+        <p className="text-xs text-fg-muted" data-testid="verified-fix-apply">
+          {patch.model_id ? <>Drafted by {patch.model_id}. </> : null}
           Apply it from the repository root with{' '}
           <code className="font-mono">
             git apply {patch.filename ?? `finding-${findingId}.patch`}
@@ -314,7 +316,7 @@ export function VerifiedFix({ findingId }: { findingId: number }) {
           <span className="font-mono">{patch.commit_sha.slice(0, 7)}</span>; if your branch has
           moved on since, it may need a rebase or a small edit.
         </p>
-      </div>
+      </section>
     );
   }
 
@@ -324,18 +326,18 @@ export function VerifiedFix({ findingId }: { findingId: number }) {
     const started = patch ? new Date(patch.created_at).getTime() : Number.NaN;
     const waited = Number.isNaN(started) ? 0 : Math.floor((Date.now() - started) / 60000);
     return (
-      <div data-testid="verified-fix-pending">
+      <section id="finding-verified-fix" className={CARD} data-testid="verified-fix-pending">
         {heading}
-        <p className="mt-1 text-xs text-fg-muted" role="status">
+        <p className="text-xs text-fg-muted" role="status">
           Drafting a fix and re-scanning the file… This can take a minute.
         </p>
         {waited >= STALLED_AFTER_MIN ? (
-          <p className="mt-1 text-xs text-fg" role="alert" data-testid="verified-fix-stalled">
+          <p className="text-xs text-fg" role="alert" data-testid="verified-fix-stalled">
             It has waited {waited} minutes and no worker has picked it up. Ask an admin to check
             that the worker is running.
           </p>
         ) : null}
-      </div>
+      </section>
     );
   }
 
@@ -343,10 +345,10 @@ export function VerifiedFix({ findingId }: { findingId: number }) {
   const failedWords = patch?.reason_code ? FAILED_PATCH_WORDS[patch.reason_code] : undefined;
 
   return (
-    <div data-testid="verified-fix-request">
+    <section id="finding-verified-fix" className={CARD} data-testid="verified-fix-request">
       {heading}
       {patch?.status === 'failed' ? (
-        <p className="mt-1 text-xs text-fg-muted" data-testid="verified-fix-failed">
+        <p className="text-xs text-fg-muted" data-testid="verified-fix-failed">
           The last attempt could not be made
           {failedWords ? `: ${failedWords}` : patch.reason ? ` (${patch.reason})` : '.'}
           {patch.reason && failedWords ? (
@@ -355,7 +357,7 @@ export function VerifiedFix({ findingId }: { findingId: number }) {
           {noModel || off ? '' : ' You can try again.'}
         </p>
       ) : (
-        <p className="mt-1 text-xs text-fg-muted">
+        <p className="text-xs text-fg-muted">
           Your configured model drafts a patch; Repo Pulse applies it to the scanned commit and
           re-runs the rules. You see it only if this finding clears and nothing new appears. Nothing
           is written to your repository.
@@ -368,7 +370,7 @@ export function VerifiedFix({ findingId }: { findingId: number }) {
       {noModel || off ? null : (
         <button
           type="button"
-          className={`mt-2 ${ACTION_BUTTON}`}
+          className={`self-start ${ACTION_BUTTON}`}
           data-testid="verified-fix-draft"
           onClick={() => request.mutate({ tier: 't2' })}
         >
@@ -376,6 +378,6 @@ export function VerifiedFix({ findingId }: { findingId: number }) {
         </button>
       )}
       <ErrorNote error={request.error} testId="verified-fix-error" className="mt-1" />
-    </div>
+    </section>
   );
 }

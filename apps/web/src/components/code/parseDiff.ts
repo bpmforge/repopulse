@@ -105,3 +105,68 @@ export function diffStat(files: readonly DiffFile[]): { added: number; removed: 
       }
   return { added, removed };
 }
+
+/**
+ * Runs of removed lines followed by added lines, paired in order: the old and
+ * new copy of the same line, as far as a diff can tell (W26-02).
+ */
+function pairedChanges(lines: readonly DiffLine[]): [DiffLine, DiffLine][] {
+  const pairs: [DiffLine, DiffLine][] = [];
+  let i = 0;
+  while (i < lines.length) {
+    if (lines[i]!.type !== 'del') {
+      i++;
+      continue;
+    }
+    const dels: DiffLine[] = [];
+    while (i < lines.length && lines[i]!.type === 'del') dels.push(lines[i++]!);
+    const adds: DiffLine[] = [];
+    while (i < lines.length && lines[i]!.type === 'add') adds.push(lines[i++]!);
+    for (let k = 0; k < Math.min(dels.length, adds.length); k++) pairs.push([dels[k]!, adds[k]!]);
+  }
+  return pairs;
+}
+
+/**
+ * The part of each paired line that changed: the characters between the
+ * common prefix and the common suffix, as [start, end) on that line (W26-02).
+ * A line with nothing in common gets no span, since marking all of it says
+ * nothing the red or green row does not already say.
+ */
+export function changedSpans(lines: readonly DiffLine[]): Map<DiffLine, [number, number]> {
+  const out = new Map<DiffLine, [number, number]>();
+  for (const [del, add] of pairedChanges(lines)) {
+    const a = del.text;
+    const b = add.text;
+    let pre = 0;
+    while (pre < a.length && pre < b.length && a[pre] === b[pre]) pre++;
+    let suf = 0;
+    while (
+      suf < a.length - pre &&
+      suf < b.length - pre &&
+      a[a.length - 1 - suf] === b[b.length - 1 - suf]
+    )
+      suf++;
+    if (pre === 0 && suf === 0) continue;
+    if (a.length - suf > pre) out.set(del, [pre, a.length - suf]);
+    if (b.length - suf > pre) out.set(add, [pre, b.length - suf]);
+  }
+  return out;
+}
+
+/**
+ * Hide whitespace (W26-02): a removed and added pair that differ only in
+ * whitespace is shown once, as an unchanged line with the new text.
+ */
+export function hideWhitespaceOnly(lines: readonly DiffLine[]): DiffLine[] {
+  const same = new Map<DiffLine, DiffLine>();
+  const drop = new Set<DiffLine>();
+  for (const [del, add] of pairedChanges(lines)) {
+    if (del.text.replace(/\s+/g, '') === add.text.replace(/\s+/g, '')) {
+      drop.add(del);
+      same.set(add, { type: 'ctx', oldNo: del.oldNo, newNo: add.newNo, text: add.text });
+    }
+  }
+  if (drop.size === 0) return [...lines];
+  return lines.filter((l) => !drop.has(l)).map((l) => same.get(l) ?? l);
+}

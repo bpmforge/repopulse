@@ -279,3 +279,59 @@
     padding: 0 6px 0 6px;
   }
 }
+
+/* W26-02: view switch, toggles, raw patch and changed-word marks. */
+.code-seg {
+  display: inline-flex;
+}
+.code-seg .code-btn,
+.code-head .code-btn {
+  font-family: var(--font-sans);
+}
+.code-seg .code-btn {
+  border-radius: 0;
+  margin-left: -1px;
+}
+.code-seg .code-btn:first-child {
+  border-radius: 6px 0 0 6px;
+  margin-left: 0;
+}
+.code-seg .code-btn:last-child {
+  border-radius: 0 6px 6px 0;
+}
+.code-seg .code-btn[aria-pressed='true'] {
+  position: relative;
+  background: var(--color-accent-strong);
+  border-color: var(--color-accent-strong);
+  color: var(--color-accent-fg);
+}
+.code-toggle {
+  font-family: var(--font-sans);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-fg-muted);
+  cursor: pointer;
+}
+.code-toggle input {
+  accent-color: var(--color-accent-strong);
+}
+.code-patch {
+  margin: 0;
+  padding: 8px 12px;
+  white-space: pre;
+  min-width: max-content;
+}
+.code-word {
+  border-radius: 3px;
+  color: inherit;
+}
+.code-row[data-kind='del'] .code-word,
+.code-split-cell[data-kind='del'] .code-word {
+  background: color-mix(in srgb, var(--code-del-mark) 32%, transparent);
+}
+.code-row[data-kind='add'] .code-word,
+.code-split-cell[data-kind='add'] .code-word {
+  background: color-mix(in srgb, var(--code-add-mark) 32%, transparent);
+}
