@@ -4308,3 +4308,6 @@ on the Mac:**
   longer holds the scan job, so the repository's scans finish and the first look starts; the
   check's calls use the background gateway and wait behind the first look's. Brad: "even for
   a demo this is soooo long people would not even try this".
+- 2026-11-06 — W25-18: a model reply that is only reasoning (no answer) is retried once with a
+  "short reasoning, JSON only" note, then recorded against that chunk; the rest of the review
+  carries on. Before, one such reply failed saleor's whole first look after 2 calls.

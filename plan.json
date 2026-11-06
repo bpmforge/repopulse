@@ -13231,6 +13231,33 @@
       ]
     },
     {
+      "id": "W25-18",
+      "title": "A reasoning-only model reply is retried once and then recorded against that chunk, never failing the whole review",
+      "phase": 25,
+      "module": "analysis",
+      "stories": [],
+      "write_scope": [
+        "packages/analysis/src/t2/client.ts",
+        "packages/analysis/src/specialists/run.ts",
+        "packages/analysis/src/specialists/specialists.test.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W25-02"
+      ],
+      "acceptance": [
+        "The T2 client throws a named ModelNoAnswerError when content is empty and only reasoning came back (or the cap was hit before any answer)",
+        "A specialist retries once with a note asking for short reasoning and only the JSON, then records a failure for that chunk and the other specialists still run",
+        "A review where every call failed this way still ends as failed with its reason, never as clean"
+      ],
+      "points": 2,
+      "status": "done",
+      "notes": [
+        "2026-11-06 real check (old build): saleor's first look failed after 2 calls with 'the model produced reasoning but no answer'."
+      ]
+    },
+    {
       "id": "W26-01",
       "title": "UI polish: shell and shared components (buttons, selects, KPI tiles, form widths, phone header, Overview grid)",
       "phase": 26,

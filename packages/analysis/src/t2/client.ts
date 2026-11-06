@@ -62,6 +62,19 @@ export class ModelTimeoutError extends Error {
   }
 }
 
+/**
+ * The model answered with reasoning only, or ran out of tokens before any
+ * answer (W16-38). Named (W25-18) so a caller can treat it as a per-call
+ * failure, retry once, and move on, instead of failing a whole review over one
+ * file: on saleor a first look failed after 2 calls this way.
+ */
+export class ModelNoAnswerError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ModelNoAnswerError';
+  }
+}
+
 export interface T2Host {
   baseUrl: string;
   /** The connection's label, for sentences that name it (W19-02). */
@@ -592,7 +605,7 @@ export class T2Client {
           // rejected finding — which reads as "reviewed and clean".
           const choice = body.choices?.[0];
           const noAnswer = choice ? noAnswerReason(choice) : null;
-          if (noAnswer) throw new Error(`Model returned no answer: ${noAnswer}`);
+          if (noAnswer) throw new ModelNoAnswerError(`Model returned no answer: ${noAnswer}`);
           return {
             text: choice?.message?.content ?? '',
             model: body.model ?? host.modelSlot,

@@ -8,7 +8,7 @@ import { buildChunkPrompt } from '../chunker/prompt.js';
 import type { AnalysisGateway } from '../gateway/types.js';
 import { FindingParseError, validateFindings, type Finding } from '../schema/finding.js';
 import type { RouteRecord } from '../routing/index.js';
-import { ModelTimeoutError, ProviderError } from '../t2/client.js';
+import { ModelNoAnswerError, ModelTimeoutError, ProviderError } from '../t2/client.js';
 import { planWaves, type Plan } from './planner.js';
 import type { SpecialistId } from './registry.js';
 import { toDiffFiles, type ReviewInput } from './units.js';
@@ -198,6 +198,27 @@ export async function runSpecialists(
               ...(attemptParts ? { promptParts: attemptParts } : {}),
             });
           } catch (err) {
+            if (err instanceof ModelNoAnswerError) {
+              // W25-18: the model reasoned and never answered. A per-call
+              // failure, not a failed review: retry ONCE asking for a short
+              // answer, then record it against this chunk and go on.
+              result.calls += 1;
+              usage.calls += 1;
+              lastError = err.message;
+              if (attempt === 0) {
+                const retryNote =
+                  '\n\nYour previous reply contained reasoning but no answer. Keep your reasoning short and reply with ONLY the required JSON.';
+                attemptPrompt = `${prompt.text}${retryNote}`;
+                if (prompt.parts) {
+                  attemptParts = {
+                    static: prompt.parts.static,
+                    dynamic: `${prompt.parts.dynamic}${retryNote}`,
+                  };
+                }
+                continue;
+              }
+              break;
+            }
             if (!isPerCallFailure(err)) throw err;
             result.calls += 1;
             usage.calls += 1;
