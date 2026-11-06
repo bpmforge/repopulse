@@ -12955,6 +12955,35 @@
       ]
     },
     {
+      "id": "W25-08",
+      "title": "Real-check fixes: supply-chain register keeps its run row; anti-slop reads up to 20,000 files and says why a read was partial",
+      "phase": 25,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers/index.ts",
+        "apps/api/src/workers/slop-read.ts",
+        "apps/api/src/workers/slop-read.test.ts",
+        "apps/api/src/workers/ai-pass-processor.test.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W25-05",
+        "W25-07"
+      ],
+      "acceptance": [
+        "A succeeded supply_chain_register returns recordedRun, so the batch writes no second zero-finding row that buries the register's own",
+        "Anti-slop reads up to SLOP_MAX_FILES (20,000) files; a partial read stores a sentence naming the file cap, the 64 MB cap and the files skipped for size",
+        "ai-pass-processor.test.ts typechecks again on main (the #218 readonly tuple)"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "2026-11-06 real LM Studio check on the Mac (install rpw25): supply chain showed a 0-finding row over its real one, and outline/saleor anti-slop was partial at the old 2,000-file cap with no reason."
+      ]
+    },
+    {
       "id": "W26-01",
       "title": "UI polish: shell and shared components (buttons, selects, KPI tiles, form widths, phone header, Overview grid)",
       "phase": 26,

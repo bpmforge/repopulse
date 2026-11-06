@@ -4286,3 +4286,7 @@ on the Mac:**
   forces a full read; every 11th pass in a chain is full. Asked by Brad: "everytime someone
   looks at a repo we dont want them to have to run a full run again".
   - Not verified in the cloud: a real model on LM Studio (left free for another thread).
+- 2026-11-06 — W25-08: two gaps found by the real LM Studio check on the Mac. The supply-chain
+  register's own run row is no longer buried under a second zero-finding row, and anti-slop
+  reads up to 20,000 files (was 2,000) and says why when a read is still partial. Also fixes
+  the ai-pass-processor test typecheck left by #218.

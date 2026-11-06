@@ -41,6 +41,7 @@ import { runKnowledgeRegister, runTestGapRegister } from '@repopulse/insights';
 import { buildWorkerGateway, createGatewayResolver, reportGatewayHealth } from './gateway.js';
 import { isAiPaused } from '../lib/ai-pause.js';
 import { hasNeverBeenScanned, startableScannerKeys } from '../lib/startable-scanners.js';
+import { partialReadReason, SLOP_MAX_FILES } from './slop-read.js';
 import {
   antiSlopRunDataVersion,
   architectureDataVersion,
@@ -843,7 +844,11 @@ async function main(): Promise<void> {
                 commitSha: commitSha,
               },
               async (snapshot) => {
-                const sources = readSnapshotSources(snapshot.dir);
+                // W25-08: the read cap was the reader's default 2,000 files, so
+                // anti-slop covered only the first 2,000 of saleor and outline
+                // (alphabetically) and the row said "partial" with no reason.
+                // The 64 MB total-bytes guard still bounds memory.
+                const sources = readSnapshotSources(snapshot.dir, { maxFiles: SLOP_MAX_FILES });
                 // W21-03: the second opinion on what the judgement halves
                 // raise, on a different connection from the one that raised
                 // it. Its calls are recorded on the monthly cap below.
@@ -901,7 +906,8 @@ async function main(): Promise<void> {
                 if (slop.scanRunId !== null && (sources.truncated || sources.skipped > 0)) {
                   await db
                     .update(security.scanRuns)
-                    .set({ partial: true })
+                    // W25-08: and why, so "cut short" names its cause.
+                    .set({ partial: true, error: partialReadReason(sources, SLOP_MAX_FILES) })
                     .where(eq(security.scanRuns.id, slop.scanRunId));
                 }
                 // W9-13. Third scan on the SAME snapshot: the perf pack needs a
@@ -1029,6 +1035,11 @@ async function main(): Promise<void> {
               deferred: result.unmeasured + sync.failed.length + eol.failed.length,
               ...(result.error ? { error: result.error } : {}),
               ...(result.skippedReason ? { skipped: result.skippedReason } : {}),
+              // W25-08: the register wrote its own succeeded row; a Go or Rust
+              // SBOM measures 0 npm/PyPI packages, which is an answer. Without
+              // this the processor buried it under "the scanner did not say
+              // why" (seen on gin, 2026-11-06 real check).
+              ...(result.status === 'succeeded' ? { recordedRun: true } : {}),
             };
           },
           // W10-03. Needs a snapshot like the other tool scanners, so it
