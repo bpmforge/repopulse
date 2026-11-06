@@ -1124,7 +1124,7 @@ function FindingsExplorer() {
         <div className="overflow-x-auto">
           {/* W20-21 (UX_TODO FND-43): below md each row is a stacked card
               (CSS only, one markup), so a phone no longer scrolls sideways. */}
-          <table className="table-plain w-full text-sm md:min-w-[48rem]">
+          <table className="table-plain table-roomy w-full text-sm md:min-w-[48rem]">
             <caption className="sr-only">Findings across every analysed repository</caption>
             <thead className="max-md:sr-only">
               <tr className="text-left text-xs text-fg-muted">
@@ -1145,11 +1145,25 @@ function FindingsExplorer() {
                     }
                   />
                 </th>
-                <th scope="col">Severity</th>
-                {/* W20-13 (FND-19): the list is sorted by risk by default, and
-                    no column showed it, so the order looked random. */}
+                {/* W26-02: the sortable columns are buttons in their header;
+                    the sorted one carries aria-sort and an arrow. W20-13
+                    (FND-19): the list is sorted by risk by default, and no
+                    column showed it, so the order looked random. */}
+                <th scope="col" aria-sort={sort === 'severity' ? 'descending' : undefined}>
+                  <SortHeader
+                    label="Severity"
+                    active={sort === 'severity'}
+                    testId="sort-severity"
+                    onSort={() => setFilters({ sort: 'severity' })}
+                  />
+                </th>
                 <th scope="col" aria-sort={sort ? undefined : 'descending'}>
-                  Risk
+                  <SortHeader
+                    label="Risk"
+                    active={!sort}
+                    testId="sort-risk"
+                    onSort={() => setFilters({ sort: '' })}
+                  />
                 </th>
                 <th scope="col">Finding</th>
                 <th scope="col">Repository</th>
@@ -1342,5 +1356,42 @@ function FindingsExplorer() {
           <div ref={detailRef}>{detail}</div>
         ))}
     </div>
+  );
+}
+
+/**
+ * A sortable column's header (W26-02): the whole label is the button, and the
+ * sorted column shows which way. Both orders the API offers run highest first,
+ * so pressing the sorted column again leaves it as it is.
+ */
+function SortHeader({
+  label,
+  active,
+  testId,
+  onSort,
+}: {
+  label: string;
+  active: boolean;
+  testId: string;
+  onSort: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`-mx-1 inline-flex items-center gap-1 rounded-sm px-1 font-semibold hover:bg-surface-2 hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${active ? 'text-fg' : ''}`}
+      data-testid={testId}
+      aria-pressed={active}
+      title={
+        active
+          ? `Sorted by ${label.toLowerCase()}, highest first`
+          : `Sort by ${label.toLowerCase()}`
+      }
+      onClick={onSort}
+    >
+      {label}
+      <span aria-hidden="true" className={active ? 'text-accent' : 'text-fg-faint'}>
+        {active ? '▼' : '↕'}
+      </span>
+    </button>
   );
 }

@@ -4256,3 +4256,10 @@ on the Mac:**
   a left menu (Workspace, Sources, Analysis, System). URLs and repo-tab-*/admin-tab-* ids
   unchanged; tab strips scroll the active tab into view on a phone. KPI sparkline now shrinks
   (fixed a 3px sideways scroll at 768px found by e2e).
+- 2026-11-06 — W26-02: built from the design canvas Brad reviewed by comment. Finding detail
+  is now a list of full-width cards (title, The issue, What to do, Suggested change, AI review,
+  History, Status, Details). The verified patch uses the shared diff view, which gained a
+  Patch (raw text) view next to Unified and Split, changed-word marks and Hide whitespace, kept
+  per browser. Findings table: roomier cells, row lines, banded rows; Severity and Risk headers
+  sort. Widget cards pin their closing action to the bottom so a row lines up. Checked in dark
+  and light. Leftover layout items moved to W26-04; sort on every column (API) is W26-05.

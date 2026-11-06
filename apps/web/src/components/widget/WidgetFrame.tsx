@@ -108,7 +108,12 @@ export function WidgetFrame({
         {drillDown}
       </header>
 
-      <div className="min-h-0 flex-1 px-4 pt-2 pb-4" data-testid={`widget-state-${state}`}>
+      {/* W26-02: a column, so a card's closing link or button can sit at the
+          bottom and cards side by side in one row line up their actions. */}
+      <div
+        className="flex min-h-0 flex-1 flex-col px-4 pt-2 pb-4"
+        data-testid={`widget-state-${state}`}
+      >
         {state === 'loading' && <FrameSkeleton />}
         {state === 'syncing' && (
           <div className="flex flex-col gap-2">
@@ -121,9 +126,9 @@ export function WidgetFrame({
           </div>
         )}
         {state === 'empty' && (
-          <div className="flex flex-col items-start gap-2 text-sm text-fg-muted">
+          <div className="flex flex-1 flex-col items-start gap-2 text-sm text-fg-muted">
             <p>{emptyMessage}</p>
-            {emptyAction}
+            {emptyAction ? <div className="mt-auto pt-1">{emptyAction}</div> : null}
           </div>
         )}
         {state === 'error' && (

@@ -40,7 +40,7 @@ export function SecurityRollupTile({ repos }: { repos?: string | undefined } = {
       testId="security-rollup"
     >
       {data && (
-        <div className="flex flex-col gap-2 text-sm" data-testid="security-rollup-body">
+        <div className="flex flex-1 flex-col gap-2 text-sm" data-testid="security-rollup-body">
           {/* W20-20 (UX_TODO DSH-76): before any scan has finished, zeros in
               every severity read as a clean audit. Say so instead. */}
           {data.scanned === false ? (
@@ -126,7 +126,7 @@ export function SecurityRollupTile({ repos }: { repos?: string | undefined } = {
             to="/findings"
             // W20-21 (FND-55): every security scanner's findings, not only secrets.
             search={withRepos({ dimension_group: 'security' }, repos) as never}
-            className="text-sm underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            className="mt-auto pt-1 text-sm underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
             data-testid="rollup-drill"
           >
             Open security findings

@@ -3,7 +3,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { CodeBlock } from './CodeBlock.js';
 import { DiffView } from './DiffView.js';
-import { diffStat, parseUnifiedDiff, toSplitRows } from './parseDiff.js';
+import {
+  changedSpans,
+  diffStat,
+  hideWhitespaceOnly,
+  parseUnifiedDiff,
+  toSplitRows,
+} from './parseDiff.js';
 import { hasHiddenChars, languageFor, tokenizeLines } from './tokenize.js';
 
 const BIDI = String.fromCharCode(0x202e);
@@ -116,9 +122,9 @@ describe('CodeBlock', () => {
 
   it('hides the numbers rather than invent them when the line is unknown', () => {
     render(<CodeBlock code="x" startLine={null} />);
-    expect(screen.getByTestId('code-row').querySelector('.code-ln')!.getAttribute('data-line')).toBe(
-      '',
-    );
+    expect(
+      screen.getByTestId('code-row').querySelector('.code-ln')!.getAttribute('data-line'),
+    ).toBe('');
   });
 
   it('renders markup in the code as text, never as elements', () => {
@@ -204,5 +210,67 @@ describe('DiffView split layout', () => {
     render(<DiffView diff={PATCH} mode="split" />);
     expect(screen.queryByTestId('diff-split')).toBeNull();
     expect(screen.getAllByTestId('diff-row')).toHaveLength(5);
+  });
+});
+
+// W26-02: a reader picks how a diff is drawn, and the choice can be kept.
+describe('DiffView options', () => {
+  afterEach(() => window.localStorage.clear());
+
+  it('shows the raw patch text under Patch', async () => {
+    render(<DiffView diff={PATCH} />);
+    await userEvent.click(screen.getByTestId('diff-patch'));
+    expect(screen.getByTestId('diff-patch-text').textContent).toBe(PATCH);
+    expect(screen.queryAllByTestId('diff-row')).toHaveLength(0);
+    expect(screen.queryByTestId('diff-words')).toBeNull();
+    await userEvent.click(screen.getByTestId('diff-unified'));
+    expect(screen.getAllByTestId('diff-row')).toHaveLength(5);
+  });
+
+  it('marks the changed part of a changed line, and stops when turned off', async () => {
+    render(<DiffView diff={PATCH} />);
+    const marks = document.querySelectorAll('mark.code-word');
+    expect(marks.length).toBeGreaterThan(0);
+    await userEvent.click(screen.getByTestId('diff-words'));
+    expect(document.querySelectorAll('mark.code-word')).toHaveLength(0);
+  });
+
+  it('keeps the choice under a storage key and reads it back', async () => {
+    const { unmount } = render(<DiffView diff={PATCH} storageKey="t.diff" />);
+    await userEvent.click(screen.getByTestId('diff-patch'));
+    unmount();
+    render(<DiffView diff={PATCH} storageKey="t.diff" />);
+    expect(screen.getByTestId('diff-patch-text')).toBeInTheDocument();
+  });
+
+  it('ignores a stored value it does not understand', () => {
+    window.localStorage.setItem('t.diff', '{"mode":"sideways","words":"yes"}');
+    render(<DiffView diff={PATCH} storageKey="t.diff" />);
+    expect(screen.getAllByTestId('diff-row')).toHaveLength(5);
+  });
+});
+
+describe('changedSpans and hideWhitespaceOnly', () => {
+  const lines = parseUnifiedDiff(
+    ['@@ -1,2 +1,2 @@', '-  val, _ := f(x)', '+  val, err := f(x)', '-a  b', '+a b'].join('\n'),
+  )[0]!.hunks[0]!.lines;
+
+  it('finds the characters between the common prefix and suffix', () => {
+    const spans = changedSpans(lines);
+    expect(spans.get(lines[0]!)).toEqual([7, 8]); // "_"
+    expect(spans.get(lines[1]!)).toEqual([7, 10]); // "err"
+  });
+
+  it('pairs each run of removed lines with the added run after it', () => {
+    const spans = changedSpans(lines);
+    expect(spans.get(lines[2]!)).toEqual([2, 3]); // the extra space
+    expect(spans.has(lines[3]!)).toBe(false); // nothing was inserted on the new side
+  });
+
+  it('shows a whitespace-only change once, as unchanged', () => {
+    const out = hideWhitespaceOnly(lines);
+    expect(out.map((l) => l.type)).toEqual(['del', 'add', 'ctx']);
+    expect(out[2]!.oldNo).toBe(2);
+    expect(out[2]!.text).toBe('a b');
   });
 });

@@ -141,6 +141,27 @@ describe('filters live in the URL (FND-03, FND-04)', () => {
     await waitFor(() => expect(screen.getByTestId('filter-status')).toHaveValue('dismissed'));
   });
 
+  // W26-02: the Severity and Risk headers sort the list, and say which is on.
+  it('sorts from the column headers and marks the sorted column', async () => {
+    const { param } = renderAt();
+    const user = userEvent.setup();
+    await screen.findByTestId('finding-1');
+    expect(screen.getByTestId('sort-risk')).toHaveAttribute('aria-pressed', 'true');
+    await user.click(screen.getByTestId('sort-severity'));
+    await waitFor(() => expect(param('sort')).toBe('severity'));
+    expect(screen.getByTestId('sort-severity').closest('th')).toHaveAttribute(
+      'aria-sort',
+      'descending',
+    );
+    await waitFor(() => expect(listRequests().at(-1)!.searchParams.get('sort')).toBe('severity'));
+    await user.click(screen.getByTestId('sort-risk'));
+    await waitFor(() => expect(param('sort')).toBeNull());
+    expect(screen.getByTestId('sort-risk').closest('th')).toHaveAttribute(
+      'aria-sort',
+      'descending',
+    );
+  });
+
   it('validates every filter and drops junk rather than failing', () => {
     expect(
       validateFindingsSearch({
