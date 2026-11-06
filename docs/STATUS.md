@@ -4278,3 +4278,11 @@ on the Mac:**
   md and 1440 px; phone rows are cards, title first. Setup shows required and set variables,
   the rest behind a disclosure. Reports form stacked. UI-32 not built (needs API data).
   e2e org-overview "heroes" test updated for the W26-01 8 + 4 Overview recipe (it failed on main).
+- 2026-11-06 — W25-07: a repository AI pass (folders or files, manual or scheduled) over the
+  same paths as an earlier clean pass now sends the model only files whose content changed
+  (sha-256 per file on `ai_pass_runs.file_hashes`, migration 0069); earlier findings in the
+  rest are carried forward on their quote, and findings in files that are gone are closed.
+  No changed file = no specialist call (`no_change`). `full_review: true` on the start route
+  forces a full read; every 11th pass in a chain is full. Asked by Brad: "everytime someone
+  looks at a repo we dont want them to have to run a full run again".
+  - Not verified in the cloud: a real model on LM Studio (left free for another thread).

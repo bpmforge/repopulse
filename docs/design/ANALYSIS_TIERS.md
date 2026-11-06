@@ -297,3 +297,36 @@ per pass, not per dimension: a pass that did not answer for every specialist is
 never a base. A finding in a changed file whose quote survives but which the
 model did not re-raise is carried, not closed: the quote, not the model's
 silence, is the evidence.
+
+## 9. Incremental re-review of a repository pass (W25-07)
+
+A pass over named folders or files (`mode = 'paths'`, manual or scheduled) used
+to read every file under them again whenever any commit landed. Now each file is
+judged by its **content**: the pass stores `path -> sha-256` of what it read on
+`ai_pass_runs.file_hashes` (migration 0069), and the next pass over **exactly
+the same paths** sends the model only the files whose hash differs. No forge
+compare is needed: the pass already holds every file's text at the new head.
+
+**Base.** The latest `succeeded` paths pass in the same workspace and repository
+whose sorted `paths` equal this one's and that read a head. A skipped row is
+never a base. The first look after a first scan (W25-01) is always full: it
+chooses its own files.
+
+**Full review whenever there is doubt** (`planPathsScope` in
+`packages/analysis/src/scheduling/incremental.ts`): `forced` (POST
+`/repos/:id/ai-pass` with `full_review: true`, job `force`), `no_prior_review`,
+`prior_not_clean` (same test as §8), `no_file_hashes` (a pass from before this
+column), `prompt_version_changed`, `drift_guard` (after `PATHS_MAX_CHAIN` = 10
+incremental passes in a row, the next one is full).
+
+**Findings.** Changed files go through the specialists as usual. Every other open
+or confirmed finding the base pass raised is decided by the same
+`carryForwardReview` as §8, with the file's full text in place of the diff
+(`quoteInText`): quote still in the file = carried (new provenance row, so the
+chain continues); file gone or quote gone = closed as `outdated_diff`.
+
+**Nothing changed.** When every file still there has the base's hash, the
+specialists are given no files (no call is made). Triage of rule hits in scope
+still runs, since a scan may have raised new ones. With nothing to triage the
+row is `skipped` with `reason_code = 'no_change'` and a sentence naming the base
+commit; the screen shows "incremental since <sha7>" as for §8.

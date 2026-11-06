@@ -236,6 +236,18 @@ describeIfLiveInfra('AI pass routes (W19-09)', () => {
       });
     });
 
+    it('passes "full review" to the worker only when asked (W25-07)', async () => {
+      await start({ paths: ['src'], full_review: true });
+      expect((add.mock.calls[0] as unknown[])[1]).toMatchObject({ force: true });
+      // One pass at a time per repository: finish the first.
+      await db
+        .update(read.aiPassRuns)
+        .set({ status: 'succeeded' })
+        .where(eq(read.aiPassRuns.workspaceId, WS));
+      expect((await start({ paths: ['src'] })).statusCode).toBe(202);
+      expect((add.mock.calls[1] as unknown[])[1]).not.toHaveProperty('force');
+    });
+
     it('is for admins: it spends model calls over the source', async () => {
       role = 'member';
       expect((await start()).statusCode).toBe(403);

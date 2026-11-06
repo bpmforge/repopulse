@@ -2,12 +2,15 @@ import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import type { Job } from 'bullmq';
 import { core, read, safeErrorText, type Database } from '@repopulse/shared';
 import {
+  contentHash,
   contextWindowForRole,
   excerptAround,
   findingVerdict,
   needsCompare,
   needsVerification,
+  planPathsScope,
   planReviewScope,
+  quoteInText,
   quoteStillPresent,
   restrictDiff,
   reviewPromptVersion,
@@ -15,6 +18,7 @@ import {
   specialistById,
   type AnalysisGateway,
   type LlmRole,
+  type PathsScopePlan,
   type ReviewScopePlan,
   type RoutingPolicy,
   type SpecialistId,
@@ -83,7 +87,10 @@ export interface AiPassJobData {
   requestId?: string;
   /** A lower call cap for this pass (a scheduled pass is limited by what is left of the month). */
   maxCalls?: number;
-  /** W23-07: review the whole pull request even when an incremental re-review would do. */
+  /**
+   * W23-07 / W25-07: review the whole pull request, or every file of a
+   * repository pass, even when an incremental re-review would do.
+   */
   force?: boolean;
 }
 
@@ -453,6 +460,10 @@ export function aiPassProcessor(deps: AiPassDeps) {
       let incremental: Extract<ReviewScopePlan, { scope: 'incremental' }> | null = null;
       let reviewScope: { scope: 'full' | 'incremental'; baseRunId?: number } = { scope: 'full' };
       let fullDiff: readonly DiffEntry[] = [];
+      // W25-07: a repository pass over the same paths as an earlier one.
+      let pathsIncremental: Extract<PathsScopePlan, { scope: 'incremental' }> | null = null;
+      let fileHashes: Record<string, string> | null = null;
+      let allFiles: ReadonlyMap<string, string> = new Map();
       if (run.mode === 'paths') {
         let paths = run.paths;
         if (firstLook && paths.length === 0) {
@@ -479,7 +490,30 @@ export function aiPassProcessor(deps: AiPassDeps) {
         });
         if (!loaded.ok) return fail(loaded.code, loaded.reason);
         commitSha = loaded.commitSha;
-        input = { kind: 'module', name: `repo-${run.repoId}`, files: loaded.files };
+        let sentFiles = loaded.files;
+        fileHashes = Object.fromEntries(loaded.files.map((f) => [f.path, contentHash(f.content)]));
+        allFiles = new Map(loaded.files.map((f) => [f.path, f.content]));
+        if (!firstLook) {
+          // W25-07: only the files whose content changed since the last clean
+          // pass over these same paths go to the model.
+          const decision = await decidePathsScope({
+            deps,
+            run,
+            workspaceId,
+            files: Object.entries(fileHashes).map(([p, hash]) => ({ path: p, hash })),
+            force: job.data.force === true,
+          });
+          if (decision.scope === 'incremental') {
+            pathsIncremental = decision;
+            reviewScope = { scope: 'incremental', baseRunId: decision.baseRunId };
+            const changed = new Set(decision.changed);
+            sentFiles = loaded.files.filter((f) => changed.has(f.path));
+          }
+        }
+        // W25-07: when no file changed, nothing goes to the specialists (an
+        // empty input plans none of them, so no call is made); triage of the
+        // rule hits in scope still runs, as new scans may have raised some.
+        input = { kind: 'module', name: `repo-${run.repoId}`, files: sentFiles };
         if (firstLook) {
           // The row names exactly what was read, best-ranked first.
           paths = loaded.files.map((f) => f.path);
@@ -493,7 +527,7 @@ export function aiPassProcessor(deps: AiPassDeps) {
         promptTitle = firstLook
           ? `First look after the first scan: the ${paths.length} files with the most findings and churn`
           : `Repository pass over ${paths.join(', ')}`;
-        filesRead = loaded.files.length;
+        filesRead = sentFiles.length;
         filesSkipped = loaded.skipped ?? null;
       } else {
         if (!deps.loadDiff) {
@@ -545,13 +579,14 @@ export function aiPassProcessor(deps: AiPassDeps) {
         .update(read.aiPassRuns)
         .set({
           commitSha,
-          ...(run.mode === 'pull_request'
+          ...(run.mode === 'pull_request' || run.mode === 'paths'
             ? {
                 scope: reviewScope.scope,
                 baseRunId: reviewScope.baseRunId ?? null,
                 promptVersion: reviewPromptVersion(),
               }
             : {}),
+          ...(run.mode === 'paths' ? { fileHashes } : {}),
         })
         .where(eq(read.aiPassRuns.id, runId));
 
@@ -688,6 +723,17 @@ export function aiPassProcessor(deps: AiPassDeps) {
           newAiPassRunId: runId,
           quoteInDiff: (file, quote) => quoteStillPresent(quote, patches.get(file)),
         });
+      } else if (pathsIncremental) {
+        // W25-07: the base pass's other findings are decided from the files'
+        // full text now: quote still there = carried, file or quote gone = closed.
+        carried = await carryForwardReview({
+          db,
+          workspaceId,
+          repoId: run.repoId,
+          baseAiPassRunId: pathsIncremental.baseRunId,
+          newAiPassRunId: runId,
+          quoteInDiff: (file, quote) => quoteInText(quote, allFiles.get(file)),
+        });
       }
 
       // 3. Evidence-fed triage of RULE-raised findings in scope.
@@ -735,6 +781,18 @@ export function aiPassProcessor(deps: AiPassDeps) {
         counts: spec.plan.counts,
       };
       const nothingRelevant = planned.length === 0 && triage.skipped !== null;
+      // W25-07: the reason a repository pass with no changed file asked the model nothing.
+      const noChange =
+        nothingRelevant && pathsIncremental && pathsIncremental.changed.length === 0
+          ? (() => {
+              const at = pathsIncremental.sinceSha.slice(0, 8);
+              const gone = pathsIncremental.removed.length;
+              const closed = carried?.closed ?? 0;
+              return gone > 0
+                ? `No file under these paths changed since the pass at ${at}, so the model was not asked again. ${gone} ${gone === 1 ? 'file it read is' : 'files it read are'} gone, and ${closed} ${closed === 1 ? 'finding' : 'findings'} in them closed.`
+                : `None of the ${pathsIncremental.unchanged.length} files under these paths changed since the pass at ${at}, so the model was not asked again. Its findings still stand.`;
+            })()
+          : null;
       // W20-06 (UX_TODO AI-59): a pass where every specialist that ran gave only
       // unusable answers (malformed JSON twice, common with local models) and
       // triage reviewed nothing has reviewed NOTHING. Recorded as failed, with
@@ -769,23 +827,39 @@ export function aiPassProcessor(deps: AiPassDeps) {
                 },
               }
             : {}),
+          ...(pathsIncremental && carried
+            ? {
+                incremental: {
+                  sinceSha: pathsIncremental.sinceSha,
+                  baseRunId: pathsIncremental.baseRunId,
+                  chain: pathsIncremental.chain,
+                  filesChanged: pathsIncremental.changed.length,
+                  filesUnchanged: pathsIncremental.unchanged.length,
+                  filesRemoved: pathsIncremental.removed.length,
+                  carriedForward: carried.carried,
+                  closed: carried.closed,
+                },
+              }
+            : {}),
         },
         triageFunnel: triage.funnel as unknown as Record<string, unknown> | null,
         triageSkipped: triage.skipped,
         calls: spec.calls + triage.calls + verify.calls,
         analysisRunIds,
-        ...(nothingRelevant
-          ? {
-              reasonCode: 'nothing_relevant',
-              reason: 'Nothing in scope needed a specialist, and there was nothing to triage.',
-            }
-          : unusable
+        ...(noChange
+          ? { reasonCode: 'no_change', reason: noChange }
+          : nothingRelevant
             ? {
-                reasonCode: 'specialists_unusable',
-                reason:
-                  'No specialist gave a usable answer (each answer was malformed even after a retry, or the model did not finish in time), so this pass reviewed nothing. Try a model that follows JSON instructions more reliably, or a narrower scope.',
+                reasonCode: 'nothing_relevant',
+                reason: 'Nothing in scope needed a specialist, and there was nothing to triage.',
               }
-            : {}),
+            : unusable
+              ? {
+                  reasonCode: 'specialists_unusable',
+                  reason:
+                    'No specialist gave a usable answer (each answer was malformed even after a retry, or the model did not finish in time), so this pass reviewed nothing. Try a model that follows JSON instructions more reliably, or a narrower scope.',
+                }
+              : {}),
       });
     } catch (err) {
       // A local-only refusal arrives here with its sentence (role and connection).
@@ -852,6 +926,65 @@ async function decideReviewScope(a: {
         })
       : null;
   return planReviewScope({ ...args, comparison, prFiles: a.prFiles });
+}
+
+/**
+ * W25-07: full or incremental for a repository pass. The base is the latest
+ * SUCCEEDED pass over exactly the same paths that read a head (a skipped
+ * "nothing changed" row is not a base: it reviewed nothing). Its stored file
+ * hashes say which files the model already answered for.
+ */
+async function decidePathsScope(a: {
+  deps: AiPassDeps;
+  run: typeof read.aiPassRuns.$inferSelect;
+  workspaceId: number;
+  files: { path: string; hash: string }[];
+  force: boolean;
+}): Promise<PathsScopePlan> {
+  const rows = await a.deps.db
+    .select()
+    .from(read.aiPassRuns)
+    .where(
+      and(
+        eq(read.aiPassRuns.workspaceId, a.workspaceId),
+        eq(read.aiPassRuns.repoId, a.run.repoId),
+        eq(read.aiPassRuns.mode, 'paths'),
+        eq(read.aiPassRuns.status, 'succeeded'),
+        sql`${read.aiPassRuns.id} < ${a.run.id}`,
+        isNotNull(read.aiPassRuns.commitSha),
+      ),
+    )
+    .orderBy(desc(read.aiPassRuns.id))
+    .limit(20);
+  const key = (paths: readonly string[]) => JSON.stringify([...paths].sort());
+  const row = rows.find(
+    (r) => r.workspaceId === a.workspaceId && key(r.paths) === key(a.run.paths),
+  );
+  const specialists = (row?.specialists ?? {}) as {
+    droppedForBudget?: unknown[];
+    failures?: unknown[];
+    unreadable?: unknown[];
+    incremental?: { chain?: number };
+  };
+  const prior = row
+    ? {
+        runId: row.id,
+        commitSha: row.commitSha as string,
+        promptVersion: row.promptVersion,
+        fileHashes: row.fileHashes ?? null,
+        completeAndClean:
+          (specialists.droppedForBudget ?? []).length === 0 &&
+          (specialists.failures ?? []).length === 0 &&
+          (specialists.unreadable ?? []).length === 0,
+        chain: row.scope === 'incremental' ? (specialists.incremental?.chain ?? 1) : 0,
+      }
+    : null;
+  return planPathsScope({
+    prior,
+    promptVersion: reviewPromptVersion(),
+    files: a.files,
+    force: a.force,
+  });
 }
 
 type SpecialistFinding = Awaited<ReturnType<typeof runSpecialists>>['findings'][number];

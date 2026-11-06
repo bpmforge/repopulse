@@ -95,6 +95,12 @@ export const aiPassRuns = pgTable(
     baseRunId: bigint('base_run_id', { mode: 'number' }),
     /** W23-07: "id@checklistVersion+..." the pass ran with; incremental only on a match. */
     promptVersion: text('prompt_version'),
+    /**
+     * W25-07: repository passes (mode 'paths') - path -> sha-256 of the content
+     * each file had when this pass read it. The next pass over the same paths
+     * sends only files whose hash differs. NULL on diff modes and older rows.
+     */
+    fileHashes: jsonb('file_hashes').$type<Record<string, string>>(),
     /** Who started it: a person (manual) or a schedule an admin opted a repository into. */
     trigger: text('trigger').$type<AiPassTrigger>().notNull().default('manual'),
     scheduleId: bigint('schedule_id', { mode: 'number' }).references(() => aiPassSchedules.id, {

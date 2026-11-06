@@ -116,6 +116,22 @@ describe('AiPassPanel', () => {
     });
   });
 
+  it('asks for a full review only when the box is ticked, and not for a commit range (W25-07)', () => {
+    render(<AiPassPanel repoId="3" />);
+    expect(screen.getByTestId('ai-pass-full-review')).toHaveProperty('checked', false);
+    expect(document.body.textContent).toMatch(/sends the model only what changed/);
+    fireEvent.change(screen.getByTestId('ai-pass-paths'), { target: { value: 'src' } });
+    fireEvent.click(screen.getByTestId('ai-pass-full-review'));
+    fireEvent.click(screen.getByTestId('ai-pass-start'));
+    expect(state.mutate).toHaveBeenLastCalledWith({ paths: ['src'], full_review: true });
+    fireEvent.click(screen.getByTestId('ai-pass-mode-pull_request'));
+    fireEvent.change(screen.getByTestId('ai-pass-pr'), { target: { value: '9' } });
+    fireEvent.click(screen.getByTestId('ai-pass-start'));
+    expect(state.mutate).toHaveBeenLastCalledWith({ pull_request: 9, full_review: true });
+    fireEvent.click(screen.getByTestId('ai-pass-mode-commit_range'));
+    expect(screen.queryByTestId('ai-pass-full-review')).toBeNull();
+  });
+
   it("shows the server's reason when a start is refused", () => {
     state.error = Object.assign(new Error('Daily AI-pass limit reached'), {
       status: 429,

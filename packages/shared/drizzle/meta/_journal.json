@@ -449,6 +449,13 @@
       "when": 1794800003000,
       "tag": "0068_code_index",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1794800004000,
+      "tag": "0069_ai_pass_file_hashes",
+      "breakpoints": true
     }
   ]
 }
