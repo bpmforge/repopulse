@@ -13591,7 +13591,36 @@
       "points": 3,
       "status": "todo",
       "notes": [
-        "2026-11-06 design pass (/mnt/project-files/repopulse/ai-speed/DESIGN.md) after the Mac real check. Brad: 'I dont want to waste gpu cycles when we have an obvious mechanism or process defect' and 'only be pertinent'. Waits for the Mac A/B (reasoning on/off, two models, files-first prompt)."
+        "2026-11-06 design pass (/mnt/project-files/repopulse/ai-speed/DESIGN.md) after the Mac real check. Brad: 'I dont want to waste gpu cycles when we have an obvious mechanism or process defect' and 'only be pertinent'. Waits for the Mac A/B (reasoning on/off, two models, files-first prompt).",
+        "2026-11-06 Mac A/B: files first gives the second specialist 88-93% of its prompt from cache (0% today); first look with reasoning none found nothing on 3 of 3, so the first look keeps reasoning."
+      ]
+    },
+    {
+      "id": "W27-06",
+      "title": "Triage, judge and second opinions keep reasoning; only CVE checks drop it (measured)",
+      "phase": 27,
+      "module": "analysis",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers/ai-judge.ts",
+        "apps/api/src/workers/second-model.ts",
+        "packages/security/src/triage",
+        "apps/api/src/workers/ai-pass-processor.test.ts",
+        "apps/api/src/workers/second-model.test.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-04"
+      ],
+      "acceptance": [
+        "The judge, single and batch triage, and the second opinion send no reasoning field",
+        "The CVE second opinion (validation/verify) still sends reasoning none"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "2026-11-06 Mac A/B on the real saved prompts (27B): CVE checks 2,671 s -> 90 s with reasoning none, 8/8 same verdicts. Judge 7 hits: both 'real' held but all 4 'needs human' became 'likely false positive', so uncertain hits would be dismissed. qwen3-coder-next wrongly cleared 3 of 8 CVEs: not for verdicts."
       ]
     }
   ]

@@ -4342,3 +4342,8 @@ on the Mac:**
   (slop_candidate_verdicts, migration 0070) and never asked again. A model failure marks the
   judgement partial and keeps every rule finding. Main green: code_indexes added to the repo
   purge; the test-gap coverage grep ignores the imported gitleaks codecov secrets rule.
+- 2026-11-06 — W27-06: the judge, triage and second opinions keep reasoning; only the CVE
+  check drops it. Mac A/B (27B, real saved prompts): CVE 2,671 s -> 90 s, 8/8 same verdicts;
+  judge with reasoning none turned all 4 'needs human' into 'likely false positive'. First
+  look with reasoning none found nothing (3/3). qwen3-coder-next wrongly cleared 3/8 CVEs.
+  Files-first prompts give the second specialist 88-93% prefix-cache hits (feeds W27-05).
