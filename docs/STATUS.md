@@ -4263,3 +4263,9 @@ on the Mac:**
   per browser. Findings table: roomier cells, row lines, banded rows; Severity and Risk headers
   sort. Widget cards pin their closing action to the bottom so a row lines up. Checked in dark
   and light. Leftover layout items moved to W26-04; sort on every column (API) is W26-05.
+- 2026-11-06 — W26-05: GET /findings sorts by risk, severity, title, repository, file, status
+  or first_seen, with dir=asc|desc (each column has a default way). Risk-desc and severity-desc
+  keep their W17-32 cursors; every other pair uses a general keyset cursor that carries the
+  sort key as Postgres rendered it (first_seen truncated to ms), with id as the tiebreak;
+  unpriced risk stays last both ways. Every Findings header but Verification sorts and flips
+  on a second press; Age shows first_seen reversed. Paging walks cover all 14 orders.

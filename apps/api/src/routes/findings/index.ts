@@ -1,4 +1,27 @@
-import { and, desc, eq, gte, ilike, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
+import {
+  and,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
+import {
+  afterGeneral,
+  decodeGeneral,
+  encodeGeneral,
+  isLegacy,
+  orderFor,
+  parseSort,
+  sortKeyText,
+  type GeneralCursor,
+} from './sort.js';
 import { alias } from 'drizzle-orm/pg-core';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { auditLog, core, facts, read, security, type Database } from '@repopulse/shared';
@@ -192,7 +215,8 @@ export function idList(raw: string | undefined, cap = BULK_SELECT_CAP): number[]
 export type FindingSort = 'risk' | 'severity';
 export type FindingCursor =
   | { sort: 'severity'; severity: number; id: number }
-  | { sort: 'risk'; risk: string | null; severity: number; id: number };
+  | { sort: 'risk'; risk: string | null; severity: number; id: number }
+  | GeneralCursor;
 
 const RISK_TEXT = /^-?\d+(\.\d+)?$/;
 
@@ -209,6 +233,7 @@ export function encodeCursor(
 export function decodeCursor(cursor: string): FindingCursor | null {
   try {
     const parts = Buffer.from(cursor, 'base64url').toString('utf8').split(':');
+    if (parts[0] === 'g') return decodeGeneral(parts);
     const tail = (sev: string | undefined, id: string | undefined) => {
       const severity = Number(sev);
       const parsed = Number(id);
@@ -241,10 +266,12 @@ export function decodeCursor(cursor: string): FindingCursor | null {
 /** The scan that last saw a finding, joined beside the one that raised it (W20-21). */
 const lastSeenRun = alias(security.scanRuns, 'last_seen_run');
 
-function findingsQuery(db: Database) {
+function findingsQuery(db: Database, sortKey: SQL = sql`null`) {
   return (
     db
       .select({
+        // W26-05: the list's sort key as text, for a general sort's cursor.
+        sortKey: sql<string | null>`${sortKey}`,
         id: read.findings.id,
         repoId: read.findings.repoId,
         org: core.repos.org,
@@ -896,8 +923,10 @@ export default async function findingsRoutes(
       kev?: string;
       /** W9-11: act | schedule | track. */
       risk_band?: string;
-      /** W9-11: 'risk' (default) or 'severity'. */
+      /** W9-11: 'risk' (default) or 'severity'; W26-05: or title, repository, file, status, first_seen. */
       sort?: string;
+      /** W26-05: 'asc' or 'desc'; each column has its own default (sort.ts). */
+      dir?: string;
       cursor?: string;
       /** W18-29: one rule, across the scanners that carry rule ids. */
       rule_id?: string;
@@ -926,51 +955,52 @@ export default async function findingsRoutes(
     // Keyset, not offset: the list is ordered by severity and new findings
     // arrive at the top, so an offset page would skip or repeat rows while
     // someone is reading — which presents as "findings are missing".
-    const sort: FindingSort = q.sort === 'severity' ? 'severity' : 'risk';
+    const listSort = parseSort(q.sort, q.dir);
+    const legacy = isLegacy(listSort);
+    const sort: FindingSort = listSort.key === 'severity' ? 'severity' : 'risk';
     if (q.cursor) {
       const decoded = decodeCursor(q.cursor);
-      // A cursor minted under the other sort orders by different columns; it
+      // A cursor minted under another sort orders by different columns; it
       // is not "after" anything in this list.
-      if (!decoded || decoded.sort !== sort) return fail(request, reply, 400, 'Invalid cursor');
-      const afterSeverityId = or(
-        lt(read.findings.severity, decoded.severity),
-        and(eq(read.findings.severity, decoded.severity), lt(read.findings.id, decoded.id)),
-      )!;
-      if (decoded.sort === 'severity') {
-        filters.push(afterSeverityId);
-      } else if (decoded.risk === null) {
-        // Inside the trailing NULLS LAST block: only unpriced rows remain.
-        filters.push(and(isNull(read.findings.effectiveRisk), afterSeverityId)!);
+      const matches =
+        decoded !== null &&
+        (legacy
+          ? decoded.sort === sort
+          : decoded.sort === 'general' &&
+            decoded.key === listSort.key &&
+            decoded.dir === listSort.dir);
+      if (!decoded || !matches) return fail(request, reply, 400, 'Invalid cursor');
+      if (decoded.sort === 'general') {
+        filters.push(afterGeneral(decoded));
       } else {
-        filters.push(
-          or(
-            lt(read.findings.effectiveRisk, decoded.risk),
-            and(eq(read.findings.effectiveRisk, decoded.risk), afterSeverityId),
-            isNull(read.findings.effectiveRisk),
-          )!,
-        );
+        const afterSeverityId = or(
+          lt(read.findings.severity, decoded.severity),
+          and(eq(read.findings.severity, decoded.severity), lt(read.findings.id, decoded.id)),
+        )!;
+        if (decoded.sort === 'severity') {
+          filters.push(afterSeverityId);
+        } else if (decoded.risk === null) {
+          // Inside the trailing NULLS LAST block: only unpriced rows remain.
+          filters.push(and(isNull(read.findings.effectiveRisk), afterSeverityId)!);
+        } else {
+          filters.push(
+            or(
+              lt(read.findings.effectiveRisk, decoded.risk),
+              and(eq(read.findings.effectiveRisk, decoded.risk), afterSeverityId),
+              isNull(read.findings.effectiveRisk),
+            )!,
+          );
+        }
       }
     }
 
-    const rows = await findingsQuery(db)
+    const rows = await findingsQuery(db, legacy ? sql`null` : sortKeyText(listSort))
       .where(and(...filters))
       // W9-11: effective_risk by DEFAULT, severity on request. Severity alone
       // put a critical finding in a file nobody touches above a high one in the
-      // hot path — the ordering the risk engine exists to replace. The severity
-      // sort is retained because "show me everything critical" is a real
-      // question, just not the default one.
-      .orderBy(
-        ...(sort === 'severity'
-          ? [desc(read.findings.severity), desc(read.findings.id)]
-          : [
-              // NULLS LAST: an unpriced finding has not been judged low-risk,
-              // it has not been judged at all, and sorting it to the top or
-              // silently to the bottom would both be claims.
-              sql`${read.findings.effectiveRisk} desc nulls last`,
-              desc(read.findings.severity),
-              desc(read.findings.id),
-            ]),
-      )
+      // hot path — the ordering the risk engine exists to replace. W26-05: any
+      // column, either way, on request (sort.ts).
+      .orderBy(...orderFor(listSort))
       .limit(PAGE_SIZE + 1);
 
     const page = rows.slice(0, PAGE_SIZE);
@@ -999,7 +1029,12 @@ export default async function findingsRoutes(
 
     return reply.send({
       items: page.map(toFinding),
-      next_cursor: rows.length > PAGE_SIZE && last ? encodeCursor(sort, last) : null,
+      next_cursor:
+        rows.length > PAGE_SIZE && last
+          ? legacy
+            ? encodeCursor(sort, last)
+            : encodeGeneral(listSort, last.sortKey, last.id)
+          : null,
       total: matching?.n ?? 0,
       experimental: experimentalMode,
       shadow_hidden: shadowHidden,
@@ -1036,7 +1071,7 @@ export default async function findingsRoutes(
    * a cut export says so in the file and in X-RepoPulse-Truncated. Audited:
    * findings leaving the product is the SC-22 `finding.bulk_export` record.
    */
-  app.get<{ Querystring: ListQuery & { format?: string; sort?: string } }>(
+  app.get<{ Querystring: ListQuery & { format?: string; sort?: string; dir?: string } }>(
     '/findings/export',
     async (request, reply) => {
       const workspaceId = request.workspace?.id;
@@ -1046,18 +1081,9 @@ export default async function findingsRoutes(
         return fail(request, reply, 400, 'Choose a format', 'format must be "csv" or "sarif".');
       }
       const { filters } = listFilters(db, workspaceId, request.query);
-      const sort: FindingSort = request.query.sort === 'severity' ? 'severity' : 'risk';
       const rows = await findingsQuery(db)
         .where(and(...filters))
-        .orderBy(
-          ...(sort === 'severity'
-            ? [desc(read.findings.severity), desc(read.findings.id)]
-            : [
-                sql`${read.findings.effectiveRisk} desc nulls last`,
-                desc(read.findings.severity),
-                desc(read.findings.id),
-              ]),
-        )
+        .orderBy(...orderFor(parseSort(request.query.sort, request.query.dir)))
         .limit(EXPORT_CAP + 1);
       const truncated = rows.length > EXPORT_CAP;
       const page = rows.slice(0, EXPORT_CAP);

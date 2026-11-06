@@ -93,7 +93,10 @@ export interface FindingsSearch {
   in_chain?: boolean;
   rule_id?: string;
   experimental?: 'include' | 'only';
-  sort?: 'severity';
+  /** W26-05: any column but risk (risk is the default, so it is never written). */
+  sort?: Exclude<FindingSortKey, 'risk'>;
+  /** W26-05: only when it differs from the column's own default. */
+  dir?: SortDir;
   /** W20-13 (FND-20): free text over title, file, CVE id and rule id. */
   q?: string;
   /** W20-13 (FND-64): known exploited only. */
@@ -143,7 +146,11 @@ function validateFilterSearch(search: Record<string, unknown>): Omit<FindingsSea
   if (search.experimental === 'include' || search.experimental === 'only') {
     out.experimental = search.experimental;
   }
-  if (search.sort === 'severity') out.sort = 'severity';
+  if (isSortKey(search.sort) && search.sort !== 'risk') out.sort = search.sort;
+  if (search.dir === 'asc' || search.dir === 'desc') {
+    const key: FindingSortKey = out.sort ?? 'risk';
+    if (search.dir !== SORT_DEFAULT_DIR[key]) out.dir = search.dir;
+  }
   const q = str(search.q);
   if (q) out.q = q;
   if (search.kev === true || search.kev === 'true') out.kev = true;
@@ -267,6 +274,17 @@ function FindingsExplorer() {
   const shadowMode: ShadowMode = search.experimental ?? 'exclude';
   const ruleId = search.rule_id ?? '';
   const sort = search.sort;
+  const sortKey: FindingSortKey = sort ?? 'risk';
+  const sortDir: SortDir = search.dir ?? SORT_DEFAULT_DIR[sortKey];
+  /** Press a header: the sorted column flips, another starts at its default way. */
+  const sortBy = (key: FindingSortKey) => {
+    const dir: SortDir =
+      key === sortKey ? (sortDir === 'asc' ? 'desc' : 'asc') : SORT_DEFAULT_DIR[key];
+    setFilters({
+      sort: key === 'risk' ? '' : key,
+      dir: dir === SORT_DEFAULT_DIR[key] ? '' : dir,
+    });
+  };
   const text = search.q ?? '';
   const kev = search.kev === true;
   const riskBand = search.risk_band ?? '';
@@ -401,6 +419,7 @@ function FindingsExplorer() {
     // the cache entry) every other screen of this list already shares.
     ...(shadowMode !== 'exclude' ? { experimental: shadowMode } : {}),
     ...(sort ? { sort } : {}),
+    ...(search.dir ? { dir: search.dir } : {}),
     ...(text ? { q: text } : {}),
     ...(kev ? { kev: 'true' } : {}),
     ...(riskBand ? { risk_band: riskBand } : {}),
@@ -418,7 +437,7 @@ function FindingsExplorer() {
 
   const [filtersOpen, setFiltersOpen] = useState(false);
   const activeFilterCount = Object.keys(filterQuery).filter(
-    (k) => k !== 'repo_id' && k !== 'sort',
+    (k) => k !== 'repo_id' && k !== 'sort' && k !== 'dir',
   ).length;
 
   // Filters that only arrive by link are said, and can be removed.
@@ -874,10 +893,13 @@ function FindingsExplorer() {
             className="panel px-2 py-1 text-sm"
             data-testid="filter-sort"
             value={sort ?? ''}
-            onChange={(e) => setFilters({ sort: e.target.value })}
+            onChange={(e) => setFilters({ sort: e.target.value, dir: '' })}
           >
-            <option value="">Risk (highest first)</option>
-            <option value="severity">Severity (highest first)</option>
+            {SORT_COLUMNS.map((c) => (
+              <option key={c.key} value={c.key === 'risk' ? '' : c.key}>
+                {c.option}
+              </option>
+            ))}
           </select>
         </label>
         <label className="flex items-center gap-2 text-xs text-fg-muted">
@@ -1145,31 +1167,39 @@ function FindingsExplorer() {
                     }
                   />
                 </th>
-                {/* W26-02: the sortable columns are buttons in their header;
-                    the sorted one carries aria-sort and an arrow. W20-13
-                    (FND-19): the list is sorted by risk by default, and no
-                    column showed it, so the order looked random. */}
-                <th scope="col" aria-sort={sort === 'severity' ? 'descending' : undefined}>
-                  <SortHeader
-                    label="Severity"
-                    active={sort === 'severity'}
-                    testId="sort-severity"
-                    onSort={() => setFilters({ sort: 'severity' })}
-                  />
-                </th>
-                <th scope="col" aria-sort={sort ? undefined : 'descending'}>
-                  <SortHeader
-                    label="Risk"
-                    active={!sort}
-                    testId="sort-risk"
-                    onSort={() => setFilters({ sort: '' })}
-                  />
-                </th>
-                <th scope="col">Finding</th>
-                <th scope="col">Repository</th>
-                <th scope="col">File</th>
-                <th scope="col">Status</th>
-                <th scope="col">Age</th>
+                {/* W26-02/W26-05: every column but Verification sorts from its
+                    header; the sorted one carries aria-sort and an arrow, and
+                    pressing it again flips the direction. W20-13 (FND-19): the
+                    list is sorted by risk by default, and no column showed it,
+                    so the order looked random. */}
+                {SORT_COLUMNS.map((c) => {
+                  const active = c.key === sortKey;
+                  // Age runs the other way from first-seen: youngest first is
+                  // "age ascending".
+                  const shown: SortDir | null = active
+                    ? c.invert
+                      ? sortDir === 'asc'
+                        ? 'desc'
+                        : 'asc'
+                      : sortDir
+                    : null;
+                  return (
+                    <th
+                      key={c.key}
+                      scope="col"
+                      aria-sort={
+                        shown === null ? undefined : shown === 'asc' ? 'ascending' : 'descending'
+                      }
+                    >
+                      <SortHeader
+                        label={c.label}
+                        shown={shown}
+                        testId={`sort-${c.key}`}
+                        onSort={() => sortBy(c.key)}
+                      />
+                    </th>
+                  );
+                })}
                 <th scope="col">Verification</th>
               </tr>
             </thead>
@@ -1360,38 +1390,77 @@ function FindingsExplorer() {
 }
 
 /**
- * A sortable column's header (W26-02): the whole label is the button, and the
- * sorted column shows which way. Both orders the API offers run highest first,
- * so pressing the sorted column again leaves it as it is.
+ * A sortable column's header (W26-02, W26-05): the whole label is the button,
+ * and the sorted column shows which way it runs.
  */
 function SortHeader({
   label,
-  active,
+  shown,
   testId,
   onSort,
 }: {
   label: string;
-  active: boolean;
+  /** The way the column runs when it is the sorted one; null when it is not. */
+  shown: SortDir | null;
   testId: string;
   onSort: () => void;
 }) {
+  const name = label.toLowerCase();
   return (
     <button
       type="button"
-      className={`-mx-1 inline-flex items-center gap-1 rounded-sm px-1 font-semibold hover:bg-surface-2 hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${active ? 'text-fg' : ''}`}
+      className={`-mx-1 inline-flex items-center gap-1 rounded-sm px-1 font-semibold whitespace-nowrap hover:bg-surface-2 hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${shown ? 'text-fg' : ''}`}
       data-testid={testId}
-      aria-pressed={active}
+      aria-pressed={shown !== null}
       title={
-        active
-          ? `Sorted by ${label.toLowerCase()}, highest first`
-          : `Sort by ${label.toLowerCase()}`
+        shown === null
+          ? `Sort by ${name}`
+          : `Sorted by ${name}, ${shown === 'asc' ? 'ascending' : 'descending'}. Press to reverse.`
       }
       onClick={onSort}
     >
       {label}
-      <span aria-hidden="true" className={active ? 'text-accent' : 'text-fg-faint'}>
-        {active ? '▼' : '↕'}
+      <span aria-hidden="true" className={shown ? 'text-accent' : 'text-fg-faint'}>
+        {shown === 'asc' ? '▲' : shown === 'desc' ? '▼' : '↕'}
       </span>
     </button>
   );
 }
+
+// W26-05: the orders GET /findings offers, in table column order.
+const FINDING_SORT_KEYS = [
+  'severity',
+  'risk',
+  'title',
+  'repository',
+  'file',
+  'status',
+  'first_seen',
+] as const;
+type FindingSortKey = (typeof FINDING_SORT_KEYS)[number];
+type SortDir = 'asc' | 'desc';
+
+function isSortKey(v: unknown): v is FindingSortKey {
+  return typeof v === 'string' && (FINDING_SORT_KEYS as readonly string[]).includes(v);
+}
+
+/** Each column's first direction; the API uses the same defaults. */
+const SORT_DEFAULT_DIR: Record<FindingSortKey, SortDir> = {
+  risk: 'desc',
+  severity: 'desc',
+  title: 'asc',
+  repository: 'asc',
+  file: 'asc',
+  status: 'asc',
+  first_seen: 'asc',
+};
+
+const SORT_COLUMNS: { key: FindingSortKey; label: string; option: string; invert?: boolean }[] = [
+  { key: 'severity', label: 'Severity', option: 'Severity (highest first)' },
+  { key: 'risk', label: 'Risk', option: 'Risk (highest first)' },
+  { key: 'title', label: 'Finding', option: 'Finding (A to Z)' },
+  { key: 'repository', label: 'Repository', option: 'Repository (A to Z)' },
+  { key: 'file', label: 'File', option: 'File (A to Z)' },
+  { key: 'status', label: 'Status', option: 'Status (open first)' },
+  { key: 'first_seen', label: 'Age', option: 'Age (oldest first)', invert: true },
+];

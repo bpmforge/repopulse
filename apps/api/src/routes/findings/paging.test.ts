@@ -6,6 +6,7 @@ import { core, createDb, read, security, type Database } from '@repopulse/shared
 import { buildApp } from '../../app.js';
 import { loginAs } from '../../testing/login.js';
 import { decodeCursor, encodeCursor } from './index.js';
+import { encodeGeneral, parseSort, SORT_KEYS, type SortDir, type SortKey } from './sort.js';
 
 // Keyset paging integrity (W17-32), against a real Postgres.
 //
@@ -41,6 +42,37 @@ describe('findings cursor round-trips per sort (W17-32)', () => {
   });
 });
 
+// W26-05: any column, either way, with a cursor that carries the key's text.
+describe('general sort cursor (W26-05)', () => {
+  it('round-trips a key that contains the separator, and an unpriced risk', () => {
+    const c = encodeGeneral({ key: 'file', dir: 'asc' }, 'a:b/c.ts', 42);
+    expect(decodeCursor(c)).toEqual({
+      sort: 'general',
+      key: 'file',
+      dir: 'asc',
+      value: 'a:b/c.ts',
+      id: 42,
+    });
+    const r = encodeGeneral({ key: 'risk', dir: 'asc' }, null, 7);
+    expect(decodeCursor(r)).toMatchObject({ key: 'risk', dir: 'asc', value: null, id: 7 });
+  });
+
+  it('refuses a cursor with an unknown column or direction, or a null key off risk', () => {
+    const raw = (t: string) => Buffer.from(t).toString('base64url');
+    expect(decodeCursor(raw('g:colour:asc:YQ:1'))).toBeNull();
+    expect(decodeCursor(raw('g:title:up:YQ:1'))).toBeNull();
+    expect(decodeCursor(raw('g:title:asc:-:1'))).toBeNull();
+    expect(decodeCursor(raw('g:title:asc:YQ:x'))).toBeNull();
+  });
+
+  it('defaults each column to its natural direction and unknown sorts to risk', () => {
+    expect(parseSort(undefined, undefined)).toEqual({ key: 'risk', dir: 'desc' });
+    expect(parseSort('title', undefined)).toEqual({ key: 'title', dir: 'asc' });
+    expect(parseSort('title', 'desc')).toEqual({ key: 'title', dir: 'desc' });
+    expect(parseSort('colour', 'asc')).toEqual({ key: 'risk', dir: 'asc' });
+  });
+});
+
 describeIfLiveInfra('findings paging returns every row exactly once (W17-32)', () => {
   const db: Database = createDb(databaseUrl as string);
   let app: ReturnType<typeof buildApp>;
@@ -51,12 +83,12 @@ describeIfLiveInfra('findings paging returns every row exactly once (W17-32)', (
   let readerUserId: number;
   let cookie: string;
 
-  async function walk(sort: 'risk' | 'severity'): Promise<{ pages: number; ids: number[] }> {
+  async function walk(sort: SortKey, dir?: SortDir): Promise<{ pages: number; ids: number[] }> {
     const ids: number[] = [];
     let cursor: string | null = null;
     let pages = 0;
     do {
-      const url = `/api/v1/findings?repo_id=${repoId}&sort=${sort}${
+      const url = `/api/v1/findings?repo_id=${repoId}&sort=${sort}${dir ? `&dir=${dir}` : ''}${
         cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''
       }`;
       const res = await app.inject({ method: 'GET', url, cookies: { repopulse_sid: cookie } });
@@ -227,6 +259,61 @@ describeIfLiveInfra('findings paging returns every row exactly once (W17-32)', (
       expect(new Set(ids).size).toBe(TOTAL);
     });
   }
+
+  // W26-05: every column both ways; the fixture ties on file, status and
+  // first_seen across the whole set, so only the id tiebreak keeps them apart.
+  for (const key of SORT_KEYS) {
+    for (const dir of ['asc', 'desc'] as const) {
+      it(`sort=${key}&dir=${dir}: a full walk sees every finding once`, async () => {
+        const { ids } = await walk(key, dir);
+        expect(ids).toHaveLength(TOTAL);
+        expect(new Set(ids).size).toBe(TOTAL);
+      });
+    }
+  }
+
+  it('sort=title: ascending is the reverse of descending', async () => {
+    const up = (await walk('title', 'asc')).ids;
+    const down = (await walk('title', 'desc')).ids;
+    expect(up).toEqual([...down].reverse());
+    const rows = await db
+      .select({ id: read.findings.id, title: read.findings.title })
+      .from(read.findings)
+      .where(eq(read.findings.repoId, repoId));
+    const title = new Map(rows.map((r) => [r.id, r.title.toLowerCase()]));
+    const seen = up.map((id) => title.get(id)!);
+    expect(seen).toEqual([...seen].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)));
+  });
+
+  it('sort=risk&dir=asc: lowest priced first, unpriced still last', async () => {
+    const { ids } = await walk('risk', 'asc');
+    const rows = await db
+      .select({ id: read.findings.id, risk: read.findings.effectiveRisk })
+      .from(read.findings)
+      .where(eq(read.findings.repoId, repoId));
+    const riskOf = new Map(rows.map((r) => [r.id, r.risk]));
+    const firstNull = ids.findIndex((id) => riskOf.get(id) === null);
+    const priced = ids.slice(0, firstNull).map((id) => Number(riskOf.get(id)));
+    expect(priced).toEqual([...priced].sort((a, b) => a - b));
+    expect(ids.slice(firstNull).every((id) => riskOf.get(id) === null)).toBe(true);
+  });
+
+  it('a general cursor is refused under another column or direction', async () => {
+    const first = await app.inject({
+      method: 'GET',
+      url: `/api/v1/findings?repo_id=${repoId}&sort=title&dir=asc`,
+      cookies: { repopulse_sid: cookie },
+    });
+    const cursor = (first.json() as { next_cursor: string }).next_cursor;
+    for (const q of ['sort=title&dir=desc', 'sort=file&dir=asc', 'sort=risk']) {
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/v1/findings?repo_id=${repoId}&${q}&cursor=${encodeURIComponent(cursor)}`,
+        cookies: { repopulse_sid: cookie },
+      });
+      expect(res.statusCode).toBe(400);
+    }
+  });
 
   it('sort=risk: unpriced findings come after every priced one, and are all reached', async () => {
     const { ids } = await walk('risk');
