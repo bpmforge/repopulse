@@ -132,6 +132,19 @@ describe('AiPassPanel', () => {
     expect(screen.queryByTestId('ai-pass-full-review')).toBeNull();
   });
 
+  it('W25-16: a folder review leaves tests out unless Include tests is ticked', () => {
+    render(<AiPassPanel repoId="3" />);
+    expect(screen.getByTestId('ai-pass-include-tests')).toHaveProperty('checked', false);
+    fireEvent.change(screen.getByTestId('ai-pass-paths'), { target: { value: 'src' } });
+    fireEvent.click(screen.getByTestId('ai-pass-start'));
+    expect(state.mutate).toHaveBeenLastCalledWith({ paths: ['src'] });
+    fireEvent.click(screen.getByTestId('ai-pass-include-tests'));
+    fireEvent.click(screen.getByTestId('ai-pass-start'));
+    expect(state.mutate).toHaveBeenLastCalledWith({ paths: ['src'], include_tests: true });
+    fireEvent.click(screen.getByTestId('ai-pass-mode-pull_request'));
+    expect(screen.queryByTestId('ai-pass-include-tests')).toBeNull();
+  });
+
   it("shows the server's reason when a start is refused", () => {
     state.error = Object.assign(new Error('Daily AI-pass limit reached'), {
       status: 429,

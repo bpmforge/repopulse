@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AI_PASS_READABLE, dirInScope, fitRanked } from './ai-pass-sources.js';
+import { AI_PASS_READABLE, dirInScope, fitRanked, passScope } from './ai-pass-sources.js';
 
 // W20-16 (UX_TODO AI-85): an AI pass walks only the named paths and reads
 // the languages a model can review, not just the scanners' list.
@@ -31,5 +31,26 @@ describe('fitRanked (W25-01, a first look)', () => {
     const chosen = fitRanked(files, ['a.ts', 'b.ts', 'c.ts', 'd.ts'], { files: 3, bytes: 100 });
     // b.ts (50) does not fit after a.ts (60); c.ts and d.ts do.
     expect(chosen.map((x) => x.path)).toEqual(['a.ts', 'c.ts', 'd.ts']);
+  });
+});
+
+describe('passScope (W25-16, test code left out of a folder review)', () => {
+  const files = ['src/a.ts', 'src/a.test.ts', 'src/__tests__/b.ts', 'src/README.md', 'lib/c.ts'];
+  const walk = (paths: string[], includeTests: boolean) => {
+    const s = passScope(paths, includeTests);
+    return { read: files.filter((f) => s.include(f, false)), leftOut: s.leftOut };
+  };
+
+  it('leaves test files out of a folder and lists the readable ones', () => {
+    expect(walk(['src'], false)).toEqual({
+      read: ['src/a.ts', 'src/README.md'],
+      leftOut: ['src/a.test.ts', 'src/__tests__/b.ts'],
+    });
+  });
+
+  it('reads them when asked, or when the person named a test path or file', () => {
+    expect(walk(['src'], true).read).toEqual(files.filter((f) => f.startsWith('src/')));
+    expect(walk(['src/__tests__'], false).read).toEqual(['src/__tests__/b.ts']);
+    expect(walk(['src/a.ts', 'src/a.test.ts'], false).read).toEqual(['src/a.ts', 'src/a.test.ts']);
   });
 });

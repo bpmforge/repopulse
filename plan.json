@@ -13084,7 +13084,8 @@
       "points": 3,
       "status": "todo",
       "notes": [
-        "2026-11-06 real LM Studio check on the Mac (rpw25: gin, saleor, outline), improvement list Brad asked to have fixed. After 3 hours saleor and outline had no first look yet, because each waits for its repository's scan review, and all share the one slot."
+        "2026-11-06 real LM Studio check on the Mac (rpw25: gin, saleor, outline), improvement list Brad asked to have fixed. After 3 hours saleor and outline had no first look yet, because each waits for its repository's scan review, and all share the one slot.",
+        "The 'scan review' is the dependency scan's CVE verification (one model prompt per CVE, about 10 per repository): 2h49 on saleor and 2h53 on outline on the old build, and the first look waited behind it. Consider letting the first look start before CVE verification finishes."
       ]
     },
     {
@@ -13161,6 +13162,71 @@
       "status": "todo",
       "notes": [
         "2026-11-06 real LM Studio check on the Mac (rpw25: gin, saleor, outline), improvement list Brad asked to have fixed. The secrets scanner wrote 110 rows on gin and 200 each on saleor and outline, most of each repository's 126-208 scan rows."
+      ]
+    },
+    {
+      "id": "W25-16",
+      "title": "No model time on test code: the judge skips rule hits in tests, a folder review leaves tests out unless Include tests is ticked",
+      "phase": 25,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers/code-kind.ts",
+        "apps/api/src/workers/ai-first-look.ts",
+        "apps/api/src/workers/ai-judge.ts",
+        "apps/api/src/workers/ai-judge.test.ts",
+        "apps/api/src/workers/ai-pass-sources.ts",
+        "apps/api/src/workers/ai-pass-sources.test.ts",
+        "apps/api/src/workers/ai-pass-processor.ts",
+        "apps/api/src/workers/ai-pass-processor.test.ts",
+        "apps/api/src/routes/ai-pass/index.ts",
+        "apps/web/src/widgets/repo/AiPassPanel.tsx",
+        "apps/web/src/widgets/repo/AiPassPanel.test.tsx",
+        "apps/web/src/widgets/findings/aiContracts.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W25-09"
+      ],
+      "acceptance": [
+        "One test-code pattern (code-kind.ts) is shared by the first look, the judge and folder reviews, and Postgres reads it exactly as the worker does",
+        "judgeCandidates leaves out rule hits whose file is test code; the hits stay open and listed",
+        "A folder review leaves test files out unless include_tests is set (Include tests box) or a test path is named; the pass row counts the files left out",
+        "An incremental pass never closes the findings of a test file it left out on purpose"
+      ],
+      "points": 3,
+      "status": "done",
+      "notes": [
+        "2026-11-06 Brad: 'we dont want to waste time scanning for test code issues but actual code issues'. Mechanical scanners still cover tests (cheap, and a real key in a test file still leaks)."
+      ]
+    },
+    {
+      "id": "W25-17",
+      "title": "Findings in test code are marked 'in tests', left out of the default view, counts and health score, one filter away",
+      "phase": 25,
+      "module": "web",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/routes/findings",
+        "apps/web/src/widgets/findings",
+        "packages/insights/src",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W25-16"
+      ],
+      "acceptance": [
+        "A finding whose file is test code (code-kind.ts) carries an 'in tests' mark in the API and the UI",
+        "The default Findings view, the repository counts and the health score leave test-code findings out; one filter shows them",
+        "Code health complexity and duplication in test code do not count toward a repository's score",
+        "Secrets and dependency findings in test code are never hidden by default"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": [
+        "2026-11-06 new build on the Mac: gin 106 of 159 open findings with a file are in test code (all code health); outline 1,802 of 4,184."
       ]
     },
     {

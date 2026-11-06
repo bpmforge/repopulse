@@ -4,6 +4,7 @@ import { passEgress, PASS_ROLES } from '../lib/ai-pass-egress.js';
 import { isAiPaused } from '../lib/ai-pause.js';
 import { AI_PASS_MAX_CALLS } from './ai-pass-processor.js';
 import { AI_PASS_READABLE } from './ai-pass-sources.js';
+import { isTestPath } from './code-kind.js';
 import { MIN_CALLS_TO_START, monthlyCallsUsed, monthlyCap } from './ai-pass-scheduler.js';
 import type { EgressOf } from './ai-judge.js';
 
@@ -232,16 +233,15 @@ export async function rankFirstLookPaths(
 // codecov.yml, doc.go) and 4 were production code. A first look is for the
 // code that runs, so it is ranked in tiers: production source, then config
 // and other readable non-code, then tests, each tier findings-then-churn.
-// Tests stay as the fallback for a repository that is mostly tests.
-const TEST_PATH =
-  /(^|\/)(tests?|__tests__|__mocks__|mocks?|specs?|e2e|testutils?|testing)\/|(_test\.(go|py|rs|exs|dart|c|cc|cpp)|\.(test|spec)\.[cm]?[jt]sx?|_spec\.rb|Tests?\.(java|kt|kts|cs|swift|scala)|Spec\.(kt|scala|swift))$|(^|\/)(test_[^/]*\.py|conftest\.py)$/;
+// Tests stay as the fallback for a repository that is mostly tests. What
+// counts as a test is code-kind.ts (W25-16), shared with the judge.
 /** Readable but not code that runs: manifests, CI and tool config, package docs, generated code. */
 const NOT_RUNTIME =
   /\.(ya?ml)$|(^|\/)(go\.mod|doc\.go)$|(\.pb\.go|_gen\.go|\.generated\.[a-z]+|\.d\.ts)$|(^|\/)(examples?|docs?|scripts)\//;
 
 /** 0 production source, 1 config and other non-runtime files, 2 tests. Pure, for tests. */
 export function pathTier(path: string): 0 | 1 | 2 {
-  if (TEST_PATH.test(path)) return 2;
+  if (isTestPath(path)) return 2;
   if (NOT_RUNTIME.test(path)) return 1;
   return 0;
 }

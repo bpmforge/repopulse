@@ -328,10 +328,15 @@ function RunRow({
           {typeof filesRead === 'number' && (run.mode ?? 'paths') === 'paths' ? (
             <li data-testid="ai-pass-files-read">
               {filesRead} file{filesRead === 1 ? '' : 's'} read
-              {filesSkipped && filesSkipped.unsupported + filesSkipped.tooLarge > 0 ? (
+              {filesSkipped &&
+              filesSkipped.unsupported + filesSkipped.tooLarge + (filesSkipped.tests ?? 0) > 0 ? (
                 <>
-                  ; {filesSkipped.unsupported + filesSkipped.tooLarge} skipped (
+                  ; {filesSkipped.unsupported + filesSkipped.tooLarge + (filesSkipped.tests ?? 0)}{' '}
+                  skipped (
                   {[
+                    (filesSkipped.tests ?? 0) > 0
+                      ? `${filesSkipped.tests} test ${filesSkipped.tests === 1 ? 'file' : 'files'} left out`
+                      : null,
                     filesSkipped.unsupported > 0
                       ? `${filesSkipped.unsupported} of a type the pass does not read`
                       : null,
@@ -564,13 +569,14 @@ export function AiPassPanel({
   const [addPath, setAddPath] = useState('');
   // W25-07: read everything again instead of only what changed since the last pass.
   const [fullReview, setFullReview] = useState(false);
+  const [includeTests, setIncludeTests] = useState(false);
   // W20-21 (UX_TODO AI-31): what to pick from, from what RepoPulse ingested.
   const { data: pickers } = useApiQuery<PassPickers>(
     { endpoint: '/repos/{id}/ai-pass/pickers', path: { id: repoId } },
     { enabled: isAdmin },
   );
   const start = useApiMutation<
-    | { paths: string[]; full_review?: boolean }
+    | { paths: string[]; full_review?: boolean; include_tests?: boolean }
     | { pull_request: number; full_review?: boolean }
     | { base: string; head: string },
     unknown
@@ -591,7 +597,11 @@ export function AiPassPanel({
   const body =
     mode === 'paths'
       ? paths.length > 0
-        ? { paths, ...(fullReview ? { full_review: true } : {}) }
+        ? {
+            paths,
+            ...(fullReview ? { full_review: true } : {}),
+            ...(includeTests ? { include_tests: true } : {}),
+          }
         : null
       : mode === 'pull_request'
         ? prNumber !== null
@@ -830,6 +840,22 @@ export function AiPassPanel({
                 again. Without it, a repeat pass over the same{' '}
                 {mode === 'paths' ? 'paths' : 'pull request'} sends the model only what changed
                 since the last clean pass and keeps that pass&rsquo;s findings for the rest.
+              </span>
+            </label>
+          ) : null}
+          {mode === 'paths' ? (
+            <label className="flex items-start gap-2 text-xs text-fg-muted">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                data-testid="ai-pass-include-tests"
+                checked={includeTests}
+                onChange={(e) => setIncludeTests(e.target.checked)}
+              />
+              <span>
+                Include tests: also review test code under these folders. Without it, test files are
+                left out so the model spends its time on the code that runs. A test file or folder
+                you name yourself is always read.
               </span>
             </label>
           ) : null}

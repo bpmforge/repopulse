@@ -4297,3 +4297,9 @@ on the Mac:**
 - 2026-11-06 — W25-10: Gitea's listed token scopes now include `read:issue` (INSTALL.md, the
   Connections form and the CLI help). A token made from the old minimum showed "issues not
   ingested — HTTP 403" on every repository of the 0.2.0 test installs.
+- 2026-11-06 — W25-16: no model time on test code. One test-code pattern (code-kind.ts) is
+  shared by the first look, the judge and folder reviews. The judge skips rule hits in test
+  files (they stay listed), and a folder review leaves tests out unless "Include tests" is
+  ticked or a test path is named. Asked by Brad: "we dont want to waste time scanning for test
+  code issues but actual code issues". W25-17 (todo) does the same for what the Findings page
+  and the health score show.

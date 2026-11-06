@@ -124,6 +124,8 @@ interface ScopeBody {
    * only some changed since the last clean pass over the same scope.
    */
   full_review?: unknown;
+  /** W25-16: a folder review reads test code too. */
+  include_tests?: unknown;
 }
 
 export interface PassScope {
@@ -338,6 +340,9 @@ export default async function aiPassRoutes(
           runId: run.id,
           requestId: request.id,
           ...(request.body?.full_review === true ? { force: true } : {}),
+          ...(request.body?.include_tests === true && scope.mode === 'paths'
+            ? { includeTests: true }
+            : {}),
         },
         { jobId: `ai-pass-${run.id}` },
       );

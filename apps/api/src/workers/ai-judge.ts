@@ -23,6 +23,7 @@ import { isAiPaused } from '../lib/ai-pause.js';
 import { monthlyCallsUsed, monthlyCap } from './ai-pass-scheduler.js';
 import { triageCandidateOf } from './ai-pass-processor.js';
 import { fixEligibility, pickFixTargets, type FixConfig } from './ai-fix.js';
+import { TEST_PATH_PATTERN } from './code-kind.js';
 
 // W22-03: the AI judges every rule hit after each scan (CLOSE_THE_LOOP.md,
 // "The loop"; owner decisions 1 and 2, taken as recommended 2026-10-29).
@@ -369,7 +370,7 @@ async function recentlyFailedIds(
 
 /**
  * Open rule hits with stored context and no AI verdict, in the judged
- * dimensions, riskiest first. Workspace- and repository-filtered (Law 5).
+ * dimensions, outside test code (W25-16), riskiest first. Workspace- and repository-filtered (Law 5).
  */
 export async function judgeCandidates(
   db: Database,
@@ -392,6 +393,10 @@ export async function judgeCandidates(
         isNotNull(read.findings.file),
         isNotNull(read.findings.lineStart),
         isNotNull(read.findings.contextLines),
+        // W25-16: no model time on rule hits in test code. The hit stays
+        // open and listed; only the judging is skipped. (Secrets are not a
+        // judged dimension, so a real key in a test file is unaffected.)
+        sql`${read.findings.file} !~ ${TEST_PATH_PATTERN}`,
         sql`not exists (select 1 from ai_triage_verdicts v where v.finding_id = ${read.findings.id} and v.workspace_id = ${workspaceId})`,
       ),
     )
