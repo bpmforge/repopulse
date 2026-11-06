@@ -709,7 +709,7 @@ function FindingsExplorer() {
                 fifty, and was labelled as though it were the whole queue. */}
             <button
               type="button"
-              className="rounded-md border border-accent bg-accent/10 px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              className="rounded-md btn-primary px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
               data-testid="start-triage"
               disabled={items.length === 0}
               onClick={() => setTriage(true)}

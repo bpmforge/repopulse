@@ -44,7 +44,7 @@ export function GeneratePlanButton({
     <div className="flex flex-col items-end gap-1">
       <button
         type="button"
-        className="rounded-md border border-accent bg-accent/10 px-3 py-1.5 text-sm disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+        className="rounded-md btn-primary px-3 py-1.5 text-sm disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
         data-testid="generate-plan"
         disabled={generate.isPending}
         aria-busy={generate.isPending || undefined}

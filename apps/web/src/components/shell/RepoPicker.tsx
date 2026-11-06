@@ -328,7 +328,7 @@ export function RepoPicker({
               </label>
               <button
                 type="submit"
-                className="rounded-md border border-accent bg-accent/10 px-2 py-1 text-xs disabled:opacity-50"
+                className="rounded-md btn-primary px-2 py-1 text-xs disabled:opacity-50"
                 disabled={saving || setName.trim() === ''}
                 data-testid={`${testId}-set-save`}
               >
@@ -365,7 +365,7 @@ export function RepoPicker({
             </button>
             <button
               type="button"
-              className="rounded-md border border-accent bg-accent/10 px-2 py-1 text-xs"
+              className="rounded-md btn-primary px-2 py-1 text-xs"
               data-testid={`${testId}-apply`}
               onClick={apply}
             >

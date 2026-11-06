@@ -41,7 +41,7 @@ export function Topbar({
         savedRepoSets={savedRepoSets}
         onSaveRepoSet={onSaveRepoSet}
       />
-      <div className="flex items-center gap-3">
+      <div className="ml-auto flex items-center gap-3">
         {actions}
         {/* W20-17 (UX_TODO ADM-27): the palette had no visible way in; ⌘K was
             only discoverable by reading the docs. */}
@@ -54,7 +54,12 @@ export function Topbar({
         >
           Search <kbd className="font-mono text-[10px] text-fg-faint">⌘K</kbd>
         </button>
-        <SyncStatusChip connection={sseConnection} />
+        {/* UI-01: on a phone the dot alone says it (the chip keeps its
+            aria-label), so filters and Inbox share one row. */}
+        <SyncStatusChip
+          connection={sseConnection}
+          className="[&>span:last-child]:hidden sm:[&>span:last-child]:inline"
+        />
       </div>
     </header>
   );

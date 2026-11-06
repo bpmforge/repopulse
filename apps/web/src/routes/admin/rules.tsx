@@ -33,7 +33,7 @@ const LIST = { endpoint: '/rules' } as const;
 // A forward step keeps the accent; a destructive one is neutral, so the
 // visually suggested button is never the one that stops a rule.
 const FORWARD =
-  'rounded-md border border-accent bg-accent/10 px-2 py-1 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50';
+  'rounded-md btn-primary px-2 py-1 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50';
 const NEUTRAL =
   'rounded-md border border-border px-2 py-1 text-xs hover:border-fg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50';
 

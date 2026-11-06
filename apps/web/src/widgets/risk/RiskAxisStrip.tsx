@@ -87,7 +87,7 @@ export function RiskAxisStrip({ repoId, window }: { repoId: string; window?: str
             </summary>
             {/* Floated so expanding it cannot reflow the repo header. */}
             <ul
-              className="absolute left-0 z-10 mt-1 flex w-64 flex-col gap-1 panel p-2"
+              className="absolute right-0 z-10 mt-1 flex w-[min(16rem,calc(100vw-2rem))] flex-col sm:right-auto sm:left-0 gap-1 panel p-2"
               data-testid="axis-strip-unmeasured-list"
             >
               {unmeasured.map((axis) => (

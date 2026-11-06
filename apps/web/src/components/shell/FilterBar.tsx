@@ -79,8 +79,12 @@ export function FilterBar({
       {scope.window && (
         <label className="flex items-center gap-1 text-xs text-fg-muted">
           <span className="sr-only">Time window</span>
+          {/* UI-04: sized to "30d", not to its longest option ("Custom
+              range…"), which made a 140px box for three characters. */}
           <select
-            className="h-8 rounded-md border border-border bg-surface px-2 text-sm text-fg hover:border-border-strong"
+            className={`h-8 rounded-md border border-border bg-surface px-2 text-sm text-fg hover:border-border-strong ${
+              range ? 'max-w-[16rem]' : 'w-[5.5rem]'
+            }`}
             data-testid="filter-window"
             aria-label="Time window"
             value={picking ? '__custom' : value.window}
@@ -143,7 +147,7 @@ export function FilterBar({
           </label>
           <button
             type="submit"
-            className="h-8 rounded-md border border-accent bg-accent/10 px-2 text-sm text-fg disabled:opacity-50"
+            className="h-8 rounded-md btn-primary px-2 text-sm text-fg disabled:opacity-50"
             disabled={!rangeValid}
             data-testid="filter-window-apply"
           >

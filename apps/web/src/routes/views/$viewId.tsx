@@ -35,7 +35,7 @@ function ViewDetailRoute() {
 const BUTTON =
   'panel-inset px-3 py-1.5 text-sm hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50';
 const PRIMARY =
-  'rounded-md border border-accent bg-accent/10 px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50';
+  'rounded-md btn-primary px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50';
 const DANGER =
   'rounded-md border border-crit/40 px-3 py-1.5 text-sm text-crit hover:border-crit focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50';
 
@@ -470,7 +470,7 @@ export function FindingsViewPanel({
         <Link
           to="/findings"
           search={search as never}
-          className="self-start rounded-md border border-accent bg-accent/10 px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          className="self-start rounded-md btn-primary px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           data-testid="open-findings-view"
         >
           Open in Findings
@@ -507,7 +507,7 @@ export function RepoSetPanel({
         <Link
           to="/repos"
           search={{ repos: repoIds.join(',') } as never}
-          className="self-start rounded-md border border-accent bg-accent/10 px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          className="self-start rounded-md btn-primary px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           data-testid="open-repo-set"
         >
           Open Repositories narrowed to this set

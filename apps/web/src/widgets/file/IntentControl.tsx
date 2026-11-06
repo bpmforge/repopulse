@@ -173,7 +173,7 @@ export function IntentControl({ repoId, path }: { repoId: number; path: string }
       <div className="flex flex-wrap gap-2">
         <button
           type="submit"
-          className="rounded-md border border-accent bg-accent/10 px-2 py-0.5 text-xs hover:bg-accent/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50"
+          className="rounded-md btn-primary px-2 py-0.5 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50"
           data-testid="intent-save"
           disabled={busy || !choice || !dirty}
         >

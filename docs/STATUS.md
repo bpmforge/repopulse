@@ -4245,3 +4245,9 @@ on the Mac:**
 - 2026-11-06 — W25-06: cancelling an AI pass or judge run now aborts its in-flight model call
   (the HTTP request is cancelled and the host slot freed; a queued call leaves the queue).
   Found by the tutorial thread: cancelled judges still wrote verdicts 15-23 min later.
+- 2026-11-06 — W26 UI polish wave opened from a design review of all 41 routes (1440 light,
+  1440 dark, 390 phone): 35 items, review and screenshots in the project folder
+  (repopulse/ui-polish/). W26-01 (shell and shared components) lands one primary-button
+  style, styled selects, KPI tiles with the label on its own line, form and copy widths, a
+  one-row phone header, an 8+4 Overview grid and no horizontal scroll at 390px. W26-02 (page
+  layouts) and W26-03 (Repository and Settings tab grouping, Brad's call) follow.

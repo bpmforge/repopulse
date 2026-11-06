@@ -259,6 +259,32 @@
   }
 }
 
+/* UI-21 (UI review 2026-11-06): ONE primary-button look. Before this the
+   product had three: solid (sign-in), a tinted accent outline on ~20 buttons
+   (Triage, Generate, Add, Schedule) and plain grey on others (Create
+   account, Connect). The tinted one read as "selected", not "press me".
+   White on accent-strong is already contrast-tested (5.2:1 dark, light). */
+@utility btn-primary {
+  background-color: var(--color-accent-strong);
+  color: var(--color-accent-fg);
+  border: 1px solid transparent;
+  font-weight: 500;
+  &:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+}
+
+/* UI-16/UI-17: width discipline. A form block caps at 40rem so an email or
+   token field is not 1,100px wide; running copy inside a panel caps at a
+   readable measure. Tables, charts and grids are unaffected. */
+@utility form-narrow {
+  max-width: 40rem;
+}
+
 html,
 body,
 #root {
@@ -279,6 +305,26 @@ h1,
 h2,
 h3 {
   letter-spacing: -0.01em;
+}
+
+/* UI-22: every native select gets the same chevron instead of the OS one,
+   so a select sits next to the repo picker and the inputs as one family.
+   Unlayered on purpose: it must beat a call-site px-2 so the text never runs
+   under the chevron. */
+select:not([multiple]):not([size]) {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%238a94a6' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.55rem center;
+  background-size: 12px 12px;
+  padding-inline-end: 1.75rem;
+}
+
+/* UI-11/UI-17: running copy inside a panel stops at a readable measure. */
+.panel p,
+.panel-inset p {
+  max-width: 80ch;
 }
 
 /* Links that sit inside running text must not rely on colour alone

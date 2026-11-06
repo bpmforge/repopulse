@@ -145,7 +145,7 @@ function SecurityTab() {
                 {findings.map((finding) => (
                   <li
                     key={finding.id}
-                    className="flex justify-between gap-2"
+                    className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:gap-2"
                     data-testid={`security-finding-${finding.id}`}
                   >
                     <Link
@@ -160,7 +160,7 @@ function SecurityTab() {
                     >
                       {finding.title}
                     </Link>
-                    <span className="flex shrink-0 items-center gap-1 text-xs text-fg-muted">
+                    <span className="flex min-w-0 flex-wrap items-center gap-1 break-all text-xs text-fg-muted sm:shrink-0">
                       <FindingSeverityBadge severity={finding.severity} />
                       {finding.scanner_key ? ` · ${scannerName(finding.scanner_key)}` : ''}
                       {finding.file

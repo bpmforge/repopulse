@@ -79,7 +79,7 @@ export function CiTokens() {
     <div className="flex flex-col gap-4" data-testid="admin-ci-tokens">
       <WidgetFrame title="Create a CI token" state="ready" testId="ci-token-create">
         <form
-          className="flex flex-col gap-3 text-sm"
+          className="form-narrow flex flex-col gap-3 text-sm"
           onSubmit={(e) => {
             e.preventDefault();
             if (!canCreate) return;
@@ -163,7 +163,7 @@ export function CiTokens() {
             <button
               type="submit"
               disabled={!canCreate}
-              className="panel-inset px-3 py-1.5 text-sm hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              className="btn-primary rounded-md px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
               data-testid="ci-token-submit"
             >
               {create.isPending ? 'Creating…' : 'Create token'}

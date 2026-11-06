@@ -69,7 +69,7 @@ export function AiGovernanceCard({ window, search }: Props) {
       }
     >
       {data && classified > 0 && (
-        <div className="flex flex-col gap-3 text-sm" data-testid="ai-governance-body">
+        <div className="flex max-w-3xl flex-col gap-3 text-sm" data-testid="ai-governance-body">
           <div className="flex flex-wrap gap-6">
             <div className="flex flex-col" data-testid="ai-share-commits">
               <span className="text-xs text-fg-muted">AI-authored commits</span>

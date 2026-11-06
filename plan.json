@@ -12915,6 +12915,95 @@
       "notes": [
         "2026-11-06 tutorial thread on the 0.2.0 install: saleor and outline judges cancelled at 00:51 and 00:55 UTC still wrote verdicts at 01:10 and 01:18 and held the single LM Studio slot. The claude_cli transport does not honour the signal yet."
       ]
+    },
+    {
+      "id": "W26-01",
+      "title": "UI polish: shell and shared components (buttons, selects, KPI tiles, form widths, phone header, Overview grid)",
+      "phase": 26,
+      "module": "web",
+      "stories": [],
+      "write_scope": [
+        "apps/web/src/styles/theme.css",
+        "apps/web/src/components/**",
+        "apps/web/src/widgets/**",
+        "apps/web/src/routes/**",
+        "scripts/validate-plan.mjs",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W25-06"
+      ],
+      "acceptance": [
+        "One primary button style (btn-primary) replaces the tinted accent outline, and native selects share one chevron sized to their value",
+        "KPI tiles keep the label on one line with the sparkline on the value row and thousands separators; forms cap at 40rem and panel copy at 80ch",
+        "A one-crumb breadcrumb is visually hidden; on a 390px phone the filters, Inbox and live dot share one row",
+        "Overview: Repo health 8 + Needs attention 4, AI-authored full width, empty states top-aligned; repo names wrap instead of truncating",
+        "No page scrolls horizontally at 390px; before/after screenshots of all 41 routes at 1440 light, 1440 dark and 390 phone"
+      ],
+      "points": 3,
+      "status": "done",
+      "notes": [
+        "2026-11-06 UI review (thread 'Polish the UI across all pages'): items UI-01..05, 11..16, 19..26, 34 of /mnt/project-files/repopulse/ui-polish/UI_REVIEW_2026-11-06.md"
+      ]
+    },
+    {
+      "id": "W26-02",
+      "title": "UI polish: page layouts (finding detail side panel, Findings filters, Security tab summary, Setup config table, help-text tier)",
+      "phase": 26,
+      "module": "web",
+      "stories": [],
+      "write_scope": [
+        "apps/web/src/styles/theme.css",
+        "apps/web/src/components/**",
+        "apps/web/src/widgets/**",
+        "apps/web/src/routes/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W26-01"
+      ],
+      "acceptance": [
+        "Finding detail uses two columns at >=1280px with actions in a sticky side panel",
+        "Findings filters: search on its own row, equal-width selects, rarely used filters under More filters",
+        "Security tab opens with a summary row; Coverage map, Exports and SARIF import collapsed by default",
+        "Help text over two lines sits behind a disclosure or (i) popover; section labels use one style"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": [
+        "UI review items UI-11, 12, 17, 18, 27..33, 35"
+      ]
+    },
+    {
+      "id": "W26-03",
+      "title": "UI polish: group the Repository tabs (13 to 6 with sub-nav) and Settings tabs (grouped left menu)",
+      "phase": 26,
+      "module": "web",
+      "stories": [],
+      "write_scope": [
+        "apps/web/src/routes/repos/$repoId/route.tsx",
+        "apps/web/src/routes/admin/route.tsx",
+        "apps/web/src/components/**",
+        "apps/web/src/routes/**",
+        "e2e/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W26-01"
+      ],
+      "acceptance": [
+        "Repository: Pulse, Delivery (Activity, Pull requests, PR flow, CI, Review bots), Findings, Security, Code health (Hotspots, Performance), AI review; every existing URL still resolves to the same page",
+        "Settings: left menu grouped Workspace / Sources / Analysis / System on desktop, a select on phone; URLs unchanged",
+        "Tabs on phone scroll the active tab into view"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": [
+        "2026-11-06 Brad chose 'Group both' on the decision card in thread 'Polish the UI across all pages'"
+      ]
     }
   ]
 }

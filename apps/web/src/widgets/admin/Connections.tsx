@@ -447,7 +447,9 @@ function ConnectionActions({
           rekey.mutate(
             {
               credential: token.trim(),
-              ...(newAddress && newAddress !== (row.base_url ?? '') ? { base_url: newAddress } : {}),
+              ...(newAddress && newAddress !== (row.base_url ?? '')
+                ? { base_url: newAddress }
+                : {}),
             },
             {
               onSuccess: () => {
@@ -750,7 +752,7 @@ export function Connections() {
         definitionHref={docsUrl('/docs/INSTALL.md#connect-your-forge')}
       >
         <form
-          className="flex flex-col gap-2"
+          className="form-narrow flex flex-col gap-2"
           onSubmit={(e) => {
             e.preventDefault();
             if (!credential.trim()) return;
@@ -881,7 +883,7 @@ export function Connections() {
             <button
               type="submit"
               disabled={create.isPending || credential.trim() === ''}
-              className="panel-inset px-3 py-1.5 text-sm hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              className="btn-primary rounded-md px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
               data-testid="connection-submit"
             >
               {create.isPending ? 'Connecting…' : 'Connect'}
