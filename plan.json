@@ -13110,7 +13110,7 @@
         "The judge's queue wait is visible while it runs, not only at the end"
       ],
       "points": 3,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "2026-11-06 real LM Studio check on the Mac (rpw25: gin, saleor, outline), improvement list Brad asked to have fixed. gin's first look showed 11 calls in 3 hours and 0 AI findings with no progress line, which reads as stuck."
       ]
@@ -13535,7 +13535,7 @@
         "A second run over unchanged CVEs makes no model call"
       ],
       "points": 2,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "2026-11-06 design pass (/mnt/project-files/repopulse/ai-speed/DESIGN.md) after the Mac real check. Brad: 'I dont want to waste gpu cycles when we have an obvious mechanism or process defect' and 'only be pertinent'. CVE checks were 140 of 254 min of model time."
       ]

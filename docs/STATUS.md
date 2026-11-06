@@ -4324,3 +4324,10 @@ on the Mac:**
   first. W27-04: triage, second opinions and second-model verify send reasoning none; a first
   look no longer triages rule hits (the judge owns them) and gives that reserve to its review;
   manual and scheduled triage skip test paths and hits an active judge run will take.
+- 2026-11-06 — W27-03: the CVE second opinion never re-asks an unchanged CVE. A verdict is
+  stored with its subject (CVE id | package | version); a candidate with a matching verdict
+  is skipped before the top-N cut and counted as already verified. CVEs verified before this
+  change are asked once more to record their subject.
+- 2026-11-06 — W25-13: a running AI pass or judge run shows its live state: "Call 4: waiting
+  for the model for 3 min (another analysis is using it)" or "Call 4: the model is answering,
+  2 min so far" (CompleteOpts.onSent; plan.live).
