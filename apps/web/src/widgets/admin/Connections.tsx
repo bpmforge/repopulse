@@ -25,7 +25,7 @@ const LIST = { endpoint: '/connections' } as const;
 export const SCOPES: Record<'github' | 'gitlab' | 'gitea', string> = {
   github: 'repo and read:org (or a fine-grained token with read access to the repositories)',
   gitlab: 'read_api',
-  gitea: 'read:repository, read:organization and read:user',
+  gitea: 'read:repository, read:organization, read:user and read:issue',
 };
 
 /**
@@ -40,7 +40,7 @@ export const OPTIONAL_SCOPES: Record<'github' | 'gitlab' | 'gitea', string | nul
   github: null,
   gitlab: null,
   gitea:
-    'Optional: write:repository adds live updates (Gitea treats creating the push webhook as a write) and read:issue adds issues. Without them the repositories still backfill.',
+    'Optional: write:repository adds live updates (Gitea treats creating the push webhook as a write). Without it the repositories still backfill.',
 };
 
 type Forge = 'github' | 'gitlab' | 'gitea';

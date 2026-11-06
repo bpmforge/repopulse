@@ -373,14 +373,15 @@ repository still backfills and goes live; it just gets no live updates.
 |---|---|---|
 | GitHub | a classic personal access token, or a fine-grained token with read access to the repositories | `repo` (read), `read:org` |
 | GitLab | a personal access token | `read_api` |
-| Gitea | **Settings → Applications → Generate New Token** | `read:repository`, `read:organization`, `read:user` |
+| Gitea | **Settings → Applications → Generate New Token** | `read:repository`, `read:organization`, `read:user`, `read:issue` |
 
-> **Gitea, measured 2026-09-23 against Gitea 1.24.7:** with only the three read
-> scopes above, repositories are discovered and backfilled, but registering the
-> push webhook is refused (403) — the repository goes live with *"live updates
-> unavailable — webhook registration failed"* — and the issues fetch is refused
-> too. Creating a webhook is a write in Gitea: add `write:repository` (and
-> `read:issue` for issues) if you want live updates. Any entity the forge
+> **Gitea, measured 2026-09-23 against Gitea 1.24.7:** with the read scopes
+> above, repositories are discovered and backfilled, but registering the push
+> webhook is refused (403) — the repository goes live with *"live updates
+> unavailable — webhook registration failed"*. Creating a webhook is a write in
+> Gitea: add `write:repository` if you want live updates. `read:issue` is in the
+> list since 2026-11-06: without it the issues fetch is refused (found again on
+> the 0.2.0 test installs, where every repository showed the 403). Any entity the forge
 > refuses is named in **Settings → Sync** (for example *"issues not ingested —
 > HTTP 403: token does not have at least one of required scope(s):
 > [read:issue]"*) instead of looking like a repository with no issues; fix the

@@ -4290,3 +4290,10 @@ on the Mac:**
   register's own run row is no longer buried under a second zero-finding row, and anti-slop
   reads up to 20,000 files (was 2,000) and says why when a read is still partial. Also fixes
   the ai-pass-processor test typecheck left by #218.
+- 2026-11-06 — W25-09: the first look reads production source first. On gin it had read 10
+  tests and 3 config files out of 17, because tests carry the most rule hits. Now the ranking
+  goes source, then config and other non-runtime files, then tests (fallback only), and the
+  code map's definitions per file are a third key so core files with few findings still rank.
+- 2026-11-06 — W25-10: Gitea's listed token scopes now include `read:issue` (INSTALL.md, the
+  Connections form and the CLI help). A token made from the old minimum showed "issues not
+  ingested — HTTP 403" on every repository of the 0.2.0 test installs.
