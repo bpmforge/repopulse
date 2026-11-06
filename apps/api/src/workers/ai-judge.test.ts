@@ -1,7 +1,14 @@
 import 'dotenv/config';
 import type { Job } from 'bullmq';
 import { and, eq, inArray, sql } from 'drizzle-orm';
-import { core, createDb, read, security } from '@repopulse/shared';
+import {
+  NON_PRODUCTION_PATH_PATTERN,
+  core,
+  createDb,
+  isNonProductionPath,
+  read,
+  security,
+} from '@repopulse/shared';
 import { credentials } from '@repopulse/auth';
 import type {
   AnalysisGateway,
@@ -1401,5 +1408,33 @@ describeIfLiveInfra('the AI judge after a scan (W22-03)', () => {
     const pg = Object.fromEntries([...rows].map((r) => [r.p, r.t]));
     for (const p of paths) expect(pg[p], p).toBe(isTestPath(p));
     expect(paths.filter(isTestPath)).toHaveLength(9);
+  });
+
+  it('W27-01: Postgres reads the non-production pattern exactly as the scanners do', async () => {
+    const paths = [
+      'gin_test.go',
+      'vendor/github.com/x/y.go',
+      'web/dist/app.js',
+      'api/v1/service.pb.go',
+      'pkg/zz_generated.deepcopy.go',
+      'src/graphql.generated.ts',
+      'types/index.d.ts',
+      'public/jquery.min.js',
+      'src/__snapshots__/a.snap',
+      'yarn.lock',
+      'latest.go',
+      'contest.py',
+      'src/Testimonial.tsx',
+      'src/builder/x.ts',
+      'cmd/outline/main.go',
+    ];
+    const rows = await db.execute<{ p: string; t: boolean }>(
+      sql`select p, p ~ ${NON_PRODUCTION_PATH_PATTERN} as t from unnest(${sql.raw(
+        `array[${paths.map((p) => `'${p}'`).join(',')}]`,
+      )}::text[]) as p`,
+    );
+    const pg = Object.fromEntries([...rows].map((r) => [r.p, r.t]));
+    for (const p of paths) expect(pg[p], p).toBe(isNonProductionPath(p));
+    expect(paths.filter(isNonProductionPath)).toHaveLength(10);
   });
 });

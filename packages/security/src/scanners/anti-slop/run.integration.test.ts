@@ -15,7 +15,7 @@ import {
   type VerifyRequest,
 } from '@repopulse/analysis';
 import { dedupKey, readImportGraph } from '@repopulse/insights';
-import { runAntiSlopScan, worstByLdr } from './run.js';
+import { runAntiSlopScan, worstByLdr, type AntiSlopJudgement } from './run.js';
 import { readSnapshotSources } from '../../snapshot/sources.js';
 
 const DEP_FIXTURES = path.resolve(
@@ -204,9 +204,20 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
     await db.$client.end();
   });
 
+  /** W27-02: clears verdict memory, for a test that judges one candidate twice. */
+  const forget = () =>
+    db
+      .delete(security.slopCandidateVerdicts)
+      .where(eq(security.slopCandidateVerdicts.repoId, repoId));
+
   // The candidate fixture's deterministic rows (a shadow delegation wrapper)
   // would otherwise sit beside the W18-05 test's own and be read first.
   afterEach(async () => {
+    // W27-02: verdict memory would otherwise keep every later test's
+    // candidate from reaching the model.
+    await db
+      .delete(security.slopCandidateVerdicts)
+      .where(eq(security.slopCandidateVerdicts.repoId, repoId));
     await db
       .delete(read.findings)
       .where(
@@ -382,6 +393,194 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
     expect(run?.error).toMatch(/model call failed \(the model did not finish within 1200s\)/);
   });
 
+  it('W27-02: an unchanged candidate is not sent again; a changed one is', async () => {
+    const calls: CompleteOpts[] = [];
+    const first = await runAntiSlopScan({
+      db,
+      gateway: fakeGateway(calls),
+      workspaceId,
+      repoId,
+      commitSha: 'w27-02-memory-1',
+      files,
+      sources: SOURCES,
+      trigger: 'pr_synced',
+    });
+    expect(first.judgment).toBe(1);
+    expect(calls).toHaveLength(1);
+    const [memo] = await db
+      .select()
+      .from(security.slopCandidateVerdicts)
+      .where(eq(security.slopCandidateVerdicts.repoId, repoId));
+    expect(memo).toMatchObject({
+      workspaceId,
+      file: 'src/accounts/load.ts',
+      outcome: 'confirmed',
+      scanRunId: first.scanRunId,
+    });
+
+    // A new commit, the same code (moved down two lines): not asked again.
+    const moved = SOURCES.map((s) =>
+      s.path === 'src/accounts/load.ts' ? { ...s, source: '\n\n' + s.source } : s,
+    );
+    const second = await runAntiSlopScan({
+      db,
+      gateway: fakeGateway(calls),
+      workspaceId,
+      repoId,
+      commitSha: 'w27-02-memory-2',
+      files,
+      sources: moved,
+      trigger: 'pr_synced',
+    });
+    expect(second.status).toBe('succeeded');
+    expect(second.candidates).toBe(0);
+    expect(second.candidatesRemembered).toBe(1);
+    expect(calls).toHaveLength(1);
+
+    // A line in the candidate's excerpt changed: a new question, judged again.
+    const changed = SOURCES.map((s) =>
+      s.path === 'src/accounts/load.ts'
+        ? { ...s, source: s.source.replace("getUser('1')", "getUser('2')") }
+        : s,
+    );
+    const third = await runAntiSlopScan({
+      db,
+      gateway: fakeGateway(calls),
+      workspaceId,
+      repoId,
+      commitSha: 'w27-02-memory-3',
+      files,
+      sources: changed,
+      trigger: 'pr_synced',
+    });
+    expect(third.candidates).toBe(1);
+    expect(third.candidatesRemembered).toBe(0);
+    expect(calls).toHaveLength(2);
+    const rows = await db
+      .select()
+      .from(security.slopCandidateVerdicts)
+      .where(eq(security.slopCandidateVerdicts.repoId, repoId));
+    expect(rows).toHaveLength(2);
+  });
+
+  it('W27-02: an unanswered batch is not remembered, so the next scan asks again', async () => {
+    const calls: CompleteOpts[] = [];
+    await runAntiSlopScan({
+      db,
+      gateway: fakeGateway(calls, 'not json'),
+      workspaceId,
+      repoId,
+      commitSha: 'w27-02-unparsed',
+      files,
+      sources: SOURCES,
+      trigger: 'pr_synced',
+    });
+    const again = await runAntiSlopScan({
+      db,
+      gateway: fakeGateway(calls),
+      workspaceId,
+      repoId,
+      commitSha: 'w27-02-unparsed-2',
+      files,
+      sources: SOURCES,
+      trigger: 'pr_synced',
+    });
+    expect(calls).toHaveLength(2);
+    expect(again.judgment).toBe(1);
+  });
+
+  it('W27-02: with deferJudgement the run closes and returns before any model call', async () => {
+    const calls: CompleteOpts[] = [];
+    let deferred: (() => Promise<AntiSlopJudgement>) | null = null;
+    let deferredRun: number | null = null;
+    const result = await runAntiSlopScan({
+      db,
+      gateway: fakeGateway(calls),
+      workspaceId,
+      repoId,
+      commitSha: 'w27-02-deferred',
+      files,
+      sources: SOURCES,
+      trigger: 'pr_synced',
+      deferJudgement: (judge, ctx) => {
+        deferred = judge;
+        deferredRun = ctx.scanRunId;
+      },
+    });
+    // The job is done: rule findings saved, run closed, nobody asked yet.
+    expect(result.status).toBe('succeeded');
+    expect(result.judgementDeferred).toBe(true);
+    expect(result.judgment).toBe(0);
+    expect(result.candidates).toBe(1);
+    expect(calls).toHaveLength(0);
+    expect(deferredRun).toBe(result.scanRunId);
+    const [closed] = await db
+      .select()
+      .from(security.scanRuns)
+      .where(eq(security.scanRuns.id, result.scanRunId!));
+    expect(closed?.status).toBe('succeeded');
+    expect(closed?.finishedAt).not.toBeNull();
+    const before = closed!.findingCount;
+
+    const summary = await deferred!();
+    expect(calls).toHaveLength(1);
+    expect(summary).toMatchObject({ calls: 1, judgment: 1, remembered: 1 });
+    expect(summary.note).toBeUndefined();
+    const [after] = await db
+      .select()
+      .from(security.scanRuns)
+      .where(eq(security.scanRuns.id, result.scanRunId!));
+    expect(after?.status).toBe('succeeded');
+    expect(after?.partial).toBe(false);
+    expect(after?.findingCount).toBe(before + 1);
+    const [row] = await db
+      .select()
+      .from(read.findings)
+      .where(and(eq(read.findings.repoId, repoId), eq(read.findings.ruleId, 'slop.judgment')));
+    expect(row?.scanRunId).toBe(result.scanRunId);
+  });
+
+  it('W27-02: a background judgement that throws never fails the run; it notes why', async () => {
+    const broken: AnalysisGateway = {
+      async complete() {
+        throw new Error('socket hang up');
+      },
+      async health() {
+        return { ok: true };
+      },
+    };
+    let deferred: (() => Promise<AntiSlopJudgement>) | null = null;
+    const result = await runAntiSlopScan({
+      db,
+      gateway: broken,
+      workspaceId,
+      repoId,
+      commitSha: 'w27-02-broken',
+      files,
+      sources: SOURCES,
+      trigger: 'pr_synced',
+      deferJudgement: (judge) => {
+        deferred = judge;
+      },
+    });
+    expect(result.status).toBe('succeeded');
+    const summary = await deferred!();
+    expect(summary.note).toMatch(/stopped \(socket hang up\)/);
+    const [run] = await db
+      .select()
+      .from(security.scanRuns)
+      .where(eq(security.scanRuns.id, result.scanRunId!));
+    expect(run?.status).toBe('succeeded');
+    expect(run?.partial).toBe(true);
+    expect(run?.error).toMatch(/rule-based findings were saved/);
+    // Nothing answered, nothing remembered.
+    const memo = await db
+      .select()
+      .from(security.slopCandidateVerdicts)
+      .where(eq(security.slopCandidateVerdicts.repoId, repoId));
+    expect(memo).toHaveLength(0);
+  });
+
   it('with NO verifier available, the finding is stored as unverified', async () => {
     // Not dropped and not promoted: "nobody re-judged this" is the honest
     // state, and mayBeSurfacedLoudly keeps it off the loud surfaces.
@@ -458,6 +657,72 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
     expect(outside).toEqual([]);
   });
 
+  it('W27-01: tests and vendored code get no slop finding and no model candidate', async () => {
+    const offScope = ['src/accounts/load.test.ts', 'vendor/acme/thin.ts'];
+    const sources = [
+      ...SOURCES,
+      {
+        // The same wrapper shape as load.ts, in a test, plus a hollow test.
+        path: 'src/accounts/load.test.ts',
+        source: [
+          "import { fetchUser } from './api.js';",
+          'export function getUserForTest(id: string) {',
+          '  return fetchUser(id);',
+          '}',
+          "it('is green', () => { expect(true).toBe(true); });",
+        ].join('\n'),
+      },
+      {
+        // Low logic density, vendored.
+        path: 'vendor/acme/thin.ts',
+        source: [
+          ...Array.from({ length: 40 }, (_, i) => `// vendored note ${i}`),
+          'export const one = 1;',
+        ].join('\n'),
+      },
+    ];
+    const calls: CompleteOpts[] = [];
+    const prompts: string[] = [];
+    try {
+      const result = await runAntiSlopScan({
+        db,
+        gateway: fakeGateway(calls, JUDGMENT, prompts),
+        workspaceId,
+        repoId,
+        commitSha: 'w27-01-pertinent',
+        files: [],
+        sources,
+        trigger: 'schedule',
+        verify: async () => ({ refuted: false, reason: 'ok' }),
+      });
+      expect(result.status, result.error ?? '').toBe('succeeded');
+      // Only the production wrapper is judged.
+      expect(result.candidates).toBe(1);
+      expect(prompts.join('\n')).toContain('src/accounts/load.ts');
+      expect(prompts.join('\n')).not.toContain('load.test.ts');
+      expect(prompts.join('\n')).not.toContain('vendor/');
+      expect(result.excluded).toBeGreaterThan(0);
+
+      const rows = await db
+        .select()
+        .from(read.findings)
+        .where(and(eq(read.findings.repoId, repoId), inArray(read.findings.file, offScope)));
+      // The one exception: a test that tests nothing is a fact about the test.
+      expect(rows.map((r) => [r.file, r.ruleId])).toEqual([
+        ['src/accounts/load.test.ts', 'test.tautology'],
+      ]);
+    } finally {
+      const ids = db
+        .select({ id: read.findings.id })
+        .from(read.findings)
+        .where(and(eq(read.findings.repoId, repoId), inArray(read.findings.file, offScope)));
+      await db.delete(read.findingEvents).where(inArray(read.findingEvents.findingId, ids));
+      await db
+        .delete(read.findings)
+        .where(and(eq(read.findings.repoId, repoId), inArray(read.findings.file, offScope)));
+    }
+  });
+
   it('W18-10: a finding about anything but a listed candidate is rejected, not stored', async () => {
     // The model went back to searching: api.ts is in no candidate's excerpt.
     const searching = judgment({
@@ -482,6 +747,7 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
       trigger: 'schedule',
     });
     expect(first).toMatchObject({ candidates: 1, judgment: 0, rejected: 1 });
+    await forget();
     const second = await runAntiSlopScan({
       db,
       gateway: fakeGateway([], twice),
@@ -552,6 +818,7 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
     // Only the maker's host exists: no verifier is picked, the caller passes
     // none, and the finding is stored UNVERIFIED — never self-confirmed.
     expect(pickVerifierHost([makerHost], makerHost.baseUrl)).toBeNull();
+    await forget();
     const alone = await runAntiSlopScan({
       db,
       gateway: fakeGateway([], JUDGMENT, [], makerHost.modelSlot),
@@ -566,6 +833,7 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
 
     // Below the verify floor nothing is re-judged at all, as before v2.
     const low: string[] = [];
+    await forget();
     await runAntiSlopScan({
       db,
       gateway: fakeGateway([], judgment({ severity: 2 })),

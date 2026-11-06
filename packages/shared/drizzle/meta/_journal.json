@@ -456,6 +456,13 @@
       "when": 1794800004000,
       "tag": "0069_ai_pass_file_hashes",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1794800005000,
+      "tag": "0070_slop_candidate_verdicts",
+      "breakpoints": true
     }
   ]
 }

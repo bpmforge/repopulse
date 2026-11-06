@@ -12,6 +12,7 @@ import {
 import { sql } from 'drizzle-orm';
 import { workspaces } from '../core/workspaces.js';
 import { users } from '../core/users.js';
+import { repos } from '../core/repos.js';
 
 // Scanner configuration and runs (W8-01, SECURITY_SUITE.md §1, FR-SEC-11).
 
@@ -339,4 +340,40 @@ export const eolProducts = pgTable(
     fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [unique('eol_products_product_cycle_key').on(t.product, t.cycle)],
+);
+
+// Anti-slop verdict memory (W27-02).
+//
+// One row per fast-lane candidate the model has already judged, keyed by a
+// hash of what it was shown: the checklist version, the rule, the file path and
+// the candidate's excerpt with whitespace collapsed (candidates.ts
+// `candidateHash`). A later scan sends the model only candidates with no row
+// here, so an unchanged candidate is judged once rather than on every commit;
+// a changed excerpt is a new hash, and is judged again.
+//
+// HASHES, RULE IDS AND PATHS ONLY: no source text is stored (C1a). `outcome`
+// says what the model did with it ('confirmed' = it raised a finding,
+// 'silent' = it raised none); the finding itself lives in `findings`.
+export const slopCandidateVerdicts = pgTable(
+  'slop_candidate_verdicts',
+  {
+    id: bigint('id', { mode: 'number' }).generatedAlwaysAsIdentity().primaryKey(),
+    workspaceId: bigint('workspace_id', { mode: 'number' })
+      .notNull()
+      .references(() => workspaces.id),
+    repoId: bigint('repo_id', { mode: 'number' })
+      .notNull()
+      .references(() => repos.id, { onDelete: 'cascade' }),
+    candidateHash: text('candidate_hash').notNull(),
+    ruleId: text('rule_id').notNull(),
+    file: text('file').notNull(),
+    outcome: text('outcome').notNull(),
+    /** The scan run whose candidate this was. Provenance only, so no FK. */
+    scanRunId: bigint('scan_run_id', { mode: 'number' }),
+    judgedAt: timestamp('judged_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique('slop_candidate_verdicts_key').on(t.workspaceId, t.repoId, t.candidateHash),
+    check('slop_candidate_verdicts_outcome_check', sql`${t.outcome} in ('confirmed', 'silent')`),
+  ],
 );

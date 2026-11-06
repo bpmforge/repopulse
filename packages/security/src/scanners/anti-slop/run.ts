@@ -1,7 +1,14 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { and, eq, inArray } from 'drizzle-orm';
-import { read, security, type Database, safeErrorText } from '@repopulse/shared';
+import { and, eq, inArray, sql } from 'drizzle-orm';
+import {
+  isGeneratedOrVendoredPath,
+  isNonProductionPath,
+  read,
+  security,
+  type Database,
+  safeErrorText,
+} from '@repopulse/shared';
 import { attachExcerpts } from '../../excerpt.js';
 import {
   persistFindings,
@@ -32,9 +39,13 @@ import {
   batchCandidates,
   buildCandidatePrompt,
   candidateFor,
+  candidateHash,
   candidateHaystack,
+  MAX_CANDIDATES_PER_RUN,
   selectCandidates,
+  type SlopCandidate,
 } from './candidates.js';
+import { judgedHashes, rememberVerdicts } from './verdict-memory.js';
 import { effectiveStatus, registryStatuses } from '../../rules/shadow.js';
 import { docstringInflation, ldrFindings, LDR_FLOOR } from './ldr.js';
 import { UNUSED_EXPORT_RULE_ID, unusedExports } from './unused-exports.js';
@@ -206,6 +217,18 @@ export interface AntiSlopDeps {
    */
   verify?: SecondModelVerify;
   checklistDir?: string;
+  /**
+   * W27-02: run the judgement half WITHOUT holding the scan. Given, the run
+   * saves its rule findings, closes, hands `judge` here and returns at once
+   * (`judgementDeferred: true`); the caller runs it later (the worker: in the
+   * background, on the background gateway, one at a time per repository).
+   * `judge` never throws and never reopens the run. Absent = awaited inline,
+   * still after the run is closed.
+   *
+   * Everything `judge` needs was cut from the snapshot before this returns, so
+   * it may run after the snapshot is deleted (C1a).
+   */
+  deferJudgement?: (judge: () => Promise<AntiSlopJudgement>, ctx: { scanRunId: number }) => void;
 }
 
 export interface AntiSlopResult {
@@ -214,13 +237,23 @@ export interface AntiSlopResult {
   deterministic: number;
   /** Of `deterministic`, the `bpm-ch-*` pack findings (W18-30). */
   pack: number;
-  /** Pack findings on test, script and fixture paths, dropped. */
+  /**
+   * Findings dropped for their path: pack findings on test, script and fixture
+   * paths, and (W27-01) any finding on a non-production path.
+   */
   excluded: number;
   judgment: number;
   /** Fast-lane candidates sent to the model (anti-slop.v2). */
   candidates: number;
   /** Candidates left unjudged by the per-run cap — reported, never silent. */
   candidatesCapped: number;
+  /** W27-02: candidates not sent because the model already judged them unchanged. */
+  candidatesRemembered: number;
+  /**
+   * W27-02: the judgement was handed to `deferJudgement`; `judgment`,
+   * `refuted`, `unverified` and `rejected` are then 0 here and reported by it.
+   */
+  judgementDeferred: boolean;
   /** Judgement findings a verifier refuted — stored, marked contradicted, and counted. */
   refuted: number;
   /** Judgement findings nobody could verify: stored, never surfaced loudly. */
@@ -267,6 +300,29 @@ async function shippedRuleStatus(
   return effectiveStatus('candidate', registry.get(ruleId));
 }
 
+const TEST_INTEGRITY_RULES: ReadonlySet<string> = new Set(TEST_INTEGRITY_RULE_IDS);
+
+/**
+ * W27-01, "pertinent code only": true for an anti-slop finding this scanner no
+ * longer reports because its file is not production code (tests, fixtures,
+ * generated, vendored or built code). Such a file gets no finding and no model
+ * candidate.
+ *
+ * The one exception is the test-integrity family (W18-03): a test that tests
+ * nothing is a fact ABOUT a test file, so those rules keep reading tests — but
+ * not vendored or generated ones, which nobody here maintains.
+ *
+ * The sweep uses the same answer, so an old finding on such a file closes as
+ * no longer reported instead of lingering open.
+ */
+export function isOutOfScopeSlop(row: { ruleId?: string | null; file?: string | null }): boolean {
+  if (!row.file) return false;
+  if (row.ruleId && TEST_INTEGRITY_RULES.has(row.ruleId)) {
+    return isGeneratedOrVendoredPath(row.file);
+  }
+  return isNonProductionPath(row.file);
+}
+
 /** The pack rules this scanner stores (W18-30); the rest belong to logging. */
 const PACK_RULE_PREFIX = 'bpm-ch-';
 
@@ -311,7 +367,7 @@ export function antiSlopSweep(
   reviewedFiles?: string[];
   fullSweep?: {
     treeFiles?: readonly string[];
-    keepOpen: (row: { ruleId: string | null }) => boolean;
+    keepOpen: (row: { ruleId: string | null; file?: string | null }) => boolean;
   };
 } {
   // An error naming no file (a rule that failed to load) means the run cannot
@@ -328,11 +384,20 @@ export function antiSlopSweep(
     const reviewed = new Set((deps.sources ?? []).map((s) => s.path));
     for (const p of pack.scannedPaths ?? []) reviewed.add(p);
     for (const p of errored) reviewed.delete(p);
+    const tree = listTreeFiles(deps.snapshotDir);
+    // W27-01: every non-production file in the tree is reviewed for the
+    // path rule, read or not; on one this pass did not read, only the
+    // out-of-scope rows close.
+    const pathOnly = new Set(tree.filter((f) => isNonProductionPath(f) && !reviewed.has(f)));
     return {
-      reviewedFiles: [...reviewed],
+      reviewedFiles: [...reviewed, ...pathOnly],
       fullSweep: {
-        treeFiles: listTreeFiles(deps.snapshotDir),
-        keepOpen: (row) => row.ruleId === 'slop.judgment',
+        treeFiles: tree,
+        // An out-of-scope row closes, a judgement included: the path alone
+        // says this scanner no longer reports it.
+        keepOpen: (row) =>
+          !isOutOfScopeSlop(row) &&
+          (row.ruleId === 'slop.judgment' || (!!row.file && pathOnly.has(row.file))),
       },
     };
   }
@@ -340,12 +405,19 @@ export function antiSlopSweep(
   const ran = new Set(packRuleIds.filter((id) => id.startsWith(PACK_RULE_PREFIX)));
   if (pack.scannedPaths === undefined || ran.size === 0) return {};
   const scanned = pack.scannedPaths.filter((p) => !errored.has(p));
-  if (scanned.length === 0) return {};
+  // W27-01: whether a non-production file's findings are in scope does not
+  // depend on how much of the tree was read, so a partial pass reviews every
+  // such file in the tree and closes what sits on it (test-integrity rows on
+  // tests excepted: isOutOfScopeSlop keeps them in scope).
+  const offScope = listTreeFiles(deps.snapshotDir ?? deps.targetDir!).filter(isNonProductionPath);
+  if (scanned.length === 0 && offScope.length === 0) return {};
   return {
-    reviewedFiles: scanned,
+    reviewedFiles: [...new Set([...scanned, ...offScope])],
     // No treeFiles and no repoLevel: a partial pass closes nothing on a file it
     // did not scan, and never a file-less row.
-    fullSweep: { keepOpen: (row) => row.ruleId === null || !ran.has(row.ruleId) },
+    fullSweep: {
+      keepOpen: (row) => !isOutOfScopeSlop(row) && (row.ruleId === null || !ran.has(row.ruleId)),
+    },
   };
 }
 
@@ -366,9 +438,6 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
   const runId = run!.id;
 
   const findings: IncomingFinding[] = [];
-  let rejected = 0;
-  let refuted = 0;
-  let unverified = 0;
   let pack = 0;
   let excluded = 0;
   let toolVersions: Record<string, string> | null = null;
@@ -965,7 +1034,7 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
 
       for (const finding of result.findings) {
         if (!finding.ruleId.startsWith(PACK_RULE_PREFIX)) continue;
-        if (isExcluded(finding.file, globs)) {
+        if (isExcluded(finding.file, globs) || isOutOfScopeSlop(finding)) {
           excluded += 1;
           continue;
         }
@@ -1000,52 +1069,296 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
       findings.length = 0;
       findings.push(...kept);
     }
+    // W27-01: nothing on tests, fixtures, generated, vendored or built code,
+    // and so no model candidate either (candidates are drawn from this list).
+    // After every layer, not before: the whole-tree rules still read those
+    // files, so an export used only by a test is not called unused.
+    {
+      const kept = findings.filter((f) => !isOutOfScopeSlop(f));
+      excluded += findings.length - kept.length;
+      findings.length = 0;
+      findings.push(...kept);
+    }
     const deterministic = findings.length;
 
-    // ---- Judgement layer (anti-slop.v2, W18-10) -------------------------
+    // ---- Judgement layer (anti-slop.v2, W18-10; W27-02) -------------------
     // The model judges the fast lane's shadow candidates, each with its
-    // evidence, and nothing else. A pull-request run scopes them to the files
-    // its diff touched; the snapshot pass judges the whole tree's candidates.
-    const diffPaths = deps.files.length ? new Set(deps.files.map((f) => f.path)) : undefined;
-    const selection = deps.gateway
-      ? selectCandidates(findings, sources, diffPaths ? { diffPaths } : {})
-      : { candidates: [], capped: 0 };
-    // The same import graph the reprice reads, handed to the judge: a flagged
-    // function that nothing imports is a different finding from one six files
-    // call. The context is reserved out of the batch budget, not added to it.
-    const graph: ImportGraphSnapshot | null = deps.sources?.length
-      ? {
-          version: 1,
-          commitSha: deps.commitSha,
-          complete: deps.sourcesComplete === true,
-          extensions: RESOLVE_EXTENSIONS,
-          ...buildImportGraph(deps.sources),
-        }
+    // evidence, and nothing else. Everything the calls need is cut from the
+    // snapshot HERE, while it exists; the calls themselves run after the run
+    // is closed (below), so they never hold the scan.
+    const prepared = deps.gateway
+      ? await prepareJudgement(deps, checklist, findings, sources)
       : null;
-    const batches = batchCandidates(
-      checklist,
-      selection.candidates,
-      graph ? PROMPT_BUDGET_TOKENS - REPO_CONTEXT_MAX_TOKENS : PROMPT_BUDGET_TOKENS,
-    );
-    let judgment = 0;
-    // The model was busy (another caller holds every slot). The judgement half
-    // is skipped and said so; the deterministic and pack findings above are
-    // still saved and still close what they no longer see. Before this, one
-    // busy model failed the whole run and threw them away (outline, 2026-10-30:
-    // two scans in a row, while the weekly rule-tweak pass held LM Studio).
-    let modelBusy = false;
-    // W25-20: the model was reached but this call failed (it did not finish
-    // within the timeout, answered with reasoning only, or the host errored).
-    // Same rule as busy: the judgement half stops, the rule findings are kept.
-    // Seen on outline 2026-11-06: a 1200 s timeout failed the whole run.
-    let modelFailed: string | null = null;
 
-    for (const batch of batches) {
+    const persisted = await persistFindings(deps.db, {
+      workspaceId: deps.workspaceId,
+      repoId: deps.repoId,
+      scanRunId: runId,
+      pullRequestId: deps.pullRequestId ?? null,
+      // Tier 2 even for the deterministic half of this run: the RUN used a
+      // model, and a reader sorting by tier is asking "was a model involved",
+      // not "which line of this scanner produced it".
+      tier: 2,
+      findings: await attachExcerpts(deps.targetDir, findings),
+      sweepScannerKey: ANTI_SLOP_SCANNER_KEY,
+      ...antiSlopSweep(deps, packRun, packRuleIds),
+    });
+
+    await deps.db
+      .update(security.scanRuns)
+      .set({
+        status: 'succeeded',
+        findingCount: findings.length,
+        finishedAt: new Date(),
+        ...(deps.dataVersion ? { dataVersion: deps.dataVersion } : {}),
+        ...(toolVersions ? { toolVersions } : {}),
+      })
+      .where(eq(security.scanRuns.id, runId));
+
+    const result: AntiSlopResult = {
+      status: 'succeeded',
+      scanRunId: runId,
+      deterministic,
+      pack,
+      excluded,
+      judgment: 0,
+      candidates: prepared?.candidates.length ?? 0,
+      candidatesCapped: prepared?.capped ?? 0,
+      candidatesRemembered: prepared?.remembered ?? 0,
+      judgementDeferred: false,
+      refuted: 0,
+      unverified: 0,
+      findingsCreated: persisted.created,
+      rejected: 0,
+    };
+    if (!prepared || prepared.batches.length === 0) return result;
+
+    // W27-02: the judgement runs AFTER the run is closed. With `deferJudgement`
+    // (the scheduled scan job) it is handed off and this returns at once;
+    // without it (a direct caller, the tests) it is awaited here.
+    const judge = (): Promise<AntiSlopJudgement> =>
+      judgeCandidates(deps, deps.gateway!, runId, checklist, prepared);
+    if (deps.deferJudgement) {
+      deps.deferJudgement(judge, { scanRunId: runId });
+      return { ...result, judgementDeferred: true };
+    }
+    const judged = await judge();
+    return {
+      ...result,
+      judgment: judged.judgment,
+      refuted: judged.refuted,
+      unverified: judged.unverified,
+      rejected: judged.rejected,
+      findingsCreated: result.findingsCreated + judged.findingsCreated,
+    };
+  } catch (err) {
+    await deps.db
+      .update(security.scanRuns)
+      .set({
+        status: 'failed',
+        error: safeErrorText(err).slice(0, 500),
+        finishedAt: new Date(),
+      })
+      .where(eq(security.scanRuns.id, runId));
+    return {
+      status: 'failed',
+      scanRunId: runId,
+      deterministic: 0,
+      pack: 0,
+      excluded,
+      judgment: 0,
+      candidates: 0,
+      candidatesCapped: 0,
+      candidatesRemembered: 0,
+      judgementDeferred: false,
+      refuted: 0,
+      unverified: 0,
+      findingsCreated: 0,
+      rejected: 0,
+      error: safeErrorText(err),
+    };
+  }
+}
+
+/** What the judgement half needs once the snapshot is gone (W27-02). */
+export interface PreparedJudgement {
+  /** Candidates to send: not judged before, within the per-run cap. */
+  candidates: SlopCandidate[];
+  batches: SlopCandidate[][];
+  /** Candidate id -> verdict-memory hash. */
+  hashes: Map<string, string>;
+  /** Candidate id -> the excerpt (and packet) a judgement finding on it stores. */
+  contexts: Map<string, Pick<IncomingFinding, 'context' | 'contextPacket'>>;
+  graph: ImportGraphSnapshot | null;
+  /** Eligible candidates left out because the model already judged them unchanged. */
+  remembered: number;
+  /** New candidates left out by MAX_CANDIDATES_PER_RUN, for a later run. */
+  capped: number;
+}
+
+/**
+ * Picks this run's candidates and cuts everything their calls need while the
+ * snapshot is on disk: the excerpts the model reads, the context a finding
+ * stores, the import graph. No whole file is kept, only what a prompt holds.
+ *
+ * VERDICT MEMORY (W27-02). A candidate whose hash (rule, file, excerpt) the
+ * model has already answered for is not sent again: before this, every new
+ * commit re-judged every candidate. Memory is applied BEFORE the cap, so a
+ * repository with more than MAX_CANDIDATES_PER_RUN candidates works through
+ * them over successive scans instead of re-sending the same first 200.
+ */
+async function prepareJudgement(
+  deps: AntiSlopDeps,
+  checklist: ReturnType<typeof loadChecklist>,
+  findings: readonly IncomingFinding[],
+  sources: readonly { path: string; source: string }[],
+): Promise<PreparedJudgement> {
+  // A pull-request run scopes them to the files its diff touched; the
+  // snapshot pass judges the whole tree's candidates.
+  const diffPaths = deps.files.length ? new Set(deps.files.map((f) => f.path)) : undefined;
+  const all = selectCandidates(findings, sources, {
+    ...(diffPaths ? { diffPaths } : {}),
+    limit: Number.POSITIVE_INFINITY,
+  }).candidates;
+  const hashOf = new Map(all.map((c) => [c.id, candidateHash(checklist.version, c)]));
+  const known = await judgedHashes(deps.db, deps.workspaceId, deps.repoId, [
+    ...new Set(hashOf.values()),
+  ]);
+  const fresh = all.filter((c) => !known.has(hashOf.get(c.id)!));
+  // Renumbered so a prompt's ids read c1, c2… whatever was left out.
+  const candidates = fresh
+    .slice(0, MAX_CANDIDATES_PER_RUN)
+    .map((c, i) => ({ ...c, id: `c${i + 1}` }));
+  const hashes = new Map(
+    candidates.map((c, i) => [c.id, hashOf.get(fresh[i]!.id)!] as [string, string]),
+  );
+
+  // The same import graph the reprice reads, handed to the judge: a flagged
+  // function that nothing imports is a different finding from one six files
+  // call. The context is reserved out of the batch budget, not added to it.
+  const graph: ImportGraphSnapshot | null = deps.sources?.length
+    ? {
+        version: 1,
+        commitSha: deps.commitSha,
+        complete: deps.sourcesComplete === true,
+        extensions: RESOLVE_EXTENSIONS,
+        ...buildImportGraph(deps.sources),
+      }
+    : null;
+  const batches = batchCandidates(
+    checklist,
+    candidates,
+    graph ? PROMPT_BUDGET_TOKENS - REPO_CONTEXT_MAX_TOKENS : PROMPT_BUDGET_TOKENS,
+  );
+
+  // The stored excerpt for a finding on each candidate, read now: the
+  // snapshot is deleted before a deferred judgement returns.
+  const located = await attachExcerpts(
+    deps.targetDir,
+    candidates.map((c): IncomingFinding => ({
+      dimension: c.dimension,
+      severity: 1,
+      confidence: 1,
+      file: c.file,
+      lineStart: c.line,
+      lineEnd: c.lineEnd,
+      title: c.rule,
+      evidenceQuote: c.evidence,
+      rationale: c.claim,
+      suggestedFix: null,
+      scannerKey: ANTI_SLOP_SCANNER_KEY,
+      ruleId: 'slop.judgment',
+      yields: null,
+    })),
+  );
+  const contexts = new Map(
+    candidates.map((c, i) => {
+      const f = located[i]!;
+      return [
+        c.id,
+        {
+          ...(f.context !== undefined ? { context: f.context } : {}),
+          ...(f.contextPacket !== undefined ? { contextPacket: f.contextPacket } : {}),
+        },
+      ] as [string, Pick<IncomingFinding, 'context' | 'contextPacket'>];
+    }),
+  );
+
+  return {
+    candidates,
+    batches,
+    hashes,
+    contexts,
+    graph,
+    remembered: all.length - fresh.length,
+    capped: Math.max(0, fresh.length - MAX_CANDIDATES_PER_RUN),
+  };
+}
+
+export interface AntiSlopJudgement {
+  calls: number;
+  judgment: number;
+  refuted: number;
+  unverified: number;
+  rejected: number;
+  findingsCreated: number;
+  /** Candidates answered, and so remembered (W27-02). */
+  remembered: number;
+  /** Candidates another judgement of this repository answered meanwhile. */
+  skipped: number;
+  /** Why the judgement stopped early; also written to the run's note. */
+  note?: string;
+}
+
+/**
+ * The model half of an anti-slop run (W27-02), after the run is closed.
+ *
+ * It NEVER fails or reopens the run (W25-20: a model failure keeps the rule
+ * findings). A busy model, a failed call or anything unexpected stops the
+ * judgement, marks the run partial (so a later scan is not skipped past it,
+ * W23-09) and says why in the run's note; the status stays `succeeded`.
+ *
+ * Each answered batch is saved before the next call: its findings are
+ * persisted and its candidates remembered together, so a worker that stops
+ * mid-way loses only the unanswered batches, which the next scan sends again.
+ */
+async function judgeCandidates(
+  deps: AntiSlopDeps,
+  gateway: AnalysisGateway,
+  runId: number,
+  checklist: ReturnType<typeof loadChecklist>,
+  prepared: PreparedJudgement,
+): Promise<AntiSlopJudgement> {
+  const out: AntiSlopJudgement = {
+    calls: 0,
+    judgment: 0,
+    refuted: 0,
+    unverified: 0,
+    rejected: 0,
+    findingsCreated: 0,
+    remembered: 0,
+    skipped: 0,
+  };
+  const hashOf = (c: SlopCandidate): string => prepared.hashes.get(c.id)!;
+  let note: string | null = null;
+  try {
+    for (const planned of prepared.batches) {
+      // A judgement of this repository that ran before this one (the worker
+      // runs them one at a time per repository) may have answered some.
+      const known = await judgedHashes(deps.db, deps.workspaceId, deps.repoId, planned.map(hashOf));
+      const batch = planned.filter((c) => !known.has(hashOf(c)));
+      out.skipped += planned.length - batch.length;
+      if (batch.length === 0) continue;
+
       const bare = buildCandidatePrompt(checklist, batch);
-      const context = repoContextForCandidates(graph, batch, estimateTokens(bare)).text;
+      const context = repoContextForCandidates(prepared.graph, batch, estimateTokens(bare)).text;
       let result;
       try {
-        result = await deps.gateway!.complete(buildCandidatePrompt(checklist, batch, context), {
+        out.calls += 1;
+        // Reasoning stays ON (W25-19 is for short verdicts): each confirmed
+        // candidate comes back as a finding with its own title, rationale and
+        // suggested fix, which is written prose, not a yes/no.
+        result = await gateway.complete(buildCandidatePrompt(checklist, batch, context), {
           tier: 'T2',
           maxTokens: 45_000,
           expectJson: true,
@@ -1063,19 +1376,23 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
           },
         });
       } catch (err) {
-        // W25-02: the gateway now WAITS for a busy host, so this is reached
-        // only after the whole queue timeout (HostBusyError) or with no host.
+        // W25-02: the gateway WAITS for a busy host, so a busy error is
+        // reached only after the whole queue timeout, or with no host.
+        if (err instanceof HostUnavailableError || err instanceof HostBusyError) {
+          note =
+            'The model was busy, so the AI review of slop candidates was skipped this run; the rule-based findings were saved.';
+          break;
+        }
+        // W25-20: the model was reached but this call failed.
         if (
           err instanceof ModelTimeoutError ||
           err instanceof ModelNoAnswerError ||
           err instanceof ProviderError
         ) {
-          modelFailed = err.message;
+          note = `The AI review of slop candidates stopped because a model call failed (${err.message.slice(0, 200)}); the rule-based findings were saved.`;
           break;
         }
-        if (!(err instanceof HostUnavailableError) && !(err instanceof HostBusyError)) throw err;
-        modelBusy = true;
-        break;
+        throw err;
       }
 
       let parsed;
@@ -1083,21 +1400,23 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
         parsed = validateFindings(JSON.parse(result.text), candidateHaystack(batch));
       } catch (err) {
         if (err instanceof FindingParseError || err instanceof SyntaxError) {
-          rejected += 1;
+          // Unanswered, so not remembered: the next scan asks again.
+          out.rejected += 1;
           continue;
         }
         throw err;
       }
-      rejected += parsed.rejected.length;
+      out.rejected += parsed.rejected.length;
 
       const answered = new Set<string>();
+      const judged: IncomingFinding[] = [];
       for (const finding of parsed.findings) {
         // A finding about anything but a listed candidate is the model
         // searching again, and a second finding for one candidate is one
         // problem counted twice: both are rejected, and counted.
         const candidate = candidateFor(finding, batch, answered);
         if (!candidate) {
-          rejected += 1;
+          out.rejected += 1;
           continue;
         }
         answered.add(candidate.id);
@@ -1126,11 +1445,11 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
             }),
           );
         }
-        if (verdict?.status === 'contradicted') refuted += 1;
-        if (!verdict || verdict.status === 'unverified') unverified += 1;
+        if (verdict?.status === 'contradicted') out.refuted += 1;
+        if (!verdict || verdict.status === 'unverified') out.unverified += 1;
 
-        judgment += 1;
-        findings.push({
+        out.judgment += 1;
+        judged.push({
           // The candidate's facet, not always `slop`: a confirmed serial-await
           // candidate is still a latency problem.
           dimension: candidate.dimension,
@@ -1149,87 +1468,58 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
           scannerKey: ANTI_SLOP_SCANNER_KEY,
           ruleId: 'slop.judgment',
           yields: null,
+          ...prepared.contexts.get(candidate.id),
           ...(verdict ? { verify: verdict } : {}),
         });
       }
+
+      if (judged.length > 0) {
+        // No sweep: the judgement half samples candidates and is never swept.
+        const saved = await persistFindings(deps.db, {
+          workspaceId: deps.workspaceId,
+          repoId: deps.repoId,
+          scanRunId: runId,
+          pullRequestId: deps.pullRequestId ?? null,
+          tier: 2,
+          findings: judged,
+        });
+        out.findingsCreated += saved.created;
+        await deps.db
+          .update(security.scanRuns)
+          .set({ findingCount: sql`${security.scanRuns.findingCount} + ${judged.length}` })
+          .where(eq(security.scanRuns.id, runId));
+      }
+      await rememberVerdicts(
+        deps.db,
+        deps.workspaceId,
+        deps.repoId,
+        runId,
+        batch.map((c) => ({
+          hash: hashOf(c),
+          ruleId: c.rule,
+          file: c.file,
+          outcome: answered.has(c.id) ? 'confirmed' : 'silent',
+        })),
+      );
+      out.remembered += batch.length;
     }
-
-    const persisted = await persistFindings(deps.db, {
-      workspaceId: deps.workspaceId,
-      repoId: deps.repoId,
-      scanRunId: runId,
-      pullRequestId: deps.pullRequestId ?? null,
-      // Tier 2 even for the deterministic half of this run: the RUN used a
-      // model, and a reader sorting by tier is asking "was a model involved",
-      // not "which line of this scanner produced it".
-      tier: 2,
-      findings: await attachExcerpts(deps.targetDir, findings),
-      sweepScannerKey: ANTI_SLOP_SCANNER_KEY,
-      ...antiSlopSweep(deps, packRun, packRuleIds),
-    });
-
-    await deps.db
-      .update(security.scanRuns)
-      .set({
-        status: 'succeeded',
-        findingCount: findings.length,
-        finishedAt: new Date(),
-        ...(deps.dataVersion ? { dataVersion: deps.dataVersion } : {}),
-        ...(toolVersions ? { toolVersions } : {}),
-        ...(modelBusy
-          ? {
-              partial: true,
-              error:
-                'The model was busy, so the AI review of slop candidates was skipped this run; the rule-based findings were saved.',
-            }
-          : modelFailed
-            ? {
-                partial: true,
-                error: `The AI review of slop candidates stopped because a model call failed (${modelFailed.slice(0, 200)}); the rule-based findings were saved.`,
-              }
-            : {}),
-      })
-      .where(eq(security.scanRuns.id, runId));
-
-    return {
-      status: 'succeeded',
-      scanRunId: runId,
-      deterministic,
-      pack,
-      excluded,
-      judgment,
-      candidates: selection.candidates.length,
-      candidatesCapped: selection.capped,
-      refuted,
-      unverified,
-      findingsCreated: persisted.created,
-      rejected,
-    };
   } catch (err) {
-    await deps.db
-      .update(security.scanRuns)
-      .set({
-        status: 'failed',
-        error: safeErrorText(err).slice(0, 500),
-        finishedAt: new Date(),
-      })
-      .where(eq(security.scanRuns.id, runId));
-    return {
-      status: 'failed',
-      scanRunId: runId,
-      deterministic: 0,
-      pack: 0,
-      excluded,
-      judgment: 0,
-      candidates: 0,
-      candidatesCapped: 0,
-      refuted,
-      unverified,
-      findingsCreated: 0,
-      rejected,
-      error: safeErrorText(err),
-    };
+    note = `The AI review of slop candidates stopped (${safeErrorText(err).slice(0, 200)}); the rule-based findings were saved.`;
   }
+
+  if (note) {
+    out.note = note;
+    try {
+      // The run stays `succeeded`: partial (so it is not skipped past) and why.
+      await deps.db
+        .update(security.scanRuns)
+        .set({ partial: true, error: note })
+        .where(eq(security.scanRuns.id, runId));
+    } catch {
+      // The note is best effort; the caller logs `out.note` as well.
+    }
+  }
+  return out;
 }
 
 async function dependencyHygieneFindings(

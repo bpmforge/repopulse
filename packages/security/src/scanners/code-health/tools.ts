@@ -8,6 +8,11 @@ import { getScanner } from '../../registry.js';
 import { DEFAULT_SCAN_IMAGE } from '../semgrep/scanner.js';
 import type { AdapterContext, AdapterFinding, ToolAdapter } from './adapters/types.js';
 import { listSnapshotFiles } from '../../adapters/architecture/tools.js';
+import {
+  isNonProductionPath,
+  nonProductionFnmatchGlobs,
+  nonProductionGlobstarGlobs,
+} from '@repopulse/shared';
 
 // code_health_tools (W9-02, CODE_HEALTH_SUITE.md §2/§10, FR-CH-2).
 //
@@ -55,6 +60,74 @@ export function codeHealthDataVersion(
     scanner: getScanner(CODE_HEALTH_SCANNER_KEY)?.version,
     thresholds: shortHash(JSON.stringify(resolveThresholds(thresholds))),
   });
+}
+
+/**
+ * Code-quality adapters whose findings follow the pertinent-code rule (W27-01):
+ * a lint finding in a test, a fixture or vendored code is not reported. The IaC
+ * adapters (checkov, hadolint, actionlint, shellcheck, iacrender) are not here:
+ * a Dockerfile under `build/` is the one that ships, and their findings are
+ * configuration risk rather than code quality.
+ */
+export const PATH_SCOPED_ADAPTERS: ReadonlySet<string> = new Set(['ruff', 'biome', 'cppcheck']);
+
+/**
+ * W27-01, "pertinent code only": true for a code-health finding this scanner no
+ * longer reports because its file is not production code (tests, fixtures,
+ * generated, vendored or built code). lizard and jscpd findings, and the
+ * code-quality adapters'; never an IaC adapter's. The sweep uses the same
+ * answer, so an old finding on such a file closes instead of lingering.
+ */
+export function isOutOfScopeCodeHealth(row: {
+  ruleId?: string | null;
+  file?: string | null;
+}): boolean {
+  if (!row.file || !isNonProductionPath(row.file)) return false;
+  if (!row.ruleId) return false;
+  if (!row.ruleId.startsWith('tool.')) return true;
+  return PATH_SCOPED_ADAPTERS.has(row.ruleId.split('.')[1] ?? '');
+}
+
+/**
+ * lizard's `-x` arguments: non-production paths are never read (W27-01). Only
+ * shapes a glob states exactly; isNonProductionPath filters the rest after.
+ */
+export function lizardExcludeArgs(): string[] {
+  return nonProductionFnmatchGlobs().flatMap((glob) => ['-x', glob]);
+}
+
+/** jscpd's `--ignore` value (comma-separated globs, verified against jscpd 4.3.0). */
+export function jscpdIgnoreArg(): string {
+  return nonProductionGlobstarGlobs().join(',');
+}
+
+/**
+ * Clones that involve production code (W27-01). Both sides non-production:
+ * dropped. One side production: kept, and stated from the production side, so
+ * the finding sits on the file someone would change.
+ */
+export function pertinentClones(
+  clones: readonly DuplicationReport['clones'][number][],
+): DuplicationReport['clones'] {
+  const kept: DuplicationReport['clones'] = [];
+  for (const clone of clones) {
+    const firstOut = isNonProductionPath(clone.file);
+    const secondOut = isNonProductionPath(clone.duplicateFile);
+    if (firstOut && secondOut) continue;
+    if (!firstOut) {
+      kept.push(clone);
+      continue;
+    }
+    kept.push({
+      file: clone.duplicateFile,
+      startLine: clone.duplicateStartLine,
+      endLine: clone.duplicateStartLine + Math.max(clone.lines, 1) - 1,
+      duplicateFile: clone.file,
+      duplicateStartLine: clone.startLine,
+      lines: clone.lines,
+    });
+  }
+  return kept;
 }
 
 /** Where jscpd writes its report — a tmpfs, because the root is read-only. */
@@ -319,12 +392,16 @@ export async function runCodeHealthTools(args: RunToolsArgs): Promise<ToolRunRes
       // back — the alternative is a second mount for output, which would mean a
       // writable path pointing at the host.
       [
-        `lizard --csv ${SCAN_MOUNT_PATH} 2>/dev/null || true`,
+        // W27-01: tests, fixtures, generated, vendored and built code are not
+        // measured (lizard -x, jscpd --ignore); the results are filtered by
+        // isNonProductionPath again below, for the shapes a glob cannot state.
+        `lizard --csv ${shellQuote(lizardExcludeArgs())} ${SCAN_MOUNT_PATH} 2>/dev/null || true`,
         `echo '===JSCPD==='`,
         ...(args.skipDuplication
           ? [`echo '{}'`]
           : [
               `jscpd --min-lines ${thresholds.minLines} --min-tokens ${thresholds.minTokens} ` +
+                `--ignore ${shellQuote([jscpdIgnoreArg()])} ` +
                 `--reporters json --output ${JSCPD_OUT} --silent ${SCAN_MOUNT_PATH} >/dev/null 2>&1 || true`,
               // W25-04: only the fields parseJscpdReport reads. jscpd's own
               // report carries every clone's source text and a per-file stats
@@ -364,7 +441,10 @@ export async function runCodeHealthTools(args: RunToolsArgs): Promise<ToolRunRes
 
   const [ourHalf = '', ...adapterSections] = splitSections(result.rawStdout, adapters);
   const [lizardCsv = '', jscpdJson = '{}'] = ourHalf.split('===JSCPD===');
-  const functions = parseLizardCsv(lizardCsv);
+  // W27-01 backstop: what the -x globs could not state (`test_*.py`, …).
+  // Filtered before the metrics too: a p90 over test helpers is not the
+  // complexity of the code that ships.
+  const functions = parseLizardCsv(lizardCsv).filter((fn) => !isNonProductionPath(fn.file));
 
   const adapterFindings: AdapterFinding[] = [];
   const adapterErrors: ToolRunResult['adapterErrors'] = [];
@@ -384,7 +464,10 @@ export async function runCodeHealthTools(args: RunToolsArgs): Promise<ToolRunRes
       return;
     }
     try {
-      adapterFindings.push(...adapter.parse(section, ctx));
+      const parsed = adapter.parse(section, ctx);
+      adapterFindings.push(
+        ...parsed.filter((f) => !isOutOfScopeCodeHealth({ ruleId: f.ruleId, file: f.file })),
+      );
     } catch (error) {
       adapterErrors.push({
         adapter: adapter.key,
@@ -445,7 +528,7 @@ export async function runCodeHealthTools(args: RunToolsArgs): Promise<ToolRunRes
     }
   }
 
-  for (const clone of duplication.clones) {
+  for (const clone of pertinentClones(duplication.clones)) {
     findings.push({
       ruleId: 'duplication.clone',
       file: clone.file,
