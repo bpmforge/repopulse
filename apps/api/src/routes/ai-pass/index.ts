@@ -119,6 +119,11 @@ interface ScopeBody {
   pull_request?: unknown;
   base?: unknown;
   head?: unknown;
+  /**
+   * W25-07: read every file (or the whole pull request diff) again even when
+   * only some changed since the last clean pass over the same scope.
+   */
+  full_review?: unknown;
 }
 
 export interface PassScope {
@@ -328,7 +333,12 @@ export default async function aiPassRoutes(
 
       await queue.add(
         'ai.pass',
-        { workspaceId, runId: run.id, requestId: request.id },
+        {
+          workspaceId,
+          runId: run.id,
+          requestId: request.id,
+          ...(request.body?.full_review === true ? { force: true } : {}),
+        },
         { jobId: `ai-pass-${run.id}` },
       );
       auditLog(request.log, {

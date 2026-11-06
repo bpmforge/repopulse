@@ -12917,6 +12917,44 @@
       ]
     },
     {
+      "id": "W25-07",
+      "title": "A repository AI pass over the same paths reviews only files whose content changed",
+      "phase": 25,
+      "module": "analysis",
+      "stories": [],
+      "write_scope": [
+        "packages/analysis/src/scheduling/incremental.ts",
+        "packages/analysis/src/scheduling/incremental.test.ts",
+        "packages/shared/src/db/schema/read/ai-pass.ts",
+        "packages/shared/drizzle/0069_ai_pass_file_hashes.sql",
+        "packages/shared/drizzle/meta/_journal.json",
+        "apps/api/src/workers/ai-pass-processor.ts",
+        "apps/api/src/workers/ai-pass-processor.test.ts",
+        "apps/api/src/routes/ai-pass/index.ts",
+        "apps/api/src/routes/ai-pass/index.test.ts",
+        "apps/web/src/widgets/repo/AiPassPanel.tsx",
+        "apps/web/src/widgets/repo/AiPassPanel.test.tsx",
+        "docs/design/ANALYSIS_TIERS.md",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W23-07"
+      ],
+      "acceptance": [
+        "A paths pass stores path -> sha-256 of every file it read on ai_pass_runs.file_hashes (migration 0069)",
+        "The next pass over the same paths, with a clean succeeded base and the same prompt version, sends the specialists only files whose hash differs; scope = incremental, base_run_id set, specialists.incremental counts changed/unchanged/removed/carried/closed and the chain length",
+        "Earlier findings in unchanged files are carried forward (occurrence_count +1, provenance on the new pass); findings in a file that is gone are closed",
+        "No changed file: no specialist call; with nothing to triage the row is skipped with reason_code no_change and a sentence naming the base commit",
+        "Full review when forced (a 'Full review' box on the pass form; POST /repos/:id/ai-pass full_review: true), no base, unclean base, no stored hashes, a different prompt version, different paths, or after 10 incremental passes in a row; a pass in another workspace is never a base"
+      ],
+      "points": 3,
+      "status": "done",
+      "notes": [
+        "2026-11-06 Brad: 'everytime someone looks at a repo we dont want them to have to run a full run again, like it should know the changes and pull up what was listed before'. Scans (W23) and PR reviews (W23-07) were already incremental; the repository pass was the gap."
+      ]
+    },
+    {
       "id": "W26-01",
       "title": "UI polish: shell and shared components (buttons, selects, KPI tiles, form widths, phone header, Overview grid)",
       "phase": 26,

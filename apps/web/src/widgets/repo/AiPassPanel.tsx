@@ -562,13 +562,17 @@ export function AiPassPanel({
   const [base, setBase] = useState('');
   const [head, setHead] = useState('');
   const [addPath, setAddPath] = useState('');
+  // W25-07: read everything again instead of only what changed since the last pass.
+  const [fullReview, setFullReview] = useState(false);
   // W20-21 (UX_TODO AI-31): what to pick from, from what RepoPulse ingested.
   const { data: pickers } = useApiQuery<PassPickers>(
     { endpoint: '/repos/{id}/ai-pass/pickers', path: { id: repoId } },
     { enabled: isAdmin },
   );
   const start = useApiMutation<
-    { paths: string[] } | { pull_request: number } | { base: string; head: string },
+    | { paths: string[]; full_review?: boolean }
+    | { pull_request: number; full_review?: boolean }
+    | { base: string; head: string },
     unknown
   >(
     { endpoint: '/repos/{id}/ai-pass', path: { id: repoId }, method: 'POST' },
@@ -587,11 +591,11 @@ export function AiPassPanel({
   const body =
     mode === 'paths'
       ? paths.length > 0
-        ? { paths }
+        ? { paths, ...(fullReview ? { full_review: true } : {}) }
         : null
       : mode === 'pull_request'
         ? prNumber !== null
-          ? { pull_request: prNumber }
+          ? { pull_request: prNumber, ...(fullReview ? { full_review: true } : {}) }
           : null
         : rangeOk
           ? { base: base.trim(), head: head.trim() }
@@ -812,6 +816,23 @@ export function AiPassPanel({
               </p>
             </div>
           )}
+          {mode !== 'commit_range' ? (
+            <label className="flex items-start gap-2 text-xs text-fg-muted">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                data-testid="ai-pass-full-review"
+                checked={fullReview}
+                onChange={(e) => setFullReview(e.target.checked)}
+              />
+              <span>
+                Full review: read every {mode === 'paths' ? 'file' : 'change in the pull request'}{' '}
+                again. Without it, a repeat pass over the same{' '}
+                {mode === 'paths' ? 'paths' : 'pull request'} sends the model only what changed
+                since the last clean pass and keeps that pass&rsquo;s findings for the rest.
+              </span>
+            </label>
+          ) : null}
           <PassDestinations repoId={repoId} />
           <div>
             <button

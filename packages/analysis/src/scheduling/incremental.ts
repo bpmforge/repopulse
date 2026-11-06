@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { normalizeForMatch } from '../schema/finding.js';
 import { SPECIALISTS } from '../specialists/registry.js';
 
@@ -102,7 +103,12 @@ export function planReviewScope(a: PlanReviewScopeArgs): ReviewScopePlan {
 /** The checks that need no forge call; 'compare' = go and ask the forge. */
 export function needsCompare(
   a: Pick<PlanReviewScopeArgs, 'prior' | 'newHeadSha' | 'promptVersion' | 'force'>,
-): 'compare' | Exclude<ReviewScopeReason, 'incremental' | 'compare_unavailable' | 'compare_truncated' | 'no_reviewable_change'> {
+):
+  | 'compare'
+  | Exclude<
+      ReviewScopeReason,
+      'incremental' | 'compare_unavailable' | 'compare_truncated' | 'no_reviewable_change'
+    > {
   if (a.force) return 'forced';
   if (!a.prior) return 'no_prior_review';
   if (!a.prior.completeAndClean) return 'prior_not_clean';
@@ -149,4 +155,115 @@ export function quoteStillPresent(quote: string, patch: string | undefined): boo
   const needle = normalizeForMatch(quote);
   if (needle === '') return false;
   return normalizeForMatch(newSideText(patch)).includes(needle);
+}
+
+// ---------------------------------------------------------------------------
+// W25-07: incremental re-review of a REPOSITORY pass (mode 'paths').
+//
+// A scheduled or manual pass over named folders read every file under them
+// again whenever any commit landed, though most of those files were byte for
+// byte what the model had already reviewed. Here the question is per FILE, by
+// content: a file whose sha-256 equals the one the base pass read gets no model
+// call, and the base pass's findings in it are carried forward on evidence (the
+// quote still in the file). No forge compare is needed: the pass already holds
+// every file's text at the new head.
+//
+// FULL whenever there is any doubt, as for a pull request: no earlier pass over
+// the SAME paths, one that did not finish cleanly or stored no file hashes, a
+// different prompt version, a chain of DRIFT_CHAIN incremental passes since the
+// last full one, or `force`. A file the base pass read that is gone now leaves
+// its findings without a quote to stand on, so the carry closes them.
+
+/** Most incremental repository passes in a row before a full one (drift guard). */
+export const PATHS_MAX_CHAIN = 10;
+
+export interface PriorPathsPass {
+  runId: number;
+  /** The head commit that pass read. */
+  commitSha: string;
+  promptVersion: string | null;
+  /** Path -> sha-256 of the content that pass read. null = not recorded (older pass). */
+  fileHashes: Readonly<Record<string, string>> | null;
+  completeAndClean: boolean;
+  /** Incremental passes in a row up to and including that one (0 = it was full). */
+  chain: number;
+}
+
+export type PathsScopeReason =
+  | 'forced'
+  | 'no_prior_review'
+  | 'prior_not_clean'
+  | 'no_file_hashes'
+  | 'prompt_version_changed'
+  | 'drift_guard'
+  | 'incremental';
+
+export type PathsScopePlan =
+  | { scope: 'full'; reason: Exclude<PathsScopeReason, 'incremental'> }
+  | {
+      scope: 'incremental';
+      reason: 'incremental';
+      baseRunId: number;
+      /** Head the earlier pass read; the UI's "incremental since <sha7>". */
+      sinceSha: string;
+      /** Files whose content is new or different since the base pass: the only ones sent. */
+      changed: string[];
+      /** Files read now whose content the base pass already reviewed. */
+      unchanged: string[];
+      /** Files the base pass read that are not there now. */
+      removed: string[];
+      /** This pass's place in the chain (1 = first incremental after a full). */
+      chain: number;
+    };
+
+/** sha-256 of a file's text, hex: what a repository pass stores per file. */
+export function contentHash(text: string): string {
+  return createHash('sha256').update(text, 'utf8').digest('hex');
+}
+
+export function planPathsScope(a: {
+  prior: PriorPathsPass | null;
+  promptVersion: string;
+  /** Every file read at the new head, with its content hash. */
+  files: readonly { path: string; hash: string }[];
+  force?: boolean;
+  maxChain?: number;
+}): PathsScopePlan {
+  if (a.force) return { scope: 'full', reason: 'forced' };
+  const prior = a.prior;
+  if (!prior) return { scope: 'full', reason: 'no_prior_review' };
+  if (!prior.completeAndClean) return { scope: 'full', reason: 'prior_not_clean' };
+  if (!prior.fileHashes) return { scope: 'full', reason: 'no_file_hashes' };
+  if (prior.promptVersion !== a.promptVersion) {
+    return { scope: 'full', reason: 'prompt_version_changed' };
+  }
+  const chain = prior.chain + 1;
+  if (chain > (a.maxChain ?? PATHS_MAX_CHAIN)) return { scope: 'full', reason: 'drift_guard' };
+  const changed: string[] = [];
+  const unchanged: string[] = [];
+  const now = new Set<string>();
+  for (const f of a.files) {
+    now.add(f.path);
+    if (prior.fileHashes[f.path] === f.hash) unchanged.push(f.path);
+    else changed.push(f.path);
+  }
+  const removed = Object.keys(prior.fileHashes).filter((p) => !now.has(p));
+  return {
+    scope: 'incremental',
+    reason: 'incremental',
+    baseRunId: prior.runId,
+    sinceSha: prior.commitSha,
+    changed,
+    unchanged,
+    removed,
+    chain,
+  };
+}
+
+/** Whether a finding's quote is still in a file's full text (same normalisation as the validator). */
+export function quoteInText(quote: string, text: string | undefined): boolean {
+  if (text === undefined) return false;
+  const needle = normalizeForMatch(quote);
+  if (needle === '') return false;
+  return normalizeForMatch(text).includes(needle);
 }

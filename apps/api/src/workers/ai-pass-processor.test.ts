@@ -132,6 +132,8 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
       await db.delete(read.aiTriageVerdicts).where(eq(read.aiTriageVerdicts.workspaceId, w));
       await db.delete(read.aiFindingProvenance).where(eq(read.aiFindingProvenance.workspaceId, w));
       await db.delete(read.aiPassRuns).where(eq(read.aiPassRuns.workspaceId, w));
+      // W25-07: a pass that closes a finding writes its event.
+      await db.delete(read.findingEvents).where(eq(read.findingEvents.workspaceId, w));
     }
     if (REPO) {
       await db.delete(facts.pullRequests).where(eq(facts.pullRequests.repoId, REPO));
@@ -378,6 +380,165 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
       .where(eq(read.aiPassRuns.id, runId));
     await expect(call).rejects.toBeInstanceOf(PassCancelledError);
     expect(seen?.aborted).toBe(true);
+  });
+
+  describe('a repository pass over the same paths again (W25-07)', () => {
+    // Brad, 2026-11-06: "everytime someone looks at a repo we dont want them
+    // to have to run a full run again". A pass over folders read every file
+    // again on any new commit; now only files whose content changed go to the
+    // model, and the earlier findings in the rest are carried on evidence.
+    const UTIL: PassFile = {
+      path: 'src/util.ts',
+      content: 'export const add = (a, b) => a + b;\n',
+    };
+    const twoFiles = (util = UTIL, sha = 'aaaa000011112222') =>
+      ({ ok: true, commitSha: sha, files: [FILES[0]!, util] }) as const;
+    const specialistPrompts = (gw: ReturnType<typeof scripted>) =>
+      gw.calls.filter((c) => c.role !== 'triage').map((c) => c.prompt);
+    const findingsOf = () =>
+      db
+        .select()
+        .from(read.findings)
+        .where(
+          and(
+            eq(read.findings.workspaceId, WS),
+            eq(read.findings.repoId, REPO),
+            isNull(read.findings.scannerKey),
+          ),
+        );
+
+    async function firstPass() {
+      const runId = await newRun(['src']);
+      const { d, gw } = deps({ loadSources: async () => twoFiles() });
+      const r = await aiPassProcessor(d)(job(runId));
+      expect(r.status).toBe('succeeded');
+      expect(specialistPrompts(gw).some((p) => p.includes('src/routes/users.ts'))).toBe(true);
+      return runId;
+    }
+
+    it('stores a hash per file and reviews in full the first time', async () => {
+      const runId = await firstPass();
+      const row = await runOf(runId);
+      expect(row.scope).toBe('full');
+      expect(Object.keys(row.fileHashes ?? {}).sort()).toEqual([
+        'src/routes/users.ts',
+        'src/util.ts',
+      ]);
+      expect(row.promptVersion).toBeTruthy();
+      expect((await findingsOf()).length).toBeGreaterThan(0);
+    });
+
+    it('sends only the changed file and carries the findings in the unchanged one', async () => {
+      const base = await firstPass();
+      const before = await findingsOf();
+      const changed = { ...UTIL, content: 'export const add = (a, b) => a + b + 0;\n' };
+      const runId = await newRun(['src']);
+      const { d, gw } = deps({ loadSources: async () => twoFiles(changed, 'bbbb000011112222') });
+      const r = await aiPassProcessor(d)(job(runId));
+      expect(r.status).toBe('succeeded');
+      const prompts = specialistPrompts(gw);
+      expect(prompts.length).toBeGreaterThan(0);
+      expect(prompts.every((p) => !p.includes('src/routes/users.ts'))).toBe(true);
+      expect(prompts.some((p) => p.includes('src/util.ts'))).toBe(true);
+
+      const row = await runOf(runId);
+      expect(row.scope).toBe('incremental');
+      expect(row.baseRunId).toBe(base);
+      const inc = (row.specialists as { incremental: Record<string, unknown> }).incremental;
+      expect(inc).toMatchObject({
+        sinceSha: 'aaaa000011112222',
+        chain: 1,
+        filesChanged: 1,
+        filesUnchanged: 1,
+        filesRemoved: 0,
+        closed: 0,
+      });
+      expect(inc.carriedForward).toBe(before.length);
+      const after = await findingsOf();
+      expect(after.map((f) => [f.id, f.status])).toEqual(before.map((f) => [f.id, f.status]));
+      for (const f of after) {
+        const was = before.find((b) => b.id === f.id)!;
+        expect(f.occurrenceCount).toBe(was.occurrenceCount + 1);
+      }
+      // The carried findings stand on the new pass, so the next push can carry them again.
+      const prov = await db
+        .select()
+        .from(read.aiFindingProvenance)
+        .where(
+          and(
+            eq(read.aiFindingProvenance.workspaceId, WS),
+            eq(read.aiFindingProvenance.aiPassRunId, runId),
+          ),
+        );
+      expect(prov.length).toBe(before.length);
+    });
+
+    it('asks the model nothing when no file changed, and says so', async () => {
+      await firstPass();
+      const before = await findingsOf();
+      const runId = await newRun(['src']);
+      const { d, gw } = deps({ loadSources: async () => twoFiles(UTIL, 'cccc000011112222') });
+      const r = await aiPassProcessor(d)(job(runId));
+      expect(r).toMatchObject({ status: 'skipped', code: 'no_change' });
+      expect(gw.calls).toHaveLength(0);
+      const row = await runOf(runId);
+      expect(row.reason).toMatch(/None of the 2 files .* changed since the pass at aaaa0000/);
+      expect(row.calls).toBe(0);
+      expect((await findingsOf()).map((f) => f.status)).toEqual(before.map((f) => f.status));
+    });
+
+    it('closes the findings of a file that is gone', async () => {
+      await firstPass();
+      const before = await findingsOf();
+      expect(before.length).toBeGreaterThan(0);
+      const runId = await newRun(['src']);
+      const { d, gw } = deps({
+        loadSources: async () => ({ ok: true, commitSha: 'dddd000011112222', files: [UTIL] }),
+      });
+      const r = await aiPassProcessor(d)(job(runId));
+      expect(r).toMatchObject({ status: 'skipped', code: 'no_change' });
+      expect(gw.calls).toHaveLength(0);
+      const after = await findingsOf();
+      expect(after.every((f) => f.status !== 'open')).toBe(true);
+      expect((await runOf(runId)).reason).toMatch(/1 file it read is gone/);
+    });
+
+    it('reviews every file when asked for a full review', async () => {
+      await firstPass();
+      const runId = await newRun(['src']);
+      const { d, gw } = deps({ loadSources: async () => twoFiles(UTIL, 'eeee000011112222') });
+      const r = await aiPassProcessor(d)({
+        data: { workspaceId: WS, runId, force: true },
+      } as Job<AiPassJobData>);
+      expect(r.status).toBe('succeeded');
+      expect(specialistPrompts(gw).some((p) => p.includes('src/routes/users.ts'))).toBe(true);
+      expect((await runOf(runId)).scope).toBe('full');
+    });
+
+    it('reviews in full over different paths, or when the base pass is in another workspace', async () => {
+      await firstPass();
+      const other = await newRun(['src/routes']);
+      const a = deps({ loadSources: async () => twoFiles(UTIL, 'ffff000011112222') });
+      expect((await aiPassProcessor(a.d)(job(other))).status).toBe('succeeded');
+      expect((await runOf(other)).scope).toBe('full');
+
+      // Tenancy (Law 5): a clean pass over the same paths in OTHER is never a base.
+      await clear();
+      const foreign = await newRun(['src'], OTHER);
+      await db
+        .update(read.aiPassRuns)
+        .set({
+          status: 'succeeded',
+          commitSha: 'aaaa000011112222',
+          fileHashes: { 'src/util.ts': 'x' },
+          specialists: {},
+        })
+        .where(eq(read.aiPassRuns.id, foreign));
+      const mine = await newRun(['src']);
+      const b = deps({ loadSources: async () => twoFiles() });
+      expect((await aiPassProcessor(b.d)(job(mine))).status).toBe('succeeded');
+      expect((await runOf(mine)).scope).toBe('full');
+    });
   });
 
   describe('the first look after a first scan (W25-01)', () => {
