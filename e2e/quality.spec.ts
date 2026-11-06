@@ -333,7 +333,12 @@ test.describe('keyboard only: the primary workflows', () => {
     await settle(page, 'repo-detail');
     await expect(page.getByTestId('repo-name')).toContainText('/');
 
-    const toTab = await tabTo(page, 'repo-tab-hotspots');
+    // W26-03: Hotspots sits in the Code health group: open the group, then
+    // the page, both from the keyboard.
+    const toGroup = await tabTo(page, 'repo-group-code-health');
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/\/code-health/);
+    const toTab = toGroup + (await tabTo(page, 'repo-tab-hotspots'));
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/\/hotspots/);
     await expect(page.getByTestId('repo-hotspots')).toBeVisible();

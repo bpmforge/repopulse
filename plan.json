@@ -13000,7 +13000,7 @@
         "Tabs on phone scroll the active tab into view"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "2026-11-06 Brad chose 'Group both' on the decision card in thread 'Polish the UI across all pages'"
       ]

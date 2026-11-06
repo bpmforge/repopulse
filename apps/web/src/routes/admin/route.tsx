@@ -1,4 +1,5 @@
-import { createFileRoute, Link, Outlet } from '@tanstack/react-router';
+import { createFileRoute, Link, Outlet, useRouterState } from '@tanstack/react-router';
+import { useActiveTabInView } from '../../components/shell/useActiveTabInView.js';
 import { serializeGlobalSearch } from '@repopulse/shared/url-state';
 import { PageHeader, WidgetFrame } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
@@ -14,37 +15,60 @@ export const Route = createFileRoute('/admin')({
   component: AdminLayout,
 });
 
-const TABS: { to: string; label: string; exact?: boolean }[] = [
-  { to: '/admin/', label: 'Connections', exact: true },
-  { to: '/admin/sync', label: 'Sync' },
-  { to: '/admin/members', label: 'Members' },
-  { to: '/admin/identities', label: 'Identities' },
-  { to: '/admin/agreements', label: 'Agreements' },
-  { to: '/admin/rules', label: 'Rules' },
-  { to: '/admin/analysis', label: 'Analysis' },
-  // W16-07: where the model this product runs on is configured. Next to
-  // Analysis because the two answer the same question from opposite ends —
-  // Analysis says which repos may be analysed, Models says what analyses them.
-  { to: '/admin/models', label: 'Models' },
-  // W18-29: the verified-fix attempts, beside the model that drafts them.
-  { to: '/admin/patches', label: 'Verified fixes' },
-  // W20-17 (UX_TODO ADM-19): "Scoring", not a third "Settings" — the page
-  // read "Overview › Settings › Settings". The URL is unchanged.
-  { to: '/admin/settings', label: 'Scoring' },
-  // W20-08 (UX_TODO FND-17): minting a CI token needed curl and a copied cookie.
-  { to: '/admin/ci-tokens', label: 'CI tokens' },
-  // W20-10 (UX_TODO X-04): who changed what, from the persisted audit trail.
-  { to: '/admin/audit', label: 'Audit log' },
-  // W11-02, moved INSIDE this layout by W20-17 (UX_TODO ADM-20): the tab used
-  // to jump to /setup, outside it, so the tabs vanished and the rail lost its
-  // highlight. /setup still works and redirects here.
-  { to: '/admin/setup', label: 'Setup' },
+interface AdminTab {
+  to: string;
+  label: string;
+  exact?: boolean;
+}
+
+/**
+ * W26-03 (UI review 2026-11-06, UI-07; Brad chose "group both"): thirteen
+ * tabs in one row became a menu in four groups — a left column from lg up, a
+ * single scrolling strip with group breaks below. Every page keeps its URL and
+ * its `admin-tab-*` id, and every link is always rendered.
+ */
+export const ADMIN_GROUPS: { label: string; tabs: AdminTab[] }[] = [
+  {
+    label: 'Workspace',
+    tabs: [
+      { to: '/admin/members', label: 'Members' },
+      { to: '/admin/identities', label: 'Identities' },
+      { to: '/admin/agreements', label: 'Agreements' },
+      { to: '/admin/settings', label: 'Scoring' },
+    ],
+  },
+  {
+    label: 'Sources',
+    tabs: [
+      { to: '/admin/', label: 'Connections', exact: true },
+      { to: '/admin/sync', label: 'Sync' },
+      { to: '/admin/ci-tokens', label: 'CI tokens' },
+    ],
+  },
+  {
+    label: 'Analysis',
+    tabs: [
+      { to: '/admin/rules', label: 'Rules' },
+      { to: '/admin/analysis', label: 'Analysis' },
+      { to: '/admin/models', label: 'Models' },
+      { to: '/admin/patches', label: 'Verified fixes' },
+    ],
+  },
+  {
+    label: 'System',
+    tabs: [
+      { to: '/admin/setup', label: 'Setup' },
+      { to: '/admin/audit', label: 'Audit log' },
+    ],
+  },
 ];
 
 function AdminLayout() {
   const search = Route.useSearch();
   const preserved = serializeGlobalSearch(search);
   const { data: me, isSuccess, isError } = useApiQuery<MeContext>({ endpoint: '/me/context' });
+  const pathname = useRouterState({ select: (st) => st.location.pathname });
+  const menuStrip = useActiveTabInView<HTMLElement>(`${pathname}|${me?.role ?? ''}`);
 
   // W20-17 (UX_TODO ADM-21): nothing admin-only renders until the role is
   // KNOWN. The tabs and their widgets used to mount while /me/context loaded
@@ -97,34 +121,49 @@ function AdminLayout() {
         description="Connections, models, analysis policy, members, and the health of this install."
         testId="admin-header"
       />
-      {/* W17-31: the strip scrolls WITHIN ITSELF on narrow screens. Nine tabs
-          that could not wrap or scroll pushed <main> 440px past a 390px
-          viewport, so every Settings screen scrolled sideways — the page-level
-          overflow the ticket forbids. `shrink-0` + nowrap keeps each tab
-          readable; `overflow-x-auto` keeps the overflow inside the strip. */}
-      <nav
-        className="flex gap-0.5 overflow-x-auto border-b border-border pb-px"
-        aria-label="Admin sections"
-      >
-        {TABS.map((tab) => (
-          <Link
-            key={tab.label}
-            to={tab.to as never}
-            search={preserved as never}
-            // includeSearch off (W18-28): an EXACT match also compares the search
-            // params in full, and the filters in the URL never equal the preserved
-            // subset this link carries — so the default tab (Pulse, Connections) was
-            // never marked active on the screen it was showing.
-            activeOptions={{ exact: tab.exact ?? false, includeSearch: false }}
-            activeProps={{ 'data-active': 'true' }}
-            className="relative shrink-0 whitespace-nowrap rounded-md px-3 py-2 text-sm text-fg-muted hover:text-fg data-[active=true]:font-medium data-[active=true]:text-fg data-[active=true]:after:absolute data-[active=true]:after:inset-x-3 data-[active=true]:after:-bottom-px data-[active=true]:after:h-0.5 data-[active=true]:after:rounded-full data-[active=true]:after:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-            data-testid={`admin-tab-${tab.label.toLowerCase()}`}
-          >
-            {tab.label}
-          </Link>
-        ))}
-      </nav>
-      <Outlet />
+      {/* W17-31: below lg the menu is ONE strip that scrolls within itself,
+          so no Settings screen scrolls sideways at 390px. From lg up it is a
+          left column beside the page. */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-6">
+        <nav
+          ref={menuStrip}
+          className="flex shrink-0 gap-0.5 overflow-x-auto border-b border-border pb-px lg:sticky lg:top-12 lg:w-48 lg:flex-col lg:gap-4 lg:overflow-visible lg:border-b-0 lg:pb-0"
+          aria-label="Admin sections"
+          data-testid="admin-menu"
+        >
+          {ADMIN_GROUPS.map((group, gi) => (
+            <div
+              key={group.label}
+              role="group"
+              aria-label={group.label}
+              className="flex shrink-0 items-center gap-0.5 lg:flex-col lg:items-stretch"
+            >
+              <span className="hidden px-3 pb-1 text-xs font-medium text-fg-faint lg:block">
+                {group.label}
+              </span>
+              {group.tabs.map((tab) => (
+                <Link
+                  key={tab.label}
+                  to={tab.to as never}
+                  search={preserved as never}
+                  activeOptions={{ exact: tab.exact ?? false, includeSearch: false }}
+                  activeProps={{ 'data-active': 'true' }}
+                  className="relative shrink-0 whitespace-nowrap rounded-md px-3 py-2 text-sm text-fg-muted hover:text-fg data-[active=true]:font-medium data-[active=true]:text-fg data-[active=true]:after:absolute data-[active=true]:after:inset-x-3 data-[active=true]:after:-bottom-px data-[active=true]:after:h-0.5 data-[active=true]:after:rounded-full data-[active=true]:after:bg-accent lg:py-1.5 lg:hover:bg-surface-2 lg:data-[active=true]:bg-surface-2 lg:data-[active=true]:after:hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                  data-testid={`admin-tab-${tab.label.toLowerCase()}`}
+                >
+                  {tab.label}
+                </Link>
+              ))}
+              {gi < ADMIN_GROUPS.length - 1 && (
+                <span aria-hidden="true" className="mx-1 h-4 w-px shrink-0 bg-border lg:hidden" />
+              )}
+            </div>
+          ))}
+        </nav>
+        <div className="min-w-0 flex-1">
+          <Outlet />
+        </div>
+      </div>
     </div>
   );
 }

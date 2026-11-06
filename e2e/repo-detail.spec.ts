@@ -41,11 +41,13 @@ test('drills org → repo → each tab by clicking, breadcrumb intact', async ({
   await expect(page.getByTestId('repo-name')).toContainText('/');
   await expect(page.getByTestId('repo-pulse').locator('canvas')).toHaveCount(4);
 
-  for (const [tab, panel] of [
-    ['repo-tab-hotspots', 'repo-hotspots'],
-    ['repo-tab-pr-flow', 'repo-pr-flow'],
-    ['repo-tab-ci', 'repo-ci'],
+  // W26-03: pages sit in groups; open the group, then the page.
+  for (const [group, tab, panel] of [
+    ['repo-group-code-health', 'repo-tab-hotspots', 'repo-hotspots'],
+    ['repo-group-delivery', 'repo-tab-pr-flow', 'repo-pr-flow'],
+    ['repo-group-delivery', 'repo-tab-ci', 'repo-ci'],
   ] as const) {
+    await page.getByTestId(group).click();
     await page.getByTestId(tab).click();
     await expect(page.getByTestId(panel)).toBeVisible();
     // Every tab must draw at least one chart from the fixture warehouse.
@@ -139,6 +141,7 @@ test('the CI tab shows M9 duration and the flakiest workflows (W4-15)', async ({
   // repos share the workspace and can render first, and position is not identity.
   await page.goto('/?window=90d');
   await seededTile(page).click();
+  await page.getByTestId('repo-group-delivery').click();
   await page.getByTestId('repo-tab-ci').click();
 
   // Both panels replaced an explanatory empty state that named W4-15. The
@@ -164,6 +167,7 @@ test('the PR Flow tab shows review load built from REVIEWER data (W4-15)', async
   await loginAsFixture(page);
   await page.goto('/?window=90d');
   await seededTile(page).click();
+  await page.getByTestId('repo-group-delivery').click();
   await page.getByTestId('repo-tab-pr-flow').click();
 
   const load = page.getByTestId('review-load');
