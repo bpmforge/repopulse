@@ -13062,14 +13062,15 @@
     },
     {
       "id": "W25-12",
-      "title": "Finish one repository's AI work before starting the next, so the first complete result arrives in minutes, not hours",
+      "title": "First AI results in minutes, not hours: the CVE second opinion no longer holds the scan job and waits behind the first look",
       "phase": 25,
       "module": "api",
       "stories": [],
       "write_scope": [
         "apps/api/src/workers/index.ts",
-        "apps/api/src/workers/ai-pass-processor.ts",
-        "apps/api/src/workers/ai-judge.ts",
+        "apps/api/src/workers/second-model.ts",
+        "apps/api/src/workers/cve-background.test.ts",
+        "packages/security/src/scanners/dependency/run.ts",
         "docs/STATUS.md",
         "plan.json"
       ],
@@ -13077,12 +13078,12 @@
         "W25-09"
       ],
       "acceptance": [
-        "On a one-slot local model, queued AI work is served repository by repository (first look, then its review chunks and judge) instead of interleaved",
-        "A test with three repositories shows the first repository's first look finishing before the second repository's first model call",
-        "Foreground (a person's own pass) still goes first"
+        "The dependency scan job ends when its findings are stored; the CVE second opinion runs after it without holding the job, so the repository's scans stop counting as running",
+        "The CVE check uses the background gateway, so on a one-slot local model a first look's calls are served before it",
+        "Tests: the hook returns at once while the check runs, and a failed check is reported, never thrown into the scan"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "2026-11-06 real LM Studio check on the Mac (rpw25: gin, saleor, outline), improvement list Brad asked to have fixed. After 3 hours saleor and outline had no first look yet, because each waits for its repository's scan review, and all share the one slot.",
         "The 'scan review' is the dependency scan's CVE verification (one model prompt per CVE, about 10 per repository): 2h49 on saleor and 2h53 on outline on the old build, and the first look waited behind it. Consider letting the first look start before CVE verification finishes."

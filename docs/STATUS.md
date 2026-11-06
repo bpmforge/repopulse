@@ -4303,3 +4303,8 @@ on the Mac:**
   ticked or a test path is named. Asked by Brad: "we dont want to waste time scanning for test
   code issues but actual code issues". W25-17 (todo) does the same for what the Findings page
   and the health score show.
+- 2026-11-06 — W25-12: first AI results in minutes, not hours. The dependency scan's CVE second
+  opinion (one model call per CVE, about 2h50 per repository on the Mac's local model) no
+  longer holds the scan job, so the repository's scans finish and the first look starts; the
+  check's calls use the background gateway and wait behind the first look's. Brad: "even for
+  a demo this is soooo long people would not even try this".

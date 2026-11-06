@@ -32,7 +32,7 @@ import {
   rankFirstLookPaths,
 } from './ai-first-look.js';
 import { fixConfigFor } from './ai-fix.js';
-import { createSecondModelVerifier, cveVerifyHook } from './second-model.js';
+import { createSecondModelVerifier, cveVerifyHook, inBackground } from './second-model.js';
 import { snapshotSources } from './ai-pass-sources.js';
 import { forgeCompareHeads, forgeDiffSources } from './ai-pass-diff.js';
 import { SCHEDULER_TICK_MS, runScheduleTick } from './ai-pass-scheduler.js';
@@ -163,6 +163,8 @@ async function main(): Promise<void> {
     workspaceId: number,
     repoId: number,
     hosts: Parameters<typeof createSecondModelVerifier>[0]['hosts'],
+    /** W25-12: the CVE check waits behind foreground analysis (host-slots.ts). */
+    opts: { background?: boolean } = {},
   ) =>
     createSecondModelVerifier({
       db,
@@ -171,7 +173,14 @@ async function main(): Promise<void> {
       hosts,
       ledger: 'own',
       pinned: (pin) =>
-        buildWorkerGateway(db, process.env, credentials.loadTokenKey(), workspaceId, pin),
+        buildWorkerGateway(
+          db,
+          process.env,
+          credentials.loadTokenKey(),
+          workspaceId,
+          pin,
+          opts.background ? { background: true } : {},
+        ),
     });
 
   // The boot line still reports the DEFAULT workspace, because that is the one
@@ -741,12 +750,22 @@ async function main(): Promise<void> {
               ...(opts?.snapshot ? { snapshot: opts.snapshot } : {}),
               ...(cveGateway
                 ? {
-                    verifyCves: cveVerifyHook({
-                      db,
-                      workspaceId,
-                      repoId,
-                      verifier: secondModelFor(workspaceId, repoId, cveGateway.hosts),
-                    }),
+                    // W25-12: the scan job does not wait for the check, and
+                    // the check's calls queue behind the first look's.
+                    verifyCves: inBackground(
+                      cveVerifyHook({
+                        db,
+                        workspaceId,
+                        repoId,
+                        verifier: secondModelFor(workspaceId, repoId, cveGateway.hosts, {
+                          background: true,
+                        }),
+                      }),
+                      ({ summary, err, scanRunId }) => {
+                        if (err) log.warn({ err, repoId, scanRunId }, '[worker] CVE check failed');
+                        else log.info({ repoId, scanRunId, ...summary }, '[worker] CVE check done');
+                      },
+                    ),
                   }
                 : {}),
             });

@@ -129,6 +129,12 @@ export interface CveVerifySummary {
   /** Why nobody was asked, when nobody was. */
   refused?: string;
   error?: string;
+  /**
+   * W25-12: the check was handed to the background and the scan job did not
+   * wait for it; the counts are then 0 and the verdicts land on the findings
+   * later.
+   */
+  deferred?: boolean;
 }
 
 /**
@@ -252,8 +258,7 @@ export interface DependencyGate {
 }
 
 export async function dependencyGate(args: DependencyGateArgs): Promise<DependencyGate> {
-  const dataVersion =
-    args.dataVersion !== undefined ? args.dataVersion : dependencyDataVersion();
+  const dataVersion = args.dataVersion !== undefined ? args.dataVersion : dependencyDataVersion();
   const full = (manifests: FileSetRead | null = null): DependencyGate => ({
     decision: 'full',
     manifests,
@@ -814,14 +819,7 @@ export async function rematchSbom(
     if (grype.status !== 'succeeded') {
       // Same rule as the full path: a failed match never reaches persistFindings
       // with an empty list, which would close every CVE this repository has.
-      await closeRun(
-        deps.db,
-        runId,
-        'failed',
-        0,
-        grype.error ?? 'grype failed',
-        null,
-      );
+      await closeRun(deps.db, runId, 'failed', 0, grype.error ?? 'grype failed', null);
       return {
         status: 'failed',
         scanRunId: runId,
