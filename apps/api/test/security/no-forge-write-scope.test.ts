@@ -68,7 +68,7 @@ describe('D9a: RepoPulse holds no forge write scope (W18-18)', () => {
     expect(rows).toEqual([
       '`repo` (read), `read:org`',
       '`read_api`',
-      '`read:repository`, `read:organization`, `read:user`',
+      '`read:repository`, `read:organization`, `read:user`, `read:issue`',
     ]);
   });
 

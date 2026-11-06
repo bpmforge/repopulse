@@ -13010,6 +13010,160 @@
       ]
     },
     {
+      "id": "W25-10",
+      "title": "Gitea token: read:issue is a listed scope, not an optional one, so a documented token ingests issues",
+      "phase": 25,
+      "module": "web",
+      "stories": [],
+      "write_scope": [
+        "apps/web/src/widgets/admin/Connections.tsx",
+        "apps/web/src/widgets/admin/Connections.manage.test.tsx",
+        "apps/api/src/cli/connect-forge.ts",
+        "apps/api/test/security/no-forge-write-scope.test.ts",
+        "docs/INSTALL.md",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W25-08"
+      ],
+      "acceptance": [
+        "INSTALL.md's Gitea row, the Connections form hint and the CLI help list read:repository, read:organization, read:user and read:issue; write:repository stays the only optional scope",
+        "The refusal text for a token without read:issue is unchanged (no failure absorbed silently, W14-01)"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "2026-11-06 real check (rpw25) and the 0.2.0 tutorial notes (P7): a token made from the documented minimum showed 'issues not ingested — HTTP 403' on every repository."
+      ]
+    },
+    {
+      "id": "W25-11",
+      "title": "Measure local model concurrency 2 against 1 on one GPU before changing the LM Studio default",
+      "phase": 25,
+      "module": "analysis",
+      "stories": [],
+      "write_scope": [
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W25-09"
+      ],
+      "acceptance": [
+        "Same three repositories and model, LMSTUDIO_CONCURRENCY 1 and 2, measured wall time to the last AI result and calls over 5 minutes",
+        "The default changes only if 2 is faster end to end with no model crash; the numbers go in STATUS.md either way"
+      ],
+      "points": 2,
+      "status": "todo",
+      "notes": [
+        "2026-11-06 real LM Studio check on the Mac (rpw25: gin, saleor, outline), improvement list Brad asked to have fixed. LM Studio was busy 3.0 of 3.1 hours; it has the model loaded with 4 parallel slots while Repo Pulse uses 1; 13 of 47 calls took over 5 minutes and used 66% of the time. max_tokens stays 45000 (Law 8)."
+      ]
+    },
+    {
+      "id": "W25-12",
+      "title": "Finish one repository's AI work before starting the next, so the first complete result arrives in minutes, not hours",
+      "phase": 25,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers/index.ts",
+        "apps/api/src/workers/ai-pass-processor.ts",
+        "apps/api/src/workers/ai-judge.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W25-09"
+      ],
+      "acceptance": [
+        "On a one-slot local model, queued AI work is served repository by repository (first look, then its review chunks and judge) instead of interleaved",
+        "A test with three repositories shows the first repository's first look finishing before the second repository's first model call",
+        "Foreground (a person's own pass) still goes first"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": [
+        "2026-11-06 real LM Studio check on the Mac (rpw25: gin, saleor, outline), improvement list Brad asked to have fixed. After 3 hours saleor and outline had no first look yet, because each waits for its repository's scan review, and all share the one slot."
+      ]
+    },
+    {
+      "id": "W25-13",
+      "title": "Show live progress on a running AI pass and keep each call's findings as it lands",
+      "phase": 25,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers/ai-pass-processor.ts",
+        "apps/web/src/widgets/repo/AiPassPanel.tsx",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W25-09"
+      ],
+      "acceptance": [
+        "A running pass shows 'call N of up to M, files read, waiting for the model since T', updated per call",
+        "Findings from finished calls are written as each call returns, so a cancelled or crashed pass keeps them, and the row says the pass was partial",
+        "The judge's queue wait is visible while it runs, not only at the end"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": [
+        "2026-11-06 real LM Studio check on the Mac (rpw25: gin, saleor, outline), improvement list Brad asked to have fixed. gin's first look showed 11 calls in 3 hours and 0 AI findings with no progress line, which reads as stuck."
+      ]
+    },
+    {
+      "id": "W25-14",
+      "title": "Roll up large repositories' rule findings by rule and folder so model-tier findings are not buried",
+      "phase": 25,
+      "module": "web",
+      "stories": [],
+      "write_scope": [
+        "apps/web/src/widgets/findings",
+        "apps/api/src/routes/findings",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W25-09"
+      ],
+      "acceptance": [
+        "The Findings page can group by rule and folder with counts, and the default view for a repository over a threshold opens grouped",
+        "Model-assisted findings have their own filter chip that survives grouping",
+        "No finding is hidden: every group expands to its rows, and counts match the ungrouped total"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": [
+        "2026-11-06 real LM Studio check on the Mac (rpw25: gin, saleor, outline), improvement list Brad asked to have fixed. saleor: 34,925 open rule-tier findings (code health alone 61,730) against 85 from the model-assisted tier."
+      ]
+    },
+    {
+      "id": "W25-15",
+      "title": "Secrets history scan writes one summary run row per sweep instead of one per commit",
+      "phase": 25,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers/scan-processor.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W25-09"
+      ],
+      "acceptance": [
+        "A history sweep over N commits writes one scan_runs row with the commit range and count; per-commit detail stays in its own table or the row's plan",
+        "Recent scans on a repository list one row per sweep; existing rows are left as they are"
+      ],
+      "points": 2,
+      "status": "todo",
+      "notes": [
+        "2026-11-06 real LM Studio check on the Mac (rpw25: gin, saleor, outline), improvement list Brad asked to have fixed. The secrets scanner wrote 110 rows on gin and 200 each on saleor and outline, most of each repository's 126-208 scan rows."
+      ]
+    },
+    {
       "id": "W26-01",
       "title": "UI polish: shell and shared components (buttons, selects, KPI tiles, form widths, phone header, Overview grid)",
       "phase": 26,

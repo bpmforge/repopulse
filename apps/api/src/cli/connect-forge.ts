@@ -126,7 +126,7 @@ if (token.trim() === '') {
       'FORGE_TOKEN is not set.',
       '',
       '  Gitea:  Settings → Applications → Generate New Token,',
-      '          scopes read:repository, read:organization, read:user',
+      '          scopes read:repository, read:organization, read:user, read:issue',
       '  GitHub: a personal access token with repo read access',
       '',
       'Pass it in the environment, not as an argument — an argument is visible',

@@ -85,10 +85,10 @@ describe('connection guidance (W20-07)', () => {
     await user.selectOptions(screen.getByTestId('connection-provider'), 'gitea');
     expect(screen.getByLabelText(/Gitea access token/)).toBeInTheDocument();
     expect(
-      screen.getByText(/read:repository, read:organization and read:user/),
+      screen.getByText(/read:repository, read:organization, read:user and read:issue/),
     ).toBeInTheDocument();
     expect(screen.getByTestId('connection-optional-scopes')).toHaveTextContent(
-      /write:repository adds live updates.*read:issue adds issues/,
+      /write:repository adds live updates/,
     );
     expect(OPTIONAL_SCOPES.github).toBeNull();
   });
