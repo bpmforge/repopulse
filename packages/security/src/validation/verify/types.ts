@@ -33,7 +33,30 @@ export interface VerifyCandidate {
 }
 
 /** Why a top-N candidate was NOT sent to a model. Counted, never silent. */
-export type SkipReason = 'already_proven_unreachable' | 'below_top_n' | 'budget_exhausted';
+export type SkipReason =
+  | 'already_proven_unreachable'
+  /**
+   * W27-03: a second opinion is already recorded on this finding for the same
+   * vulnerability id, package and installed version. Asking again would buy
+   * the same answer to the same question at the price of minutes of model
+   * time per CVE.
+   */
+  | 'already_verified'
+  | 'below_top_n'
+  | 'budget_exhausted';
+
+/**
+ * W27-03: what a recorded second opinion was ABOUT — vulnerability id, package
+ * and installed version. The finding's dedup key does not carry the version
+ * (dedupKey normalizes digits out of the evidence quote), so a version bump
+ * keeps the row and its verdict; this string is what tells the verdict apart
+ * from the question the new version asks.
+ */
+export function verifySubject(
+  v: Pick<ValidatedVulnerability, 'primaryId' | 'packageName' | 'packageVersion'>,
+): string {
+  return `${v.primaryId}|${v.packageName}|${v.packageVersion}`;
+}
 
 /** One evidence line the model cited, after it was matched against V2/V3 output. */
 export interface CitedEvidence {
@@ -58,6 +81,8 @@ export interface VerifyProposal {
   dedupKey: string;
   primaryId: string;
   packageName: string;
+  /** W27-03: the installed version the answer was about (see verifySubject). */
+  packageVersion: string;
   /** The model's verdict. `true` — the ordinary answer — yields no proposal. */
   applies: boolean;
   /** 1-5, as the model claimed it. Stored, never used as a threshold here. */
@@ -92,7 +117,8 @@ export interface VerifyRejection {
  *
  * TWO INVARIANTS A READER CAN CHECK, and tests do:
  *
- *   candidates === selected + skipped.already_proven_unreachable + skipped.below_top_n
+ *   candidates === selected + skipped.already_proven_unreachable
+ *                + skipped.already_verified + skipped.below_top_n
  *   selected   === verified + skipped.budget_exhausted
  *
  * `selected` is therefore the PRE-BUDGET cut — what this pass intended to ask
@@ -129,7 +155,12 @@ export function emptyVerifyFunnel(): VerifyFunnel {
     verified: 0,
     accepted: 0,
     rejected: { malformed: 0, evidence_not_found: 0, ungrounded: 0 },
-    skipped: { already_proven_unreachable: 0, below_top_n: 0, budget_exhausted: 0 },
+    skipped: {
+      already_proven_unreachable: 0,
+      already_verified: 0,
+      below_top_n: 0,
+      budget_exhausted: 0,
+    },
     proposed: {},
     affirmed: 0,
     dismissed: 0,

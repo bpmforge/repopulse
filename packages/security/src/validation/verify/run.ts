@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { read, type Database, safeErrorText } from '@repopulse/shared';
 import type { AnalysisGateway } from '@repopulse/analysis';
 import { BudgetExceededError, BudgetMeter } from '../../framework/budget.js';
@@ -9,6 +9,7 @@ import { validateVerifyAnswer } from './schema.js';
 import { selectForVerify, VERIFY_TOP_N } from './select.js';
 import {
   emptyVerifyFunnel,
+  verifySubject,
   type VerifyCandidate,
   type VerifyFunnel,
   type VerifyProposal,
@@ -107,7 +108,8 @@ export async function runVerifyPass(deps: VerifyRunDeps): Promise<VerifyRunResul
   const funnel = emptyVerifyFunnel();
   funnel.candidates = deps.candidates.length;
 
-  const selection = selectForVerify(deps.candidates, deps.limit ?? VERIFY_TOP_N);
+  const alreadyVerified = await alreadyVerifiedKeys(deps);
+  const selection = selectForVerify(deps.candidates, deps.limit ?? VERIFY_TOP_N, alreadyVerified);
   funnel.selected = selection.selected.length;
   for (const skip of selection.skipped) funnel.skipped[skip.reason] += 1;
 
@@ -277,6 +279,51 @@ export async function runVerifyPass(deps: VerifyRunDeps): Promise<VerifyRunResul
   }
 }
 
+/**
+ * W27-03: the candidates whose stored finding already has a second opinion on
+ * the SAME question — vulnerability id, package, installed version.
+ *
+ * The dependency gate is off whenever a batch passes a snapshot, so a commit
+ * that changed no manifest re-ran the full scan and this pass re-asked the same
+ * top ten CVEs: on one host that was 55% of all model time. The verdict lives
+ * on the finding (verify_status, written by recordVerdicts) and the question it
+ * answered in `yields.verified_subject`, written beside it. A finding verified
+ * before that key existed has no subject and is asked once more, which records
+ * it. Workspace- and repo-filtered (Law 5).
+ */
+async function alreadyVerifiedKeys(deps: VerifyRunDeps): Promise<Set<string>> {
+  const keys = [...new Set(deps.candidates.map((c) => c.dedupKey))];
+  if (keys.length === 0) return new Set();
+  const rows = await deps.db
+    .select({
+      dedupKey: read.findings.dedupKey,
+      subject: sql<string | null>`${read.findings.yields} ->> 'verified_subject'`,
+    })
+    .from(read.findings)
+    .where(
+      and(
+        eq(read.findings.workspaceId, deps.workspaceId),
+        eq(read.findings.repoId, deps.repoId),
+        inArray(read.findings.dedupKey, keys),
+        inArray(read.findings.verifyStatus, ['confirmed', 'contradicted']),
+      ),
+    );
+  const recorded = new Map<string, Set<string>>();
+  for (const row of rows) {
+    if (!row.subject) continue;
+    const set = recorded.get(row.dedupKey) ?? new Set<string>();
+    set.add(row.subject);
+    recorded.set(row.dedupKey, set);
+  }
+  const settled = new Set<string>();
+  for (const candidate of deps.candidates) {
+    if (recorded.get(candidate.dedupKey)?.has(verifySubject(candidate.vulnerability))) {
+      settled.add(candidate.dedupKey);
+    }
+  }
+  return settled;
+}
+
 /** Parses, grounds and files one answer. Every outcome lands on the funnel. */
 function recordAnswer(
   candidate: VerifyCandidate,
@@ -326,6 +373,7 @@ function recordAnswer(
     dedupKey: candidate.dedupKey,
     primaryId: vulnerability.primaryId,
     packageName: vulnerability.packageName,
+    packageVersion: vulnerability.packageVersion,
     applies: validated.answer.applies,
     confidence: validated.answer.confidence,
     model,

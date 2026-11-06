@@ -7,7 +7,7 @@ import { buildEvidenceBlock, buildVerifyPrompt } from './prompt.js';
 import { validateVerifyAnswer } from './schema.js';
 import { candidatesFrom, selectForVerify, VERIFY_MAX_CALLS } from './select.js';
 import { runVerifyPass } from './run.js';
-import type { VerifyCandidate } from './types.js';
+import { verifySubject, type VerifyCandidate } from './types.js';
 
 // W8-15. The tests that matter here are the REJECTIONS: an accepted proposal is
 // only trustworthy because the fabricated and the ungrounded ones do not get in.
@@ -96,10 +96,30 @@ interface RecordedRun {
   updates: Record<string, unknown>[];
 }
 
-/** The narrowest db that runVerifyPass touches: one insert, one update. */
-function fakeDb(): { db: Database; runs: RecordedRun[] } {
+/**
+ * The narrowest db that runVerifyPass touches: one select (W27-03: the verdicts
+ * already recorded, as `verified` rows), one insert, one update.
+ */
+function fakeDb(verified: { dedupKey: string; subject: string | null }[] = []): {
+  db: Database;
+  runs: RecordedRun[];
+  lookups: number;
+} {
   const runs: RecordedRun[] = [];
+  const state = { lookups: 0 };
   const db = {
+    select() {
+      return {
+        from() {
+          return {
+            async where() {
+              state.lookups += 1;
+              return verified;
+            },
+          };
+        },
+      };
+    },
     insert() {
       return {
         values(values: Record<string, unknown>) {
@@ -125,7 +145,13 @@ function fakeDb(): { db: Database; runs: RecordedRun[] } {
       };
     },
   };
-  return { db: db as unknown as Database, runs };
+  return {
+    db: db as unknown as Database,
+    runs,
+    get lookups() {
+      return state.lookups;
+    },
+  };
 }
 
 const answer = (over: Record<string, unknown> = {}): string =>
@@ -181,6 +207,21 @@ describe('V5 selection', () => {
     expect(selection.selected.map((c) => c.dedupKey)).toEqual(['other']);
     expect(selection.skipped).toEqual([
       { candidate: proven, reason: 'already_proven_unreachable' },
+    ]);
+  });
+
+  it('W27-03: skips a finding already answered before the top-N cut, so the next by risk is asked', () => {
+    const candidates = [
+      candidate({}, 3, 'low'),
+      candidate({}, 9, 'high'),
+      candidate({}, 6, 'mid'),
+      candidate({}, 1, 'least'),
+    ];
+    const selection = selectForVerify(candidates, 2, new Set(['high']));
+    expect(selection.selected.map((c) => c.dedupKey)).toEqual(['mid', 'low']);
+    expect(selection.skipped).toEqual([
+      { candidate: candidates[1], reason: 'already_verified' },
+      { candidate: candidates[3], reason: 'below_top_n' },
     ]);
   });
 
@@ -517,6 +558,70 @@ describe('V5 pass', () => {
       promptTokens: 200,
       outputTokens: 40,
     });
+  });
+
+  it('W27-03: a second run over the same CVEs makes no model call and says why', async () => {
+    const candidates = [
+      candidate({}, 9, 'a'),
+      candidate({ primaryId: 'CVE-2024-0001', cveId: 'CVE-2024-0001' }, 8, 'b'),
+    ];
+    const first = fakeDb();
+    const gateway = fakeGateway([answer()]);
+    const r1 = await runVerifyPass({ ...base, db: first.db, gateway, candidates });
+    expect(gateway.prompts).toHaveLength(2);
+    // What the hook records beside each verdict, read back as the next run sees it.
+    const recorded = r1.proposals.map((p) => ({
+      dedupKey: p.dedupKey,
+      subject: verifySubject(p),
+    }));
+
+    const second = fakeDb(recorded);
+    const r2 = await runVerifyPass({ ...base, db: second.db, gateway, candidates });
+    expect(second.lookups).toBe(1);
+    expect(gateway.prompts).toHaveLength(2);
+    expect(r2.status).toBe('skipped');
+    // No run row: nothing was asked.
+    expect(second.runs).toEqual([]);
+    expect(r2.funnel).toMatchObject({
+      candidates: 2,
+      selected: 0,
+      verified: 0,
+      skipped: { already_verified: 2 },
+    });
+  });
+
+  it('W27-03: a version bump or a new CVE is asked; the unchanged one is not', async () => {
+    const recorded = [
+      { dedupKey: 'a', subject: verifySubject(vulnerability()) },
+      { dedupKey: 'b', subject: verifySubject(vulnerability()) },
+      // Verified before subjects were recorded: asked once more, which records it.
+      { dedupKey: 'legacy', subject: null },
+    ];
+    const { db } = fakeDb(recorded);
+    const gateway = fakeGateway([answer()]);
+    const result = await runVerifyPass({
+      ...base,
+      db,
+      gateway,
+      candidates: [
+        candidate({}, 9, 'a'),
+        candidate({ packageVersion: 'v3.2.1' }, 8, 'b'),
+        candidate({}, 7, 'new'),
+        candidate({}, 6, 'legacy'),
+      ],
+    });
+    expect(result.proposals.map((p) => p.dedupKey)).toEqual(['b', 'new', 'legacy']);
+    expect(result.proposals[0]!.packageVersion).toBe('v3.2.1');
+    expect(gateway.prompts).toHaveLength(3);
+    const f = result.funnel;
+    expect(f.skipped.already_verified).toBe(1);
+    // The funnel still adds up with the new skip in it.
+    expect(f.candidates).toBe(
+      f.selected +
+        f.skipped.already_proven_unreachable +
+        f.skipped.already_verified +
+        f.skipped.below_top_n,
+    );
   });
 
   it('chains to a find pass when the caller has one', async () => {
