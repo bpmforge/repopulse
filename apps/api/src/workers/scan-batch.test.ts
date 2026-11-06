@@ -343,3 +343,62 @@ describe('one snapshot per scan batch (W23-02)', () => {
     expect(String(inserted[0]?.['error'])).toMatch(/No ingested commit/);
   });
 });
+
+describe('readers of other scanners run after the tree (W25-05)', () => {
+  it('runs a register that reads the SBOM after the tree scanner that writes it', async () => {
+    // 0.2.0 install: the supply-chain register ran ~25 s before the SBOM
+    // existed, said no_sbom, and the Supply Chain tile read 100/100.
+    const { provider } = fakeProvider();
+    const { db } = stubDb();
+    const order: string[] = [];
+    const tree: HistoryRunner = async () => {
+      order.push('tree');
+      return { scanned: 1, findingsCreated: 0, deferred: 0 };
+    };
+    const reader: HistoryRunner = async (_a, o) => {
+      expect(o?.snapshot, 'a reader is not handed the tree').toBeUndefined();
+      order.push('reader');
+      return { scanned: 1, findingsCreated: 0, deferred: 0 };
+    };
+    const own: HistoryRunner = async () => {
+      order.push('own');
+      return { scanned: 1, findingsCreated: 0, deferred: 0 };
+    };
+    await scanProcessor({
+      db,
+      weeklyRunners: { w23_02_a: tree, reads_sbom: reader, own_path: own },
+      batch: {
+        ...batchDeps(provider, (k) => k === 'w23_02_a'),
+        runsAfterTree: (k) => k === 'reads_sbom',
+      },
+    })({
+      data: batchJob({ scannerKeys: ['reads_sbom', 'own_path', 'w23_02_a'] }),
+    } as never);
+    expect(order).toEqual(['own', 'tree', 'reader']);
+  });
+
+  it('still runs the readers when the archive cannot be had', async () => {
+    const { db } = stubDb();
+    const order: string[] = [];
+    const reader: HistoryRunner = async () => {
+      order.push('reader');
+      return { scanned: 1, findingsCreated: 0, deferred: 0 };
+    };
+    await scanProcessor({
+      db,
+      weeklyRunners: {
+        w23_02_a: async () => ({ scanned: 1, findingsCreated: 0, deferred: 0 }),
+        reads_sbom: reader,
+      },
+      batch: {
+        usesSnapshot: (k) => k === 'w23_02_a',
+        runsAfterTree: (k) => k === 'reads_sbom',
+        headSha: async () => SHA,
+        withSnapshot: async () => {
+          throw new Error('forge refused the archive');
+        },
+      },
+    })({ data: batchJob({ scannerKeys: ['reads_sbom', 'w23_02_a'] }) } as never);
+    expect(order).toEqual(['reader']);
+  });
+});

@@ -22,6 +22,8 @@ import {
   type AiPassJobData,
   type PassFile,
 } from './ai-pass-processor.js';
+import { queueFirstLookAfterScan, rankFirstLookPaths, rankPaths } from './ai-first-look.js';
+import type { PassEgress } from '../lib/ai-pass-egress.js';
 
 // W19-09. The AI pass, end to end against the real tables with a scripted model:
 // what it stores, and - as important - what it can never do. A pass writes
@@ -333,6 +335,123 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
       },
     };
   }
+
+  describe('the first look after a first scan (W25-01)', () => {
+    const local: () => Promise<PassEgress> = async () => ({
+      local_only: false,
+      destinations: [
+        {
+          provider_id: 1,
+          provider_name: 'LM Studio',
+          host: '10.0.0.5',
+          leaves_network: false,
+          roles: ['security'],
+        },
+      ],
+      leaves_network: false,
+      digest: 'local',
+      sentence: 'test',
+    });
+    const hosted: () => Promise<PassEgress> = async () => ({
+      ...(await local()),
+      leaves_network: true,
+      digest: 'hosted',
+    });
+    const queueIt = (egress = local) => {
+      const enqueued: { runId: number; maxCalls: number }[] = [];
+      return queueFirstLookAfterScan(
+        {
+          db,
+          config: { enabled: true },
+          egress,
+          enqueue: async (d) => {
+            enqueued.push(d);
+          },
+        },
+        { workspaceId: WS, repoId: REPO },
+      ).then((r) => ({ ...r, enqueued }));
+    };
+
+    it('queues ONE first-look pass after the first scan on a local model, and not again', async () => {
+      const first = await queueIt();
+      expect(first.queued).toBe(true);
+      expect(first.enqueued).toHaveLength(1);
+      expect(first.enqueued[0]!.maxCalls).toBeGreaterThan(0);
+      const run = await runOf(first.enqueued[0]!.runId);
+      expect(run).toMatchObject({ mode: 'paths', trigger: 'after_scan', status: 'pending' });
+      expect(await queueIt()).toMatchObject({ queued: false, code: 'already_done' });
+      // Done is done: a succeeded first look is never repeated.
+      await db
+        .update(read.aiPassRuns)
+        .set({ status: 'succeeded' })
+        .where(eq(read.aiPassRuns.id, run.id));
+      expect(await queueIt()).toMatchObject({ queued: false, code: 'already_done' });
+    });
+
+    it('a hosted model needs the repository opted in; the server switch turns it off', async () => {
+      expect(await queueIt(hosted)).toMatchObject({ queued: false, code: 'not_opted_in' });
+      const off = await queueFirstLookAfterScan(
+        { db, config: { enabled: false }, egress: local, enqueue: async () => {} },
+        { workspaceId: WS, repoId: REPO },
+      );
+      expect(off).toMatchObject({ queued: false, code: 'disabled' });
+    });
+
+    it('ranks the files with the most open findings first, then churn; reads them in rank order', async () => {
+      await ruleFinding({ file: 'src/b.ts', severity: 2 });
+      await ruleFinding({ file: 'src/a.ts', severity: 5 });
+      await ruleFinding({ file: 'src/a.ts', severity: 4 });
+      await ruleFinding({ file: 'package-lock.json', severity: 5 });
+      await ruleFinding({ file: 'src/shadow.ts', severity: 5, experimental: true });
+      const ranked = await rankFirstLookPaths(db, WS, REPO, new Date());
+      expect(ranked).toEqual(['src/a.ts', 'src/b.ts']);
+
+      const { enqueued } = await queueIt();
+      const runId = enqueued[0]!.runId;
+      const seen: { paths: string[]; fit?: boolean }[] = [];
+      const { d, gw } = deps({
+        rankFirstLook: ({ workspaceId, repoId }) =>
+          rankFirstLookPaths(db, workspaceId, repoId, new Date()),
+        loadSources: async ({ paths, fit }) => {
+          seen.push({ paths, ...(fit !== undefined ? { fit } : {}) });
+          return { ok: true, commitSha: 'abcdef1234567890', files: FILES };
+        },
+      });
+      const r = await aiPassProcessor(d)(job(runId));
+      expect(r.status).toBe('succeeded');
+      expect(seen).toEqual([{ paths: ['src/a.ts', 'src/b.ts'], fit: true }]);
+      expect(gw.calls.length).toBeGreaterThan(0);
+      // The row names exactly the files that were read.
+      expect((await runOf(runId)).paths).toEqual(FILES.map((f) => f.path));
+    });
+
+    it('nothing to rank is a skip with the reason, and no model call', async () => {
+      const { enqueued } = await queueIt();
+      const { d, gw } = deps({ rankFirstLook: async () => [] });
+      const r = await aiPassProcessor(d)(job(enqueued[0]!.runId));
+      expect(r).toMatchObject({ status: 'skipped', code: 'nothing_to_rank' });
+      expect(gw.calls).toHaveLength(0);
+    });
+
+    it("waits for the repository's scans like the judge, so it ranks this scan's findings", async () => {
+      const { enqueued } = await queueIt();
+      const requeued: number[] = [];
+      const { d, gw } = deps({
+        rankFirstLook: async () => ['src/routes/users.ts'],
+        judge: {
+          scansPending: async () => true,
+          requeue: async (data) => {
+            requeued.push(data.runId);
+          },
+        },
+      });
+      const r = await aiPassProcessor(d)(job(enqueued[0]!.runId));
+      expect(r).toMatchObject({ status: 'skipped', code: 'waiting_for_scans' });
+      expect(requeued).toEqual([enqueued[0]!.runId]);
+      expect(gw.calls).toHaveLength(0);
+      expect((await runOf(enqueued[0]!.runId)).status).toBe('pending');
+    });
+  });
 
   it('runs the planned specialists, stores their findings with provenance, and stores a triage SUGGESTION - changing nothing else', async () => {
     const existing = await ruleFinding();
@@ -1379,5 +1498,30 @@ describe('inScope', () => {
     expect(inScope('src/a.ts', ['src/'])).toBe(true);
     expect(inScope('srcs/a.ts', ['src'])).toBe(false);
     expect(inScope('lib/a.ts', ['src'])).toBe(false);
+  });
+});
+
+describe('rankPaths (W25-01)', () => {
+  it('puts findings before churn, keeps readable source only, and drops duplicates', () => {
+    expect(
+      rankPaths(
+        [
+          { path: 'src/a.py', weight: 9 },
+          { path: 'node_modules/x/index.js', weight: 8 },
+          { path: 'README.md', weight: 7 },
+          { path: 'go.mod', weight: 6 },
+        ],
+        [
+          { path: 'src/a.py', weight: 50 },
+          { path: './lib/b.go', weight: 40 },
+          { path: 'web/app.min.js', weight: 30 },
+        ],
+      ),
+    ).toEqual(['src/a.py', 'go.mod', 'lib/b.go']);
+  });
+
+  it('stops at the limit', () => {
+    const many = Array.from({ length: 10 }, (_, i) => ({ path: `f${i}.ts`, weight: 10 - i }));
+    expect(rankPaths(many, [], 3)).toEqual(['f0.ts', 'f1.ts', 'f2.ts']);
   });
 });

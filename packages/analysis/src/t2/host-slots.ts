@@ -9,15 +9,22 @@
 // check took 15 minutes and the anti-slop review of the largest repository
 // was abandoned at 1200s.
 //
-// WAITING, NOT PARKING. pickHost()'s null-means-park contract still holds
-// within one client. Across clients a call waits here for its turn instead,
+// WAITING, NOT PARKING. Since W25-02 this holds within one client too: the
+// gateway no longer turns a client at its cap into HostUnavailableError (no
+// caller ever parked and retried; the judge failed in 16 ms and anti-slop
+// skipped its review instead). Across clients a call waits here for its turn,
 // because a multi-call scan cannot be parked between calls: anti-slop judges
 // batch 2 after batch 1 is already stored, and re-queueing it would redo
 // batch 1. The wait is bounded (queueTimeoutMs) and fails BY NAME, so a busy
 // host reads as busy rather than as a slow model.
 
 export class HostBusyError extends Error {
-  constructor(host: string, waitedMs: number, ahead: number) {
+  constructor(
+    host: string,
+    /** How long the call waited before giving up (W25-02: not model time). */
+    readonly waitedMs: number,
+    ahead: number,
+  ) {
     super(
       `waited ${Math.round(waitedMs / 1000)}s for ${host}, which was busy with other ` +
         `analysis (${ahead} call${ahead === 1 ? '' : 's'} ahead) — nothing was sent to the model; ` +

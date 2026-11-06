@@ -12,6 +12,7 @@ import {
 import {
   validateFindings,
   FindingParseError,
+  HostBusyError,
   HostUnavailableError,
   mayBeSurfacedLoudly,
   needsVerification,
@@ -1054,7 +1055,9 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
           },
         });
       } catch (err) {
-        if (!(err instanceof HostUnavailableError)) throw err;
+        // W25-02: the gateway now WAITS for a busy host, so this is reached
+        // only after the whole queue timeout (HostBusyError) or with no host.
+        if (!(err instanceof HostUnavailableError) && !(err instanceof HostBusyError)) throw err;
         modelBusy = true;
         break;
       }

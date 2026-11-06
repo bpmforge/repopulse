@@ -12756,6 +12756,9 @@
         "apps/api/src/workers/ai-pass-sources.test.ts",
         "apps/api/src/routes/setup/env-registry.ts",
         "apps/web/src/widgets/repo/AiPassPanel.tsx",
+        "apps/web/src/widgets/findings/aiContracts.ts",
+        "apps/api/src/routes/ai-pass/index.ts",
+        "docs/STATUS.md",
         "docs/CONFIG.md",
         "plan.json"
       ],
@@ -12768,7 +12771,7 @@
         "Nothing to rank is a skipped row with a reason and no model call; AI_FIRST_LOOK=off turns it off; tests cover queueing, ranking, fitting and waiting"
       ],
       "points": 5,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "2026-11-06 found on the fresh 0.2.0 install (tutorial thread): the first scan ran only the CVE verify step and the judge, so no AI-raised code finding existed. Brad: 'we need it to find code issues ... on top with our mechanical scans and ai scans'. A slice of W22-04 (ranked repo map, per-language checklists stay there)."
       ]
@@ -12801,7 +12804,7 @@
         "anti-slop treats HostBusyError like a busy model (rule findings kept); tests cover both"
       ],
       "points": 3,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "2026-11-06 0.2.0 install: nowinandroid's judge failed in 16 ms ('No Tier-2 host is available under the configured concurrency cap', 5 errors) because another repo's judge held the background client's one slot; axum's judge took 71 min for 2 calls queued behind scan reviews."
       ]
@@ -12827,7 +12830,7 @@
         "scan-processor tests cover each case"
       ],
       "points": 2,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "2026-11-06 0.2.0 install, gin coverage: architecture register, knowledge register and attack chainer all read 'No commits in range to sweep' (scan-processor.ts default reason)."
       ]
@@ -12852,7 +12855,7 @@
         "A unit test runs the reduction through node and parses the result identically"
       ],
       "points": 1,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "2026-11-06 0.2.0 install: saleor code_health_tools failed 'stdout cap exceeded' (32 MB default). Needs a Mac real-engine run on saleor to confirm."
       ]
@@ -12878,7 +12881,7 @@
         "scan-batch tests cover the order"
       ],
       "points": 1,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "2026-11-06 0.2.0 install: the supply-chain register ran ~25 s before the SBOM existed on every repo (no_sbom) and Supply Chain read 100/100."
       ]

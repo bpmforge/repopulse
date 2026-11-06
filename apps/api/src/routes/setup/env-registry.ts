@@ -521,7 +521,7 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     scope: 'shared',
     required: false,
     purpose:
-      'Most wall-clock minutes one judge run (after one scan) may spend, within the daily minutes (0 to 1440).',
+      'Most minutes one judge run (after one scan) may spend, within the daily minutes (0 to 1440). Time a call spends waiting for a busy model behind scans and other analysis is not counted, up to two extra hours a run (W25-02).',
     ifWrong:
       'Too low and each scan judges only a few hits; too high and one large scan can spend the whole day in one run. A run also stops at its rule hits, so a small repository finishes early.',
     default: '30',
@@ -535,6 +535,16 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     ifWrong:
       'Too low and more rule hits are cleared by the smaller model alone (a real issue may be marked a likely false positive, though its status never changes); too high and almost every hit is asked twice, so judging is slower than with no quick first look.',
     default: '0.8',
+  },
+  {
+    name: 'AI_FIRST_LOOK',
+    scope: 'worker',
+    required: false,
+    purpose:
+      "After a repository's first scan, one AI pass reads the files with the most open findings and churn (at most 40 files, 400 KB and 30 model calls) and reports code issues no rule knows about (W25-01). Runs by default when every model it would use is on your network; with a hosted model only for a repository opted in to scheduled AI passes. Always within the monthly call cap. 'off' turns it off.",
+    ifWrong:
+      "Off and a fresh install shows no AI-raised code findings until someone starts a pass on the repository's AI review tab or saves a schedule; on and the first scan of many repositories queues one pass each, which a one-slot local model works through one at a time.",
+    default: 'on',
   },
   {
     name: 'AI_JUDGE_BATCH_SIZE',

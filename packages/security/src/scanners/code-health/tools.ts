@@ -60,6 +60,29 @@ export function codeHealthDataVersion(
 /** Where jscpd writes its report — a tmpfs, because the root is read-only. */
 const JSCPD_OUT = '/tmp/jscpd';
 
+/**
+ * W25-04: reduces jscpd's report to what parseJscpdReport reads (the total
+ * percentage and each clone's two locations and length), dropping the clone
+ * fragments and per-file statistics that made saleor's stdout overflow.
+ * Run by node inside the scan container; argv[1] is the report path.
+ */
+export const JSCPD_PROJECT = [
+  'const r=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));',
+  'const loc=(f,end)=>f?(end?{name:f.name,start:f.start,end:f.end}:{name:f.name,start:f.start}):undefined;',
+  'process.stdout.write(JSON.stringify({',
+  'statistics:{total:{percentage:r.statistics&&r.statistics.total?r.statistics.total.percentage:0}},',
+  'duplicates:(r.duplicates||[]).map(d=>({firstFile:loc(d.firstFile,true),secondFile:loc(d.secondFile,false),lines:d.lines}))',
+  '}));',
+].join('');
+
+/**
+ * W25-04: the stdout cap for this scanner's one container. lizard's CSV is a
+ * line per function and every adapter appends its own JSON, so a large Python
+ * or TypeScript monorepo outgrows the sandbox's 32 MB default even with the
+ * jscpd report reduced. 128 MB is under the runner protocol's 256 MB ceiling.
+ */
+export const CODE_HEALTH_MAX_STDOUT_BYTES = 128 * 1024 * 1024;
+
 export interface LizardFunction {
   file: string;
   name: string;
@@ -286,6 +309,7 @@ export async function runCodeHealthTools(args: RunToolsArgs): Promise<ToolRunRes
     ...(args.runtime ? { runtime: args.runtime } : {}),
     writablePaths: ['/opt/opengrep/.opengrep'],
     budget: args.budget,
+    maxStdoutBytes: CODE_HEALTH_MAX_STDOUT_BYTES,
     parseOutput: false,
     command: [
       'sh',
@@ -302,7 +326,13 @@ export async function runCodeHealthTools(args: RunToolsArgs): Promise<ToolRunRes
           : [
               `jscpd --min-lines ${thresholds.minLines} --min-tokens ${thresholds.minTokens} ` +
                 `--reporters json --output ${JSCPD_OUT} --silent ${SCAN_MOUNT_PATH} >/dev/null 2>&1 || true`,
-              `cat ${JSCPD_OUT}/jscpd-report.json 2>/dev/null || echo '{}'`,
+              // W25-04: only the fields parseJscpdReport reads. jscpd's own
+              // report carries every clone's source text and a per-file stats
+              // table, and on saleor that pushed one stdout past the 32 MB
+              // cap ("stdout cap exceeded", whole run failed). node is in the
+              // scan image for jscpd itself; the plain cat stays as the
+              // fallback so a missing node degrades to today's behaviour.
+              `node -e ${shellQuote([JSCPD_PROJECT])} ${JSCPD_OUT}/jscpd-report.json 2>/dev/null || cat ${JSCPD_OUT}/jscpd-report.json 2>/dev/null || echo '{}'`,
             ]),
         // Each adapter appends its own section to the SAME stdout, behind its
         // own marker. Still one container: adding a start per tool would

@@ -40,6 +40,32 @@ export function dirInScope(rel: string, paths: readonly string[]): boolean {
   });
 }
 
+/**
+ * W25-01: the best-ranked files that fit one pass (AI_PASS_MAX_FILES files and
+ * AI_PASS_MAX_BYTES), in the order of `ranked`. A file too big for what is left
+ * is passed over for a smaller one further down, never cut.
+ */
+export function fitRanked<T extends { path: string; source: string }>(
+  files: readonly T[],
+  ranked: readonly string[],
+  caps: { files: number; bytes: number } = { files: AI_PASS_MAX_FILES, bytes: AI_PASS_MAX_BYTES },
+): T[] {
+  const rank = new Map(ranked.map((p, i) => [p.replace(/\/+$/, ''), i]));
+  const ordered = [...files].sort(
+    (a, b) => (rank.get(a.path) ?? Infinity) - (rank.get(b.path) ?? Infinity),
+  );
+  const chosen: T[] = [];
+  let used = 0;
+  for (const f of ordered) {
+    if (chosen.length >= caps.files) break;
+    const size = Buffer.byteLength(f.source);
+    if (used + size > caps.bytes) continue;
+    chosen.push(f);
+    used += size;
+  }
+  return chosen;
+}
+
 export interface SnapshotSourceDeps {
   db: Database;
   forgeFor: (
@@ -49,7 +75,7 @@ export interface SnapshotSourceDeps {
 }
 
 export function snapshotSources(deps: SnapshotSourceDeps): AiPassDeps['loadSources'] {
-  return async ({ workspaceId, repoId, paths }) => {
+  return async ({ workspaceId, repoId, paths, fit }) => {
     // The repository must belong to the workspace asking (Law 5).
     const [repo] = await deps.db
       .select({ id: core.repos.id })
@@ -134,6 +160,17 @@ export function snapshotSources(deps: SnapshotSourceDeps): AiPassDeps['loadSourc
             reason += ` Not found: ${missing.join(', ')}.`;
           }
           return { ok: false as const, code: 'no_files', reason };
+        }
+        if (fit) {
+          // W25-01: a ranked first look. The best-ranked files that fit the
+          // caps are read, in rank order; the row records which ones.
+          const chosen = fitRanked(picked, paths);
+          return {
+            ok: true as const,
+            commitSha: head.sha,
+            files: chosen.map((f) => ({ path: f.path, content: f.source })),
+            skipped: { unsupported: all.unsupported, tooLarge: all.skipped },
+          };
         }
         const bytes = picked.reduce((n, f) => n + Buffer.byteLength(f.source), 0);
         if (picked.length > AI_PASS_MAX_FILES || bytes > AI_PASS_MAX_BYTES) {

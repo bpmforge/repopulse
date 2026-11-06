@@ -124,7 +124,12 @@ describe('a history runner that scanned nothing says so (W16-28)', () => {
 
   it('says nothing-in-range when the repo is connected but empty', async () => {
     const { db, inserted } = stubDb();
-    const runner = vi.fn(async () => ({ scanned: 0, findingsCreated: 0, deferred: 0 }));
+    const runner = vi.fn(async () => ({
+      scanned: 0,
+      findingsCreated: 0,
+      deferred: 0,
+      skipped: 'no_targets',
+    }));
 
     await scanProcessor({ db, historyRunners: { secrets: runner } })({
       data: job({ scannerKey: 'secrets' }),
@@ -266,6 +271,57 @@ describe('a history runner that scanned nothing says so (W16-28)', () => {
       expect(inserted[0], reason).toMatchObject({ status: 'succeeded' });
       expect(String(inserted[0]?.error), reason).toMatch(expected);
     }
+  });
+
+  it('a runner that gave NO reason is not told it had no commits (W25-03)', async () => {
+    // 0.2.0 install: the architecture and knowledge registers and the attack
+    // chainer returned scanned 0 with no reason, and the coverage table said
+    // "No commits in range to sweep" for scanners that never sweep commits.
+    const { db, inserted } = stubDb();
+    const runner = vi.fn(async () => ({ scanned: 0, findingsCreated: 0, deferred: 0 }));
+    await scanProcessor({ db, historyRunners: { knowledge_register: runner } })({
+      data: job({ scannerKey: 'knowledge_register' }),
+    } as never);
+    expect(inserted[0]).toMatchObject({ status: 'succeeded' });
+    expect(String(inserted[0]?.error)).not.toMatch(/commits/i);
+    expect(String(inserted[0]?.error)).toMatch(/did not say why/i);
+  });
+
+  it('names the new W25-03 reasons', async () => {
+    const cases: [string, RegExp][] = [
+      ['no_supported_language', /no architecture tool/i],
+      ['no_history_in_window', /no ingested commit in the register's window/i],
+    ];
+    for (const [reason, expected] of cases) {
+      const { db, inserted } = stubDb();
+      const runner = vi.fn(async () => ({
+        scanned: 0,
+        findingsCreated: 0,
+        deferred: 0,
+        skipped: reason,
+      }));
+      await scanProcessor({ db, historyRunners: { architecture_register: runner } })({
+        data: job({ scannerKey: 'architecture_register' }),
+      } as never);
+      expect(String(inserted[0]?.error), reason).toMatch(expected);
+    }
+  });
+
+  it('writes no second row when the runner recorded its own (W25-03)', async () => {
+    // "No attack chains" is a measurement the chainer already wrote down; a
+    // "nothing was scanned" row after it buried that answer.
+    const { db, inserted } = stubDb();
+    const runner = vi.fn(async () => ({
+      scanned: 0,
+      findingsCreated: 0,
+      deferred: 0,
+      recordedRun: true,
+    }));
+    await scanProcessor({ db, historyRunners: { attack_chainer: runner } })({
+      data: job({ scannerKey: 'attack_chainer' }),
+    } as never);
+    expect(runner).toHaveBeenCalledOnce();
+    expect(inserted).toHaveLength(0);
   });
 
   it('writes NOTHING extra when the sweep actually covered commits', async () => {

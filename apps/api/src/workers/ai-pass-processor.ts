@@ -113,7 +113,18 @@ export interface AiPassDeps {
     workspaceId: number;
     repoId: number;
     paths: string[];
+    /**
+     * W25-01: `paths` is a RANKED list of files (a first look): read them in
+     * order up to the pass caps instead of refusing a scope over the caps.
+     */
+    fit?: boolean;
   }) => Promise<LoadedSources>;
+  /**
+   * W25-01: the files a first-look pass reads (trigger `after_scan`, mode
+   * `paths`), ranked from our own database when it starts (ai-first-look.ts).
+   * Absent = a first-look row fails by name instead of reviewing nothing.
+   */
+  rankFirstLook?: (args: { workspaceId: number; repoId: number }) => Promise<string[]>;
   /** The changes of a pull request or a commit range (W19-11); absent = diff mode unavailable. */
   loadDiff?: (req: DiffRequest) => Promise<LoadedDiff>;
   /**
@@ -192,7 +203,7 @@ export interface AiPassDeps {
 export const JUDGE_SCAN_WAIT_POLL_MS = 60_000;
 /**
  * The longest a judge run waits for scans before judging what is there. Under
- * the stale-run cutoff in queueJudgeAfterScan (per-scan minutes + 60), so a
+ * the stale-run cutoff in queueJudgeAfterScan (per-scan minutes + queue allowance + 60), so a
  * waiting run is never closed as stalled.
  */
 export const JUDGE_SCAN_WAIT_MAX_MS = 45 * 60_000;
@@ -339,8 +350,11 @@ export function aiPassProcessor(deps: AiPassDeps) {
     // A judge run waits until its repo's scans are done, so it judges the
     // findings (and evidence packets) of this scan, not the last one.
     const j = deps.judge;
+    // W25-01: a first look waits the same way, so it ranks files by the
+    // findings of the scan that queued it.
+    const firstLook = run.mode === 'paths' && run.trigger === 'after_scan';
     if (
-      run.mode === 'judge' &&
+      (run.mode === 'judge' || firstLook) &&
       j?.scansPending &&
       j.requeue &&
       now().getTime() - run.createdAt.getTime() < JUDGE_SCAN_WAIT_MAX_MS &&
@@ -412,15 +426,45 @@ export function aiPassProcessor(deps: AiPassDeps) {
       let reviewScope: { scope: 'full' | 'incremental'; baseRunId?: number } = { scope: 'full' };
       let fullDiff: readonly DiffEntry[] = [];
       if (run.mode === 'paths') {
+        let paths = run.paths;
+        if (firstLook && paths.length === 0) {
+          if (!deps.rankFirstLook) {
+            return fail(
+              'no_ranking',
+              'Choosing files for a first look is not available on this server.',
+            );
+          }
+          paths = await deps.rankFirstLook({ workspaceId, repoId: run.repoId });
+          if (paths.length === 0) {
+            return finish('skipped', {
+              reasonCode: 'nothing_to_rank',
+              reason:
+                'The first scan left no open finding and no recent commit on a file type the AI reads, so there was nothing to choose files from.',
+            });
+          }
+        }
         const loaded = await deps.loadSources({
           workspaceId,
           repoId: run.repoId,
-          paths: run.paths,
+          paths,
+          ...(firstLook ? { fit: true } : {}),
         });
         if (!loaded.ok) return fail(loaded.code, loaded.reason);
         commitSha = loaded.commitSha;
         input = { kind: 'module', name: `repo-${run.repoId}`, files: loaded.files };
-        promptTitle = `Repository pass over ${run.paths.join(', ')}`;
+        if (firstLook) {
+          // The row names exactly what was read, best-ranked first.
+          paths = loaded.files.map((f) => f.path);
+          await db
+            .update(read.aiPassRuns)
+            .set({ paths })
+            .where(
+              and(eq(read.aiPassRuns.id, runId), eq(read.aiPassRuns.workspaceId, workspaceId)),
+            );
+        }
+        promptTitle = firstLook
+          ? `First look after the first scan: the ${paths.length} files with the most findings and churn`
+          : `Repository pass over ${paths.join(', ')}`;
         filesRead = loaded.files.length;
         filesSkipped = loaded.skipped ?? null;
       } else {
