@@ -357,7 +357,7 @@ function ReportCenter() {
           </label>
           <button
             type="button"
-            className="rounded-md border border-accent bg-accent/10 px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            className="rounded-md btn-primary px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
             data-testid="generate-report"
             disabled={generate.isPending || missingRepo}
             title={missingRepo ? 'Choose the repository this report is about' : undefined}
@@ -628,7 +628,7 @@ export function SchedulesPanel() {
         </label>
         <button
           type="button"
-          className="rounded-md border border-accent bg-accent/10 px-3 py-1.5 text-sm disabled:opacity-50"
+          className="rounded-md btn-primary px-3 py-1.5 text-sm disabled:opacity-50"
           data-testid="schedule-add"
           disabled={add.isPending}
           onClick={() => add.mutate({ type, cadence, window_days: windowDays })}

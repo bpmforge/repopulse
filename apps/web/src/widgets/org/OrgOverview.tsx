@@ -47,8 +47,10 @@ export function orgWidgets(window: string, search: Record<string, string>): Widg
     // Pinned at the top (R-A7): the pulse is what someone reads if they read
     // one thing, so it sits above the tiles rather than below them.
     { id: 'org-kpi', type: 'kpi', layout: { x: 0, y: 2, w: 12, h: 1 }, options },
-    { id: 'org-health', type: 'health-grid', layout: { x: 0, y: 1, w: 6, h: 2 }, options },
-    { id: 'org-attention', type: 'attention-feed', layout: { x: 6, y: 1, w: 6, h: 2 }, options },
+    // UI-26 (UI review 2026-11-06): 8 + 4, not 6 + 6. The attention list is
+    // a few short rows and the health tiles truncated repo names at half width.
+    { id: 'org-health', type: 'health-grid', layout: { x: 0, y: 1, w: 8, h: 2 }, options },
+    { id: 'org-attention', type: 'attention-feed', layout: { x: 8, y: 1, w: 4, h: 2 }, options },
     // Visual refresh 2026-09-11: the pulse is a short list of sentences, and
     // at full width it was five lines of text in a panel with 900px of empty
     // space to their right. It now sits at a third beside the hotspot
@@ -74,7 +76,14 @@ export function orgWidgets(window: string, search: Record<string, string>): Widg
     // W18-20. Below the risk row: it answers a slower question ("what is AI
     // doing to our code over this window") than anything above it, and at
     // half width its two columns of numbers stay next to their labels.
-    { id: 'org-ai-governance', type: 'ai-governance', layout: { x: 0, y: 7, w: 6, h: 2 }, options },
+    // UI-26: full width. At half width it left an empty half row beside it;
+    // the card caps its own table width so numbers stay next to labels.
+    {
+      id: 'org-ai-governance',
+      type: 'ai-governance',
+      layout: { x: 0, y: 7, w: 12, h: 2 },
+      options,
+    },
   ];
 }
 

@@ -127,7 +127,7 @@ function PriceForm({ model, price }: { model: string; price: ModelPrice | undefi
       </label>
       <button
         type="submit"
-        className="rounded-md border border-accent bg-accent/10 px-2 py-0.5 disabled:opacity-50"
+        className="rounded-md btn-primary px-2 py-0.5 disabled:opacity-50"
         disabled={!valid || save.isPending}
         data-testid={`price-save-${model}`}
       >

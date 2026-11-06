@@ -140,7 +140,7 @@ export function SaveAsViewButton({
       </label>
       <button
         type="submit"
-        className="rounded-md border border-accent bg-accent/10 px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50"
+        className="rounded-md btn-primary px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50"
         data-testid="save-as-view-submit"
         disabled={create.isPending || name.trim().length === 0}
       >

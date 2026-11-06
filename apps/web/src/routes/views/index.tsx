@@ -188,7 +188,7 @@ function ViewsIndex() {
                   </label>
                   <button
                     type="submit"
-                    className="rounded-md border border-accent bg-accent/10 px-2 py-0.5 text-xs disabled:opacity-50"
+                    className="rounded-md btn-primary px-2 py-0.5 text-xs disabled:opacity-50"
                     data-testid={`create-from-template-${template.id}`}
                     disabled={createView.isPending || naming.name.trim().length === 0}
                   >

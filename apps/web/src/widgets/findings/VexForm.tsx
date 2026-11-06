@@ -130,7 +130,7 @@ export function VexForm({
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="submit"
-          className="rounded-md border border-accent bg-accent/10 px-2 py-1 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          className="rounded-md btn-primary px-2 py-1 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           data-testid="vex-submit"
           disabled={!ready || record.isPending}
           aria-busy={record.isPending || undefined}

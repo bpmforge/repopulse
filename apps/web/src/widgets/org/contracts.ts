@@ -260,7 +260,13 @@ export function formatKpi(value: number | null, unit?: string): string | null {
   // not merely ugly: it reads as catastrophically bad rather than good, and
   // "1 %" for a perfect CI pass rate reads as an outage.
   const scaled = unit === '%' ? value * 100 : value;
-  return Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(1);
+  // UI-14: thousands separators ("1,293 lines", not "1293 lines"). Pinned to
+  // en-US so the separator matches the rest of the product's copy.
+  const digits = Number.isInteger(scaled) ? 0 : 1;
+  return scaled.toLocaleString('en-US', {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
 }
 
 /** GET /api/v1/me/context — identity + role for the caller (W4-14). */

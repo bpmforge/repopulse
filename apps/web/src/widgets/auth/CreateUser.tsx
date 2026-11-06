@@ -104,7 +104,7 @@ export function CreateUser() {
       </p>
 
       <form
-        className="mt-3 flex flex-col gap-3"
+        className="form-narrow mt-3 flex flex-col gap-3"
         onSubmit={(event) => {
           event.preventDefault();
           create.mutate({ email, role, ...(name.trim() !== '' ? { name: name.trim() } : {}) });
@@ -159,7 +159,7 @@ export function CreateUser() {
           type="submit"
           data-testid="create-user-submit"
           disabled={create.isPending}
-          className="inline-flex items-center justify-center self-start rounded-md border border-border px-3 py-1.5 text-xs text-fg hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          className="inline-flex items-center justify-center self-start rounded-md btn-primary px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
         >
           {create.isPending ? 'Creating…' : 'Create account'}
         </button>

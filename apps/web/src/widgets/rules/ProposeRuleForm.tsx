@@ -280,7 +280,7 @@ export function ProposeRuleForm({ seed, onClose }: { seed?: RuleSeed; onClose?: 
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <button
           type="submit"
-          className="rounded-md border border-accent bg-accent/10 px-2 py-1 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          className="rounded-md btn-primary px-2 py-1 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           data-testid="propose-rule-submit"
           disabled={problems.length > 0 || propose.isPending}
           aria-busy={propose.isPending || undefined}

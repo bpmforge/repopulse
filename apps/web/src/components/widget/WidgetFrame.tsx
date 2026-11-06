@@ -86,7 +86,7 @@ export function WidgetFrame({
     >
       <header className="flex items-center justify-between gap-2 px-4 pt-3.5 pb-1">
         <div className="flex items-center gap-1.5">
-          <h3 className="text-sm font-semibold text-fg">{title}</h3>
+          <h3 className="text-[15px] font-semibold text-fg">{title}</h3>
           {/* W20-17 (UX_TODO ADM-31): an outside docs page opens in a new tab
               rather than replacing the app; the glyph gets a real target and
               a focus ring; "definition" was wrong for INSTALL.md links. */}
@@ -121,7 +121,7 @@ export function WidgetFrame({
           </div>
         )}
         {state === 'empty' && (
-          <div className="flex h-full flex-col items-start justify-center gap-2 text-sm text-fg-muted">
+          <div className="flex flex-col items-start gap-2 text-sm text-fg-muted">
             <p>{emptyMessage}</p>
             {emptyAction}
           </div>

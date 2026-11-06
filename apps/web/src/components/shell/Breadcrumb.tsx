@@ -25,7 +25,12 @@ export function Breadcrumb({ crumbs, search }: BreadcrumbProps) {
       // wrapped onto a line of its own. Now the trail stays on one line: the
       // ancestors shrink and truncate first (each keeps its full name in
       // `title`), and the current page shrinks only past 70% of the width.
-      className="sticky top-0 z-20 flex min-w-0 flex-nowrap items-center gap-1.5 overflow-hidden border-b border-border bg-bg/85 px-4 pt-1.5 pb-2.5 text-[13px] backdrop-blur"
+      // UI-02: a trail of one ("Overview" on Overview) says nothing the page
+      // title does not, so it collapses to the header's bottom rule and stays
+      // only for screen readers.
+      className={`sticky top-0 z-20 flex min-w-0 flex-nowrap items-center gap-1.5 overflow-hidden border-b border-border bg-bg/85 text-[13px] backdrop-blur ${
+        crumbs.length <= 1 ? 'pt-2' : 'px-4 pt-1.5 pb-2.5'
+      }`}
       aria-label="Breadcrumb"
       data-testid="breadcrumb"
     >
@@ -36,7 +41,7 @@ export function Breadcrumb({ crumbs, search }: BreadcrumbProps) {
             key={`${crumb.label}-${i}`}
             className={`flex items-center gap-1.5 ${
               isLast ? 'min-w-0 max-w-[70%] shrink-0' : 'min-w-[2.75rem] shrink'
-            }`}
+            } ${crumbs.length <= 1 ? 'sr-only' : ''}`}
             data-testid={isLast ? 'breadcrumb-current' : undefined}
           >
             {i > 0 && (

@@ -296,7 +296,7 @@ export function TriageQueue({
             {next && onNextPage && (
               <button
                 type="button"
-                className="rounded-md border border-accent bg-accent/10 px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                className="rounded-md btn-primary px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                 data-testid="triage-next-page"
                 onClick={() => onNextPage(next)}
               >

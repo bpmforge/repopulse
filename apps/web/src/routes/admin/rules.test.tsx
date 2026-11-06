@@ -118,8 +118,8 @@ describe('rule workbench moves (W20-03)', () => {
     renderPage();
     const reject = await screen.findByTestId('rule-move-deprecated-r-proposed');
     // Neutral, not the accent the forward step wears.
-    expect(reject.className).not.toMatch(/border-accent/);
-    expect(screen.getByTestId('rule-move-candidate-r-proposed').className).toMatch(/border-accent/);
+    expect(reject.className).not.toMatch(/btn-primary/);
+    expect(screen.getByTestId('rule-move-candidate-r-proposed').className).toMatch(/btn-primary/);
 
     fireEvent.click(reject);
     expect(screen.getByTestId('rule-confirm-r-proposed')).toHaveTextContent(/Reject this proposal/);

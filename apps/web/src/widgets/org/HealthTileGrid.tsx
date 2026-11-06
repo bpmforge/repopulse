@@ -61,7 +61,7 @@ export function HealthTileGrid({ window, search }: Props) {
       emptyMessage="No repositories in this workspace yet."
     >
       <ul
-        className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+        className="grid grid-cols-[repeat(auto-fill,minmax(13rem,1fr))] gap-3"
         data-testid="health-tile-grid"
       >
         {items.map((repo) => {
@@ -77,7 +77,10 @@ export function HealthTileGrid({ window, search }: Props) {
               >
                 <div className="flex items-center justify-between gap-2">
                   {/* org/name (X-05): `api` in two orgs looked identical. */}
-                  <span className="truncate font-medium" title={`${repo.org}/${repo.name}`}>
+                  <span
+                    className="min-w-0 break-words font-medium"
+                    title={`${repo.org}/${repo.name}`}
+                  >
                     <span className="font-normal text-fg-muted">{repo.org}/</span>
                     {repo.name}
                   </span>

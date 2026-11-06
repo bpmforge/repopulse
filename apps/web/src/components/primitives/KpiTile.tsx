@@ -60,15 +60,21 @@ export function KpiTile({
 }: KpiTileProps) {
   return (
     <div className={`panel-inset flex flex-col gap-1.5 p-4 ${className}`} data-testid="kpi-tile">
-      <div className="flex items-center justify-between">
-        <span className="text-[13px] font-medium text-fg-muted">{label}</span>
-        {aside}
-      </div>
-      <div className="flex items-baseline gap-1.5">
-        <span className="text-[30px] font-semibold leading-none tracking-[-0.02em] tabular-nums text-fg">
-          {value ?? '—'}
-        </span>
-        {unit && value !== null && <span className="text-sm text-fg-muted">{unit}</span>}
+      {/* UI-19 (UI review 2026-11-06): the label owns its own line. With the
+          sparkline beside it, "Review coverage" wrapped to two lines in a
+          190px tile and the chart touched the tile's top edge. The sparkline
+          now sits on the value row, bottom-aligned with the number. */}
+      <span className="truncate text-[13px] font-medium text-fg-muted" title={label}>
+        {label}
+      </span>
+      <div className="flex items-end justify-between gap-2">
+        <div className="flex min-w-0 items-baseline gap-1.5">
+          <span className="text-[30px] font-semibold leading-none tracking-[-0.02em] tabular-nums text-fg">
+            {value ?? '—'}
+          </span>
+          {unit && value !== null && <span className="text-sm text-fg-muted">{unit}</span>}
+        </div>
+        {aside ? <div className="shrink-0">{aside}</div> : null}
       </div>
       <TrendDelta
         deltaPct={deltaPct ?? null}

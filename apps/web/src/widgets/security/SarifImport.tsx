@@ -125,7 +125,7 @@ export function SarifImport({ repoId, onImported }: { repoId: string; onImported
           type="button"
           disabled={!file || !shaOk || busy}
           onClick={() => void upload()}
-          className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent disabled:opacity-50"
+          className="btn-primary rounded-md px-3 py-1.5 text-sm"
           data-testid="sarif-upload"
         >
           {busy ? 'Importing…' : 'Import SARIF'}
