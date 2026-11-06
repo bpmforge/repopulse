@@ -4314,3 +4314,7 @@ on the Mac:**
 - 2026-11-06 — W25-20: a model call that times out, answers with reasoning only or errors no
   longer fails anti-slop; the run is partial, names the reason and keeps its rule findings
   (outline lost them to a 1200 s timeout on the real check).
+- 2026-11-06 — W25-19: quick verdicts. The CVE second opinion and the AI judge's verdicts ask
+  the model for `reasoning_effort: none` (AI_QUICK_VERDICTS, on by default; a host that rejects
+  the field is asked again without it). Measured on the Mac's LM Studio for one CVE check:
+  125 s -> 17 s, same verdict. One sample: verdict quality still to be compared there.

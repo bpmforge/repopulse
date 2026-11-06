@@ -179,6 +179,8 @@ export async function runVerifyPass(deps: VerifyRunDeps): Promise<VerifyRunResul
           // keeps the call site honest about which tier's limit applies.
           maxTokens: 45_000,
           expectJson: true,
+          // W25-19: a yes/no verdict on one CVE needs no long reasoning.
+          reasoning: 'none',
           meta: {
             repoId: String(deps.repoId),
             prNumber: deps.prNumber ?? 0,

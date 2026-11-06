@@ -547,6 +547,16 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     default: 'on',
   },
   {
+    name: 'AI_QUICK_VERDICTS',
+    scope: 'shared',
+    required: false,
+    purpose:
+      "Short yes/no model calls (the CVE second opinion and the AI judge's verdicts on rule hits) ask the model for no long reasoning (reasoning_effort: none) (W25-19). Measured on LM Studio: one CVE check went from 125 s to 17 s with the same verdict. A model that rejects the field is asked again without it. 'off' sends every call with the model's default reasoning.",
+    ifWrong:
+      "Off and a local reasoning model spends minutes thinking on each yes/no verdict, so CVE checks and the judge take hours on a one-slot host; on and a model whose verdicts need long reasoning may judge less carefully (compare on your model before relying on it).",
+    default: 'on',
+  },
+  {
     name: 'AI_JUDGE_BATCH_SIZE',
     scope: 'shared',
     required: false,
