@@ -500,6 +500,45 @@ describe('AiPassPanel', () => {
     expect(screen.getByTestId('ai-pass-stalled')).toHaveTextContent('no worker has picked it up');
   });
 
+  it('shows the call in flight: waiting for the model, or the model answering (W25-13)', () => {
+    const at = (min: number) => new Date(Date.now() - min * 60 * 1000).toISOString();
+    state.runs = [
+      run({
+        id: 1,
+        status: 'running',
+        calls: 3,
+        started_at: at(30),
+        plan: { live: { call: 4, state: 'waiting', since: at(3) } },
+      }),
+      run({
+        id: 2,
+        status: 'running',
+        mode: 'judge',
+        calls: 1,
+        started_at: at(10),
+        plan: { live: { call: 2, state: 'answering', since: at(2) } },
+      }),
+      run({
+        id: 3,
+        status: 'succeeded',
+        plan: { live: { call: 9, state: 'answering', since: at(1) } },
+      }),
+    ];
+    render(<AiPassPanel repoId="3" />);
+    const first = screen.getByTestId('ai-pass-1');
+    expect(first.querySelector('[data-testid="ai-pass-live-waiting"]')).toHaveTextContent(
+      'Call 4: waiting for the model for 3 min (another analysis is using it).',
+    );
+    const judge = screen.getByTestId('ai-pass-2');
+    expect(judge.querySelector('[data-testid="ai-pass-live-answering"]')).toHaveTextContent(
+      'Call 2: the model is answering, 2 min so far.',
+    );
+    // Only while running.
+    expect(
+      screen.getByTestId('ai-pass-3').querySelector('[data-testid="ai-pass-live-call"]'),
+    ).toBeNull();
+  });
+
   it('shows how long a running pass has been running', () => {
     state.runs = [
       run({

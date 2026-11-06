@@ -126,6 +126,11 @@ export interface CveVerifySummary {
   asked: number;
   confirmed: number;
   contradicted: number;
+  /**
+   * W27-03: CVEs not asked because their finding already holds a second
+   * opinion on the same vulnerability id, package and installed version.
+   */
+  alreadyVerified?: number;
   /** Why nobody was asked, when nobody was. */
   refused?: string;
   error?: string;

@@ -12,7 +12,7 @@ import {
   type VerifyRequest,
 } from '@repopulse/analysis';
 import { dedupKey, persistFindings } from '@repopulse/insights';
-import type { runVerifyPass } from '@repopulse/security';
+import { runVerifyPass, type VerifyCandidate, type VerifyRunResult } from '@repopulse/security';
 import { monthlyCallsUsed } from './ai-pass-scheduler.js';
 import {
   AI_OFF_REASON,
@@ -235,6 +235,8 @@ describeIfLiveInfra('the second-model verifier (W21-03)', () => {
     expect(sent[0]!.opts).toMatchObject({
       tier: 'T2',
       maxTokens: 45_000,
+      // W27-04: agree or disagree is a short verdict.
+      reasoning: 'none',
       meta: { role: 'triage' },
     });
     await v.finish();
@@ -333,6 +335,7 @@ describeIfLiveInfra('the second-model verifier (W21-03)', () => {
             dedupKey: key,
             primaryId: 'CVE-2021-23337',
             packageName: 'lodash',
+            packageVersion: '4.17.20',
             applies: false,
             confidence: 4,
             model: 'second-model',
@@ -345,7 +348,7 @@ describeIfLiveInfra('the second-model verifier (W21-03)', () => {
           },
         ],
         rejections: [],
-        funnel: { verified: 1 },
+        funnel: { verified: 1, skipped: { already_verified: 0 } },
         partial: false,
         promptTokens: 0,
         outputTokens: 0,
@@ -371,6 +374,106 @@ describeIfLiveInfra('the second-model verifier (W21-03)', () => {
       verifiedByModel: 'second-model',
       verifyReason: 'template() is never called',
     });
+  });
+
+  it('W27-03: the CVE hook never asks the same question twice; a version bump is asked again', async () => {
+    const f = {
+      dimension: 'dependency',
+      severity: 4,
+      confidence: 4,
+      file: 'yarn.lock',
+      lineStart: null,
+      lineEnd: null,
+      title: 'CVE-2020-8203 in lodash 4.17.15',
+      evidenceQuote: 'pkg:npm/lodash@4.17.15 is affected by CVE-2020-8203',
+      rationale: 'matched',
+      suggestedFix: null,
+      scannerKey: 'dependency_cve',
+      ruleId: 'CVE-2020-8203',
+    };
+    await persistFindings(db, {
+      workspaceId: WS,
+      repoId: REPO,
+      scanRunId,
+      pullRequestId: null,
+      tier: 1,
+      findings: [f],
+    });
+    const key = dedupKey({ ...f, scannerKey: f.scannerKey, ruleId: f.ruleId });
+    const cand = (version: string): VerifyCandidate => ({
+      dedupKey: key,
+      effectiveRisk: 8,
+      vulnerability: {
+        primaryId: 'CVE-2020-8203',
+        aliases: [],
+        cveId: 'CVE-2020-8203',
+        packageName: 'lodash',
+        packageVersion: version,
+        packageType: 'npm',
+        purl: `pkg:npm/lodash@${version}`,
+        severity: 4,
+        severityLabel: 'high',
+        kev: false,
+        epss: null,
+        fixVersions: [],
+        locations: ['yarn.lock'],
+        matchType: 'exact-direct-match',
+        scope: {
+          inResolvedSet: true,
+          versionMatches: true,
+          scope: { kind: 'prod-direct', depth: 1 },
+          manifest: 'yarn.lock',
+          unreadableReason: null,
+        },
+        usage: { status: 'imported', unknownReason: null, evidence: [] },
+        reachability: {
+          tier: 'manifest_only',
+          provenBy: null,
+          unavailableReason: 'no prover',
+          callSites: [],
+        },
+        proposals: [],
+      },
+    });
+    answer = JSON.stringify({
+      applies: true,
+      justification: null,
+      confidence: 3,
+      reason: 'lodash is imported.',
+      evidence: [],
+    });
+    let last: VerifyRunResult | null = null;
+    const hook = cveVerifyHook({
+      db,
+      workspaceId: WS,
+      repoId: REPO,
+      verifier: verifier(),
+      runVerify: async (d) => (last = await runVerifyPass(d)),
+    });
+
+    expect(await hook({ candidates: [cand('4.17.15')], scanRunId, commitSha: 'c1' })).toMatchObject(
+      { asked: 1, confirmed: 1, alreadyVerified: 0 },
+    );
+    expect(sent).toHaveLength(1);
+
+    // A new commit, unchanged manifests: the same question is not asked again.
+    expect(await hook({ candidates: [cand('4.17.15')], scanRunId, commitSha: 'c2' })).toMatchObject(
+      { asked: 0, alreadyVerified: 1 },
+    );
+    expect(sent).toHaveLength(1);
+    expect(last!.funnel.skipped.already_verified).toBe(1);
+
+    // Same finding row (the dedup key carries no version), new version: asked.
+    expect(await hook({ candidates: [cand('4.17.19')], scanRunId, commitSha: 'c3' })).toMatchObject(
+      { asked: 1, alreadyVerified: 0 },
+    );
+    expect(sent).toHaveLength(2);
+    const [row] = await db
+      .select({ yields: read.findings.yields, verifyStatus: read.findings.verifyStatus })
+      .from(read.findings)
+      .where(and(eq(read.findings.workspaceId, WS), eq(read.findings.dedupKey, key)));
+    expect(row!.verifyStatus).toBe('confirmed');
+    expect(row!.yields).toMatchObject({ verified_subject: 'CVE-2020-8203|lodash|4.17.19' });
   });
 
   it('the CVE hook asks nobody when AI is off', async () => {

@@ -48,7 +48,15 @@ import {
 import { isAiPaused } from '../lib/ai-pause.js';
 import { withAiPass } from './ai-pass-context.js';
 import { describeEndpoint, loadStoredRouting, providersFor } from '../lib/llm-routing.js';
-import { judgeConfigFromEnv, runJudge, type EgressOf, type JudgeConfig } from './ai-judge.js';
+import {
+  JUDGE_DIMENSIONS,
+  judgeConfigFromEnv,
+  runJudge,
+  type EgressOf,
+  type JudgeConfig,
+} from './ai-judge.js';
+import { isFirstLook } from './ai-first-look.js';
+import { isTestPath } from './code-kind.js';
 import {
   emptyFixSummary,
   FIX_RESERVE_SHARE,
@@ -251,12 +259,30 @@ export class PassCancelledError extends Error {
   }
 }
 
+/** W25-13: the model call in flight, on `ai_pass_runs.plan.live` while it runs. */
+export interface PassLive {
+  /** 1-based number of the call within the run. */
+  call: number;
+  /** 'waiting' = for the model's slot behind other analysis; 'answering' = sent. */
+  state: 'waiting' | 'answering';
+  /** ISO time the call entered this state. */
+  since: string;
+}
+
 /**
  * The pass's view of the gateway (W20-21, UX_TODO AI-33, AI-64): before each
  * model call it checks that the row is still running (an admin may have
  * cancelled it; then it throws and nothing more is sent), and after each call
  * it writes the number of calls so far, so a long pass shows progress instead
  * of nothing until it ends.
+ *
+ * W25-13: while a call is in flight it also keeps `plan.live` on the row
+ * ({ call, state: 'waiting' | 'answering', since }): 'waiting' from the moment
+ * the call is made, 'answering' once the host's slot is ours and the request
+ * is sent (CompleteOpts.onSent). A pass on a one-slot local model looked stuck
+ * (11 calls in 3 hours) because the screen could not tell waiting behind other
+ * analysis from the model working. Merged into `plan` (jsonb ||), so the
+ * judge's and other keys are kept, and removed when no call is in flight.
  */
 export function trackPassGateway(
   inner: AnalysisGateway,
@@ -268,6 +294,8 @@ export function trackPassGateway(
   cancelPollMs = PASS_CANCEL_POLL_MS,
 ): AnalysisGateway {
   let calls = startAt;
+  let started = startAt;
+  let inFlight = 0;
   const where = and(
     eq(read.aiPassRuns.id, ids.runId),
     eq(read.aiPassRuns.workspaceId, ids.workspaceId),
@@ -280,6 +308,18 @@ export function trackPassGateway(
       .limit(1);
     return row?.status === 'running';
   };
+  /** Merges plan.live into the row while it runs; never fails the call. */
+  const writeLive = (live: PassLive): Promise<void> =>
+    db
+      .update(read.aiPassRuns)
+      .set({
+        plan: sql`coalesce(${read.aiPassRuns.plan}, '{}'::jsonb) || jsonb_build_object('live', ${JSON.stringify(live)}::jsonb)`,
+      })
+      .where(and(where, eq(read.aiPassRuns.status, 'running')))
+      .then(
+        () => undefined,
+        () => undefined,
+      );
   return {
     async complete(prompt, opts) {
       if (!(await stillRunning())) throw new PassCancelledError();
@@ -299,17 +339,36 @@ export function trackPassGateway(
       const signal = opts.signal
         ? AbortSignal.any([opts.signal, controller.signal])
         : controller.signal;
+      started += 1;
+      inFlight += 1;
+      const call = started;
+      // Only the newest call's state is shown; writes are chained so an
+      // 'answering' never lands after the block was cleared.
+      let liveWrites = writeLive({ call, state: 'waiting', since: new Date().toISOString() });
+      await liveWrites;
+      const onSent = (): void => {
+        opts.onSent?.();
+        liveWrites = liveWrites.then(() =>
+          writeLive({ call, state: 'answering', since: new Date().toISOString() }),
+        );
+      };
       try {
-        return await inner.complete(prompt, { ...opts, signal });
+        return await inner.complete(prompt, { ...opts, signal, onSent });
       } catch (err) {
         if (controller.signal.aborted) throw new PassCancelledError();
         throw err;
       } finally {
         clearInterval(timer);
         calls += 1;
+        inFlight -= 1;
+        await liveWrites;
         await db
           .update(read.aiPassRuns)
-          .set({ calls })
+          .set(
+            inFlight === 0
+              ? { calls, plan: sql`coalesce(${read.aiPassRuns.plan}, '{}'::jsonb) - 'live'` }
+              : { calls },
+          )
           .where(and(where, eq(read.aiPassRuns.status, 'running')))
           .catch(() => undefined);
       }
@@ -614,7 +673,9 @@ export function aiPassProcessor(deps: AiPassDeps) {
       // 1. The planned specialists. A third of the call cap (at most what triage can
       // use) is held back for triage, so a tight cap cannot starve it entirely; any
       // of it the specialists do not need is still the cap, not extra.
-      const triageReserve = Math.min(TRIAGE_TOP_N * 2, Math.floor(maxCalls / 3));
+      // W27-04: a first look triages no rule hits (they are the judge's), so its
+      // whole cap goes to reading code.
+      const triageReserve = triageReserveFor(run, maxCalls);
       const spec = await runSpecialists(input, {
         gateway: wg.gateway,
         contextWindowFor: window,
@@ -1095,6 +1156,37 @@ async function verifyStep(a: {
   return { summary, calls: verifier.calls() };
 }
 
+/** Why a first look's triage step did not run (W27-04). */
+export const FIRST_LOOK_TRIAGE_SKIPPED =
+  'A first look reviews code only; rule hits from the scan are left to the AI judge.';
+
+/**
+ * Calls held back from the specialists for triage: none on a first look
+ * (W27-04, it triages nothing), otherwise a third of the cap, at most what
+ * triage can use.
+ */
+export function triageReserveFor(run: { mode: string; trigger: string }, maxCalls: number): number {
+  if (isFirstLook(run)) return 0;
+  return Math.min(TRIAGE_TOP_N * 2, Math.floor(maxCalls / 3));
+}
+
+/** True when a judge run for the repository is waiting or running. Workspace-filtered (Law 5). */
+async function activeJudgeRun(db: Database, workspaceId: number, repoId: number): Promise<boolean> {
+  const [row] = await db
+    .select({ id: read.aiPassRuns.id })
+    .from(read.aiPassRuns)
+    .where(
+      and(
+        eq(read.aiPassRuns.workspaceId, workspaceId),
+        eq(read.aiPassRuns.repoId, repoId),
+        eq(read.aiPassRuns.mode, 'judge'),
+        inArray(read.aiPassRuns.status, ['pending', 'running']),
+      ),
+    )
+    .limit(1);
+  return row !== undefined;
+}
+
 async function triageStep(a: {
   deps: AiPassDeps;
   wg: { gateway: AnalysisGateway; hosts: T2Host[]; routing?: RoutingPolicy };
@@ -1108,6 +1200,11 @@ async function triageStep(a: {
   diffRanges: Map<string, [number, number][]> | null;
 }): Promise<{ funnel: object | null; skipped: string | null; calls: number }> {
   const { db } = a.deps;
+  // W27-04: rule hits after a scan belong to the AI judge. A first look asking
+  // the same hit at the same time would only race it and throw one answer away.
+  if (isFirstLook(a.run)) {
+    return { funnel: null, skipped: FIRST_LOOK_TRIAGE_SKIPPED, calls: 0 };
+  }
   const remaining = a.maxCalls - a.callsSoFar;
   if (remaining < 1) {
     return {
@@ -1139,9 +1236,16 @@ async function triageStep(a: {
     )
     .orderBy(desc(read.findings.effectiveRisk))
     .limit(200);
+  // W27-04: a judge run waiting or running for this repository takes every open
+  // judged-dimension hit without a verdict when it starts, so those are left to it.
+  const judgeActive = await activeJudgeRun(db, a.workspaceId, a.run.repoId);
+  const judged = new Set<string>(JUDGE_DIMENSIONS);
   const ranges = a.diffRanges;
   const scoped = rows.filter((r) => {
     if (r.file === null) return false;
+    // W25-16 / W27-04: no model time on rule hits in test code.
+    if (isTestPath(r.file)) return false;
+    if (judgeActive && judged.has(r.dimension)) return false;
     // Diff modes: only a finding on lines the change adds or alters.
     if (ranges) {
       const mine = ranges.get(r.file);

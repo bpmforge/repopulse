@@ -232,6 +232,8 @@ export async function runTriageBatch(
     tier: 'T2',
     maxTokens: 45_000,
     expectJson: true,
+    // W27-04: verdicts are short answers; no long reasoning.
+    reasoning: 'none',
     meta: {
       repoId: deps.meta.repoId,
       prNumber: deps.meta.prNumber,

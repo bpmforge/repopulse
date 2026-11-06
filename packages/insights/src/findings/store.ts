@@ -516,12 +516,22 @@ export async function recordVerdicts(
   params: {
     workspaceId: number;
     repoId: number;
-    verdicts: readonly { dedupKey: string; verify: FindingVerify }[];
+    verdicts: readonly {
+      dedupKey: string;
+      verify: FindingVerify;
+      /**
+       * W27-03: what the verdict was about (the CVE pass's vulnerability id,
+       * package and installed version), merged into `yields.verified_subject`
+       * so the next scan can tell an unchanged question from a new one. Only
+       * written with a real verdict; jsonb-merged, so the scanner's keys stay.
+       */
+      subject?: string;
+    }[];
   },
 ): Promise<{ recorded: number }> {
   const now = new Date();
   let recorded = 0;
-  for (const { dedupKey: key, verify } of params.verdicts) {
+  for (const { dedupKey: key, verify, subject } of params.verdicts) {
     const where = and(
       eq(read.findings.workspaceId, params.workspaceId),
       eq(read.findings.repoId, params.repoId),
@@ -531,7 +541,16 @@ export async function recordVerdicts(
     const cols = verifyColumns(verify, now, null);
     const rows = await db
       .update(read.findings)
-      .set(cols)
+      .set({
+        ...cols,
+        ...(subject !== undefined && verify.status !== 'unverified'
+          ? {
+              yields: sql`coalesce(${read.findings.yields}, '{}'::jsonb) || ${JSON.stringify({
+                verified_subject: subject,
+              })}::jsonb`,
+            }
+          : {}),
+      })
       .where(where)
       .returning({ id: read.findings.id });
     recorded += rows.length;

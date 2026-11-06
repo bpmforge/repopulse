@@ -104,7 +104,12 @@ export * from './registers/spdx.js';
 export * from './registers/attribution.js';
 export * from './triage/index.js';
 export { capturePackets, fitPacket, PACKET_MAX_BYTES } from './index/capture.js';
-export { buildCodeIndex, isIndexable, CODE_INDEX_CAPS, CODE_INDEX_EXTRACTOR } from './index/code-index.js';
+export {
+  buildCodeIndex,
+  isIndexable,
+  CODE_INDEX_CAPS,
+  CODE_INDEX_EXTRACTOR,
+} from './index/code-index.js';
 export type { CodeIndex } from './index/code-index.js';
 export {
   callersOf,
@@ -124,4 +129,5 @@ export {
   type VerifyRunResult,
 } from './validation/verify/run.js';
 export { candidatesFrom, VERIFY_TOP_N, VERIFY_MAX_CALLS } from './validation/verify/select.js';
+export { verifySubject } from './validation/verify/types.js';
 export type { VerifyCandidate, VerifyProposal } from './validation/verify/types.js';

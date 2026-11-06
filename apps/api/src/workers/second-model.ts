@@ -16,6 +16,7 @@ import {
   DEFAULT_BUDGET,
   runVerifyPass,
   VERIFY_TOP_N,
+  verifySubject,
   type CveVerifySummary,
   type VerifyCandidate,
 } from '@repopulse/security';
@@ -187,6 +188,8 @@ export function createSecondModelVerifier(opts: SecondModelOptions): SecondModel
         tier: 'T2',
         maxTokens: 45_000,
         expectJson: true,
+        // W27-04: agree or disagree is a short verdict; no long reasoning.
+        reasoning: 'none',
         meta: {
           repoId: String(repoId),
           prNumber: 0,
@@ -306,6 +309,9 @@ export function cveVerifyHook(deps: {
     });
     const verdicts = result.proposals.map((p) => ({
       dedupKey: p.dedupKey,
+      // W27-03: the question this verdict answers, so the next scan of an
+      // unchanged manifest does not ask it again.
+      subject: verifySubject(p),
       verify: {
         status: p.applies ? ('confirmed' as const) : ('contradicted' as const),
         model: p.model,
@@ -323,6 +329,7 @@ export function cveVerifyHook(deps: {
     });
     return {
       asked: result.funnel.verified,
+      alreadyVerified: result.funnel.skipped.already_verified,
       confirmed: verdicts.filter((v) => v.verify.status === 'confirmed').length,
       contradicted: verdicts.filter((v) => v.verify.status === 'contradicted').length,
       ...(result.error ? { error: result.error } : {}),

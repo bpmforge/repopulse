@@ -65,7 +65,8 @@ export interface Selection {
 }
 
 /**
- * Top-N by effective risk, minus the findings a model has nothing to add to.
+ * Top-N by effective risk, minus the findings a model has nothing to add to,
+ * and minus the ones a model has already answered (W27-03).
  *
  * `proven_unreachable` is the exclusion that matters: govulncheck built a call
  * graph and found no path, and V0-V3 already attached the corresponding
@@ -76,6 +77,13 @@ export interface Selection {
 export function selectForVerify(
   candidates: readonly VerifyCandidate[],
   limit: number = VERIFY_TOP_N,
+  /**
+   * W27-03: dedup keys whose finding already carries a second opinion on the
+   * same vulnerability id, package and installed version (run.ts reads them
+   * from our findings, workspace-filtered). They are skipped BEFORE the top-N
+   * cut, so a settled CVE never takes a slot from one nobody has asked about.
+   */
+  alreadyVerified: ReadonlySet<string> = new Set(),
 ): Selection {
   const cap = Math.max(0, Math.min(limit, VERIFY_MAX_CALLS));
   const skipped: Selection['skipped'] = [];
@@ -84,6 +92,10 @@ export function selectForVerify(
   for (const candidate of candidates) {
     if (candidate.vulnerability.reachability.tier === 'proven_unreachable') {
       skipped.push({ candidate, reason: 'already_proven_unreachable' });
+      continue;
+    }
+    if (alreadyVerified.has(candidate.dedupKey)) {
+      skipped.push({ candidate, reason: 'already_verified' });
       continue;
     }
     eligible.push(candidate);

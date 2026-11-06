@@ -86,6 +86,23 @@ export interface CompleteOpts {
    * field is asked again without it and remembered. Never changes max_tokens.
    */
   reasoning?: 'none';
+  /**
+   * W25-13: called once the host's slot is acquired and the request is about
+   * to be sent (after any wait behind other analysis), so a caller can show
+   * "the model is answering" apart from "waiting for the model". Called again
+   * if a routing chain falls back to another link. Never called for a call
+   * aborted while it waited. A throw from it is swallowed (notifySent).
+   */
+  onSent?: () => void;
+}
+
+/** W25-13: calls `opts.onSent`, never letting it throw into the model call. */
+export function notifySent(opts: Pick<CompleteOpts, 'onSent'>): void {
+  try {
+    opts.onSent?.();
+  } catch {
+    // Progress reporting must never fail the call.
+  }
 }
 
 export interface CompleteResult {

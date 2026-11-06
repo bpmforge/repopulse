@@ -13110,7 +13110,7 @@
         "The judge's queue wait is visible while it runs, not only at the end"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "2026-11-06 real LM Studio check on the Mac (rpw25: gin, saleor, outline), improvement list Brad asked to have fixed. gin's first look showed 11 calls in 3 hours and 0 AI findings with no progress line, which reads as stuck."
       ]
@@ -13458,6 +13458,140 @@
       "status": "done",
       "notes": [
         "2026-11-06 Brad on the canvas: 'can we have this table sortable? so they can click on each header and sort it'. W26-02 ships Severity and Risk, the two sorts the API has"
+      ]
+    },
+    {
+      "id": "W27-01",
+      "title": "Pertinent code only: code health and anti-slop skip tests, fixtures, generated and vendored code",
+      "phase": 27,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "packages/shared/src/code-kind.ts",
+        "packages/security/src/scanners/code-health",
+        "packages/security/src/scanners/anti-slop",
+        "apps/api/src/workers/code-kind.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W25-16"
+      ],
+      "acceptance": [
+        "One shared non-production path definition in @repopulse/shared (tests, fixtures, generated, vendored, built), Postgres-compatible test pattern kept",
+        "Code health complexity and duplication and anti-slop findings/candidates are not produced for non-production files; the secrets and dependency scanners are unchanged",
+        "Findings left open in such files by earlier scans close on the next scan"
+      ],
+      "points": 3,
+      "status": "in_progress",
+      "notes": [
+        "2026-11-06 design pass (/mnt/project-files/repopulse/ai-speed/DESIGN.md) after the Mac real check. Brad: 'I dont want to waste gpu cycles when we have an obvious mechanism or process defect' and 'only be pertinent'."
+      ]
+    },
+    {
+      "id": "W27-02",
+      "title": "Anti-slop's model judgement leaves the scan job, runs on the background gateway and never re-judges an unchanged candidate",
+      "phase": 27,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "packages/security/src/scanners/anti-slop",
+        "apps/api/src/workers/index.ts",
+        "packages/shared/src/db",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W25-20"
+      ],
+      "acceptance": [
+        "The anti-slop scan job ends after its deterministic half; the judgement runs afterwards without holding the job",
+        "Judgement calls use the background gateway",
+        "A candidate judged before with unchanged content is not sent again; a failure never fails the scan run"
+      ],
+      "points": 3,
+      "status": "in_progress",
+      "notes": [
+        "2026-11-06 design pass (/mnt/project-files/repopulse/ai-speed/DESIGN.md) after the Mac real check. Brad: 'I dont want to waste gpu cycles when we have an obvious mechanism or process defect' and 'only be pertinent'. outline: anti-slop held its scan job 24-30 min."
+      ]
+    },
+    {
+      "id": "W27-03",
+      "title": "The CVE second opinion never re-asks an unchanged CVE; most important first",
+      "phase": 27,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "packages/security/src/validation/verify",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W25-19"
+      ],
+      "acceptance": [
+        "A CVE already verified for the same vulnerability, package and version is skipped and counted as already verified",
+        "Candidates are asked in risk order",
+        "A second run over unchanged CVEs makes no model call"
+      ],
+      "points": 2,
+      "status": "done",
+      "notes": [
+        "2026-11-06 design pass (/mnt/project-files/repopulse/ai-speed/DESIGN.md) after the Mac real check. Brad: 'I dont want to waste gpu cycles when we have an obvious mechanism or process defect' and 'only be pertinent'. CVE checks were 140 of 254 min of model time."
+      ]
+    },
+    {
+      "id": "W27-04",
+      "title": "Short verdicts without long reasoning everywhere; the first look reviews code and leaves rule hits to the judge",
+      "phase": 27,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers/ai-pass-processor.ts",
+        "apps/api/src/workers/second-model.ts",
+        "packages/security/src/triage",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W25-19"
+      ],
+      "acceptance": [
+        "AI-pass triage, second opinions and second-model verify send reasoning none",
+        "A first look does not triage rule hits and gives that reserve to its review",
+        "Manual and scheduled pass triage skips test paths"
+      ],
+      "points": 2,
+      "status": "done",
+      "notes": [
+        "2026-11-06 design pass (/mnt/project-files/repopulse/ai-speed/DESIGN.md) after the Mac real check. Brad: 'I dont want to waste gpu cycles when we have an obvious mechanism or process defect' and 'only be pertinent'."
+      ]
+    },
+    {
+      "id": "W27-05",
+      "title": "First look as one combined review per chunk with a small budget, so the first AI result lands within minutes",
+      "phase": 27,
+      "module": "analysis",
+      "stories": [],
+      "write_scope": [
+        "packages/analysis/src/specialists",
+        "apps/api/src/workers/ai-first-look.ts",
+        "apps/api/src/workers/ai-pass-processor.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-04"
+      ],
+      "acceptance": [
+        "A first look sends each file once, in one combined checklist per chunk, instead of one call per specialist per chunk",
+        "Its budget is small enough that a new repository's first look finishes within about 10 minutes on the Mac's local model (measured)",
+        "Prompt order follows the Mac A/B result on prefix caching"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": [
+        "2026-11-06 design pass (/mnt/project-files/repopulse/ai-speed/DESIGN.md) after the Mac real check. Brad: 'I dont want to waste gpu cycles when we have an obvious mechanism or process defect' and 'only be pertinent'. Waits for the Mac A/B (reasoning on/off, two models, files-first prompt)."
       ]
     }
   ]
