@@ -22,6 +22,7 @@ import {
   trackPassGateway,
   type AiPassDeps,
   type AiPassJobData,
+  type LoadedSources,
   type PassFile,
 } from './ai-pass-processor.js';
 import { queueFirstLookAfterScan, rankFirstLookPaths, rankPaths } from './ai-first-look.js';
@@ -391,8 +392,11 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
       path: 'src/util.ts',
       content: 'export const add = (a, b) => a + b;\n',
     };
-    const twoFiles = (util = UTIL, sha = 'aaaa000011112222') =>
-      ({ ok: true, commitSha: sha, files: [FILES[0]!, util] }) as const;
+    const twoFiles = (util = UTIL, sha = 'aaaa000011112222'): LoadedSources => ({
+      ok: true,
+      commitSha: sha,
+      files: [FILES[0]!, util],
+    });
     const specialistPrompts = (gw: ReturnType<typeof scripted>) =>
       gw.calls.filter((c) => c.role !== 'triage').map((c) => c.prompt);
     const findingsOf = () =>
