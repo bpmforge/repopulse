@@ -180,6 +180,8 @@ export async function runTriage(
         tier: 'T2',
         maxTokens: 45_000,
         expectJson: true,
+        // W27-04: a verdict on one hit is a short answer; no long reasoning.
+        reasoning: 'none',
         meta: {
           repoId: deps.meta.repoId,
           prNumber: deps.meta.prNumber,

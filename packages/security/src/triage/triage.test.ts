@@ -314,6 +314,8 @@ describe('runTriage', () => {
     expect(calls).toHaveLength(2);
     expect(calls[1]?.prompt).toMatch(/previous answer was rejected/);
     expect(r.proposals).toHaveLength(1);
+    // W27-04: the answer and its corrective retry are short verdicts.
+    expect(calls.map((c) => c.opts.reasoning)).toEqual(['none', 'none']);
   });
 
   it('does NOT ask again after a citation to a line it was not shown', async () => {

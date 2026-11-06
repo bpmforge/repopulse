@@ -17,9 +17,11 @@ import { forgeDiffSources, addedRanges, overlaps, type LoadedDiff } from './ai-p
 import type { ForgeDiffFile, ForgeProvider } from '@repopulse/forge';
 import {
   aiPassProcessor,
+  FIRST_LOOK_TRIAGE_SKIPPED,
   inScope,
   PassCancelledError,
   trackPassGateway,
+  triageReserveFor,
   type AiPassDeps,
   type AiPassJobData,
   type LoadedSources,
@@ -56,11 +58,11 @@ const FILES: PassFile[] = [
 
 /** A scripted model: specialists quote a real line from the prompt; triage cites the flagged line. */
 function scripted(opts: { triageVerdict?: string; onCall?: (role: string) => void } = {}) {
-  const calls: { role: string | undefined; prompt: string }[] = [];
+  const calls: { role: string | undefined; prompt: string; reasoning?: string | undefined }[] = [];
   const gateway: AnalysisGateway = {
     async complete(prompt: string, o: CompleteOpts): Promise<CompleteResult> {
       const role = o.meta.role;
-      calls.push({ role, prompt });
+      calls.push({ role, prompt, reasoning: o.reasoning });
       opts.onCall?.(role ?? '');
       let text: string;
       if (role === 'triage') {
@@ -903,6 +905,111 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
     expect(triaged).not.toContain(noContext);
   });
 
+  describe('rule hits belong to the judge (W27-04)', () => {
+    async function firstLookRun(paths = ['src']) {
+      const [r] = await db
+        .insert(read.aiPassRuns)
+        .values({ workspaceId: WS, repoId: REPO, paths, mode: 'paths', trigger: 'after_scan' })
+        .returning({ id: read.aiPassRuns.id });
+      return r!.id;
+    }
+    const specialistCalls = (gw: ReturnType<typeof scripted>) =>
+      gw.calls.filter((c) => c.role !== 'triage');
+
+    it('a first look asks nothing about rule hits, and says they are left to the judge', async () => {
+      const hit = await ruleFinding();
+      const runId = await firstLookRun();
+      const { d, gw } = deps();
+      const r = await aiPassProcessor(d)(job(runId));
+      expect(r.status).toBe('succeeded');
+      expect(gw.calls.filter((c) => c.role === 'triage')).toHaveLength(0);
+      expect(specialistCalls(gw).length).toBeGreaterThan(0);
+      expect((await runOf(runId)).triageSkipped).toBe(FIRST_LOOK_TRIAGE_SKIPPED);
+      expect(
+        await db
+          .select()
+          .from(read.aiTriageVerdicts)
+          .where(eq(read.aiTriageVerdicts.findingId, hit)),
+      ).toHaveLength(0);
+    });
+
+    it('a first look gives the triage reserve to the specialists', async () => {
+      await ruleFinding();
+      const manual = await newRun();
+      const m = deps({ maxCalls: 6 });
+      await aiPassProcessor(m.d)(job(manual));
+      // A manual pass holds 2 of 6 back for triage.
+      expect(specialistCalls(m.gw).length).toBeLessThanOrEqual(4);
+      await clear();
+
+      await ruleFinding();
+      const first = await firstLookRun();
+      const f = deps({ maxCalls: 6 });
+      await aiPassProcessor(f.d)(job(first));
+      expect(f.gw.calls.length).toBeLessThanOrEqual(6);
+      expect(specialistCalls(f.gw).length).toBeGreaterThan(specialistCalls(m.gw).length);
+      expect(f.gw.calls.filter((c) => c.role === 'triage')).toHaveLength(0);
+    });
+
+    it('triageReserveFor: none on a first look, a third of the cap (at most 2 x top-N) otherwise', () => {
+      expect(triageReserveFor({ mode: 'paths', trigger: 'after_scan' }, 30)).toBe(0);
+      expect(triageReserveFor({ mode: 'paths', trigger: 'manual' }, 6)).toBe(2);
+      expect(triageReserveFor({ mode: 'paths', trigger: 'scheduled' }, 300)).toBe(20);
+      expect(triageReserveFor({ mode: 'pull_request', trigger: 'after_scan' }, 9)).toBe(3);
+    });
+
+    it('a manual pass does not triage rule hits in test code', async () => {
+      const prod = await ruleFinding();
+      const inTest = await ruleFinding({ file: 'src/routes/users.test.ts' });
+      const fixture = await ruleFinding({ file: 'src/fixtures/users.ts' });
+      const runId = await newRun();
+      await aiPassProcessor(deps().d)(job(runId));
+      const triaged = (
+        await db
+          .select({ id: read.aiTriageVerdicts.findingId })
+          .from(read.aiTriageVerdicts)
+          .where(eq(read.aiTriageVerdicts.workspaceId, WS))
+      ).map((r) => r.id);
+      expect(triaged).toEqual([prod]);
+      expect(triaged).not.toContain(inTest);
+      expect(triaged).not.toContain(fixture);
+    });
+
+    it('a manual pass leaves judged hits to a judge run that is waiting or running', async () => {
+      await ruleFinding(); // sast: a judged dimension
+      const [judge] = await db
+        .insert(read.aiPassRuns)
+        .values({ workspaceId: WS, repoId: REPO, paths: [], mode: 'judge', trigger: 'after_scan' })
+        .returning({ id: read.aiPassRuns.id });
+      const runId = await newRun();
+      const { d, gw } = deps();
+      await aiPassProcessor(d)(job(runId));
+      expect(gw.calls.filter((c) => c.role === 'triage')).toHaveLength(0);
+      expect((await runOf(runId)).triageSkipped).toMatch(/nothing to triage/);
+
+      // Once the judge run is over, a later pass triages the hit as before.
+      await db
+        .update(read.aiPassRuns)
+        .set({ status: 'succeeded' })
+        .where(eq(read.aiPassRuns.id, judge!.id));
+      const again = await newRun();
+      const second = deps();
+      await aiPassProcessor(second.d)(job(again));
+      expect(second.gw.calls.filter((c) => c.role === 'triage')).toHaveLength(1);
+    });
+
+    it('triage asks for no long reasoning; the specialists keep theirs', async () => {
+      await ruleFinding();
+      const runId = await newRun();
+      const { d, gw } = deps();
+      await aiPassProcessor(d)(job(runId));
+      const triage = gw.calls.filter((c) => c.role === 'triage');
+      expect(triage.length).toBeGreaterThan(0);
+      for (const c of triage) expect(c.reasoning).toBe('none');
+      for (const c of specialistCalls(gw)) expect(c.reasoning).toBeUndefined();
+    });
+  });
+
   it('fails by name when the workspace has no model', async () => {
     const runId = await newRun();
     const r = await aiPassProcessor(deps({ gatewayFor: async () => null }).d)(job(runId));
@@ -1113,6 +1220,8 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
         expect(pinned).toHaveBeenCalledWith(WS, expect.objectContaining({ model: 'second-model' }));
         expect(gatewayFor).not.toHaveBeenCalled();
         expect(gw.calls.map((c) => c.role)).toEqual(['triage']);
+        // W27-04: a second opinion is a short verdict too.
+        expect(gw.calls[0]!.reasoning).toBe('none');
         expect(await runOf(runId)).toMatchObject({ status: 'succeeded', calls: 1 });
         const answers = await db
           .select()

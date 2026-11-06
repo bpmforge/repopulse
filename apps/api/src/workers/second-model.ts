@@ -187,6 +187,8 @@ export function createSecondModelVerifier(opts: SecondModelOptions): SecondModel
         tier: 'T2',
         maxTokens: 45_000,
         expectJson: true,
+        // W27-04: agree or disagree is a short verdict; no long reasoning.
+        reasoning: 'none',
         meta: {
           repoId: String(repoId),
           prNumber: 0,

@@ -243,6 +243,7 @@ describe('runTriageBatch', () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]!.opts.meta.checklistVersion).toBe(TRIAGE_BATCH_PROMPT_VERSION);
     expect(calls[0]!.opts.meta.role).toBe('triage');
+    expect(calls[0]!.opts.reasoning).toBe('none'); // W27-04: a verdict, no long reasoning
     expect(r.batched).toBe(true);
     expect(r.calls).toBe(1);
     expect(r.proposals.map((p) => [p.dedupKey, p.verdict, p.checklistVersion])).toEqual([
