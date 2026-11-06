@@ -1091,14 +1091,15 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
       expect(second.gw.calls.filter((c) => c.role === 'triage')).toHaveLength(1);
     });
 
-    it('triage asks for no long reasoning; the specialists keep theirs', async () => {
+    it('triage and the specialists keep their reasoning (W27-06)', async () => {
       await ruleFinding();
       const runId = await newRun();
       const { d, gw } = deps();
       await aiPassProcessor(d)(job(runId));
       const triage = gw.calls.filter((c) => c.role === 'triage');
       expect(triage.length).toBeGreaterThan(0);
-      for (const c of triage) expect(c.reasoning).toBe('none');
+      // Measured: reasoning none dismissed every 'needs human' hit.
+      for (const c of triage) expect(c.reasoning).toBeUndefined();
       for (const c of specialistCalls(gw)) expect(c.reasoning).toBeUndefined();
     });
   });
@@ -1313,8 +1314,8 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
         expect(pinned).toHaveBeenCalledWith(WS, expect.objectContaining({ model: 'second-model' }));
         expect(gatewayFor).not.toHaveBeenCalled();
         expect(gw.calls.map((c) => c.role)).toEqual(['triage']);
-        // W27-04: a second opinion is a short verdict too.
-        expect(gw.calls[0]!.reasoning).toBe('none');
+        // W27-06: a second opinion keeps its reasoning.
+        expect(gw.calls[0]!.reasoning).toBeUndefined();
         expect(await runOf(runId)).toMatchObject({ status: 'succeeded', calls: 1 });
         const answers = await db
           .select()

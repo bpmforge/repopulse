@@ -696,8 +696,10 @@ export async function runJudge(a: {
   const gateway: AnalysisGateway = {
     async complete(prompt, opts) {
       try {
-        // W25-19: a verdict on a rule hit is a short answer; no long reasoning.
-        const r = await a.wg.gateway.complete(prompt, { ...opts, reasoning: 'none' });
+        // W27-06: the judge keeps reasoning. Measured on the Mac (27B, 7 hits),
+        // reasoning none turned all 4 'needs human' into 'likely false
+        // positive': uncertain hits dismissed. Only CVE checks drop it.
+        const r = await a.wg.gateway.complete(prompt, opts);
         queuedMs += r.queuedMs ?? 0;
         return r;
       } catch (err) {

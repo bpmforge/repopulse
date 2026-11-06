@@ -235,8 +235,6 @@ describeIfLiveInfra('the second-model verifier (W21-03)', () => {
     expect(sent[0]!.opts).toMatchObject({
       tier: 'T2',
       maxTokens: 45_000,
-      // W27-04: agree or disagree is a short verdict.
-      reasoning: 'none',
       meta: { role: 'triage' },
     });
     await v.finish();
