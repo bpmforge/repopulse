@@ -269,3 +269,39 @@ describe('focused areas (W27-07)', () => {
     });
   });
 });
+
+describe('focused files in a combined run (W27-08)', () => {
+  const none = {
+    performance: [],
+    code_health: [],
+    test_coverage: [],
+    best_practices: [],
+    ai_slop: [],
+  } as const;
+
+  it('sends the union of what the areas read, and drops a file no area reads', async () => {
+    const { gateway, calls } = scripted(() => '{"findings":[]}');
+    const r = await runSpecialists(
+      {
+        kind: 'module',
+        name: 'm',
+        files: [
+          { path: 'src/users.ts', content: SOURCE, focus: { ...none, security: [[3, 3]] } },
+          { path: 'src/math.ts', content: 'export const add = (a, b) => a + b;\n', focus: none },
+        ],
+      },
+      { gateway, prTitle: 't', meta, combined: true },
+    );
+    expect(calls).toHaveLength(1);
+    const prompt = calls[0]!.prompt;
+    expect(prompt).toContain('@@ -0,0 +3,1 @@');
+    expect(prompt).not.toContain('export async function list');
+    expect(prompt).not.toContain('src/math.ts');
+    expect(prompt).toContain('## Checklist: security');
+    expect(prompt).not.toContain('## Checklist: code_health');
+    expect(r.skippedFiles.get('security')).toContainEqual({
+      path: 'src/math.ts',
+      reason: 'other_area',
+    });
+  });
+});

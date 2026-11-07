@@ -12,7 +12,7 @@ import { ModelNoAnswerError, ModelTimeoutError, ProviderError } from '../t2/clie
 import { buildCombinedPrompt, combinedBudget, splitByDimension } from './combined.js';
 import { fileAreas, planWaves, type Plan } from './planner.js';
 import type { Specialist, SpecialistId } from './registry.js';
-import { toDiffFiles, type ReviewInput } from './units.js';
+import { toCombinedDiffFiles, toDiffFiles, toDiffFilesFor, type ReviewInput } from './units.js';
 
 // Running the roster (W19-03).
 //
@@ -150,7 +150,10 @@ export async function runSpecialists(
     routes: [],
   };
   const maxCalls = deps.maxCalls ?? Number.POSITIVE_INFINITY;
-  if (deps.combined) return runCombined(files, plan, result, maxCalls, deps);
+  if (deps.combined) return runCombined(input, files, plan, result, maxCalls, deps);
+  // W27-08: whether a file is an area's kind is decided on the whole file, even
+  // when the area then reads only part of it.
+  const wholeText = new Map(files.map((f) => [f.path, f.patch]));
   // A call that failed on its own is recorded against its window and the run
   // goes on. Only when NO call answered at all is the first such error thrown,
   // as before: a host that is down should fail the pass, not read as reviewed.
@@ -161,7 +164,12 @@ export async function runSpecialists(
     for (const { specialist } of specialists) {
       const budget: ChunkBudget = budgetForContext(deps.contextWindowFor?.(specialist.id) ?? null);
       // W27-07: each specialist reads only its own kind of code.
-      const { mine, others } = splitByArea(files, specialist.id, deps.force === true);
+      const { mine, others } = splitByArea(
+        toDiffFilesFor(input, specialist.id),
+        specialist.id,
+        deps.force === true,
+        wholeText,
+      );
       const { chunks, skipped } = chunkDiff(mine, specialist.dimension, budget);
       result.skippedFiles.set(specialist.id, [...skipped, ...others]);
       const usage: SpecialistUsage = {
@@ -310,13 +318,19 @@ function splitByArea(
   files: ReturnType<typeof toDiffFiles>,
   id: SpecialistId,
   force: boolean,
+  wholeText: ReadonlyMap<string, string | null | undefined>,
 ): { mine: ReturnType<typeof toDiffFiles>; others: SkippedFile[] } {
   if (force) return { mine: [...files], others: [] };
   const mine: ReturnType<typeof toDiffFiles> = [];
   const others: SkippedFile[] = [];
   for (const f of files) {
     // Binary, truncated or empty files keep their own skip reason from the chunker.
-    if (f.binary || f.patchTruncated || !f.patch || fileAreas(f.path, f.patch).has(id)) {
+    if (
+      f.binary ||
+      f.patchTruncated ||
+      !f.patch ||
+      fileAreas(f.path, wholeText.get(f.path) ?? f.patch).has(id)
+    ) {
       mine.push(f);
     } else {
       others.push({ path: f.path, reason: 'other_area' });
@@ -332,6 +346,7 @@ function splitByArea(
  * which nothing answered fails with the first error.
  */
 async function runCombined(
+  input: ReviewInput,
   files: ReturnType<typeof toDiffFiles>,
   plan: Plan,
   result: SpecialistRunResult,
@@ -351,18 +366,26 @@ async function runCombined(
   // W27-07: a file goes to the checklists of its own kind only; a file of no
   // planned checklist's kind is not sent at all.
   const plannedIds = new Set(planned.map((s) => s.id));
-  const areasOf = new Map<string, Set<SpecialistId>>();
-  const sendable: ReturnType<typeof toDiffFiles> = [];
-  const outOfArea: SkippedFile[] = [];
-  for (const f of files) {
-    const areas = new Set(
-      [...(deps.force ? plannedIds : fileAreas(f.path, f.patch))].filter((id) =>
+  const wholeText = new Map(files.map((f) => [f.path, f.patch]));
+  const kindOf = (path: string): Set<SpecialistId> =>
+    new Set(
+      [...(deps.force ? plannedIds : fileAreas(path, wholeText.get(path)))].filter((id) =>
         plannedIds.has(id),
       ),
     );
-    areasOf.set(f.path, areas);
+  // W27-08: per file, what the areas of its kind read of it (focus ranges).
+  const combinedInput = toCombinedDiffFiles(input, kindOf);
+  const areasOf = combinedInput.reads;
+  const sendable: ReturnType<typeof toDiffFiles> = [];
+  const outOfArea: SkippedFile[] = [];
+  const sent = new Set(combinedInput.files.map((f) => f.path));
+  for (const f of combinedInput.files) {
+    const areas = areasOf.get(f.path) ?? new Set();
     if (areas.size > 0 || f.binary || f.patchTruncated || !f.patch) sendable.push(f);
     else outOfArea.push({ path: f.path, reason: 'other_area' });
+  }
+  for (const f of files) {
+    if (!sent.has(f.path)) outOfArea.push({ path: f.path, reason: 'other_area' });
   }
   const chunked = chunkDiff(sendable, lead.dimension, combinedBudget(base, planned));
   const chunks = chunked.chunks;
