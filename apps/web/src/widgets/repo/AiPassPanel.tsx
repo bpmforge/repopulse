@@ -344,6 +344,18 @@ function RunRow({
               dimensions.
             </li>
           ) : null}
+          {run.specialists?.combined ? (
+            <li data-testid="ai-pass-combined">
+              One combined review: each file was read once against every checklist.
+              {run.specialists.combined.leftForBudget.length > 0
+                ? ` Not reached within this first look's call budget: ${run.specialists.combined.leftForBudget
+                    .slice(0, 5)
+                    .join(
+                      ', ',
+                    )}${run.specialists.combined.leftForBudget.length > 5 ? ', …' : ''}. A full pass reviews them.`
+                : ''}
+            </li>
+          ) : null}
           {typeof filesRead === 'number' && (run.mode ?? 'paths') === 'paths' ? (
             <li data-testid="ai-pass-files-read">
               {filesRead} file{filesRead === 1 ? '' : 's'} read

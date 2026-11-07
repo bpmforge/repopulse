@@ -22,6 +22,8 @@ import {
   PassCancelledError,
   trackPassGateway,
   triageReserveFor,
+  AI_PASS_MAX_CALLS,
+  FIRST_LOOK_MAX_CALLS,
   type AiPassDeps,
   type AiPassJobData,
   type LoadedSources,
@@ -34,6 +36,7 @@ import {
   rankPaths,
 } from './ai-first-look.js';
 import type { PassEgress } from '../lib/ai-pass-egress.js';
+import { MIN_CALLS_TO_START } from './ai-pass-scheduler.js';
 
 // W19-09. The AI pass, end to end against the real tables with a scripted model:
 // what it stores, and - as important - what it can never do. A pass writes
@@ -1026,22 +1029,40 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
       ).toHaveLength(0);
     });
 
-    it('a first look gives the triage reserve to the specialists', async () => {
+    it('a first look is one combined review per chunk, with no triage (W27-05)', async () => {
       await ruleFinding();
       const manual = await newRun();
       const m = deps({ maxCalls: 6 });
       await aiPassProcessor(m.d)(job(manual));
-      // A manual pass holds 2 of 6 back for triage.
-      expect(specialistCalls(m.gw).length).toBeLessThanOrEqual(4);
+      // A manual pass sends each chunk to each planned specialist.
+      const roles = new Set(specialistCalls(m.gw).map((c) => c.role));
+      expect(roles.size).toBeGreaterThan(1);
       await clear();
 
       await ruleFinding();
       const first = await firstLookRun();
-      const f = deps({ maxCalls: 6 });
+      const f = deps({ maxCalls: 30 });
       await aiPassProcessor(f.d)(job(first));
-      expect(f.gw.calls.length).toBeLessThanOrEqual(6);
-      expect(specialistCalls(f.gw).length).toBeGreaterThan(specialistCalls(m.gw).length);
-      expect(f.gw.calls.filter((c) => c.role === 'triage')).toHaveLength(0);
+      // One call for the one chunk, led by security, carrying every checklist.
+      expect(f.gw.calls).toHaveLength(1);
+      expect(f.gw.calls[0]!.role).toBe('security');
+      const prompt = f.gw.calls[0]!.prompt;
+      expect(prompt).toContain('## Checklist: security');
+      expect(prompt).toContain('## Checklist: code_health');
+      // The code first, the instructions last (Mac A/B, prefix caching).
+      expect(prompt.indexOf('```diff')).toBeLessThan(prompt.indexOf('## Checklist:'));
+      expect(prompt.indexOf('## Checklist:')).toBeLessThan(
+        prompt.indexOf('Respond ONLY with JSON'),
+      );
+      const [row] = await db.select().from(read.aiPassRuns).where(eq(read.aiPassRuns.id, first));
+      expect(row!.specialists).toMatchObject({
+        combined: { lead: 'security', leftForBudget: [] },
+      });
+    });
+
+    it('FIRST_LOOK_MAX_CALLS caps a first look below the pass cap', () => {
+      expect(FIRST_LOOK_MAX_CALLS).toBeLessThan(AI_PASS_MAX_CALLS);
+      expect(FIRST_LOOK_MAX_CALLS).toBeGreaterThanOrEqual(MIN_CALLS_TO_START);
     });
 
     it('triageReserveFor: none on a first look, a third of the cap (at most 2 x top-N) otherwise', () => {

@@ -13589,10 +13589,11 @@
         "Prompt order follows the Mac A/B result on prefix caching"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "2026-11-06 design pass (/mnt/project-files/repopulse/ai-speed/DESIGN.md) after the Mac real check. Brad: 'I dont want to waste gpu cycles when we have an obvious mechanism or process defect' and 'only be pertinent'. Waits for the Mac A/B (reasoning on/off, two models, files-first prompt).",
-        "2026-11-06 Mac A/B: files first gives the second specialist 88-93% of its prompt from cache (0% today); first look with reasoning none found nothing on 3 of 3, so the first look keeps reasoning."
+        "2026-11-06 Mac A/B: files first gives the second specialist 88-93% of its prompt from cache (0% today); first look with reasoning none found nothing on 3 of 3, so the first look keeps reasoning.",
+        "2026-11-07 built: runSpecialists({ combined: true }) sends each chunk once with every planned checklist (code first, checklists and JSON last, prompt combined.v1), findings filed by their dimension, the lead specialist's model serves it. First look reads at most 15 files / 150 KB and makes at most 4 calls (FIRST_LOOK_MAX_*); chunks past the cap are named in specialists.combined.leftForBudget and on the pass panel. The ~10 minute timing is measured on the next Mac rebuild of rpw25."
       ]
     },
     {

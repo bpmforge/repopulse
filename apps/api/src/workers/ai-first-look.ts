@@ -2,7 +2,7 @@ import { and, desc, eq, gte, inArray, isNotNull, sql } from 'drizzle-orm';
 import { facts, isConstraintViolation, read, type Database } from '@repopulse/shared';
 import { passEgress, PASS_ROLES } from '../lib/ai-pass-egress.js';
 import { isAiPaused } from '../lib/ai-pause.js';
-import { AI_PASS_MAX_CALLS } from './ai-pass-processor.js';
+import { FIRST_LOOK_MAX_CALLS } from './ai-pass-processor.js';
 import { AI_PASS_READABLE } from './ai-pass-sources.js';
 import { isTestPath } from './code-kind.js';
 import { MIN_CALLS_TO_START, monthlyCallsUsed, monthlyCap } from './ai-pass-scheduler.js';
@@ -140,7 +140,11 @@ export async function queueFirstLookAfterScan(
     }
     throw err;
   }
-  await deps.enqueue({ workspaceId: ws, runId, maxCalls: Math.min(AI_PASS_MAX_CALLS, remaining) });
+  await deps.enqueue({
+    workspaceId: ws,
+    runId,
+    maxCalls: Math.min(FIRST_LOOK_MAX_CALLS, remaining),
+  });
   return { queued: true, runId };
 }
 

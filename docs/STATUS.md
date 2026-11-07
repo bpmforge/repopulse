@@ -4347,3 +4347,9 @@ on the Mac:**
   judge with reasoning none turned all 4 'needs human' into 'likely false positive'. First
   look with reasoning none found nothing (3/3). qwen3-coder-next wrongly cleared 3/8 CVEs.
   Files-first prompts give the second specialist 88-93% prefix-cache hits (feeds W27-05).
+- 2026-11-07 — W27-05: a first look is one combined review. Each chunk goes to the model once
+  with every planned checklist (code first, checklists and answer format last, per the Mac
+  A/B), and each finding is filed under the checklist it names. It reads at most 15 files /
+  150 KB in rank order and makes at most 4 calls; files its budget did not reach are named on
+  the pass panel. Before: one call per specialist per chunk (gin: 3h54 for 2 of 6
+  specialists). Target ~10 minutes, to be measured on the next Mac rebuild.
