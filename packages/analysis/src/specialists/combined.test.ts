@@ -8,6 +8,7 @@ import {
   combinedChecklists,
   splitByDimension,
 } from './combined.js';
+import { fileAreas } from './planner.js';
 import { SPECIALISTS, specialistById } from './registry.js';
 import { runSpecialists } from './run.js';
 import type { ReviewInput } from './units.js';
@@ -189,5 +190,82 @@ describe('runSpecialists({ combined: true })', () => {
     await expect(
       runSpecialists(one, { gateway, prTitle: 'First look', meta, combined: true }),
     ).rejects.toBeInstanceOf(ModelTimeoutError);
+  });
+});
+
+// W27-07: each AI area reads only its own kind of code.
+describe('focused areas (W27-07)', () => {
+  it('fileAreas: config is security only; perf needs a loop or query; docs go nowhere', () => {
+    expect([...fileAreas('deploy/app.yaml', 'ports: [22]')]).toEqual(['security']);
+    expect(fileAreas('src/users.ts', SOURCE).has('performance')).toBe(true);
+    const math = 'export const add = (a: number, b: number) => a + b;';
+    expect(fileAreas('src/math.ts', math).has('performance')).toBe(false);
+    expect(fileAreas('src/math.ts', math).has('security')).toBe(false);
+    expect(fileAreas('src/math.ts', math).has('code_health')).toBe(true);
+    expect(fileAreas('README.md', '# hi').size).toBe(0);
+  });
+
+  const mixed: ReviewInput = {
+    kind: 'module',
+    name: 'm',
+    files: [
+      { path: 'src/users.ts', content: SOURCE },
+      { path: 'src/math.ts', content: 'export const add = (a: number, b: number) => a + b;' },
+      { path: 'deploy/app.yaml', content: 'ports:\n  - 22\n' },
+      { path: 'README.md', content: '# hello\n' },
+    ],
+  };
+
+  it('a roster run sends each specialist only its own files', async () => {
+    const { gateway, calls } = scripted(() => '{"findings":[]}');
+    const r = await runSpecialists(mixed, { gateway, prTitle: 't', meta });
+    const sent = (role: string) =>
+      calls.filter((c) => c.opts.meta.role === role).map((c) => c.prompt);
+    const perf = sent('performance').join('\n');
+    expect(perf).toContain('src/users.ts');
+    expect(perf).not.toContain('src/math.ts');
+    expect(perf).not.toContain('deploy/app.yaml');
+    const health = sent('code_health').join('\n');
+    expect(health).toContain('src/math.ts');
+    expect(health).not.toContain('deploy/app.yaml');
+    const sec = sent('security').join('\n');
+    expect(sec).toContain('deploy/app.yaml');
+    expect(sec).not.toContain('src/math.ts');
+    expect(r.skippedFiles.get('performance')).toEqual(
+      expect.arrayContaining([
+        { path: 'src/math.ts', reason: 'other_area' },
+        { path: 'deploy/app.yaml', reason: 'other_area' },
+      ]),
+    );
+  });
+
+  it('a combined run scopes each checklist to its files and refuses out-of-area findings', async () => {
+    const { gateway, calls } = scripted(() =>
+      JSON.stringify({
+        findings: [
+          finding('performance'),
+          {
+            ...finding('performance', 'export const add = (a: number, b: number) => a + b;'),
+            file: 'src/math.ts',
+            line_range: [1, 1],
+          },
+        ],
+      }),
+    );
+    const r = await runSpecialists(mixed, { gateway, prTitle: 't', meta, combined: true });
+    expect(calls).toHaveLength(1);
+    const prompt = calls[0]!.prompt;
+    expect(prompt).not.toContain('README.md');
+    expect(prompt).toContain('- performance: only src/users.ts');
+    expect(prompt).toContain('- security: only src/users.ts, deploy/app.yaml');
+    expect(prompt).toMatch(/- code_health: only src\/users\.ts, src\/math\.ts/);
+    expect(r.findings.map((f) => f.file)).toEqual(['src/users.ts']);
+    expect(r.rejected).toEqual([
+      { specialist: 'security', reason: 'checklist "performance" does not cover src/math.ts' },
+    ]);
+    expect(r.skippedFiles.get('security')).toContainEqual({
+      path: 'README.md',
+      reason: 'other_area',
+    });
   });
 });

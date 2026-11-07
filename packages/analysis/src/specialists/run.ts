@@ -5,12 +5,12 @@ import {
   type SkippedFile,
 } from '../chunker/index.js';
 import { buildChunkPrompt } from '../chunker/prompt.js';
-import type { AnalysisGateway } from '../gateway/types.js';
+import type { AnalysisGateway, Dimension } from '../gateway/types.js';
 import { FindingParseError, validateFindings, type Finding } from '../schema/finding.js';
 import type { RouteRecord } from '../routing/index.js';
 import { ModelNoAnswerError, ModelTimeoutError, ProviderError } from '../t2/client.js';
 import { buildCombinedPrompt, combinedBudget, splitByDimension } from './combined.js';
-import { planWaves, type Plan } from './planner.js';
+import { fileAreas, planWaves, type Plan } from './planner.js';
 import type { Specialist, SpecialistId } from './registry.js';
 import { toDiffFiles, type ReviewInput } from './units.js';
 
@@ -160,8 +160,10 @@ export async function runSpecialists(
   for (const { specialists } of plan.waves) {
     for (const { specialist } of specialists) {
       const budget: ChunkBudget = budgetForContext(deps.contextWindowFor?.(specialist.id) ?? null);
-      const { chunks, skipped } = chunkDiff(files, specialist.dimension, budget);
-      result.skippedFiles.set(specialist.id, skipped);
+      // W27-07: each specialist reads only its own kind of code.
+      const { mine, others } = splitByArea(files, specialist.id, deps.force === true);
+      const { chunks, skipped } = chunkDiff(mine, specialist.dimension, budget);
+      result.skippedFiles.set(specialist.id, [...skipped, ...others]);
       const usage: SpecialistUsage = {
         calls: 0,
         chunks: chunks.length,
@@ -301,6 +303,29 @@ export async function runSpecialists(
 }
 
 /**
+ * W27-07: the files of `id`'s kind, and the others as `other_area` skips. A
+ * forced run (evaluations) reads everything it is given.
+ */
+function splitByArea(
+  files: ReturnType<typeof toDiffFiles>,
+  id: SpecialistId,
+  force: boolean,
+): { mine: ReturnType<typeof toDiffFiles>; others: SkippedFile[] } {
+  if (force) return { mine: [...files], others: [] };
+  const mine: ReturnType<typeof toDiffFiles> = [];
+  const others: SkippedFile[] = [];
+  for (const f of files) {
+    // Binary, truncated or empty files keep their own skip reason from the chunker.
+    if (f.binary || f.patchTruncated || !f.patch || fileAreas(f.path, f.patch).has(id)) {
+      mine.push(f);
+    } else {
+      others.push({ path: f.path, reason: 'other_area' });
+    }
+  }
+  return { mine, others };
+}
+
+/**
  * W27-05: every planned checklist in one call per chunk. Same rules as the
  * roster: one retry for a reasoning-only answer, one corrective retry for a
  * malformed one, a per-call failure recorded against its chunk, and a run in
@@ -323,7 +348,25 @@ async function runCombined(
     .map((s) => deps.contextWindowFor?.(s.id) ?? null)
     .filter((w): w is number => w !== null);
   const base = budgetForContext(windows.length > 0 ? Math.min(...windows) : null);
-  const { chunks, skipped } = chunkDiff(files, lead.dimension, combinedBudget(base, planned));
+  // W27-07: a file goes to the checklists of its own kind only; a file of no
+  // planned checklist's kind is not sent at all.
+  const plannedIds = new Set(planned.map((s) => s.id));
+  const areasOf = new Map<string, Set<SpecialistId>>();
+  const sendable: ReturnType<typeof toDiffFiles> = [];
+  const outOfArea: SkippedFile[] = [];
+  for (const f of files) {
+    const areas = new Set(
+      [...(deps.force ? plannedIds : fileAreas(f.path, f.patch))].filter((id) =>
+        plannedIds.has(id),
+      ),
+    );
+    areasOf.set(f.path, areas);
+    if (areas.size > 0 || f.binary || f.patchTruncated || !f.patch) sendable.push(f);
+    else outOfArea.push({ path: f.path, reason: 'other_area' });
+  }
+  const chunked = chunkDiff(sendable, lead.dimension, combinedBudget(base, planned));
+  const chunks = chunked.chunks;
+  const skipped = [...chunked.skipped, ...outOfArea];
   const usageOf = new Map<SpecialistId, SpecialistUsage>();
   for (const s of planned) {
     result.skippedFiles.set(s.id, skipped);
@@ -339,7 +382,6 @@ async function runCombined(
     });
   }
   const leadUsage = usageOf.get(lead.id)!;
-  const asked = planned.map((s) => s.dimension);
   const byDimension = new Map(planned.map((s) => [s.dimension as string, s]));
   const meta = {
     repoId: deps.meta.repoId,
@@ -360,7 +402,21 @@ async function runCombined(
       leftForBudget.push(...chunk.paths.filter((p) => !leftForBudget.includes(p)));
       continue;
     }
-    const prompt = buildCombinedPrompt({ specialists: planned, chunk, title: deps.prTitle });
+    // Only the checklists that cover a file in this chunk, each scoped to its files.
+    const inChunk = planned.filter((sp) => chunk.paths.some((p) => areasOf.get(p)?.has(sp.id)));
+    if (inChunk.length === 0) continue;
+    const scope = new Map<Dimension, string[]>();
+    for (const sp of inChunk) {
+      const covered = chunk.paths.filter((p) => areasOf.get(p)?.has(sp.id));
+      if (covered.length < chunk.paths.length) scope.set(sp.dimension, covered);
+    }
+    const askedHere = inChunk.map((sp) => sp.dimension);
+    const prompt = buildCombinedPrompt({
+      specialists: inChunk,
+      chunk,
+      title: deps.prTitle,
+      scope,
+    });
     let attemptPrompt = prompt.text;
     let lastError = '';
     for (let attempt = 0; attempt < 2 && result.calls < maxCalls; attempt++) {
@@ -393,7 +449,7 @@ async function runCombined(
       leadUsage.cacheReadTokens += answer.cacheReadTokens ?? 0;
       if (answer.route) result.routes.push(answer.route);
       try {
-        const split = splitByDimension(extractJson(answer.text), asked);
+        const split = splitByDimension(extractJson(answer.text), askedHere);
         const parsed = validateFindings(split.raw, chunk.text);
         for (const given of split.dropped) {
           result.rejected.push({
@@ -404,6 +460,18 @@ async function runCombined(
         }
         for (const f of parsed.findings) {
           const sp = byDimension.get(f.dimension) ?? lead;
+          // W27-07: a finding from a checklist that does not cover its file
+          // (a performance finding on a file with no loop or query) is refused.
+          // A path the model spelled differently is not judged on scope here.
+          const areas = areasOf.get(f.file);
+          if (areas && !areas.has(sp.id)) {
+            result.rejected.push({
+              specialist: lead.id,
+              reason: `checklist "${sp.dimension}" does not cover ${f.file}`,
+            });
+            leadUsage.rejected += 1;
+            continue;
+          }
           const usage = usageOf.get(sp.id)!;
           result.findings.push({
             ...f,
