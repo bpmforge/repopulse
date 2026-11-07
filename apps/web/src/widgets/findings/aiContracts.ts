@@ -178,6 +178,12 @@ export interface AiPassRun {
   specialists: {
     usage?: Record<string, { calls?: number; findings?: number }>;
     droppedForBudget?: string[];
+    /**
+     * W27-05: a first look reviews every checklist in one call per chunk. `lead`
+     * is the specialist whose model served it; `leftForBudget` the files in
+     * chunks its small call budget did not reach.
+     */
+    combined?: { lead: string; leftForBudget: string[] };
     /** Specialists whose answer was malformed even after a retry, or that timed out or errored, with the paths they were given and why. */
     failures?: { specialist: string; paths: string[]; error: string }[];
     /** Findings the evidence validator refused (a quote not in the source, a line out of range). */

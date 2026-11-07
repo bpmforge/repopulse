@@ -161,6 +161,29 @@ describe('AiPassPanel', () => {
     expect(screen.getByTestId('ai-pass-admin-only')).toBeTruthy();
   });
 
+  it('says a first look was one combined review and names files its budget did not reach (W27-05)', () => {
+    state.runs = [
+      run({
+        trigger: 'after_scan',
+        specialists: {
+          usage: { security: { calls: 2, findings: 1 } },
+          combined: { lead: 'security', leftForBudget: ['src/a.ts', 'src/b.ts'] },
+        },
+      } as Partial<AiPassRun>),
+    ];
+    render(<AiPassPanel repoId="3" />);
+    const line = screen.getByTestId('ai-pass-combined').textContent ?? '';
+    expect(line).toMatch(/One combined review/);
+    expect(line).toMatch(/src\/a\.ts, src\/b\.ts/);
+    expect(line).toMatch(/A full pass reviews them/);
+  });
+
+  it('shows no combined line for an ordinary pass', () => {
+    state.runs = [run()];
+    render(<AiPassPanel repoId="3" />);
+    expect(screen.queryByTestId('ai-pass-combined')).toBeNull();
+  });
+
   it('reports what a finished pass raised, what it did not run, and the triage outcome', () => {
     state.runs = [run()];
     render(<AiPassPanel repoId="3" />);

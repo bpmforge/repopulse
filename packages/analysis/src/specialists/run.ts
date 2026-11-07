@@ -9,8 +9,9 @@ import type { AnalysisGateway } from '../gateway/types.js';
 import { FindingParseError, validateFindings, type Finding } from '../schema/finding.js';
 import type { RouteRecord } from '../routing/index.js';
 import { ModelNoAnswerError, ModelTimeoutError, ProviderError } from '../t2/client.js';
+import { buildCombinedPrompt, combinedBudget, splitByDimension } from './combined.js';
 import { planWaves, type Plan } from './planner.js';
-import type { SpecialistId } from './registry.js';
+import type { Specialist, SpecialistId } from './registry.js';
 import { toDiffFiles, type ReviewInput } from './units.js';
 
 // Running the roster (W19-03).
@@ -33,6 +34,12 @@ export interface SpecialistRunDeps {
   only?: readonly SpecialistId[];
   /** Run `only` specialists regardless of relevance (evaluations). */
   force?: boolean;
+  /**
+   * W27-05: one call per chunk with every planned checklist (the first look),
+   * instead of one call per specialist per chunk. Chunks past the call budget
+   * are left out and named in `leftForBudget`; the files are ranked best first.
+   */
+  combined?: boolean;
 }
 
 export interface SpecialistFinding extends Finding {
@@ -72,6 +79,13 @@ export interface SpecialistRunResult {
   usage: Partial<Record<SpecialistId, SpecialistUsage>>;
   calls: number;
   routes: RouteRecord[];
+  /**
+   * W27-05, combined runs only: the specialist whose model served the calls.
+   * Its usage carries the calls and tokens; the others carry their findings.
+   */
+  combinedLead?: SpecialistId;
+  /** W27-05, combined runs only: files in chunks the call budget left out. */
+  leftForBudget?: string[];
 }
 
 /** Strips a code fence or prose around the JSON object, which models add. */
@@ -136,6 +150,7 @@ export async function runSpecialists(
     routes: [],
   };
   const maxCalls = deps.maxCalls ?? Number.POSITIVE_INFINITY;
+  if (deps.combined) return runCombined(files, plan, result, maxCalls, deps);
   // A call that failed on its own is recorded against its window and the run
   // goes on. Only when NO call answered at all is the first such error thrown,
   // as before: a host that is down should fail the pass, not read as reviewed.
@@ -281,6 +296,145 @@ export async function runSpecialists(
       result.usage[specialist.id] = usage;
     }
   }
+  if (!answered && firstCallError) throw firstCallError;
+  return result;
+}
+
+/**
+ * W27-05: every planned checklist in one call per chunk. Same rules as the
+ * roster: one retry for a reasoning-only answer, one corrective retry for a
+ * malformed one, a per-call failure recorded against its chunk, and a run in
+ * which nothing answered fails with the first error.
+ */
+async function runCombined(
+  files: ReturnType<typeof toDiffFiles>,
+  plan: Plan,
+  result: SpecialistRunResult,
+  maxCalls: number,
+  deps: SpecialistRunDeps,
+): Promise<SpecialistRunResult> {
+  const planned: Specialist[] = plan.waves.flatMap((w) => w.specialists.map((p) => p.specialist));
+  const lead = planned[0];
+  if (!lead) return result;
+  result.combinedLead = lead.id;
+  // The smallest window among the planned specialists' models bounds the chunk:
+  // the lead's model serves the call, but routing may change before it runs.
+  const windows = planned
+    .map((s) => deps.contextWindowFor?.(s.id) ?? null)
+    .filter((w): w is number => w !== null);
+  const base = budgetForContext(windows.length > 0 ? Math.min(...windows) : null);
+  const { chunks, skipped } = chunkDiff(files, lead.dimension, combinedBudget(base, planned));
+  const usageOf = new Map<SpecialistId, SpecialistUsage>();
+  for (const s of planned) {
+    result.skippedFiles.set(s.id, skipped);
+    usageOf.set(s.id, {
+      calls: 0,
+      chunks: chunks.length,
+      tokensIn: 0,
+      tokensOut: 0,
+      cacheReadTokens: 0,
+      models: [],
+      findings: 0,
+      rejected: 0,
+    });
+  }
+  const leadUsage = usageOf.get(lead.id)!;
+  const asked = planned.map((s) => s.dimension);
+  const byDimension = new Map(planned.map((s) => [s.dimension as string, s]));
+  const meta = {
+    repoId: deps.meta.repoId,
+    prNumber: deps.meta.prNumber,
+    dimension: lead.dimension,
+    checklistVersion: lead.checklistVersion,
+    initiator: deps.meta.initiator,
+    role: lead.role,
+  };
+  let answered = false;
+  let firstCallError: Error | null = null;
+  const leftForBudget: string[] = [];
+
+  for (const chunk of chunks) {
+    // Each chunk costs at least one call; the files are ranked best first, so
+    // the chunks past the cap are the least important and are named.
+    if (result.calls >= maxCalls) {
+      leftForBudget.push(...chunk.paths.filter((p) => !leftForBudget.includes(p)));
+      continue;
+    }
+    const prompt = buildCombinedPrompt({ specialists: planned, chunk, title: deps.prTitle });
+    let attemptPrompt = prompt.text;
+    let lastError = '';
+    for (let attempt = 0; attempt < 2 && result.calls < maxCalls; attempt++) {
+      let answer: Awaited<ReturnType<AnalysisGateway['complete']>>;
+      try {
+        answer = await deps.gateway.complete(attemptPrompt, {
+          tier: 'T2',
+          maxTokens: 45_000,
+          expectJson: true,
+          meta,
+        });
+      } catch (err) {
+        result.calls += 1;
+        leadUsage.calls += 1;
+        if (err instanceof ModelNoAnswerError) {
+          lastError = err.message;
+          attemptPrompt = `${prompt.text}\n\nYour previous reply contained reasoning but no answer. Keep your reasoning short and reply with ONLY the required JSON.`;
+          continue;
+        }
+        if (!isPerCallFailure(err)) throw err;
+        firstCallError ??= err;
+        lastError = err.message;
+        break;
+      }
+      answered = true;
+      result.calls += 1;
+      leadUsage.calls += 1;
+      leadUsage.tokensIn += answer.tokensIn;
+      leadUsage.tokensOut += answer.tokensOut;
+      leadUsage.cacheReadTokens += answer.cacheReadTokens ?? 0;
+      if (answer.route) result.routes.push(answer.route);
+      try {
+        const split = splitByDimension(extractJson(answer.text), asked);
+        const parsed = validateFindings(split.raw, chunk.text);
+        for (const given of split.dropped) {
+          result.rejected.push({
+            specialist: lead.id,
+            reason: `dimension "${given}" is not one of the checklists asked`,
+          });
+          leadUsage.rejected += 1;
+        }
+        for (const f of parsed.findings) {
+          const sp = byDimension.get(f.dimension) ?? lead;
+          const usage = usageOf.get(sp.id)!;
+          result.findings.push({
+            ...f,
+            dimension: sp.dimension,
+            specialist: sp.id,
+            checklistVersion: sp.checklistVersion,
+            route: answer.route ?? null,
+            model: answer.model,
+          });
+          usage.findings += 1;
+        }
+        for (const r of parsed.rejected) {
+          result.rejected.push({ specialist: lead.id, reason: r.reason });
+          leadUsage.rejected += 1;
+        }
+        for (const u of usageOf.values()) {
+          if (!u.models.includes(answer.model)) u.models.push(answer.model);
+        }
+        lastError = '';
+        break;
+      } catch (err) {
+        if (!(err instanceof FindingParseError || err instanceof SyntaxError)) throw err;
+        lastError = err.message;
+        attemptPrompt = `${prompt.text}\n\nYour previous answer was rejected: ${lastError}\nAnswer again with ONLY the required JSON.`;
+      }
+    }
+    if (lastError)
+      result.failures.push({ specialist: lead.id, paths: chunk.paths, error: lastError });
+  }
+  for (const [id, u] of usageOf) result.usage[id] = u;
+  result.leftForBudget = leftForBudget;
   if (!answered && firstCallError) throw firstCallError;
   return result;
 }

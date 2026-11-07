@@ -7,6 +7,8 @@ import { readSnapshotSources, snapshotForScan } from '@repopulse/security';
 import { isTestPath } from './code-kind.js';
 import {
   AI_PASS_MAX_BYTES,
+  FIRST_LOOK_MAX_BYTES,
+  FIRST_LOOK_MAX_FILES,
   AI_PASS_MAX_FILES,
   inScope,
   type AiPassDeps,
@@ -199,7 +201,11 @@ export function snapshotSources(deps: SnapshotSourceDeps): AiPassDeps['loadSourc
         if (fit) {
           // W25-01: a ranked first look. The best-ranked files that fit the
           // caps are read, in rank order; the row records which ones.
-          const chosen = fitRanked(picked, paths);
+          // W27-05: a first look reads what one small combined review covers.
+          const chosen = fitRanked(picked, paths, {
+            files: FIRST_LOOK_MAX_FILES,
+            bytes: FIRST_LOOK_MAX_BYTES,
+          });
           return {
             ok: true as const,
             commitSha: head.sha,

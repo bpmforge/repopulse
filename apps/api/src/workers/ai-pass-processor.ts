@@ -88,6 +88,15 @@ export const AI_PASS_MAX_BYTES = 400_000;
 export const AI_PASS_MAX_PATHS = 50;
 /** Gateway calls for one pass - specialists and triage together, retries counted. */
 export const AI_PASS_MAX_CALLS = 30;
+/**
+ * W27-05: a first look's budget. One combined call per chunk; the files that
+ * fit (FIRST_LOOK_MAX_FILES / FIRST_LOOK_MAX_BYTES, ~2-3 chunks) are read in
+ * rank order. Measured on the Mac's local 27B with reasoning, a first-look
+ * call takes ~3 min, so the first AI result lands in about 10 minutes.
+ */
+export const FIRST_LOOK_MAX_CALLS = 4;
+export const FIRST_LOOK_MAX_FILES = 15;
+export const FIRST_LOOK_MAX_BYTES = 150_000;
 
 export interface AiPassJobData {
   workspaceId: number;
@@ -679,7 +688,9 @@ export function aiPassProcessor(deps: AiPassDeps) {
       const spec = await runSpecialists(input, {
         gateway: wg.gateway,
         contextWindowFor: window,
-        maxCalls: maxCalls - triageReserve,
+        // W27-05: a first look is one combined review per chunk, small budget.
+        maxCalls: firstLook ? Math.min(FIRST_LOOK_MAX_CALLS, maxCalls) : maxCalls - triageReserve,
+        ...(firstLook ? { combined: true } : {}),
         prTitle: promptTitle,
         meta: { repoId: String(run.repoId), prNumber: 0, initiator: 'ai-pass' },
       });
@@ -690,6 +701,9 @@ export function aiPassProcessor(deps: AiPassDeps) {
           droppedForBudget: spec.droppedForBudget,
           failures: spec.failures,
           rejected: spec.rejected.length,
+          ...(spec.combinedLead
+            ? { combined: { lead: spec.combinedLead, leftForBudget: spec.leftForBudget ?? [] } }
+            : {}),
           filesRead,
           ...(filesSkipped ? { filesSkipped } : {}),
         },
@@ -880,6 +894,11 @@ export function aiPassProcessor(deps: AiPassDeps) {
       // the reason, so it can never read as "✓ finished, no findings".
       const ran = planned.filter((id) => !spec.droppedForBudget.includes(id));
       const failedIds = new Set(spec.failures.map((f) => f.specialist));
+      // W27-05: in a combined review the lead's call served every checklist,
+      // so its failures are every planned specialist's.
+      if (spec.combinedLead && failedIds.has(spec.combinedLead)) {
+        for (const id of ran) failedIds.add(id);
+      }
       const allSpecialistsFailed =
         ran.length > 0 &&
         ran.every((id) => failedIds.has(id) && (spec.usage[id]?.findings ?? 0) === 0);
@@ -892,6 +911,9 @@ export function aiPassProcessor(deps: AiPassDeps) {
           droppedForBudget: spec.droppedForBudget,
           failures: spec.failures,
           rejected: spec.rejected.length,
+          ...(spec.combinedLead
+            ? { combined: { lead: spec.combinedLead, leftForBudget: spec.leftForBudget ?? [] } }
+            : {}),
           filesRead,
           ...(filesSkipped ? { filesSkipped } : {}),
           ...(unreadable.length > 0 ? { unreadable } : {}),
