@@ -13679,6 +13679,34 @@
         "2026-11-07 design from the per-area audit: smaller inputs mean smaller prefill and every area fits the budget. AI slop may defer to the anti-slop judgement, which already reads only flagged candidates.",
         "2026-11-07 built (apps/api/src/workers/ai-focus.ts, units.ts rangesAsPatch/toDiffFilesFor/toCombinedDiffFiles). Test coverage stays whole-file: its 'nearest test file' half conflicts with the no-tests-to-the-model rule. The gin measurement (input tokens per area, all areas run) is the next Mac rebuild."
       ]
+    },
+    {
+      "id": "W27-09",
+      "title": "First look that finishes: security alone with reasoning, the rest in one quick call, small chunks, real narrowing",
+      "phase": 27,
+      "module": "analysis",
+      "stories": [],
+      "write_scope": [
+        "packages/analysis/src/specialists",
+        "apps/api/src/workers/ai-pass-processor.ts",
+        "apps/web/src/widgets/repo/AiPassPanel.tsx",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-08"
+      ],
+      "acceptance": [
+        "A first look runs security alone (default reasoning) on its own slices, then every other planned checklist in one combined call per chunk with reasoning none",
+        "A combined call reads at most COMBINED_CHUNK_TOKENS (8,000) of code",
+        "Areas without a focus of their own read what is sent instead of widening a focused file to the whole file",
+        "A failed call fails only the checklists it carried"
+      ],
+      "points": 2,
+      "status": "done",
+      "notes": [
+        "2026-11-07 Mac on 103e6c3: gin's first look failed, 3 combined calls (6 checklists, ~18-23k tokens of code) each reasoned past the 1,200 s timeout. Replay of the failed prompt: reasoning low 556 s, none 32 s, both 0 findings on that chunk; the separate security specialist with reasoning found 1 issue earlier. Per-area slices did run but the three whole-file areas widened every file back to whole. CVE checks (8-9 s now) waited behind the stuck calls: noted for W25-11/12."
+      ]
     }
   ]
 }

@@ -1029,7 +1029,7 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
       ).toHaveLength(0);
     });
 
-    it('a first look is one combined review per chunk, with no triage (W27-05)', async () => {
+    it('a first look is security, then one combined review, with no triage (W27-05/09)', async () => {
       await ruleFinding();
       const manual = await newRun();
       const m = deps({ maxCalls: 6 });
@@ -1043,11 +1043,13 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
       const first = await firstLookRun();
       const f = deps({ maxCalls: 30 });
       await aiPassProcessor(f.d)(job(first));
-      // One call for the one chunk, led by security, carrying every checklist.
-      expect(f.gw.calls).toHaveLength(1);
-      expect(f.gw.calls[0]!.role).toBe('security');
-      const prompt = f.gw.calls[0]!.prompt;
-      expect(prompt).toContain('## Checklist: security');
+      // W27-09: security alone with reasoning, then one quick call for the rest.
+      expect(f.gw.calls.map((c) => [c.role, c.reasoning])).toEqual([
+        ['security', undefined],
+        ['performance', 'none'],
+      ]);
+      expect(f.gw.calls[0]!.prompt).toContain('## Checklist: security');
+      const prompt = f.gw.calls[1]!.prompt;
       expect(prompt).toContain('## Checklist: code_health');
       // The code first, the instructions last (Mac A/B, prefix caching).
       expect(prompt.indexOf('```diff')).toBeLessThan(prompt.indexOf('## Checklist:'));

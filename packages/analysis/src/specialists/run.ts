@@ -340,10 +340,17 @@ function splitByArea(
 }
 
 /**
- * W27-05: every planned checklist in one call per chunk. Same rules as the
- * roster: one retry for a reasoning-only answer, one corrective retry for a
- * malformed one, a per-call failure recorded against its chunk, and a run in
- * which nothing answered fails with the first error.
+ * W27-05/W27-09: the first look. Measured on gin (103e6c3, local 27B): one
+ * call holding all six checklists and ~18k tokens of code reasoned past the
+ * 1,200 s timeout on every call, so nothing came back. Replaying it: reasoning
+ * low took 556 s, none 32 s. So the first look runs in two groups, security
+ * first: security alone, with reasoning (the one area where reasoning found
+ * what a fast answer did not), on its own slices; then every other planned
+ * checklist in one combined call with reasoning none. Each call reads at most
+ * COMBINED_CHUNK_TOKENS of code. Same rules as the roster: one retry for a
+ * reasoning-only answer, one corrective retry for a malformed one, a per-call
+ * failure recorded against its chunk, and a run in which nothing answered
+ * fails with the first error.
  */
 async function runCombined(
   input: ReviewInput,
@@ -354,17 +361,8 @@ async function runCombined(
   deps: SpecialistRunDeps,
 ): Promise<SpecialistRunResult> {
   const planned: Specialist[] = plan.waves.flatMap((w) => w.specialists.map((p) => p.specialist));
-  const lead = planned[0];
-  if (!lead) return result;
-  result.combinedLead = lead.id;
-  // The smallest window among the planned specialists' models bounds the chunk:
-  // the lead's model serves the call, but routing may change before it runs.
-  const windows = planned
-    .map((s) => deps.contextWindowFor?.(s.id) ?? null)
-    .filter((w): w is number => w !== null);
-  const base = budgetForContext(windows.length > 0 ? Math.min(...windows) : null);
-  // W27-07: a file goes to the checklists of its own kind only; a file of no
-  // planned checklist's kind is not sent at all.
+  if (planned.length === 0) return result;
+  result.combinedLead = planned[0]!.id;
   const plannedIds = new Set(planned.map((s) => s.id));
   const wholeText = new Map(files.map((f) => [f.path, f.patch]));
   const kindOf = (path: string): Set<SpecialistId> =>
@@ -373,6 +371,51 @@ async function runCombined(
         plannedIds.has(id),
       ),
     );
+  const security = planned.filter((s) => s.id === 'security');
+  const rest = planned.filter((s) => s.id !== 'security');
+  const groups: { members: Specialist[]; quick: boolean }[] = [
+    ...(security.length > 0 ? [{ members: security, quick: false }] : []),
+    ...(rest.length > 0 ? [{ members: rest, quick: true }] : []),
+  ];
+  const state: CombinedState = {
+    answered: false,
+    firstCallError: null,
+    leftForBudget: [],
+  };
+  for (const g of groups) {
+    await runCombinedGroup(input, files, g.members, g.quick, kindOf, result, maxCalls, deps, state);
+  }
+  result.leftForBudget = state.leftForBudget;
+  if (!state.answered && state.firstCallError) throw state.firstCallError;
+  return result;
+}
+
+interface CombinedState {
+  answered: boolean;
+  firstCallError: Error | null;
+  leftForBudget: string[];
+}
+
+/** One group of a first look: its members' checklists in one call per chunk. */
+async function runCombinedGroup(
+  input: ReviewInput,
+  files: ReturnType<typeof toDiffFiles>,
+  planned: Specialist[],
+  quick: boolean,
+  kindOfAll: (path: string) => Set<SpecialistId>,
+  result: SpecialistRunResult,
+  maxCalls: number,
+  deps: SpecialistRunDeps,
+  state: CombinedState,
+): Promise<void> {
+  const lead = planned[0]!;
+  const windows = planned
+    .map((s) => deps.contextWindowFor?.(s.id) ?? null)
+    .filter((w): w is number => w !== null);
+  const base = budgetForContext(windows.length > 0 ? Math.min(...windows) : null);
+  const members = new Set(planned.map((s) => s.id));
+  const kindOf = (path: string): Set<SpecialistId> =>
+    new Set([...kindOfAll(path)].filter((id) => members.has(id)));
   // W27-08: per file, what the areas of its kind read of it (focus ranges).
   const combinedInput = toCombinedDiffFiles(input, kindOf);
   const areasOf = combinedInput.reads;
@@ -414,15 +457,12 @@ async function runCombined(
     initiator: deps.meta.initiator,
     role: lead.role,
   };
-  let answered = false;
-  let firstCallError: Error | null = null;
-  const leftForBudget: string[] = [];
 
   for (const chunk of chunks) {
     // Each chunk costs at least one call; the files are ranked best first, so
     // the chunks past the cap are the least important and are named.
     if (result.calls >= maxCalls) {
-      leftForBudget.push(...chunk.paths.filter((p) => !leftForBudget.includes(p)));
+      state.leftForBudget.push(...chunk.paths.filter((p) => !state.leftForBudget.includes(p)));
       continue;
     }
     // Only the checklists that cover a file in this chunk, each scoped to its files.
@@ -450,6 +490,8 @@ async function runCombined(
           maxTokens: 45_000,
           expectJson: true,
           meta,
+          // W27-09: the combined group answers without long reasoning.
+          ...(quick ? { reasoning: 'none' as const } : {}),
         });
       } catch (err) {
         result.calls += 1;
@@ -460,11 +502,11 @@ async function runCombined(
           continue;
         }
         if (!isPerCallFailure(err)) throw err;
-        firstCallError ??= err;
+        state.firstCallError ??= err;
         lastError = err.message;
         break;
       }
-      answered = true;
+      state.answered = true;
       result.calls += 1;
       leadUsage.calls += 1;
       leadUsage.tokensIn += answer.tokensIn;
@@ -521,11 +563,12 @@ async function runCombined(
         attemptPrompt = `${prompt.text}\n\nYour previous answer was rejected: ${lastError}\nAnswer again with ONLY the required JSON.`;
       }
     }
-    if (lastError)
-      result.failures.push({ specialist: lead.id, paths: chunk.paths, error: lastError });
+    // The call served every checklist in it, so its failure is each of theirs.
+    if (lastError) {
+      for (const sp of inChunk) {
+        result.failures.push({ specialist: sp.id, paths: chunk.paths, error: lastError });
+      }
+    }
   }
   for (const [id, u] of usageOf) result.usage[id] = u;
-  result.leftForBudget = leftForBudget;
-  if (!answered && firstCallError) throw firstCallError;
-  return result;
 }

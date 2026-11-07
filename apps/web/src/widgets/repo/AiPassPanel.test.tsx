@@ -173,7 +173,7 @@ describe('AiPassPanel', () => {
     ];
     render(<AiPassPanel repoId="3" />);
     const line = screen.getByTestId('ai-pass-combined').textContent ?? '';
-    expect(line).toMatch(/One combined review/);
+    expect(line).toMatch(/A quick first look: security read its code first/);
     expect(line).toMatch(/src\/a\.ts, src\/b\.ts/);
     expect(line).toMatch(/A full pass reviews them/);
   });

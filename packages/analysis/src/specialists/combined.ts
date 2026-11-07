@@ -38,6 +38,15 @@ export function combinedChecklists(specialists: readonly Specialist[]): string {
 }
 
 /** The chunk budget shrunk by what the extra checklists cost. */
+/**
+ * W27-09: the code one combined call reads. Measured on gin (103e6c3, local
+ * 27B with reasoning): ~18-23k tokens of code with six checklists took 27 s
+ * to read and then reasoned past the 1,200 s timeout on all three calls, so
+ * nothing came back. A combined call reads at most this much code; the
+ * reasoning it provokes grows with what it is asked to review.
+ */
+export const COMBINED_CHUNK_TOKENS = 8_000;
+
 export function combinedBudget(
   budget: ChunkBudget,
   specialists: readonly Specialist[],
@@ -46,7 +55,10 @@ export function combinedBudget(
     0,
     estimateTokens(combinedChecklists(specialists)) - RESERVED_OVERHEAD_TOKENS,
   );
-  return { ...budget, promptTokens: Math.max(500, budget.promptTokens - extra) };
+  return {
+    ...budget,
+    promptTokens: Math.max(500, Math.min(COMBINED_CHUNK_TOKENS, budget.promptTokens - extra)),
+  };
 }
 
 const requiredJson = (dimensions: readonly Dimension[]) => {

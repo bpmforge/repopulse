@@ -4365,3 +4365,8 @@ on the Mac:**
   auth, secrets, crypto, queries, shell, files or network plus the function around each
   security rule hit. Slices keep real line numbers. Files the map does not cover are read
   whole. Applies to first looks and scheduled passes; a person's pass on named paths is whole.
+- 2026-11-07 — W27-09: a first look that finishes. On 103e6c3 gin's combined first look failed:
+  each call (6 checklists, ~18-23k tokens of code) reasoned past the 1,200 s timeout (replay:
+  reasoning low 556 s, none 32 s). Now security runs alone with reasoning on its own slices,
+  then the other checklists in one quick combined call (reasoning none); each call reads at
+  most 8,000 tokens of code; areas without a focus no longer widen focused files to whole.

@@ -94,10 +94,22 @@ export function toDiffFilesFor(input: ReviewInput, id: SpecialistId): DiffFile[]
 }
 
 /**
- * W27-08: the input for one combined review over `ids`: per file, the union of
- * what those areas read. Whole when any of them reads it whole; left out when
- * none of them reads any of it. `areasFor` gives the areas a file is of.
+ * W27-08/W27-09: the input for one combined review: per file, the union of the
+ * ranges its focused areas read. Areas without a focus of their own (best
+ * practices, test coverage, AI slop) read what is sent rather than widening it
+ * to the whole file: measured on gin, the union with three whole-file areas
+ * was always the whole file, so the focus never narrowed a combined call.
+ * A file a focusing area has no focus for (security, performance or code
+ * health: the code map does not cover it, or nothing was measured) is sent
+ * whole; a file whose focus holds no range for any of its areas is not sent.
  */
+/** Areas the focus builder cuts down; the others read whatever is sent. */
+const FOCUSING_AREAS: ReadonlySet<SpecialistId> = new Set([
+  'security',
+  'performance',
+  'code_health',
+]);
+
 export function toCombinedDiffFiles(
   input: ReviewInput,
   areasFor: (path: string) => ReadonlySet<SpecialistId>,
@@ -111,20 +123,17 @@ export function toCombinedDiffFiles(
   const files: DiffFile[] = [];
   for (const f of input.files) {
     const areas = [...areasFor(f.path)];
-    const reading = areas.filter((id) => f.focus?.[id] === undefined || f.focus[id]!.length > 0);
+    // A focusing area with no focus for this file reads it whole (the code map
+    // does not cover it, or nothing was measured): the file goes whole.
+    const whole = areas.some((id) => FOCUSING_AREAS.has(id) && f.focus?.[id] === undefined);
+    const ranges = areas.flatMap((id) => f.focus?.[id] ?? []);
+    const reading =
+      whole || ranges.length > 0
+        ? areas.filter((id) => f.focus?.[id] === undefined || f.focus[id]!.length > 0)
+        : [];
     reads.set(f.path, new Set(reading));
     if (reading.length === 0) continue;
-    if (reading.some((id) => f.focus?.[id] === undefined)) {
-      files.push(fileToDiff(f.path, f.content));
-    } else {
-      files.push(
-        focusedToDiff(
-          f.path,
-          f.content,
-          reading.flatMap((id) => f.focus![id]!),
-        ),
-      );
-    }
+    files.push(whole ? fileToDiff(f.path, f.content) : focusedToDiff(f.path, f.content, ranges));
   }
   return { files, reads };
 }

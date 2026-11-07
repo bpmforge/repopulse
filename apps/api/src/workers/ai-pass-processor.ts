@@ -905,11 +905,7 @@ export function aiPassProcessor(deps: AiPassDeps) {
       // the reason, so it can never read as "✓ finished, no findings".
       const ran = planned.filter((id) => !spec.droppedForBudget.includes(id));
       const failedIds = new Set(spec.failures.map((f) => f.specialist));
-      // W27-05: in a combined review the lead's call served every checklist,
-      // so its failures are every planned specialist's.
-      if (spec.combinedLead && failedIds.has(spec.combinedLead)) {
-        for (const id of ran) failedIds.add(id);
-      }
+      // W27-09: a combined call's failure is recorded against each checklist in it.
       const allSpecialistsFailed =
         ran.length > 0 &&
         ran.every((id) => failedIds.has(id) && (spec.usage[id]?.findings ?? 0) === 0);

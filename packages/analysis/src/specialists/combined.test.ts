@@ -5,6 +5,7 @@ import { ModelNoAnswerError, ModelTimeoutError } from '../t2/client.js';
 import {
   buildCombinedPrompt,
   combinedBudget,
+  COMBINED_CHUNK_TOKENS,
   combinedChecklists,
   splitByDimension,
 } from './combined.js';
@@ -91,6 +92,10 @@ describe('the combined prompt', () => {
     expect(all.promptTokens).toBeLessThan(base.promptTokens);
     expect(all.outputTokens).toBe(base.outputTokens);
     expect(combinedChecklists(SPECIALISTS).split('## Checklist:')).toHaveLength(7);
+    // W27-09: never more code than COMBINED_CHUNK_TOKENS in one combined call.
+    expect(combinedBudget(budgetForContext(null), [specialistById('security')]).promptTokens).toBe(
+      COMBINED_CHUNK_TOKENS,
+    );
   });
 });
 
@@ -115,29 +120,48 @@ describe('splitByDimension', () => {
 });
 
 describe('runSpecialists({ combined: true })', () => {
-  it('makes one call per chunk and files each finding under its checklist', async () => {
+  it('runs security alone with reasoning, then the rest in one quick call (W27-09)', async () => {
     const { gateway, calls } = scripted(() =>
       JSON.stringify({
         findings: [finding('security'), finding('performance'), finding('made_up')],
       }),
     );
     const r = await runSpecialists(one, { gateway, prTitle: 'First look', meta, combined: true });
-    expect(calls).toHaveLength(1);
+    expect(calls).toHaveLength(2);
     expect(calls[0]!.opts.meta.role).toBe('security');
     expect(calls[0]!.opts.reasoning).toBeUndefined();
+    expect(calls[0]!.prompt).toContain('## Checklist: security');
+    expect(calls[0]!.prompt).not.toContain('## Checklist: performance');
+    expect(calls[1]!.opts.meta.role).toBe('performance');
+    expect(calls[1]!.opts.reasoning).toBe('none');
+    expect(calls[1]!.prompt).not.toContain('## Checklist: security');
+    expect(calls[1]!.prompt).toContain('## Checklist: ai_slop');
     expect(r.combinedLead).toBe('security');
     expect(r.findings.map((f) => [f.specialist, f.checklistVersion])).toEqual([
       ['security', 'v1'],
       ['performance', 'v3'],
     ]);
-    expect(r.rejected).toEqual([
-      { specialist: 'security', reason: 'dimension "made_up" is not one of the checklists asked' },
+    // Each call drops what it was not asked for, never relabelled.
+    expect(r.rejected.map((x) => x.reason)).toEqual([
+      'dimension "performance" is not one of the checklists asked',
+      'dimension "made_up" is not one of the checklists asked',
+      'dimension "security" is not one of the checklists asked',
+      'dimension "made_up" is not one of the checklists asked',
     ]);
-    // The lead carries the call and tokens; the others their findings.
-    expect(r.usage.security).toMatchObject({ calls: 1, tokensIn: 100, findings: 1, rejected: 1 });
-    expect(r.usage.performance).toMatchObject({ calls: 0, tokensIn: 0, findings: 1 });
-    expect(r.calls).toBe(1);
+    // Each group's lead carries its call and tokens; the others their findings.
+    expect(r.usage.security).toMatchObject({ calls: 1, tokensIn: 100, findings: 1 });
+    expect(r.usage.performance).toMatchObject({ calls: 1, tokensIn: 100, findings: 1 });
+    expect(r.usage.code_health).toMatchObject({ calls: 0, tokensIn: 0, findings: 0 });
+    expect(r.calls).toBe(2);
     expect(r.leftForBudget).toEqual([]);
+  });
+
+  it('a failed security call fails security only, not the quick group', async () => {
+    const { gateway } = scripted((o) =>
+      o.meta.role === 'security' ? new ModelTimeoutError('timed out') : '{"findings":[]}',
+    );
+    const r = await runSpecialists(one, { gateway, prTitle: 'First look', meta, combined: true });
+    expect(r.failures.map((f) => f.specialist)).toEqual(['security']);
   });
 
   it('names the files of chunks past the call budget, best-ranked kept', async () => {
@@ -166,7 +190,8 @@ describe('runSpecialists({ combined: true })', () => {
       meta,
       combined: true,
     });
-    expect(malformed.calls).toHaveLength(2);
+    // Security's retry, then the quick group's one call.
+    expect(malformed.calls).toHaveLength(3);
     expect(malformed.calls[1]!.prompt).toMatch(/previous answer was rejected/);
     expect(a.findings).toHaveLength(1);
     expect(a.failures).toEqual([]);
@@ -180,7 +205,7 @@ describe('runSpecialists({ combined: true })', () => {
       meta,
       combined: true,
     });
-    expect(silent.calls).toHaveLength(2);
+    expect(silent.calls).toHaveLength(3);
     expect(silent.calls[1]!.prompt).toMatch(/reasoning but no answer/);
     expect(b.failures).toEqual([]);
   });
@@ -253,16 +278,18 @@ describe('focused areas (W27-07)', () => {
       }),
     );
     const r = await runSpecialists(mixed, { gateway, prTitle: 't', meta, combined: true });
-    expect(calls).toHaveLength(1);
-    const prompt = calls[0]!.prompt;
-    expect(prompt).not.toContain('README.md');
-    expect(prompt).toContain('- performance: only src/users.ts');
-    expect(prompt).toContain('- security: only src/users.ts, deploy/app.yaml');
-    expect(prompt).toMatch(/- code_health: only src\/users\.ts, src\/math\.ts/);
+    expect(calls).toHaveLength(2);
+    const [sec, quick] = calls.map((c) => c.prompt);
+    expect(sec).not.toContain('README.md');
+    expect(sec).toContain('deploy/app.yaml');
+    expect(sec).not.toContain('src/math.ts');
+    expect(quick).not.toContain('deploy/app.yaml');
+    expect(quick).toContain('- performance: only src/users.ts');
     expect(r.findings.map((f) => f.file)).toEqual(['src/users.ts']);
-    expect(r.rejected).toEqual([
-      { specialist: 'security', reason: 'checklist "performance" does not cover src/math.ts' },
-    ]);
+    expect(r.rejected).toContainEqual({
+      specialist: 'performance',
+      reason: 'checklist "performance" does not cover src/math.ts',
+    });
     expect(r.skippedFiles.get('security')).toContainEqual({
       path: 'README.md',
       reason: 'other_area',
@@ -292,6 +319,7 @@ describe('focused files in a combined run (W27-08)', () => {
       },
       { gateway, prTitle: 't', meta, combined: true },
     );
+    // Only security has anything to read: one call, its slice.
     expect(calls).toHaveLength(1);
     const prompt = calls[0]!.prompt;
     expect(prompt).toContain('@@ -0,0 +3,1 @@');
@@ -303,5 +331,44 @@ describe('focused files in a combined run (W27-08)', () => {
       path: 'src/math.ts',
       reason: 'other_area',
     });
+  });
+});
+
+describe('a combined run narrows to the focused ranges (W27-09)', () => {
+  it('areas without a focus of their own ride along instead of widening to the whole file', async () => {
+    const { gateway, calls } = scripted(() => '{"findings":[]}');
+    await runSpecialists(
+      {
+        kind: 'module',
+        name: 'm',
+        files: [
+          {
+            path: 'src/users.ts',
+            content: SOURCE,
+            focus: { security: [[3, 3]], performance: [[2, 4]], code_health: [] },
+          },
+        ],
+      },
+      { gateway, prTitle: 't', meta, combined: true },
+    );
+    expect(calls[0]!.prompt).toContain('@@ -0,0 +3,1 @@');
+    const prompt = calls[1]!.prompt;
+    expect(prompt).toContain('@@ -0,0 +2,3 @@');
+    expect(prompt).not.toContain('export async function list');
+    // best practices and AI slop still review the slice that is sent.
+    expect(prompt).toContain('## Checklist: best_practices');
+  });
+
+  it('a file a focusing area has no focus for is sent whole', async () => {
+    const { gateway, calls } = scripted(() => '{"findings":[]}');
+    await runSpecialists(
+      {
+        kind: 'module',
+        name: 'm',
+        files: [{ path: 'src/users.ts', content: SOURCE, focus: { code_health: [] } }],
+      },
+      { gateway, prTitle: 't', meta, combined: true },
+    );
+    expect(calls[0]!.prompt).toContain('export async function list');
   });
 });
