@@ -13673,7 +13673,7 @@
         "Measured on gin on the Mac: input tokens per area before and after, and all planned areas run within the budget"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
         "2026-11-07 design from the per-area audit: smaller inputs mean smaller prefill and every area fits the budget. AI slop may defer to the anti-slop judgement, which already reads only flagged candidates."
       ]
