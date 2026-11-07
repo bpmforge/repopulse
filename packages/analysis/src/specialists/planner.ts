@@ -64,6 +64,14 @@ export function fileAreas(path: string, text?: string | null): Set<SpecialistId>
 const SECURITY_SIGNAL =
   /\b(req|request|params|query|body|headers?|cookies?|session|token|passw(or)?d|secret|api_?key|auth\w*|login|jwt|oauth|crypto|cipher|hash\w*|encrypt|decrypt|hmac|random|exec\w*|spawn|eval|system|shell|subprocess|popen|sql|select|insert|update|delete|readFile\w*|writeFile\w*|unlink|open|fs|path|fetch|http\w*|url|redirect|upload|socket|deserializ\w*|unmarshal|pickle|yaml|innerHTML|dangerouslySetInnerHTML|template|render|permission|role|admin|acl|cors|csrf|tls|ssl|cert\w*)\b/i;
 
+/**
+ * W27-08: whether a slice of code has anything for performance or security to
+ * read (the same signals fileAreas uses per file). Other areas have no signal.
+ */
+export function sliceHasSignal(id: 'performance' | 'security', text: string): boolean {
+  return id === 'performance' ? PERF_SIGNAL.test(text) : SECURITY_SIGNAL.test(text);
+}
+
 export interface PlanFile {
   path: string;
   /** The patch, or the content for file/module mode. */

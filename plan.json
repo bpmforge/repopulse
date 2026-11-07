@@ -13668,14 +13668,16 @@
         "W27-07"
       ],
       "acceptance": [
-        "Code health reads the worst functions the code health tools measured; test coverage reads production functions with no test plus the nearest test file; performance reads the functions that match the perf signal",
+        "Code health reads the functions the code health tools measured (complexity, length, parameters, clones); performance reads the functions that match the perf signal; security reads the functions that match the security signal plus the function around each open security rule hit; best practices, test coverage and AI slop read whole files",
+        "A file the code map does not cover, or with much top-level code, is read whole by performance and security; a first look or scheduled pass is focused, a pass a person started on named paths is not",
         "Functions are sliced by the code map's line spans, keeping real line numbers so evidence quotes still validate",
         "Measured on gin on the Mac: input tokens per area before and after, and all planned areas run within the budget"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "2026-11-07 design from the per-area audit: smaller inputs mean smaller prefill and every area fits the budget. AI slop may defer to the anti-slop judgement, which already reads only flagged candidates."
+        "2026-11-07 design from the per-area audit: smaller inputs mean smaller prefill and every area fits the budget. AI slop may defer to the anti-slop judgement, which already reads only flagged candidates.",
+        "2026-11-07 built (apps/api/src/workers/ai-focus.ts, units.ts rangesAsPatch/toDiffFilesFor/toCombinedDiffFiles). Test coverage stays whole-file: its 'nearest test file' half conflicts with the no-tests-to-the-model rule. The gin measurement (input tokens per area, all areas run) is the next Mac rebuild."
       ]
     }
   ]

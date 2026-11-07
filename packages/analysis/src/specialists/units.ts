@@ -1,5 +1,6 @@
 import type { DiffFile } from '../chunker/index.js';
 import { isGenerated } from '../chunker/index.js';
+import type { SpecialistId } from './registry.js';
 
 // What a specialist reviews (W19-03): a diff, one file, or a module.
 //
@@ -12,7 +13,21 @@ import { isGenerated } from '../chunker/index.js';
 export type ReviewInput =
   | { kind: 'diff'; files: readonly DiffFile[] }
   | { kind: 'file'; path: string; content: string }
-  | { kind: 'module'; name: string; files: readonly { path: string; content: string }[] };
+  | { kind: 'module'; name: string; files: readonly ModuleFile[] };
+
+/**
+ * W27-08: per area, the line ranges of a file that area reads (1-based,
+ * inclusive), cut from the code map's function spans and the scanners'
+ * measurements. An area with no entry reads the whole file; an EMPTY list
+ * means the file has nothing for that area and is not sent to it.
+ */
+export type AreaFocus = Partial<Record<SpecialistId, readonly (readonly [number, number])[]>>;
+
+export interface ModuleFile {
+  path: string;
+  content: string;
+  focus?: AreaFocus;
+}
 
 /** Lines per window. Small enough that a window is rarely the budget's limit. */
 export const WINDOW_LINES = 120;
@@ -27,6 +42,101 @@ export function contentAsPatch(content: string, windowLines = WINDOW_LINES): str
     hunks.push(`@@ -0,0 +${start + 1},${slice.length} @@\n${slice.map((l) => `+${l}`).join('\n')}`);
   }
   return hunks.join('\n');
+}
+
+/**
+ * W27-08: only `ranges` of a file, as add-only hunks that keep the file's real
+ * line numbers (so a quote and its line range still validate). Ranges are
+ * clipped, sorted and merged; a gap of 3 lines or fewer is bridged rather than
+ * cut. Long ranges are windowed like a whole file.
+ */
+export function rangesAsPatch(
+  content: string,
+  ranges: readonly (readonly [number, number])[],
+  windowLines = WINDOW_LINES,
+): string {
+  const lines = content.split('\n');
+  if (lines.at(-1) === '') lines.pop();
+  const clipped = ranges
+    .map(([a, b]) => [Math.max(1, Math.min(a, b)), Math.min(lines.length, Math.max(a, b))] as const)
+    .filter(([a, b]) => a <= b)
+    .sort((x, y) => x[0] - y[0]);
+  const merged: [number, number][] = [];
+  for (const [a, b] of clipped) {
+    const last = merged.at(-1);
+    if (last && a <= last[1] + 4) last[1] = Math.max(last[1], b);
+    else merged.push([a, b]);
+  }
+  const hunks: string[] = [];
+  for (const [a, b] of merged) {
+    for (let start = a; start <= b; start += windowLines) {
+      const slice = lines.slice(start - 1, Math.min(b, start + windowLines - 1));
+      hunks.push(`@@ -0,0 +${start},${slice.length} @@\n${slice.map((l) => `+${l}`).join('\n')}`);
+    }
+  }
+  return hunks.join('\n');
+}
+
+/**
+ * W27-08: the input as `id` reads it. A module file with a focus for `id` is
+ * cut to those ranges, or left out (null) when the list is empty; every other
+ * file is whole.
+ */
+export function toDiffFilesFor(input: ReviewInput, id: SpecialistId): DiffFile[] {
+  if (input.kind !== 'module') return toDiffFiles(input);
+  const out: DiffFile[] = [];
+  for (const f of input.files) {
+    const ranges = f.focus?.[id];
+    if (ranges === undefined) out.push(fileToDiff(f.path, f.content));
+    else if (ranges.length > 0) out.push(focusedToDiff(f.path, f.content, ranges));
+  }
+  return out;
+}
+
+/**
+ * W27-08: the input for one combined review over `ids`: per file, the union of
+ * what those areas read. Whole when any of them reads it whole; left out when
+ * none of them reads any of it. `areasFor` gives the areas a file is of.
+ */
+export function toCombinedDiffFiles(
+  input: ReviewInput,
+  areasFor: (path: string) => ReadonlySet<SpecialistId>,
+): { files: DiffFile[]; reads: Map<string, Set<SpecialistId>> } {
+  const reads = new Map<string, Set<SpecialistId>>();
+  if (input.kind !== 'module') {
+    const files = toDiffFiles(input);
+    for (const f of files) reads.set(f.path, new Set(areasFor(f.path)));
+    return { files, reads };
+  }
+  const files: DiffFile[] = [];
+  for (const f of input.files) {
+    const areas = [...areasFor(f.path)];
+    const reading = areas.filter((id) => f.focus?.[id] === undefined || f.focus[id]!.length > 0);
+    reads.set(f.path, new Set(reading));
+    if (reading.length === 0) continue;
+    if (reading.some((id) => f.focus?.[id] === undefined)) {
+      files.push(fileToDiff(f.path, f.content));
+    } else {
+      files.push(
+        focusedToDiff(
+          f.path,
+          f.content,
+          reading.flatMap((id) => f.focus![id]!),
+        ),
+      );
+    }
+  }
+  return { files, reads };
+}
+
+function focusedToDiff(
+  path: string,
+  content: string,
+  ranges: readonly (readonly [number, number])[],
+): DiffFile {
+  if (content.includes('\u0000')) return { path, patch: null, binary: true };
+  if (isGenerated(path)) return { path, patch: content };
+  return { path, patch: rangesAsPatch(content, ranges) };
 }
 
 /** The input as the diff-shaped files the chunker takes. */

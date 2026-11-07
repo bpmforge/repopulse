@@ -4359,3 +4359,9 @@ on the Mac:**
   generated files go to none. Roster runs record the rest as other_area skips; the combined
   first look scopes each checklist to its files and refuses out-of-area findings. W27-08
   (function slices from the code map, per area) filed.
+- 2026-11-07 — W27-08: each AI area reads only the functions it needs. From the code map and
+  open findings (ai-focus.ts): code health reads the functions the tools measured, performance
+  the functions with loops, queries or async calls, security the functions handling input,
+  auth, secrets, crypto, queries, shell, files or network plus the function around each
+  security rule hit. Slices keep real line numbers. Files the map does not cover are read
+  whole. Applies to first looks and scheduled passes; a person's pass on named paths is whole.

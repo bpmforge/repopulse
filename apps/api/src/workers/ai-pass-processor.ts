@@ -57,6 +57,7 @@ import {
 } from './ai-judge.js';
 import { isFirstLook } from './ai-first-look.js';
 import { isTestPath } from './code-kind.js';
+import { focusFiles } from './ai-focus.js';
 import {
   emptyFixSummary,
   FIX_RESERVE_SHARE,
@@ -599,7 +600,17 @@ export function aiPassProcessor(deps: AiPassDeps) {
         // W25-07: when no file changed, nothing goes to the specialists (an
         // empty input plans none of them, so no call is made); triage of the
         // rule hits in scope still runs, as new scans may have raised some.
-        input = { kind: 'module', name: `repo-${run.repoId}`, files: sentFiles };
+        input = {
+          kind: 'module',
+          name: `repo-${run.repoId}`,
+          // W27-08: a first look or scheduled pass sends each area only the
+          // functions it needs. A pass a person started on named paths reads
+          // them whole.
+          files:
+            run.trigger === 'manual'
+              ? sentFiles
+              : await focusFiles(db, { workspaceId, repoId: run.repoId }, sentFiles),
+        };
         if (firstLook) {
           // The row names exactly what was read, best-ranked first.
           paths = loaded.files.map((f) => f.path);
