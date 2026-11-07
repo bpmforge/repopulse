@@ -28,7 +28,11 @@ export interface DiffFile {
   binary?: boolean;
 }
 
-export type SkipReason = 'patch_truncated' | 'binary' | 'generated' | 'no_patch';
+/**
+ * `other_area` (W27-07): the file is not this specialist's kind of code (a
+ * config file for code health, a file with no loop or query for performance).
+ */
+export type SkipReason = 'patch_truncated' | 'binary' | 'generated' | 'no_patch' | 'other_area';
 
 export interface SkippedFile {
   path: string;

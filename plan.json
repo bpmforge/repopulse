@@ -13623,6 +13623,60 @@
       "notes": [
         "2026-11-06 Mac A/B on the real saved prompts (27B): CVE checks 2,671 s -> 90 s with reasoning none, 8/8 same verdicts. Judge 7 hits: both 'real' held but all 4 'needs human' became 'likely false positive', so uncertain hits would be dismissed. qwen3-coder-next wrongly cleared 3 of 8 CVEs: not for verdicts."
       ]
+    },
+    {
+      "id": "W27-07",
+      "title": "Each AI area reads only its own kind of code",
+      "phase": 27,
+      "module": "analysis",
+      "stories": [],
+      "write_scope": [
+        "packages/analysis/src/specialists",
+        "packages/analysis/src/chunker/index.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-05"
+      ],
+      "acceptance": [
+        "fileAreas(path, text) decides per file which specialists read it: config goes to security only; performance reads source with loops, queries or async calls; security reads source with input, auth, secrets, crypto, query, shell, file or network handling; docs, generated and other files go to none",
+        "The planner uses the same rule, so a planned specialist always has a file of its own",
+        "A roster run sends each specialist only its own files and records the rest as other_area skips",
+        "A combined run sends a file only to the checklists of its kind, scopes each checklist to its files in the prompt, and refuses a finding from a checklist that does not cover its file"
+      ],
+      "points": 2,
+      "status": "done",
+      "notes": [
+        "2026-11-07 Brad: 'make sure the ai portion is focused on the code for each of the areas'. Before: chunkDiff ignored its dimension argument and every planned specialist read every file (on gin, performance and security read the same 7 chunks; 4 of 6 areas were then dropped for the call budget)."
+      ]
+    },
+    {
+      "id": "W27-08",
+      "title": "Function slices from the code map instead of whole files, per area",
+      "phase": 27,
+      "module": "analysis",
+      "stories": [],
+      "write_scope": [
+        "packages/analysis/src/specialists",
+        "apps/api/src/workers/ai-pass-processor.ts",
+        "apps/api/src/workers/ai-pass-sources.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-07"
+      ],
+      "acceptance": [
+        "Code health reads the worst functions the code health tools measured; test coverage reads production functions with no test plus the nearest test file; performance reads the functions that match the perf signal",
+        "Functions are sliced by the code map's line spans, keeping real line numbers so evidence quotes still validate",
+        "Measured on gin on the Mac: input tokens per area before and after, and all planned areas run within the budget"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": [
+        "2026-11-07 design from the per-area audit: smaller inputs mean smaller prefill and every area fits the budget. AI slop may defer to the anti-slop judgement, which already reads only flagged candidates."
+      ]
     }
   ]
 }

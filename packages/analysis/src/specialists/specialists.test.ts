@@ -217,7 +217,7 @@ describe('the conditional-wave planner', () => {
   });
 
   it('orders waves so security is first and the advisory specialists last', () => {
-    const plan = planWaves([{ path: 'src/a.ts', text: '+for (const x of y) { await f(x); }' }]);
+    const plan = planWaves([{ path: 'src/a.ts', text: '+for (const x of y) { await fetch(x); }' }]);
     expect(plan.waves.map((w) => w.wave)).toEqual([1, 2, 3]);
     expect(plan.waves[0]?.specialists[0]?.specialist.id).toBe('security');
     expect(plan.waves.at(-1)?.specialists.map((s) => s.specialist.id)).toEqual([
@@ -336,7 +336,7 @@ describe('the runner', () => {
       {
         path: 'src/a.ts',
         patch:
-          '@@ -1 +1,3 @@\n+for (const x of y) { await f(x); }\n+export const A = 1;\n+export const B = 2;',
+          '@@ -1 +1,3 @@\n+for (const x of y) { await fetch(x); }\n+export const A = 1;\n+export const B = 2;',
       },
     ],
   };

@@ -32,6 +32,38 @@ export function classifyPath(path: string): FileKind {
 const PERF_SIGNAL =
   /\b(for|while)\s*\(|\.(map|filter|reduce|forEach|flatMap)\(|\bawait\b|\bPromise\.|\bselect\b[\s\S]{0,40}\bfrom\b|\.query\(|\.find(Many|All)?\(|readFileSync|execSync|\bJOIN\b|\bSELECT\b|\bfor\s+\w+\s+in\b|\bgo\s+func\b|\.stream\(\)/i;
 
+/**
+ * W27-07: which specialists a file is for. Each AI area reads only its own kind
+ * of code: configuration goes to security alone, performance reads source
+ * with loops, queries or async calls, and docs, generated and other files go
+ * to none. planWaves decides WHETHER a specialist runs from the same rules, so
+ * a specialist that runs always has at least one file of its own.
+ */
+export function fileAreas(path: string, text?: string | null): Set<SpecialistId> {
+  const kind = classifyPath(path);
+  const areas = new Set<SpecialistId>();
+  if (kind === 'source') {
+    if (!text || SECURITY_SIGNAL.test(text)) areas.add('security');
+    areas.add('code_health');
+    areas.add('test_coverage');
+    areas.add('best_practices');
+    areas.add('ai_slop');
+    if (text && PERF_SIGNAL.test(text)) areas.add('performance');
+  } else if (kind === 'config') {
+    areas.add('security');
+  } else if (kind === 'test') {
+    areas.add('ai_slop');
+  }
+  return areas;
+}
+
+// W27-07: what the security checklist can speak to in source: input, auth,
+// secrets, crypto, queries, shell, files, network, rendering, deserialising.
+// Broad on purpose (a handler almost always matches); a file with none of it
+// (pure math, formatting, types) gives security nothing to read.
+const SECURITY_SIGNAL =
+  /\b(req|request|params|query|body|headers?|cookies?|session|token|passw(or)?d|secret|api_?key|auth\w*|login|jwt|oauth|crypto|cipher|hash\w*|encrypt|decrypt|hmac|random|exec\w*|spawn|eval|system|shell|subprocess|popen|sql|select|insert|update|delete|readFile\w*|writeFile\w*|unlink|open|fs|path|fetch|http\w*|url|redirect|upload|socket|deserializ\w*|unmarshal|pickle|yaml|innerHTML|dangerouslySetInnerHTML|template|render|permission|role|admin|acl|cors|csrf|tls|ssl|cert\w*)\b/i;
+
 export interface PlanFile {
   path: string;
   /** The patch, or the content for file/module mode. */
@@ -72,10 +104,14 @@ export function planWaves(files: readonly PlanFile[], options: PlanOptions = {})
     other: 0,
   };
   let perfSignal = false;
+  let securityFiles = 0;
   for (const f of files) {
     const kind = classifyPath(f.path);
     counts[kind] += 1;
     if (kind === 'source' && f.text && PERF_SIGNAL.test(f.text)) perfSignal = true;
+    // W27-07: the same per-file rule the runner uses, so a planned security
+    // review always has a file of its own.
+    if (fileAreas(f.path, f.text).has('security')) securityFiles += 1;
   }
 
   const relevance = (id: SpecialistId): string | null => {
@@ -84,7 +120,7 @@ export function planWaves(files: readonly PlanFile[], options: PlanOptions = {})
       case 'security':
         // Config and infrastructure files carry security-relevant mistakes
         // (open ports, wildcard IAM, credentials) that source-only logic misses.
-        return counts.source + counts.config > 0 ? 'source or configuration files changed' : null;
+        return securityFiles > 0 ? 'source or configuration files changed' : null;
       case 'performance':
         return code > 0 && perfSignal ? 'source with loops, queries or async calls changed' : null;
       case 'code_health':
@@ -104,7 +140,11 @@ export function planWaves(files: readonly PlanFile[], options: PlanOptions = {})
       return `only ${describeKinds(counts)} changed — nothing for this specialist to review`;
     }
     if (id === 'performance') return 'no loops, queries or async calls in the changed source';
-    if (id === 'security') return 'only test files changed';
+    if (id === 'security') {
+      return counts.source + counts.config > 0
+        ? 'no input, auth, secrets, crypto, query, shell, file or network handling in the changed code'
+        : 'only test files changed';
+    }
     return 'no source files changed';
   };
 

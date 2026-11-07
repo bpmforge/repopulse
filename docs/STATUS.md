@@ -4353,3 +4353,9 @@ on the Mac:**
   150 KB in rank order and makes at most 4 calls; files its budget did not reach are named on
   the pass panel. Before: one call per specialist per chunk (gin: 3h54 for 2 of 6
   specialists). Target ~10 minutes, to be measured on the next Mac rebuild.
+- 2026-11-07 — W27-07: each AI area reads only its own kind of code (fileAreas). Config goes to
+  security only; performance reads source with loops, queries or async calls; security reads
+  source that handles input, auth, secrets, crypto, queries, shell, files or network; docs and
+  generated files go to none. Roster runs record the rest as other_area skips; the combined
+  first look scopes each checklist to its files and refuses out-of-area findings. W27-08
+  (function slices from the code map, per area) filed.

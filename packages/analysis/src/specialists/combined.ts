@@ -68,8 +68,25 @@ export function buildCombinedPrompt(params: {
   specialists: readonly Specialist[];
   chunk: DiffChunk;
   title: string;
+  /**
+   * W27-07: for a checklist that covers only some of the chunk's files, those
+   * files. A checklist absent from the map covers every file in the chunk.
+   */
+  scope?: ReadonlyMap<Dimension, readonly string[]>;
 }): { text: string; tokens: number } {
   const dims = params.specialists.map((s) => s.dimension);
+  const scoped = params.specialists
+    .map((s) => [s.dimension, params.scope?.get(s.dimension)] as const)
+    .filter((e): e is readonly [Dimension, readonly string[]] => e[1] !== undefined);
+  const scopeLines =
+    scoped.length > 0
+      ? [
+          'Apply each checklist only to the files it covers:',
+          ...scoped.map(([d, paths]) => `- ${d}: only ${paths.join(', ')}`),
+          '- every other checklist: all files in this chunk',
+          '',
+        ]
+      : [];
   const text = [
     'You are reviewing source code from one repository. The code comes first;',
     'the checklists and the answer format follow it.',
@@ -85,6 +102,7 @@ export function buildCombinedPrompt(params: {
     `Review the code above against EACH of the ${dims.length} checklists below. Report only`,
     'real problems you can quote from the code; an empty list is a good answer.',
     '',
+    ...scopeLines,
     combinedChecklists(params.specialists),
     '',
     requiredJson(dims),
