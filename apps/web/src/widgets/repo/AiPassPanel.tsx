@@ -346,7 +346,8 @@ function RunRow({
           ) : null}
           {run.specialists?.combined ? (
             <li data-testid="ai-pass-combined">
-              One combined review: each file was read once against every checklist.
+              A quick first look: security read its code first, then one combined review covered the
+              other checklists.
               {run.specialists.combined.leftForBudget.length > 0
                 ? ` Not reached within this first look's call budget: ${run.specialists.combined.leftForBudget
                     .slice(0, 5)
