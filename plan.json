@@ -13794,6 +13794,33 @@
       "notes": [
         "2026-11-08 Mac on 1e3b74c: saleor first look 5 min 43 s, 0 findings kept, 7 rejected by the quote check; read a .semgrep rule test file and account/error_codes.py (constants). Cloud repro: a two-line quote without '+' markers failed against the diff. Also corrected: gin's open redirect was missed because security's 4th chunk was cut by budget, not by low reasoning."
       ]
+    },
+    {
+      "id": "W27-13",
+      "title": "Tour bugs: report health score matches the dashboard, finished passes show run time, smaller anti-slop calls",
+      "phase": 27,
+      "module": "reports",
+      "stories": [],
+      "write_scope": [
+        "packages/reports/src/assembler",
+        "apps/web/src/widgets/repo/AiPassPanel.tsx",
+        "packages/security/src/scanners/anti-slop/candidates.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-12"
+      ],
+      "acceptance": [
+        "The report's health score reads the FINDINGS snapshot (anti-slop, supply chain, end-of-life inputs) like the dashboard",
+        "A finished AI pass shows how long it ran and how long it waited to start",
+        "Anti-slop sends at most 10 candidates per model call"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "2026-11-08 tour capture on :8399: header/list health gin 48, repopulse 46, saleor 45 vs exec report 44/50/44 (report missed slop/supply-chain/EOL inputs); pass rows showed only the queued time; repopulse anti-slop: 25 candidates (~10.4k tokens) hit the 1,200 s timeout."
+      ]
     }
   ]
 }

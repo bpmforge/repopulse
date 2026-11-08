@@ -106,6 +106,16 @@ describeIfLiveInfra('report assembler', () => {
         computedAt: at,
       },
       { workspaceId, repoId, metricKey: 'M8', window: '30d', value: '2', dims: {}, computedAt: at },
+      // The FINDINGS row the dashboard scores anti-slop from (tour 2026-11-08).
+      {
+        workspaceId,
+        repoId,
+        metricKey: 'FINDINGS',
+        window: '30d',
+        value: '0',
+        dims: { slopDensity: 2.5 },
+        computedAt: at,
+      },
       {
         workspaceId,
         repoId,
@@ -304,6 +314,9 @@ describeIfLiveInfra('report assembler', () => {
       expect(coverage?.rawValue, 'the seeded M5 must appear as its own input row').toBe(0.8);
       expect(coverage?.subScore).toBe('reviewHygiene');
       expect(coverage?.contribution).not.toBeNull();
+      // Same inputs as the dashboard: the FINDINGS row's anti-slop density
+      // scores here too, or the report and the header disagree (gin 44 vs 48).
+      expect(breakdown.rows.find((r) => r.input === 'slopDensity')?.rawValue).toBe(2.5);
       // The stale-PR count and CI pass rate were seeded too, so the
       // decomposition must span more than one sub-score.
       expect(new Set(breakdown.rows.map((r) => r.subScore)).size).toBeGreaterThan(1);
