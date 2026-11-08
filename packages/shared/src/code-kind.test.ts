@@ -82,6 +82,11 @@ describe('code-kind (W27-01)', () => {
     }
   });
 
+  it('semgrep rule test cases are test code (W27-12)', () => {
+    expect(isTestPath('.semgrep/correctness/django/no-raw.py')).toBe(true);
+    expect(isTestPath('src/semgrep/rules.py')).toBe(false);
+  });
+
   it('isGeneratedOrVendoredPath: vendored, built, generated, lockfiles', () => {
     for (const p of GENERATED_OR_VENDORED) expect(isGeneratedOrVendoredPath(p), p).toBe(true);
     for (const p of [...PRODUCTION, 'context_test.go']) {

@@ -13767,6 +13767,33 @@
       "notes": [
         "2026-11-08 Mac on 1e3b74c: gin first look 7 min 51 s (was 66.5 min), 1 finding (test coverage), 9 of 11 files left for budget, security found nothing with low reasoning (full reasoning had found an open redirect). Repo Pulse's own code: 35 min, 1 real minor finding (O(n*m) find in connections/index.ts:613), 2 of 4 quick calls discarded for a rationale over 800 chars, 3 of 4 picked files left for budget."
       ]
+    },
+    {
+      "id": "W27-12",
+      "title": "First look precision: multi-line quotes match, rule fixtures and constant-only files ranked down",
+      "phase": 27,
+      "module": "analysis",
+      "stories": [],
+      "write_scope": [
+        "packages/analysis/src/schema/finding.ts",
+        "packages/shared/src/code-kind.ts",
+        "apps/api/src/workers/ai-first-look.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-11"
+      ],
+      "acceptance": [
+        "An evidence quote spanning several lines matches when copied without the diff's +/-/space markers; invented code is still rejected",
+        "Paths under .semgrep/ are test code",
+        "When the repository has a code map, a source file with no function in it ranks after files that have one"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "2026-11-08 Mac on 1e3b74c: saleor first look 5 min 43 s, 0 findings kept, 7 rejected by the quote check; read a .semgrep rule test file and account/error_codes.py (constants). Cloud repro: a two-line quote without '+' markers failed against the diff. Also corrected: gin's open redirect was missed because security's 4th chunk was cut by budget, not by low reasoning."
+      ]
     }
   ]
 }
