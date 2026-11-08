@@ -470,8 +470,8 @@ export class T2Client {
     timeoutMs?: number,
     parts?: PromptParts,
     signal?: AbortSignal,
-    /** W25-19: ask for no reasoning (a short verdict). */
-    noReasoning?: boolean,
+    /** W25-19/W27-10: the reasoning effort to ask for, if any. */
+    effort?: 'none' | 'low',
   ): Promise<ChatResponse> {
     const controller = new AbortController();
     // W25-06: the caller's cancel aborts the HTTP request, so the model host
@@ -507,7 +507,7 @@ export class T2Client {
           max_tokens: maxTokens,
           temperature: 0.1,
           ...(host.seed !== undefined ? { seed: host.seed } : {}),
-          ...(noReasoning ? { reasoning_effort: 'none' } : {}),
+          ...(effort ? { reasoning_effort: effort } : {}),
           // STREAMED, and not for latency (W16-39).
           //
           // Non-streaming, the endpoint sends no response headers until the
@@ -605,7 +605,7 @@ export class T2Client {
       // W25-13: the slot is ours; the request goes out now.
       notifySent(opts);
       let quick =
-        opts.reasoning === 'none' &&
+        opts.reasoning !== undefined &&
         this.config.quickReasoning !== false &&
         !this.noReasoningField.has(host.baseUrl);
       for (let attempt = 0; attempt < this.config.crashRetry.attempts; attempt++) {
@@ -625,7 +625,7 @@ export class T2Client {
             this.config.requestTimeoutMs,
             opts.promptParts,
             opts.signal,
-            quick,
+            quick ? opts.reasoning : undefined,
           );
           this.warm.add(host.baseUrl);
           // A model that thought and never concluded is a FAILURE with a name,

@@ -847,6 +847,29 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
       expect(gw.calls).toHaveLength(0);
       expect((await runOf(enqueued[0]!.runId)).status).toBe('pending');
     });
+
+    it("a judge run waits for the repository's first look (W27-10)", async () => {
+      const { enqueued } = await queueIt();
+      const [judgeRun] = await db
+        .insert(read.aiPassRuns)
+        .values({ workspaceId: WS, repoId: REPO, paths: [], mode: 'judge', trigger: 'after_scan' })
+        .returning({ id: read.aiPassRuns.id });
+      const requeued: number[] = [];
+      const { d, gw } = deps({
+        judge: {
+          scansPending: async () => false,
+          requeue: async (data) => {
+            requeued.push(data.runId);
+          },
+        },
+      });
+      const r = await aiPassProcessor(d)(job(judgeRun!.id));
+      expect(r).toMatchObject({ status: 'skipped', code: 'waiting_for_first_look' });
+      expect(requeued).toEqual([judgeRun!.id]);
+      expect(gw.calls).toHaveLength(0);
+      expect((await runOf(judgeRun!.id)).status).toBe('pending');
+      expect((await runOf(enqueued[0]!.runId)).status).toBe('pending');
+    });
   });
 
   it('runs the planned specialists, stores their findings with provenance, and stores a triage SUGGESTION - changing nothing else', async () => {
@@ -1043,13 +1066,13 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
       const first = await firstLookRun();
       const f = deps({ maxCalls: 30 });
       await aiPassProcessor(f.d)(job(first));
-      // W27-09: security alone with reasoning, then one quick call for the rest.
+      // W27-10: one quick call for the rest first, then security with reasoning low.
       expect(f.gw.calls.map((c) => [c.role, c.reasoning])).toEqual([
-        ['security', undefined],
         ['performance', 'none'],
+        ['security', 'low'],
       ]);
-      expect(f.gw.calls[0]!.prompt).toContain('## Checklist: security');
-      const prompt = f.gw.calls[1]!.prompt;
+      expect(f.gw.calls[1]!.prompt).toContain('## Checklist: security');
+      const prompt = f.gw.calls[0]!.prompt;
       expect(prompt).toContain('## Checklist: code_health');
       // The code first, the instructions last (Mac A/B, prefix caching).
       expect(prompt.indexOf('```diff')).toBeLessThan(prompt.indexOf('## Checklist:'));

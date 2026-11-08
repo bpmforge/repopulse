@@ -13707,6 +13707,36 @@
       "notes": [
         "2026-11-07 Mac on 103e6c3: gin's first look failed, 3 combined calls (6 checklists, ~18-23k tokens of code) each reasoned past the 1,200 s timeout. Replay of the failed prompt: reasoning low 556 s, none 32 s, both 0 findings on that chunk; the separate security specialist with reasoning found 1 issue earlier. Per-area slices did run but the three whole-file areas widened every file back to whole. CVE checks (8-9 s now) waited behind the stuck calls: noted for W25-11/12."
       ]
+    },
+    {
+      "id": "W27-10",
+      "title": "First look budget: quick group first, security with reasoning low, judge waits, honest budget message",
+      "phase": 27,
+      "module": "analysis",
+      "stories": [],
+      "write_scope": [
+        "packages/analysis/src/specialists",
+        "packages/analysis/src/gateway/types.ts",
+        "packages/analysis/src/t2/client.ts",
+        "apps/api/src/workers/ai-pass-processor.ts",
+        "apps/api/src/workers/second-model.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-09"
+      ],
+      "acceptance": [
+        "A first look runs the quick combined group first (reasoning none, at most half the call budget), then security with reasoning low",
+        "FIRST_LOOK_MAX_CALLS is 7",
+        "A judge run waits while the repository's first look is pending or running",
+        "A second opinion skipped for the run's own budget says so and does not blame the month's cap"
+      ],
+      "points": 2,
+      "status": "done",
+      "notes": [
+        "2026-11-07 Mac on dca89b5: gin's first look finished in 66.5 min with 1 real finding, but security used all 4 calls (6-14 min each, one timeout), the quick group never ran (10 files left for budget), the judge ran first and between calls (~15 min), and the second opinion blamed the monthly cap at 22 of 300 calls. Still open: findings visible per call, CVE checks before or alongside the first look (W25-11/12)."
+      ]
     }
   ]
 }

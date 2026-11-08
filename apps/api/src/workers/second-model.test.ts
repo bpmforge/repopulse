@@ -17,6 +17,7 @@ import { monthlyCallsUsed } from './ai-pass-scheduler.js';
 import {
   AI_OFF_REASON,
   CAP_REASON,
+  RUN_BUDGET_REASON,
   createSecondModelVerifier,
   cveVerifyHook,
 } from './second-model.js';
@@ -258,6 +259,14 @@ describeIfLiveInfra('the second-model verifier (W21-03)', () => {
     const v = verifier();
     expect('refuted' in (await v.verify(req()))).toBe(true);
     expect(await v.verify(req())).toEqual({ unverified: true, reason: CAP_REASON });
+    expect(sent).toHaveLength(1);
+  });
+
+  it("says the run's budget, not the month's cap, when only the run's budget is spent (W27-10)", async () => {
+    await settings({ cap: (await monthlyCallsUsed(db, WS, new Date())) + 100 });
+    const v = verifier({ maxCalls: 1 });
+    expect('refuted' in (await v.verify(req()))).toBe(true);
+    expect(await v.verify(req())).toEqual({ unverified: true, reason: RUN_BUDGET_REASON });
     expect(sent).toHaveLength(1);
   });
 

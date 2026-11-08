@@ -4370,3 +4370,8 @@ on the Mac:**
   reasoning low 556 s, none 32 s). Now security runs alone with reasoning on its own slices,
   then the other checklists in one quick combined call (reasoning none); each call reads at
   most 8,000 tokens of code; areas without a focus no longer widen focused files to whole.
+- 2026-11-08 — W27-10: first look budget. On dca89b5 gin's first look finished (66.5 min, 1 real
+  finding) but security took all 4 calls and the other areas never ran. Now the quick combined
+  group runs first (reasoning none, half the budget), then security with reasoning low; the
+  first look gets 7 calls; the judge waits for the first look; a second opinion skipped for the
+  run's own budget no longer blames the monthly cap.

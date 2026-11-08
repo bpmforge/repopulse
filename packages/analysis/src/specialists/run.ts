@@ -343,10 +343,11 @@ function splitByArea(
  * W27-05/W27-09: the first look. Measured on gin (103e6c3, local 27B): one
  * call holding all six checklists and ~18k tokens of code reasoned past the
  * 1,200 s timeout on every call, so nothing came back. Replaying it: reasoning
- * low took 556 s, none 32 s. So the first look runs in two groups, security
- * first: security alone, with reasoning (the one area where reasoning found
- * what a fast answer did not), on its own slices; then every other planned
- * checklist in one combined call with reasoning none. Each call reads at most
+ * low took 556 s, none 32 s. So the first look runs in two groups: every
+ * checklist but security in one combined call with reasoning none (W27-10:
+ * first, with at most half the calls), then security alone with reasoning
+ * low on its own slices (the one area where reasoning found what a fast
+ * answer did not). Each call reads at most
  * COMBINED_CHUNK_TOKENS of code. Same rules as the roster: one retry for a
  * reasoning-only answer, one corrective retry for a malformed one, a per-call
  * failure recorded against its chunk, and a run in which nothing answered
@@ -373,9 +374,18 @@ async function runCombined(
     );
   const security = planned.filter((s) => s.id === 'security');
   const rest = planned.filter((s) => s.id !== 'security');
-  const groups: { members: Specialist[]; quick: boolean }[] = [
-    ...(security.length > 0 ? [{ members: security, quick: false }] : []),
-    ...(rest.length > 0 ? [{ members: rest, quick: true }] : []),
+  // W27-10 (gin on dca89b5): security went first and its slow calls used all
+  // four, so the other five areas never ran. The quick group (30-40 s a call)
+  // now goes first with at most half the budget; security gets the rest,
+  // with reasoning low instead of unbounded.
+  const quickCap = Math.ceil(maxCalls / 2);
+  const groups: { members: Specialist[]; reasoning: 'none' | 'low'; cap: () => number }[] = [
+    ...(rest.length > 0
+      ? [{ members: rest, reasoning: 'none' as const, cap: () => Math.min(maxCalls, quickCap) }]
+      : []),
+    ...(security.length > 0
+      ? [{ members: security, reasoning: 'low' as const, cap: () => maxCalls }]
+      : []),
   ];
   const state: CombinedState = {
     answered: false,
@@ -383,7 +393,17 @@ async function runCombined(
     leftForBudget: [],
   };
   for (const g of groups) {
-    await runCombinedGroup(input, files, g.members, g.quick, kindOf, result, maxCalls, deps, state);
+    await runCombinedGroup(
+      input,
+      files,
+      g.members,
+      g.reasoning,
+      kindOf,
+      result,
+      g.cap(),
+      deps,
+      state,
+    );
   }
   result.leftForBudget = state.leftForBudget;
   if (!state.answered && state.firstCallError) throw state.firstCallError;
@@ -401,7 +421,7 @@ async function runCombinedGroup(
   input: ReviewInput,
   files: ReturnType<typeof toDiffFiles>,
   planned: Specialist[],
-  quick: boolean,
+  reasoning: 'none' | 'low',
   kindOfAll: (path: string) => Set<SpecialistId>,
   result: SpecialistRunResult,
   maxCalls: number,
@@ -490,8 +510,8 @@ async function runCombinedGroup(
           maxTokens: 45_000,
           expectJson: true,
           meta,
-          // W27-09: the combined group answers without long reasoning.
-          ...(quick ? { reasoning: 'none' as const } : {}),
+          // W27-09/10: none for the combined group, low for security.
+          reasoning,
         });
       } catch (err) {
         result.calls += 1;
