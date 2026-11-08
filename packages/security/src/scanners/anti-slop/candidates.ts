@@ -44,8 +44,13 @@ export const CANDIDATE_RULE_IDS: ReadonlySet<string> = new Set([
 
 /** Most candidates one run sends. A cap that is hit is reported, not hidden. */
 export const MAX_CANDIDATES_PER_RUN = 200;
-/** Most candidates in one call — keeps one bad answer from voiding a whole run. */
-export const MAX_CANDIDATES_PER_CALL = 25;
+/**
+ * Most candidates in one call — keeps one bad answer from voiding a whole run.
+ * 25 -> 10 (2026-11-08): on Repo Pulse's own code a 25-candidate call (~10.4k
+ * tokens) reasoned past the 1,200 s timeout on a local 27B and the run was cut
+ * short. Smaller calls finish, and a timeout loses fewer candidates.
+ */
+export const MAX_CANDIDATES_PER_CALL = 10;
 /** Lines of context shown before a candidate's first line. */
 const CONTEXT_BEFORE = 2;
 /** Lines shown after its last — enough for a short body, never a file. */

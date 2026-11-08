@@ -163,6 +163,14 @@ function RunRow({
   const now = Date.now();
   const elapsed = minutesSince(run.started_at, now);
   const waiting = minutesSince(run.created_at, now);
+  // Tour 2026-11-08: a finished row showed only when it was queued, so a first
+  // look that waited for the scan read as taking that long. Show both parts.
+  const finishedAt = run.finished_at ? new Date(run.finished_at).getTime() : null;
+  const ranFor =
+    run.started_at && finishedAt !== null ? minutesSince(run.started_at, finishedAt) : null;
+  const waitedFor = run.started_at
+    ? minutesSince(run.created_at, new Date(run.started_at).getTime())
+    : null;
   // W25-13: which call is in flight, and whether it waits for the model's slot
   // behind other analysis or the model is answering it.
   const live = run.plan?.live;
@@ -194,6 +202,15 @@ function RunRow({
           {run.calls !== null ? ` · ${run.calls} model call${run.calls === 1 ? '' : 's'}` : ''}
         </span>
       </p>
+      {!ACTIVE(run.status) && ranFor !== null ? (
+        <p className="text-xs text-fg-muted" data-testid="ai-pass-took">
+          Ran for {ranFor < 1 ? 'under a minute' : duration(ranFor)}
+          {waitedFor !== null && waitedFor >= 1
+            ? `, after waiting ${duration(waitedFor)} to start`
+            : ''}
+          .
+        </p>
+      ) : null}
       {/* W20-11 (UX_TODO AI-64, partial): a pass no worker picks up sat at
           "queued…" forever, and a long one on a slow local model showed nothing
           moving. Calls so far are not recorded until the pass ends. */}

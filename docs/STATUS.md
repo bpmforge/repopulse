@@ -4384,3 +4384,7 @@ on the Mac:**
   a quote spanning lines never matched the diff because the model drops the '+' markers. Quotes
   now also match the code without markers. `.semgrep/` rule tests count as test code, and
   source files with no function in the code map (constants) rank after real code.
+- 2026-11-08 — W27-13: tour bugs. Reports now score health from the same inputs as the dashboard
+  (they missed anti-slop, supply chain and end-of-life, so gin read 44 in a report and 48 on
+  screen); finished AI passes show run time and wait time; anti-slop sends 10 candidates per
+  call (25 timed out on a local 27B). Mac A/B on gin's redirect slice: low found it in 82 s.

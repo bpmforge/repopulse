@@ -2,6 +2,7 @@ import { METRIC_CATALOG, type MetricCatalogEntry } from '@repopulse/metrics';
 import {
   buildHealthSubScores,
   computeHealthScore,
+  FINDINGS_METRIC_KEY,
   healthInputsFromSnapshots,
   securityInputsMany,
   type SecurityInputs,
@@ -42,7 +43,10 @@ import { aiGovernanceSections } from './ai-governance.js';
 const HOUR_MS = 60 * 60 * 1000;
 
 /** Metrics each report type needs. Read once, per repo, bounded by the pin. */
-const HEALTH_KEYS = ['M4', 'M5', 'M8', 'M9', 'M11'];
+// The FINDINGS row carries the anti-slop, supply-chain and end-of-life inputs
+// the dashboard scores with (apps/api/src/routes/org/health.ts). Tour
+// 2026-11-08: without it a report scored gin 44 against the dashboard's 48.
+const HEALTH_KEYS = ['M4', 'M5', 'M8', 'M9', 'M11', FINDINGS_METRIC_KEY];
 const HOTSPOT_KEYS = ['M2'];
 const FLOW_KEYS = ['M4', 'M5', 'M6', 'M7', 'M8'];
 const CI_KEYS = ['M9'];
@@ -212,6 +216,11 @@ export function createReportAssembler(db: Database): ReportAssembler {
     tier1Only: boolean;
     subScores: { key: string; normalized: number }[];
   } {
+    const findingsDims = snap(snapshots, repo.id, FINDINGS_METRIC_KEY)?.dims ?? {};
+    const findingNum = (key: string): number | null => {
+      const v = (findingsDims as Record<string, unknown>)[key];
+      return typeof v === 'number' ? v : null;
+    };
     const inputs = healthInputsFromSnapshots(
       {
         M4: snap(snapshots, repo.id, 'M4') ?? { value: null, dims: {} },
@@ -227,6 +236,9 @@ export function createReportAssembler(db: Database): ReportAssembler {
       {
         openFindingDensity: ctx.security.get(repo.id)?.openFindingDensity ?? null,
         worstOpenSeverity: ctx.security.get(repo.id)?.worstOpenSeverity ?? null,
+        slopDensity: findingNum('slopDensity'),
+        supplyChainRisk: findingNum('dependencyHealthRiskSum'),
+        eolRuntimeCount: findingNum('eolRuntimeCount'),
       },
     );
     // The PINNED weights, as Overview passes the saved ones (ADM-71).
