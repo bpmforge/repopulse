@@ -6,6 +6,7 @@ import {
   findingSchema,
   retryPromptFor,
   validateFindings,
+  withoutDiffMarkers,
 } from './finding.js';
 
 // Finding schema + evidence validation (W6-02, ANALYSIS_TIERS.md §4,
@@ -85,6 +86,37 @@ describe('finding schema', () => {
     const withoutFix: Record<string, unknown> = { ...finding() };
     delete withoutFix.suggested_fix;
     expect(findingSchema.safeParse(withoutFix).success).toBe(false);
+  });
+});
+
+describe('multi-line quotes (W27-12)', () => {
+  const chunk = 'diff --git a/x.go b/x.go\n@@ -0,0 +1,3 @@\n+func a() {\n+\treturn b\n+}';
+  const f = (quote: string) => ({
+    dimension: 'security',
+    severity: 2,
+    confidence: 3,
+    file: 'x.go',
+    line_range: [1, 2],
+    title: 't',
+    evidence_quote: quote,
+    rationale: 'r',
+    suggested_fix: null,
+  });
+
+  it('matches a quote copied without the diff markers', () => {
+    const r = validateFindings({ findings: [f('func a() {\n\treturn b')] }, chunk);
+    expect(r.findings).toHaveLength(1);
+  });
+
+  it('still matches a quote with the markers, and still rejects invented code', () => {
+    expect(validateFindings({ findings: [f('+func a() {')] }, chunk).findings).toHaveLength(1);
+    expect(
+      validateFindings({ findings: [f('func a() {\n\treturn c')] }, chunk).rejected,
+    ).toHaveLength(1);
+  });
+
+  it('drops the headers and markers', () => {
+    expect(withoutDiffMarkers(chunk)).toBe('func a() {\n\treturn b\n}');
   });
 });
 

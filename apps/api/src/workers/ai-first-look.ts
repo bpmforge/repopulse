@@ -223,11 +223,45 @@ export async function rankFirstLookPaths(
     .orderBy(desc(sql`count(*)`), read.codeIndexDefs.path)
     .limit(limit * 4);
 
+  // W27-12: which candidates define a function. On saleor the first look read
+  // account/error_codes.py, a list of constants: nothing for any area to find.
+  // When the repository has a code map, a source file with no function in it
+  // drops to the non-runtime tier.
+  const candidates = [
+    ...new Set([...byFindings.map((r) => r.file ?? ''), ...byChurn.map((r) => r.path)]),
+  ].filter(Boolean);
+  const withFunctions =
+    byDefs.length > 0 && candidates.length > 0
+      ? new Set(
+          (
+            await db
+              .selectDistinct({ path: read.codeIndexDefs.path })
+              .from(read.codeIndexDefs)
+              .innerJoin(
+                read.codeIndexes,
+                and(
+                  eq(read.codeIndexes.id, read.codeIndexDefs.indexId),
+                  eq(read.codeIndexes.workspaceId, read.codeIndexDefs.workspaceId),
+                ),
+              )
+              .where(
+                and(
+                  eq(read.codeIndexDefs.workspaceId, workspaceId),
+                  eq(read.codeIndexes.repoId, repoId),
+                  eq(read.codeIndexDefs.kind, 'function'),
+                  inArray(read.codeIndexDefs.path, [...candidates, ...byDefs.map((r) => r.path)]),
+                ),
+              )
+          ).map((r) => r.path),
+        )
+      : undefined;
+
   return rankPaths(
     byFindings.map((r) => ({ path: r.file ?? '', weight: Number(r.weight) })),
     byChurn.map((r) => ({ path: r.path, weight: Number(r.n) })),
     limit,
     byDefs.map((r) => ({ path: r.path, weight: Number(r.n) })),
+    withFunctions,
   );
 }
 
@@ -259,6 +293,8 @@ export function rankPaths(
   byChurn: readonly { path: string; weight: number }[],
   limit = FIRST_LOOK_CANDIDATES,
   byDefs: readonly { path: string; weight: number }[] = [],
+  /** Paths the code map says define a function; absent = no map, rank as before. */
+  withFunctions?: ReadonlySet<string>,
 ): string[] {
   const tiers: string[][] = [[], [], []];
   const seen = new Set<string>();
@@ -269,7 +305,11 @@ export function rankPaths(
       const base = clean.split('/').pop() ?? clean;
       if (!AI_PASS_READABLE.test(base) || NOT_SOURCE.test(clean)) continue;
       seen.add(clean);
-      tiers[pathTier(clean)]!.push(clean);
+      let tier = pathTier(clean);
+      // W27-12: production source with no function in the map (constants,
+      // re-exports) ranks with the non-runtime files.
+      if (tier === 0 && withFunctions && !withFunctions.has(clean)) tier = 1;
+      tiers[tier]!.push(clean);
     }
   }
   return tiers.flat().slice(0, limit);

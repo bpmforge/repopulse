@@ -10,9 +10,12 @@
 // case-sensitive in both, so `latest.go`, `contest.py` and `Testimonial.tsx`
 // are not tests, and `src/builder/x.ts` is not build output.
 
-/** Test code by directory or file name, across the languages a pass reads. */
+/**
+ * Test code by directory or file name, across the languages a pass reads.
+ * `.semgrep/` holds rule test cases (W27-12: saleor's first look read one).
+ */
 export const TEST_PATH_PATTERN =
-  '(^|/)(tests?|__tests__|__mocks__|mocks?|specs?|e2e|testutils?|testing|testdata|fixtures?)/' +
+  '(^|/)(tests?|__tests__|__mocks__|mocks?|specs?|e2e|testutils?|testing|testdata|fixtures?|\\.semgrep)/' +
   '|(_test\\.(go|py|rs|exs|dart|c|cc|cpp)|\\.(test|spec)\\.[cm]?[jt]sx?|_spec\\.rb|Tests?\\.(java|kt|kts|cs|swift|scala)|Spec\\.(kt|scala|swift))$' +
   '|(^|/)(test_[^/]*\\.py|conftest\\.py|test_?helpers?\\.[a-z]+|testutils?\\.[a-z]+)$';
 

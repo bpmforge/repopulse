@@ -2057,6 +2057,32 @@ describe('inScope', () => {
 });
 
 describe('rankPaths (W25-01)', () => {
+  it('ranks source with no function in the code map after the files that have one (W27-12)', () => {
+    expect(
+      rankPaths(
+        [
+          { path: 'saleor/account/error_codes.py', weight: 9 },
+          { path: 'saleor/account/views.py', weight: 3 },
+          { path: 'go.mod', weight: 2 },
+        ],
+        [],
+        10,
+        [],
+        new Set(['saleor/account/views.py']),
+      ),
+    ).toEqual(['saleor/account/views.py', 'saleor/account/error_codes.py', 'go.mod']);
+    // No map: ranked as before.
+    expect(
+      rankPaths(
+        [
+          { path: 'a/error_codes.py', weight: 9 },
+          { path: 'a/views.py', weight: 3 },
+        ],
+        [],
+      ),
+    ).toEqual(['a/error_codes.py', 'a/views.py']);
+  });
+
   it('puts findings before churn, keeps readable source only, and drops duplicates', () => {
     expect(
       rankPaths(

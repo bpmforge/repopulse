@@ -4380,3 +4380,7 @@ on the Mac:**
   were thrown away for one over-long rationale. Quick calls now read up to 20,000 tokens of code;
   over-long prose is cut instead of failing the answer; FIRST_LOOK_SECURITY_REASONING
   (low/medium/full) sets how deep the first look's security review thinks.
+- 2026-11-08 — W27-12: first look precision. saleor's first look (5 min 43 s) kept 0 of 7 findings:
+  a quote spanning lines never matched the diff because the model drops the '+' markers. Quotes
+  now also match the code without markers. `.semgrep/` rule tests count as test code, and
+  source files with no function in the code map (constants) rank after real code.
