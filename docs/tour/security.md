@@ -1,66 +1,68 @@
 # Triage security findings: CVEs, code flaws and secrets
 
-Security findings are ranked by real risk, not just severity: whether the vulnerable package is actually imported, how likely exploitation is, and what a model made of the code. Each one opens to its evidence, its fix and a way to record that it does not apply.
+Security findings are ranked by real risk, not just severity: whether the vulnerable code is actually reached, how likely exploitation is, and what a model made of the code. Each one opens to its evidence, its fix and a way to record that it does not apply.
 
-**For:** Security engineer, Developer · **8 steps** · [All tours](README.md)
+**For:** Security engineer, Developer · **9 steps** · [All tours](README.md)
 
-> Real screens from a fresh RepoPulse 0.2.0 install that scanned copies of six public open-source projects (axum, gin, mastodon-ios, nowinandroid, outline and saleor) on a local Gitea over https, with models running in LM Studio on the same network.
+> Real screens from a RepoPulse test install built from the current main branch (0.2.1 in development). It tracks copies of three open-source projects on a local Gitea: gin (Go), saleor (Python) and RepoPulse's own code (TypeScript), with the qwen3.8-27b model running in LM Studio on the same network.
 
-## 1. Check what was scanned
+## 1. Start from the summary
 
-A repository's Security tab lists all 19 scanners, when each last ran and when it runs next. On gin, 5 had nothing to scan and say so, which is not the same as finding nothing.
+A repository's **Security** tab opens on a summary row. For RepoPulse's own code: 504 open security findings, 0 secrets, 371 vulnerable dependencies (5 known exploited), 0 attack chains, and 12 of 19 scanners with a completed run. Below, each scanner's state, last run and schedule, with a Re-run link.
 
-![Check what was scanned](images/security-01-coverage.webp)
+![Start from the summary](images/security-01-summary.webp)
 
-## 2. Work the ranked list
+## 2. Spot a scanner that needs attention
 
-Filtered to security findings, 71 are open across the workspace (26 more from shadow rules are not listed). The critical gin CVE ranks first.
+Scanners with a problem are listed first. Here the anti-slop run was cut short because a model call did not finish within 1,200 seconds, so its findings may be incomplete, and the row says so. "Ran, but nothing was scanned" says why, which is not the same as finding nothing.
 
-![Work the ranked list](images/security-02-ranked.webp)
+![Spot a scanner that needs attention](images/security-08-scanner-attention.webp)
 
-## 3. Open the finding: evidence, fix and why it applies
+## 3. See what was not covered
 
-CVE-2026-78663 in golang.org/x/net v0.57.0. **Why this applies** says it is a direct production dependency, imported in three places, with a 0.62% chance of exploitation in the next 30 days (EPSS). It also says what was not established: whether the vulnerable function itself is called.
+The **Coverage map** is folded until you need it. It lists languages without a rule pack (bash and terraform here), files skipped for size or the read cap, and the 12 scanners not running here, each with its reason: turned off, never run, not in this build, or not supported.
 
-![Open the finding: evidence, fix and why it applies](images/security-03-cve-why.webp)
+![See what was not covered](images/security-02-coverage-map.webp)
 
-## 4. Record a VEX statement, or fix it
+## 4. Narrow the list
 
-If a CVE does not affect you, **Record VEX statement** saves that and the reason, and the next scan and the VEX export carry it. This CVE gets no drafted patch, and the page says why: a verified fix needs a rule it can re-run on the patched file. The recommendation is already a one-line upgrade, `go get golang.org/x/net@v0.60.0`.
+Filtered to security findings: 481 open, 397 more from rules on trial not listed. Filters sit in one grid, with **Known exploited (KEV)** and **In an attack chain** one click away; **More filters** adds rule, rule stage and minimum confidence. The top row is already marked confirmed on AI review.
 
-![Record a VEX statement, or fix it](images/security-04-vex-button.webp)
+![Narrow the list](images/security-03-filters.webp)
 
-## 5. A code flaw, at the line
+## 5. Open the finding: evidence, fix and why it applies
 
-SAST findings open on the code. Here, outline derives an account-deletion code from `createHash("md5")` at `server/models/User.ts:337` (rule bpm-js-weak-hash). The recommendation explains when MD5 is fine and when it is not.
+A finding is one column of cards. CVE-2020-14343 in pyyaml 5.3.1 (from RepoPulse's own security test fixtures): **What to do** is upgrade pyyaml to 5.4, and **Why this applies** gives a 6.24% chance of exploitation in the next 30 days (EPSS) and **symbol reachable**: the code calls `yaml.load`, `load_all` and `full_load`, the functions the advisory names, and each call site is listed. **Record VEX statement** saves why a CVE does not affect you.
 
-![A code flaw, at the line](images/security-05-sast-where.webp)
+![Open the finding: evidence, fix and why it applies](images/security-04-cve.webp)
 
-## 6. Read the AI verdict and its evidence
+## 6. A code flaw, at the line
 
-A local model judges whether the finding is real, gives a confidence out of 5 and quotes the lines it relied on. You can agree, disagree, or ask a second model; your answer is recorded beside the model's, and does not change the finding by itself.
+SAST findings open on the code. In `apps/api/src/routes/auth/oidc.ts:261` request data decides where the user is redirected after sign-in (rule bpm-inj-redirect-js). The fix: redirect only to a single-`/` path or an allowlisted host. This rule is still on trial, and the dashed box says its precision is being measured.
 
-![Read the AI verdict and its evidence](images/earlier/rp-sec-08-sast-ai.webp)
+![A code flaw, at the line](images/security-05-sast.webp)
 
-_Screen from the pre-0.2.0 walkthrough (0.9.17). The 0.2.0 capture is waiting on the local model's AI review and will replace it._
+## 7. Read the AI verdict and its evidence
 
-## 7. Get a proposed VEX justification
+A local model judges whether a finding is real, gives its own confidence out of 5 and quotes the lines it relied on. Here, in saleor, it agrees that a `# Set subtotal` comment only restates the next line, citing both lines. You can agree or disagree; your answer is recorded beside the model's and does not change the finding by itself.
 
-When the model thinks a finding does not apply, it proposes the VEX justification, such as `vulnerable_code_not_present` for a flag on package documentation. Nothing is recorded until a person does it.
+![Read the AI verdict and its evidence](images/security-06-ai-verdict.webp)
 
-![Get a proposed VEX justification](images/earlier/rp-sec-06-ai-vex.webp)
+## 8. Get a proposed VEX justification
 
-_Screen from the pre-0.2.0 walkthrough (0.9.17). The 0.2.0 capture is waiting on the local model's AI review and will replace it._
+When the model thinks a finding does not apply, it says so and proposes the VEX justification. Here a SQL-concatenation hit joins two constant strings, so it proposes `vulnerable_code_not_present`. The finding stays open, and nothing is recorded until a person does it.
 
-## 8. Spot a scanner that needs attention
+![Get a proposed VEX justification](images/security-07-ai-fp.webp)
 
-On saleor (Security 0/100, 35 open), the scanners with problems are listed first: the code-health run failed and the anti-slop run was cut short, so its findings may be incomplete. Each has a Re-run link.
+## 9. Triage from a phone
 
-![Spot a scanner that needs attention](images/security-08-saleor-ranked.webp)
+The same finding on a phone: the cards stack in one column, from the evidence down to the status form.
+
+![Triage from a phone](images/security-09-phone.webp)
 
 ---
 
-Secrets in diffs and history and installed malicious packages are scanned the same way and appear in the same ranked list; none were found in these six projects, so there is no screen for them here.
+Secrets in diffs and history and installed malicious packages are scanned the same way and appear in the same ranked list; none were found in these projects, so there is no screen for them here.
 
 ---
 

@@ -17,8 +17,8 @@ image registry: you receive one install bundle per CPU architecture and run it
 with Podman or Docker.
 
 **See it first:** the [screenshot tour](docs/tour/README.md) walks through a
-real 0.2.0 install, one job at a time: setup, security triage, performance,
-AI slop, verified fixes, code health, rules and reports.
+real install, one job at a time: setup, security triage, performance,
+AI slop, verified fixes, code health, rules, reports and AI review.
 
 ## Install from a bundle
 
@@ -149,7 +149,7 @@ RepoPulse runs its own rule packs, which do not share their rule ids.
 
 | Document | For whom | What |
 |---|---|---|
-| [docs/tour/](docs/tour/README.md) | anyone deciding whether to use it | a screenshot tour of a real 0.2.0 install, one tour per job |
+| [docs/tour/](docs/tour/README.md) | anyone deciding whether to use it | a screenshot tour of a real install, one tour per job |
 | [docs/INSTALL.md](docs/INSTALL.md) | the person installing it | bundle or checkout install, first sign-in, connecting a forge, scan data, reverse proxy |
 | [docs/CONFIG.md](docs/CONFIG.md) | the same person, later | every environment variable, its default, and what breaks when it is wrong |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | whoever owns the host | topology, network exposure, TLS, webhook ingress, monitoring, the scan sandbox |

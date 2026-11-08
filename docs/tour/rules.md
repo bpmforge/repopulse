@@ -4,23 +4,23 @@ Every rule shows how it was measured and whether it counts. New rules run in sha
 
 **For:** Engineering lead · **3 steps** · [All tours](README.md)
 
-> Real screens from a fresh RepoPulse 0.2.0 install that scanned copies of six public open-source projects (axum, gin, mastodon-ios, nowinandroid, outline and saleor) on a local Gitea over https, with models running in LM Studio on the same network.
+> Real screens from a RepoPulse test install built from the current main branch (0.2.1 in development). It tracks copies of three open-source projects on a local Gitea: gin (Go), saleor (Python) and RepoPulse's own code (TypeScript), with the qwen3.8-27b model running in LM Studio on the same network.
 
 ## 1. The rule registry
 
-**Settings → Rules** lists each rule's state, where it came from, its findings and its false-positive rate. Shadow rules (64 on this install) each say what they still need before they can be promoted: 20 findings and 30 days. Rules drafted from AI triage appear here as proposed, and do not run until you accept them.
+**Settings → Rules** lists each rule's state, where it came from and its findings. Here four imported tool rule sets (shellcheck, hadolint, checkov, iacrender) run in shadow, excluded from every score, and each says what it still needs: 20 findings and 30 days. Below, precision measured on public benchmarks.
 
 ![The rule registry](images/rules-01-registry.webp)
 
 ## 2. Precision on every finding
 
-Each finding shows its rule's record. bpm-js-weak-hash is shipped in a rule pack and counts everywhere; the block says how much triage and benchmark evidence stands behind it, and labels a small sample as such.
+Each finding shows its rule's record. bpm-perf-membership-in-list-in-loop-py is active and counts everywhere, backed by 15 of 15 hits marked real by hand on 3 public repositories. Your own triage is counted too once you start.
 
 ![Precision on every finding](images/rules-02-precision.webp)
 
 ## 3. Look at what shadow rules found
 
-Shadow findings are hidden by default. Filter Rule stage to shadow rules to review them: 790 on this install, kept out of every score until their rule is promoted.
+Shadow findings are hidden by default. Set **Rule stage** to shadow rules only to review them: 1,197 here, such as Kubernetes containers sharing the host network, kept out of every score until their rule is promoted.
 
 ![Look at what shadow rules found](images/rules-03-shadow.webp)
 
