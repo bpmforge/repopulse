@@ -1,40 +1,52 @@
 # See where every repository stands
 
-Start from the list of repositories, open one to see its health score, ask why it has that score, and see the risks that rank first across every repository.
+Start from the overview, open a repository to see its health score, ask why it has that score, and work through every finding in one sortable list.
 
-**For:** Engineering lead, Manager or exec · **5 steps** · [All tours](README.md)
+**For:** Engineering lead, Manager or exec · **7 steps** · [All tours](README.md)
 
-> Real screens from a fresh RepoPulse 0.2.0 install that scanned copies of six public open-source projects (axum, gin, mastodon-ios, nowinandroid, outline and saleor) on a local Gitea over https, with models running in LM Studio on the same network.
+> Real screens from a RepoPulse test install built from the current main branch (0.2.1 in development). It tracks copies of three open-source projects on a local Gitea: gin (Go), saleor (Python) and RepoPulse's own code (TypeScript), with the qwen3.8-27b model running in LM Studio on the same network.
 
-## 1. Every repository, one health score
+## 1. Start from the overview
 
-Repositories lists each tracked repository with a health score out of 100. On this install: axum 65, nowinandroid 65, mastodon-ios 52, outline 52, gin 50 and saleor 50.
+The overview leads with what to do next: two compound-risk findings and the first item of the improvement plan, "Move off the end-of-life runtimes". Below are delivery KPIs, each repository's health (saleor 45, RepoPulse 46, gin 48, each with its 30-day change), the repositories that need attention, and hotspots.
 
-![Every repository, one health score](images/overview-01-repositories.webp)
+![Start from the overview](images/overview-01-home.webp)
 
 ## 2. Open a repository's pulse
 
-gin scores 50: Security 0/100 with 8 open, Supply Chain 100/100. Top risks lists its CVEs in risk order, led by CVE-2026-78663 in golang.org/x/net at risk 59.5, and the footer counts 159 open findings: 1 to act on now, 8 to schedule, 150 to track. The delivery tiles read 0 because these copies have no pull requests or CI history; on a live forge they fill in.
+A repository has six tabs: **Pulse, Delivery, Findings, Security, Code health and AI review**. RepoPulse's own code scores 46: Security 0/100 with 278 open, Supply Chain 0/100. Top risks are files flagged by three to five kinds of check at once, and the footer splits the 4,052 open findings into 24 to act on now, 190 to schedule and 3,838 to track. The delivery tiles read 0 because these copies have no pull requests or CI history.
 
-![Open a repository's pulse](images/overview-02-gin-pulse.webp)
+![Open a repository's pulse](images/overview-03-pulse.webp)
 
 ## 3. Ask why the score is what it is
 
-**why?** opens the breakdown: each part's value, its weight and its share of the score, with the parts that have no data left out and the rest re-weighted. Nothing in the score is hidden.
+**why?** shows each part's value, weight and share of the score: Activity 100, Review 50, CI 0, Security 0, Supply Chain 0 (6 runtimes past end of life), Delivery 100. Code Health has no data, so it is left out and the rest are re-weighted, and the weakest part, CI, is named.
 
-![Ask why the score is what it is](images/overview-03-score-why.webp)
+![Ask why the score is what it is](images/overview-04-score-why.webp)
 
-## 4. See what ranks first
+## 4. Delivery in one tab
 
-In outline, Security is 13/100 with 13 open, and the top risk is now a CVE, CVE-2026-116693 in dd-trace 5.130.0 at risk 33.3. Clusters of code-health findings no longer jump ahead of security. A 30-day improvement plan is one click away.
+**Delivery** holds Activity, Pull requests, PR flow, CI and Review bots as sub-tabs, at the same links as before. Each card says what it measures and why it is empty here: these copies have no pull requests, CI runs or releases. On a live forge they fill in.
 
-![See what ranks first](images/overview-04-outline-pulse.webp)
+![Delivery in one tab](images/overview-05-delivery.webp)
 
-## 5. Every finding, across every repository
+## 5. Compare another repository
 
-Findings puts all of them in one list, sorted by risk: 6,201 on this install. Rules still on trial stay out of the list (790 shadow findings, shown on request).
+saleor scores 45: Security 0/100 with 29 open, Supply Chain 50/100. Its top risk is `saleor/core/jwt.py`, flagged by three kinds of check, and its 3,009 open findings split into 4 to act on now, 135 to schedule and 2,870 to track.
 
-![Every finding, across every repository](images/overview-05-findings-all.webp)
+![Compare another repository](images/overview-06-pulse-saleor.webp)
+
+## 6. Every finding, across every repository
+
+**Findings** lists every finding from every scanner and model review, sorted by risk: 7,114 open here. Filters sit in one grid above the table, the 2 fixes ready to apply come first, and 1,197 findings from rules still on trial are held back, shown on request and marked.
+
+![Every finding, across every repository](images/overview-07-findings-all.webp)
+
+## 7. Sort by any column
+
+Every column header sorts, both ways: severity, risk, finding, repository, file, status and age. Here the list is sorted by file, so repository-wide findings such as outdated dependencies come first and a file's findings sit together. The sort is kept in the link, so a shared link opens the same view.
+
+![Sort by any column](images/overview-08-sort-file.webp)
 
 ---
 
