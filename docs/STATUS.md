@@ -4375,3 +4375,8 @@ on the Mac:**
   group runs first (reasoning none, half the budget), then security with reasoning low; the
   first look gets 7 calls; the judge waits for the first look; a second opinion skipped for the
   run's own budget no longer blames the monthly cap.
+- 2026-11-08 — W27-11: first look depth. On 1e3b74c gin's first look took 7 min 51 s (was 66.5)
+  and Repo Pulse's own 35 min, but most picked files were left for budget and two quick calls
+  were thrown away for one over-long rationale. Quick calls now read up to 20,000 tokens of code;
+  over-long prose is cut instead of failing the answer; FIRST_LOOK_SECURITY_REASONING
+  (low/medium/full) sets how deep the first look's security review thinks.

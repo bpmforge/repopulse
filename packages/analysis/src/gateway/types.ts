@@ -91,7 +91,7 @@ export interface CompleteOpts {
    * review: default reasoning took 6-14 min a call and one hit the 20 min
    * timeout on 8.4k tokens). Same fallback as 'none'.
    */
-  reasoning?: 'none' | 'low';
+  reasoning?: 'none' | 'low' | 'medium';
   /**
    * W25-13: called once the host's slot is acquired and the request is about
    * to be sent (after any wait behind other analysis), so a caller can show

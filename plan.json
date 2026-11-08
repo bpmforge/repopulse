@@ -13737,6 +13737,36 @@
       "notes": [
         "2026-11-07 Mac on dca89b5: gin's first look finished in 66.5 min with 1 real finding, but security used all 4 calls (6-14 min each, one timeout), the quick group never ran (10 files left for budget), the judge ran first and between calls (~15 min), and the second opinion blamed the monthly cap at 22 of 300 calls. Still open: findings visible per call, CVE checks before or alongside the first look (W25-11/12)."
       ]
+    },
+    {
+      "id": "W27-11",
+      "title": "First look depth: bigger quick chunks, over-long prose cut not fatal, security reasoning setting",
+      "phase": 27,
+      "module": "analysis",
+      "stories": [],
+      "write_scope": [
+        "packages/analysis/src/specialists",
+        "packages/analysis/src/schema/finding.ts",
+        "packages/analysis/src/gateway/types.ts",
+        "packages/analysis/src/t2/client.ts",
+        "apps/api/src/workers/ai-pass-processor.ts",
+        "docs/CONFIG.md",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-10"
+      ],
+      "acceptance": [
+        "A quick combined call (reasoning none) reads up to COMBINED_QUICK_CHUNK_TOKENS (20,000) of code; security keeps 8,000",
+        "A title, rationale or suggested fix over its limit is cut with an ellipsis instead of failing the whole answer; the evidence quote is never changed",
+        "FIRST_LOOK_SECURITY_REASONING = low (default) | medium | full sets the first look's security reasoning"
+      ],
+      "points": 2,
+      "status": "done",
+      "notes": [
+        "2026-11-08 Mac on 1e3b74c: gin first look 7 min 51 s (was 66.5 min), 1 finding (test coverage), 9 of 11 files left for budget, security found nothing with low reasoning (full reasoning had found an open redirect). Repo Pulse's own code: 35 min, 1 real minor finding (O(n*m) find in connections/index.ts:613), 2 of 4 quick calls discarded for a rationale over 800 chars, 3 of 4 picked files left for budget."
+      ]
     }
   ]
 }

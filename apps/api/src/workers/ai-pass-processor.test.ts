@@ -24,6 +24,7 @@ import {
   triageReserveFor,
   AI_PASS_MAX_CALLS,
   FIRST_LOOK_MAX_CALLS,
+  firstLookSecurityReasoning,
   type AiPassDeps,
   type AiPassJobData,
   type LoadedSources,
@@ -1083,6 +1084,13 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
       expect(row!.specialists).toMatchObject({
         combined: { lead: 'security', leftForBudget: [] },
       });
+    });
+
+    it('FIRST_LOOK_SECURITY_REASONING picks low, medium or full (W27-11)', () => {
+      expect(firstLookSecurityReasoning({})).toBe('low');
+      expect(firstLookSecurityReasoning({ FIRST_LOOK_SECURITY_REASONING: ' Full ' })).toBe('full');
+      expect(firstLookSecurityReasoning({ FIRST_LOOK_SECURITY_REASONING: 'medium' })).toBe('medium');
+      expect(firstLookSecurityReasoning({ FIRST_LOOK_SECURITY_REASONING: 'high' })).toBe('low');
     });
 
     it('FIRST_LOOK_MAX_CALLS caps a first look below the pass cap', () => {

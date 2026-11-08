@@ -471,7 +471,7 @@ export class T2Client {
     parts?: PromptParts,
     signal?: AbortSignal,
     /** W25-19/W27-10: the reasoning effort to ask for, if any. */
-    effort?: 'none' | 'low',
+    effort?: 'none' | 'low' | 'medium',
   ): Promise<ChatResponse> {
     const controller = new AbortController();
     // W25-06: the caller's cancel aborts the HTTP request, so the model host
