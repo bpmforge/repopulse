@@ -523,6 +523,26 @@ describe('AiPassPanel', () => {
     expect(screen.getByTestId('ai-pass-stalled')).toHaveTextContent('no worker has picked it up');
   });
 
+  it('a finished pass says how long it ran and how long it waited to start', () => {
+    state.runs = [
+      run({
+        id: 7,
+        status: 'succeeded',
+        created_at: '2026-11-08T02:00:00Z',
+        started_at: '2026-11-08T02:26:05Z',
+        finished_at: '2026-11-08T02:33:56Z',
+      }),
+      run({ id: 8, status: 'running', started_at: new Date().toISOString() }),
+    ];
+    render(<AiPassPanel repoId="3" />);
+    expect(
+      screen.getByTestId('ai-pass-7').querySelector('[data-testid="ai-pass-took"]'),
+    ).toHaveTextContent('Ran for 7 min, after waiting 26 min to start.');
+    expect(
+      screen.getByTestId('ai-pass-8').querySelector('[data-testid="ai-pass-took"]'),
+    ).toBeNull();
+  });
+
   it('shows the call in flight: waiting for the model, or the model answering (W25-13)', () => {
     const at = (min: number) => new Date(Date.now() - min * 60 * 1000).toISOString();
     state.runs = [
