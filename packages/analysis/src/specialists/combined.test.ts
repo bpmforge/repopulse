@@ -120,7 +120,7 @@ describe('splitByDimension', () => {
 });
 
 describe('runSpecialists({ combined: true })', () => {
-  it('runs security alone with reasoning, then the rest in one quick call (W27-09)', async () => {
+  it('runs the rest in one quick call first, then security alone with reasoning low (W27-09/10)', async () => {
     const { gateway, calls } = scripted(() =>
       JSON.stringify({
         findings: [finding('security'), finding('performance'), finding('made_up')],
@@ -128,24 +128,24 @@ describe('runSpecialists({ combined: true })', () => {
     );
     const r = await runSpecialists(one, { gateway, prTitle: 'First look', meta, combined: true });
     expect(calls).toHaveLength(2);
-    expect(calls[0]!.opts.meta.role).toBe('security');
-    expect(calls[0]!.opts.reasoning).toBeUndefined();
-    expect(calls[0]!.prompt).toContain('## Checklist: security');
-    expect(calls[0]!.prompt).not.toContain('## Checklist: performance');
-    expect(calls[1]!.opts.meta.role).toBe('performance');
-    expect(calls[1]!.opts.reasoning).toBe('none');
-    expect(calls[1]!.prompt).not.toContain('## Checklist: security');
-    expect(calls[1]!.prompt).toContain('## Checklist: ai_slop');
+    expect(calls[0]!.opts.meta.role).toBe('performance');
+    expect(calls[0]!.opts.reasoning).toBe('none');
+    expect(calls[0]!.prompt).not.toContain('## Checklist: security');
+    expect(calls[0]!.prompt).toContain('## Checklist: ai_slop');
+    expect(calls[1]!.opts.meta.role).toBe('security');
+    expect(calls[1]!.opts.reasoning).toBe('low');
+    expect(calls[1]!.prompt).toContain('## Checklist: security');
+    expect(calls[1]!.prompt).not.toContain('## Checklist: performance');
     expect(r.combinedLead).toBe('security');
     expect(r.findings.map((f) => [f.specialist, f.checklistVersion])).toEqual([
-      ['security', 'v1'],
       ['performance', 'v3'],
+      ['security', 'v1'],
     ]);
     // Each call drops what it was not asked for, never relabelled.
     expect(r.rejected.map((x) => x.reason)).toEqual([
-      'dimension "performance" is not one of the checklists asked',
-      'dimension "made_up" is not one of the checklists asked',
       'dimension "security" is not one of the checklists asked',
+      'dimension "made_up" is not one of the checklists asked',
+      'dimension "performance" is not one of the checklists asked',
       'dimension "made_up" is not one of the checklists asked',
     ]);
     // Each group's lead carries its call and tokens; the others their findings.
@@ -190,7 +190,7 @@ describe('runSpecialists({ combined: true })', () => {
       meta,
       combined: true,
     });
-    // Security's retry, then the quick group's one call.
+    // The quick group's retry, then security's call.
     expect(malformed.calls).toHaveLength(3);
     expect(malformed.calls[1]!.prompt).toMatch(/previous answer was rejected/);
     expect(a.findings).toHaveLength(1);
@@ -279,7 +279,7 @@ describe('focused areas (W27-07)', () => {
     );
     const r = await runSpecialists(mixed, { gateway, prTitle: 't', meta, combined: true });
     expect(calls).toHaveLength(2);
-    const [sec, quick] = calls.map((c) => c.prompt);
+    const [quick, sec] = calls.map((c) => c.prompt);
     expect(sec).not.toContain('README.md');
     expect(sec).toContain('deploy/app.yaml');
     expect(sec).not.toContain('src/math.ts');
@@ -351,8 +351,8 @@ describe('a combined run narrows to the focused ranges (W27-09)', () => {
       },
       { gateway, prTitle: 't', meta, combined: true },
     );
-    expect(calls[0]!.prompt).toContain('@@ -0,0 +3,1 @@');
-    const prompt = calls[1]!.prompt;
+    expect(calls[1]!.prompt).toContain('@@ -0,0 +3,1 @@');
+    const prompt = calls[0]!.prompt;
     expect(prompt).toContain('@@ -0,0 +2,3 @@');
     expect(prompt).not.toContain('export async function list');
     // best practices and AI slop still review the slice that is sent.

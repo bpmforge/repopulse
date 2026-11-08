@@ -95,7 +95,9 @@ export const AI_PASS_MAX_CALLS = 30;
  * rank order. Measured on the Mac's local 27B with reasoning, a first-look
  * call takes ~3 min, so the first AI result lands in about 10 minutes.
  */
-export const FIRST_LOOK_MAX_CALLS = 4;
+// W27-10: 7 = up to 4 quick combined calls (~30-40 s each) + 3 security
+// calls with reasoning low. gin on dca89b5 with 4 calls, all security: 66 min.
+export const FIRST_LOOK_MAX_CALLS = 7;
 export const FIRST_LOOK_MAX_FILES = 15;
 export const FIRST_LOOK_MAX_BYTES = 150_000;
 
@@ -231,6 +233,28 @@ export interface AiPassDeps {
     /** Puts the run's job back on the queue after `delayMs`; the row stays pending. */
     requeue?: (data: AiPassJobData, delayMs: number) => Promise<void>;
   };
+}
+
+/** W27-10: true while the repository's first look is queued or running. */
+export async function firstLookActive(
+  db: AiPassDeps['db'],
+  workspaceId: number,
+  repoId: number,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: read.aiPassRuns.id })
+    .from(read.aiPassRuns)
+    .where(
+      and(
+        eq(read.aiPassRuns.workspaceId, workspaceId),
+        eq(read.aiPassRuns.repoId, repoId),
+        eq(read.aiPassRuns.mode, 'paths'),
+        eq(read.aiPassRuns.trigger, 'after_scan'),
+        inArray(read.aiPassRuns.status, ['pending', 'running']),
+      ),
+    )
+    .limit(1);
+  return row !== undefined;
 }
 
 /** How often a judge run waiting for its repo's scans looks again. */
@@ -478,6 +502,23 @@ export function aiPassProcessor(deps: AiPassDeps) {
         status: 'skipped',
         code: 'waiting_for_scans',
         reason: "Waiting for this repository's scans to finish.",
+      };
+    }
+
+    // W27-10: a judge run waits for its repository's first look, so the first
+    // look gets the model first. Measured on gin (dca89b5): the judge took the
+    // model before the first look and again between its calls, ~15 min.
+    if (
+      run.mode === 'judge' &&
+      j?.requeue &&
+      now().getTime() - run.createdAt.getTime() < JUDGE_SCAN_WAIT_MAX_MS &&
+      (await firstLookActive(db, workspaceId, run.repoId))
+    ) {
+      await j.requeue(job.data, JUDGE_SCAN_WAIT_POLL_MS);
+      return {
+        status: 'skipped',
+        code: 'waiting_for_first_look',
+        reason: "Waiting for this repository's first look to finish.",
       };
     }
 

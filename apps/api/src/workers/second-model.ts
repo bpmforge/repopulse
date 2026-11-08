@@ -51,6 +51,14 @@ export const AI_OFF_REASON =
 export const CAP_REASON =
   "This month's AI call cap is used up, so no second opinion was asked for. It resets on the 1st, or an admin can raise it in Settings → Analysis.";
 
+/**
+ * W27-10: the run's own call budget is spent, not the month's. Measured on
+ * the Mac: a second opinion said the monthly cap was used up with 22 of 300
+ * calls used, because the two limits were folded into one number.
+ */
+export const RUN_BUDGET_REASON =
+  "This run's model-call budget was used up by its own review, so no second opinion was asked for. The month's cap is not affected.";
+
 export interface SecondModelVerifier {
   verify: SecondModelVerify;
   /** Calls made so far (each counts against the month). */
@@ -97,6 +105,8 @@ export interface SecondModelOptions {
 interface Facts {
   paused: boolean;
   remaining: number;
+  /** Calls left this month (the workspace cap), apart from the run's own budget. */
+  monthLeft: number;
   offNetworkAllowed: boolean;
   leaves: (h: T2Host) => boolean;
 }
@@ -137,7 +147,13 @@ export function createSecondModelVerifier(opts: SecondModelOptions): SecondModel
         const row = h.providerId === undefined ? undefined : byId.get(h.providerId);
         return row ? describeEndpoint(row.kind, row.baseUrl).leavesNetwork : true;
       };
-      return { paused, remaining, offNetworkAllowed: !localOnly && repo?.optIn === true, leaves };
+      return {
+        paused,
+        remaining,
+        monthLeft: left,
+        offNetworkAllowed: !localOnly && repo?.optIn === true,
+        leaves,
+      };
     })());
 
   const pinnedGateway = async (host: T2Host): Promise<AnalysisGateway | null> => {
@@ -150,11 +166,13 @@ export function createSecondModelVerifier(opts: SecondModelOptions): SecondModel
   };
 
   const refuse = (reason: string): VerifyRefusal => ({ unverified: true, reason });
+  // Which limit stopped it: the month's cap, or only this run's budget.
+  const capReason = (f: Facts): string => (calls >= f.monthLeft ? CAP_REASON : RUN_BUDGET_REASON);
 
   const verify: SecondModelVerify = async (req) => {
     const f = await loadFacts();
     if (f.paused) return refuse(AI_OFF_REASON);
-    if (calls >= f.remaining) return refuse(CAP_REASON);
+    if (calls >= f.remaining) return refuse(capReason(f));
     const chosen = chooseVerifierHost(opts.hosts, req.finder, {
       offNetworkAllowed: f.offNetworkAllowed,
       leavesNetwork: f.leaves,
@@ -233,7 +251,7 @@ export function createSecondModelVerifier(opts: SecondModelOptions): SecondModel
       const f = await loadFacts();
       if (f.paused) return { refused: AI_OFF_REASON };
       const remaining = f.remaining - calls;
-      if (remaining <= 0) return { refused: CAP_REASON };
+      if (remaining <= 0) return { refused: capReason(f) };
       const chosen = chooseVerifierHost(opts.hosts, null, {
         offNetworkAllowed: f.offNetworkAllowed,
         leavesNetwork: f.leaves,

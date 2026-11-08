@@ -85,7 +85,13 @@ export interface CompleteOpts {
    * 17 s, same verdict), unless AI_QUICK_VERDICTS=off. A host that rejects the
    * field is asked again without it and remembered. Never changes max_tokens.
    */
-  reasoning?: 'none';
+  /**
+   * W27-10: 'low' asks for `reasoning_effort: "low"`, for a call that needs
+   * some reasoning but not an unbounded amount (the first look's security
+   * review: default reasoning took 6-14 min a call and one hit the 20 min
+   * timeout on 8.4k tokens). Same fallback as 'none'.
+   */
+  reasoning?: 'none' | 'low';
   /**
    * W25-13: called once the host's slot is acquired and the request is about
    * to be sent (after any wait behind other analysis), so a caller can show
