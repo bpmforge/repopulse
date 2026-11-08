@@ -6,6 +6,7 @@ import {
   buildCombinedPrompt,
   combinedBudget,
   COMBINED_CHUNK_TOKENS,
+  COMBINED_QUICK_CHUNK_TOKENS,
   combinedChecklists,
   splitByDimension,
 } from './combined.js';
@@ -154,6 +155,34 @@ describe('runSpecialists({ combined: true })', () => {
     expect(r.usage.code_health).toMatchObject({ calls: 0, tokensIn: 0, findings: 0 });
     expect(r.calls).toBe(2);
     expect(r.leftForBudget).toEqual([]);
+  });
+
+  it('security reasoning can be raised to medium or left to the model (W27-11)', async () => {
+    for (const [level, want] of [
+      ['medium', 'medium'],
+      ['full', undefined],
+    ] as const) {
+      const { gateway, calls } = scripted(() => '{"findings":[]}');
+      await runSpecialists(one, {
+        gateway,
+        prTitle: 'First look',
+        meta,
+        combined: true,
+        securityReasoning: level,
+      });
+      const sec = calls.find((c) => c.opts.meta.role === 'security')!;
+      expect(sec.opts.reasoning).toBe(want);
+      expect('reasoning' in sec.opts).toBe(want !== undefined);
+    }
+  });
+
+  it('the quick group reads bigger chunks than security (W27-11)', () => {
+    const base = { promptTokens: 60_000 } as Parameters<typeof combinedBudget>[0];
+    expect(combinedBudget(base, []).promptTokens).toBe(COMBINED_CHUNK_TOKENS);
+    expect(combinedBudget(base, [], COMBINED_QUICK_CHUNK_TOKENS).promptTokens).toBe(
+      COMBINED_QUICK_CHUNK_TOKENS,
+    );
+    expect(COMBINED_QUICK_CHUNK_TOKENS).toBeGreaterThan(COMBINED_CHUNK_TOKENS);
   });
 
   it('a failed security call fails security only, not the quick group', async () => {

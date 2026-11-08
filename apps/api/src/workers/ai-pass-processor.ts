@@ -101,6 +101,18 @@ export const FIRST_LOOK_MAX_CALLS = 7;
 export const FIRST_LOOK_MAX_FILES = 15;
 export const FIRST_LOOK_MAX_BYTES = 150_000;
 
+/**
+ * W27-11: FIRST_LOOK_SECURITY_REASONING = low (default) | medium | full. Low is
+ * fast (107-173 s a call on gin) but missed an open redirect that full
+ * reasoning found (6-14 min a call). Lets an operator trade speed for depth.
+ */
+export function firstLookSecurityReasoning(
+  env: Record<string, string | undefined>,
+): 'low' | 'medium' | 'full' {
+  const v = (env.FIRST_LOOK_SECURITY_REASONING ?? '').trim().toLowerCase();
+  return v === 'medium' || v === 'full' ? v : 'low';
+}
+
 export interface AiPassJobData {
   workspaceId: number;
   runId: number;
@@ -742,7 +754,9 @@ export function aiPassProcessor(deps: AiPassDeps) {
         contextWindowFor: window,
         // W27-05: a first look is one combined review per chunk, small budget.
         maxCalls: firstLook ? Math.min(FIRST_LOOK_MAX_CALLS, maxCalls) : maxCalls - triageReserve,
-        ...(firstLook ? { combined: true } : {}),
+        ...(firstLook
+          ? { combined: true, securityReasoning: firstLookSecurityReasoning(globalThis.process.env) }
+          : {}),
         prTitle: promptTitle,
         meta: { repoId: String(run.repoId), prNumber: 0, initiator: 'ai-pass' },
       });

@@ -9,7 +9,13 @@ import type { AnalysisGateway, Dimension } from '../gateway/types.js';
 import { FindingParseError, validateFindings, type Finding } from '../schema/finding.js';
 import type { RouteRecord } from '../routing/index.js';
 import { ModelNoAnswerError, ModelTimeoutError, ProviderError } from '../t2/client.js';
-import { buildCombinedPrompt, combinedBudget, splitByDimension } from './combined.js';
+import {
+  buildCombinedPrompt,
+  combinedBudget,
+  COMBINED_CHUNK_TOKENS,
+  COMBINED_QUICK_CHUNK_TOKENS,
+  splitByDimension,
+} from './combined.js';
 import { fileAreas, planWaves, type Plan } from './planner.js';
 import type { Specialist, SpecialistId } from './registry.js';
 import { toCombinedDiffFiles, toDiffFiles, toDiffFilesFor, type ReviewInput } from './units.js';
@@ -40,6 +46,12 @@ export interface SpecialistRunDeps {
    * are left out and named in `leftForBudget`; the files are ranked best first.
    */
   combined?: boolean;
+  /**
+   * W27-11: how much the first look's security review reasons. 'low' (the
+   * default) took 107-173 s a call on gin; 'full' leaves it to the model
+   * (6-14 min a call on gin, and it found an open redirect 'low' missed).
+   */
+  securityReasoning?: 'low' | 'medium' | 'full';
 }
 
 export interface SpecialistFinding extends Finding {
@@ -379,12 +391,28 @@ async function runCombined(
   // now goes first with at most half the budget; security gets the rest,
   // with reasoning low instead of unbounded.
   const quickCap = Math.ceil(maxCalls / 2);
-  const groups: { members: Specialist[]; reasoning: 'none' | 'low'; cap: () => number }[] = [
+  const secReasoning = deps.securityReasoning ?? 'low';
+  type Group = { members: Specialist[]; reasoning?: 'none' | 'low' | 'medium'; chunkTokens: number; cap: () => number };
+  const groups: Group[] = [
     ...(rest.length > 0
-      ? [{ members: rest, reasoning: 'none' as const, cap: () => Math.min(maxCalls, quickCap) }]
+      ? [
+          {
+            members: rest,
+            reasoning: 'none' as const,
+            chunkTokens: COMBINED_QUICK_CHUNK_TOKENS,
+            cap: () => Math.min(maxCalls, quickCap),
+          },
+        ]
       : []),
     ...(security.length > 0
-      ? [{ members: security, reasoning: 'low' as const, cap: () => maxCalls }]
+      ? [
+          {
+            members: security,
+            ...(secReasoning === 'full' ? {} : { reasoning: secReasoning }),
+            chunkTokens: COMBINED_CHUNK_TOKENS,
+            cap: () => maxCalls,
+          },
+        ]
       : []),
   ];
   const state: CombinedState = {
@@ -398,6 +426,7 @@ async function runCombined(
       files,
       g.members,
       g.reasoning,
+      g.chunkTokens,
       kindOf,
       result,
       g.cap(),
@@ -421,7 +450,8 @@ async function runCombinedGroup(
   input: ReviewInput,
   files: ReturnType<typeof toDiffFiles>,
   planned: Specialist[],
-  reasoning: 'none' | 'low',
+  reasoning: 'none' | 'low' | 'medium' | undefined,
+  chunkTokens: number,
   kindOfAll: (path: string) => Set<SpecialistId>,
   result: SpecialistRunResult,
   maxCalls: number,
@@ -450,7 +480,7 @@ async function runCombinedGroup(
   for (const f of files) {
     if (!sent.has(f.path)) outOfArea.push({ path: f.path, reason: 'other_area' });
   }
-  const chunked = chunkDiff(sendable, lead.dimension, combinedBudget(base, planned));
+  const chunked = chunkDiff(sendable, lead.dimension, combinedBudget(base, planned, chunkTokens));
   const chunks = chunked.chunks;
   const skipped = [...chunked.skipped, ...outOfArea];
   const usageOf = new Map<SpecialistId, SpecialistUsage>();
@@ -510,8 +540,8 @@ async function runCombinedGroup(
           maxTokens: 45_000,
           expectJson: true,
           meta,
-          // W27-09/10: none for the combined group, low for security.
-          reasoning,
+          // W27-09/10/11: none for the combined group, low by default for security.
+          ...(reasoning ? { reasoning } : {}),
         });
       } catch (err) {
         result.calls += 1;

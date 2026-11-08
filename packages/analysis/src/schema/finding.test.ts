@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   FindingParseError,
+  clampProse,
   dedupKeyInput,
   findingSchema,
   retryPromptFor,
@@ -84,6 +85,38 @@ describe('finding schema', () => {
     const withoutFix: Record<string, unknown> = { ...finding() };
     delete withoutFix.suggested_fix;
     expect(findingSchema.safeParse(withoutFix).success).toBe(false);
+  });
+});
+
+describe('over-long prose (W27-11)', () => {
+  it('cuts title, rationale and fix to their limits instead of failing the answer', () => {
+    const quote = 'const x = 1;';
+    const raw = {
+      findings: [
+        {
+          dimension: 'performance',
+          severity: 2,
+          confidence: 3,
+          file: 'a.ts',
+          line_range: [1, 1],
+          title: 't'.repeat(200),
+          evidence_quote: quote,
+          rationale: 'r'.repeat(1_500),
+          suggested_fix: 'f'.repeat(900),
+        },
+      ],
+    };
+    const { findings } = validateFindings(raw, `+${quote}`);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]!.title).toHaveLength(120);
+    expect(findings[0]!.rationale).toHaveLength(800);
+    expect(findings[0]!.rationale.endsWith('\u2026')).toBe(true);
+    expect(findings[0]!.suggested_fix).toHaveLength(800);
+  });
+
+  it('never shortens the evidence quote', () => {
+    const raw = { findings: [{ evidence_quote: 'q'.repeat(700), rationale: 'ok' }] };
+    expect(clampProse(raw)).toEqual(raw);
   });
 });
 

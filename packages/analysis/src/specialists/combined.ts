@@ -47,9 +47,19 @@ export function combinedChecklists(specialists: readonly Specialist[]): string {
  */
 export const COMBINED_CHUNK_TOKENS = 8_000;
 
+/**
+ * W27-11: the code one QUICK combined call (reasoning none) reads. Measured on
+ * gin (1e3b74c): quick calls of 5-12k tokens answered in 14-31 s, but at 8k a
+ * chunk the first look's 15 files needed more calls than the budget held and
+ * 9 of 11 files were left unread. Without reasoning the cost is the prefill,
+ * so a quick call reads up to this much.
+ */
+export const COMBINED_QUICK_CHUNK_TOKENS = 20_000;
+
 export function combinedBudget(
   budget: ChunkBudget,
   specialists: readonly Specialist[],
+  chunkTokens: number = COMBINED_CHUNK_TOKENS,
 ): ChunkBudget {
   const extra = Math.max(
     0,
@@ -57,7 +67,7 @@ export function combinedBudget(
   );
   return {
     ...budget,
-    promptTokens: Math.max(500, Math.min(COMBINED_CHUNK_TOKENS, budget.promptTokens - extra)),
+    promptTokens: Math.max(500, Math.min(chunkTokens, budget.promptTokens - extra)),
   };
 }
 
