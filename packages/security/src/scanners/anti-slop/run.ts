@@ -52,6 +52,11 @@ import { UNUSED_EXPORT_RULE_ID, unusedExports } from './unused-exports.js';
 import { EXCEPTION_FLOW_RULE_ID, exceptionFlows } from './exception-flow.js';
 import { REPOSITORY_CRUD_RULE_ID, repositoriesOverCrud } from './repository-crud.js';
 import { PHANTOM_MODULE_RULE_ID, PHANTOM_SYMBOL_RULE_ID, phantomRefs } from './phantom-refs.js';
+import {
+  UNDECLARED_PACKAGE_RULE_ID,
+  readPackageManifests,
+  undeclaredPackages,
+} from './undeclared-packages.js';
 import { buildImportGraph, RESOLVE_EXTENSIONS } from './source-graph.js';
 import { DELEGATION_WRAPPER_RULE_ID, delegationWrappers } from './delegation-wrappers.js';
 import { SINGLE_IMPL_RULE_ID, singleImplInterfaces } from './single-impl.js';
@@ -603,6 +608,35 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
           suggestedFix: null,
           scannerKey: ANTI_SLOP_SCANNER_KEY,
           ruleId: ref.ruleId,
+          yields: null,
+          experimental: status !== 'active',
+        });
+      }
+    }
+    // Imports of a package no package.json declares (W27-21): the bare-name
+    // half of the phantom rules above, answered from the manifests on disk.
+    if (sources.length && deps.snapshotDir) {
+      const status = await shippedRuleStatus(deps.db, deps.workspaceId, UNDECLARED_PACKAGE_RULE_ID);
+      const hits =
+        status === 'deprecated'
+          ? []
+          : undeclaredPackages(sources, readPackageManifests(deps.snapshotDir));
+      for (const hit of hits) {
+        findings.push({
+          dimension: 'slop',
+          severity: 3,
+          // 4, not 5: the manifests are certain, but a bundler alias or a
+          // package provided by the host is something they cannot show.
+          confidence: 4,
+          file: hit.file,
+          lineStart: hit.line,
+          lineEnd: hit.line,
+          title: `Import of a package that is not declared: ${hit.name}`,
+          evidenceQuote: hit.statement,
+          rationale: hit.message,
+          suggestedFix: null,
+          scannerKey: ANTI_SLOP_SCANNER_KEY,
+          ruleId: hit.ruleId,
           yields: null,
           experimental: status !== 'active',
         });

@@ -4436,3 +4436,12 @@ on the Mac:**
 - 2026-11-18 — W27-20 (in progress): the rule engine's pull request findings were written
   with no pull request id, so the pull request page showed fewer findings than the CI API for
   the same head (1 against 2 in the demo). They are now tagged like the other PR scanners'.
+- 2026-11-18 — W27-18 correction: the dead route was the API-only `POST /repos/:id/sync`.
+  The admin page's "Sync now" button calls `POST /repos/:id/sync-now`, which queues a
+  reconcile and was not affected.
+- 2026-11-18 — W27-21 (in progress): two problems seeded in the demo pull request were
+  reported by nothing. New shadow rule `slop.undeclared_package`: an import or require of a
+  package that no package.json above the file declares (0 hits on this repository, finds
+  SampleCo's `currency-fmt`). New shadow rule `bpm-perf-sql-call-in-loop`: a SQL string sent
+  from inside a loop without `await` (callback drivers such as sqlite3), which the awaited
+  rule could not see. The real-install check on the Mac is pending.

@@ -1055,6 +1055,40 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
     expect(moduleRow).toMatchObject({ file: 'src/pay.ts', lineStart: 2, experimental: true });
   });
 
+  it('W27-21: an import of a package no package.json declares is stored in shadow', async () => {
+    // The benchmark's SampleCo tree: package.json declares express, sqlite3 and
+    // one made-up name; src/utils/format.js requires a fourth nobody declared.
+    const snapshotDir = path.resolve(
+      path.dirname(fileURLToPath(import.meta.url)),
+      '../../../fixtures/benchmark/sampleco/tree',
+    );
+    const sources = readSnapshotSources(snapshotDir);
+    await runAntiSlopScan({
+      db,
+      workspaceId,
+      repoId,
+      commitSha: 'w27-21',
+      files: [],
+      sources: sources.files,
+      sourcesComplete: true,
+      snapshotDir,
+      trigger: 'schedule',
+    });
+    const rows = await db
+      .select()
+      .from(read.findings)
+      .where(
+        and(eq(read.findings.repoId, repoId), eq(read.findings.ruleId, 'slop.undeclared_package')),
+      );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      file: 'src/utils/format.js',
+      severity: 3,
+      experimental: true,
+      title: 'Import of a package that is not declared: currency-fmt',
+    });
+  });
+
   it('W18-14: the Rust module graph feeds the same shadow rules', async () => {
     // The W18-01 case above leaves slop.unused_export deprecated; back to the
     // shipped default (no row = candidate) so the Rust half is observable.

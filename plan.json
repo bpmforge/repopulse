@@ -13939,7 +13939,7 @@
     },
     {
       "id": "W27-18",
-      "title": "Sync now really syncs: one delta per kind with the repository name",
+      "title": "The sync API route really syncs: one delta per kind with the repository name",
       "phase": 27,
       "module": "api",
       "stories": [],
@@ -13958,7 +13958,8 @@
       "points": 1,
       "status": "done",
       "notes": [
-        "2026-11-18 demo run on the Mac: the route queued one job with no kind and no repo; the delta processor returned skipped in 7 ms while the API answered started. On a connection without webhooks a new pull request then only appeared at the nightly reconcile."
+        "2026-11-18 demo run on the Mac: the route queued one job with no kind and no repo; the delta processor returned skipped in 7 ms while the API answered started. On a connection without webhooks a new pull request then only appeared at the nightly reconcile.",
+        "Correction 2026-11-18: this is the API-only route POST /repos/:id/sync. The admin page's Sync now button calls POST /repos/:id/sync-now (connections), which queues a reconcile and was not affected."
       ]
     },
     {
@@ -14010,6 +14011,39 @@
       "status": "in_progress",
       "notes": [
         "2026-11-18 demo: the PR page showed 1 automated finding while the CI check returned 2; the SQL injection finding (semgrep) had pull_request_id NULL, the empty-catch finding (anti_slop) had it set."
+      ]
+    },
+    {
+      "id": "W27-21",
+      "title": "Two detection gaps from the demo pull request: undeclared package imports and callback SQL in a loop",
+      "phase": 27,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "packages/security/src/scanners/anti-slop",
+        "packages/security/src/benchmark/engines.ts",
+        "packages/security/rulepacks/code-health/perf/perf.v1.yaml",
+        "packages/security/fixtures/perf",
+        "packages/security/fixtures/benchmark",
+        "packages/security/src/scanners/code-health/perf-pack.test.ts",
+        "apps/api/src/lib/rule-precision.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-20"
+      ],
+      "acceptance": [
+        "slop.undeclared_package (shadow): a bare import or require of a package that no package.json above the file declares is reported once per file and package; quiet on built-ins, workspace siblings, tsconfig path aliases, baseUrl directories, ambient modules, optional requires in try, and where no package.json parses",
+        "bpm-perf-sql-call-in-loop (shadow): a call whose first argument is a SQL string or template literal inside for, while, forEach or map is reported when it is not awaited; nothing on the clean fixtures",
+        "Both find the seeded problems of the demo pull request on a real install"
+      ],
+      "points": 3,
+      "status": "in_progress",
+      "notes": [
+        "2026-11-18 demo PR: require(\"fastcsv-stream-writer-pro\") with no such dependency and a sqlite3 callback query per id in a for-of loop both went unreported; bpm-perf-orm-call-in-loop needs await, and the phantom rules only resolve relative specifiers. SampleCo label D4 (currency-fmt) is the same shape.",
+        "Cloud measurements: undeclared packages 0 hits on this repository (1,977 files), 1 hit on SampleCo (the planted one). SQL rule with semgrep 1.186.0: 3 hits on the new triggering fixture, 0 on clean, whole perf pack still 0 on clean.",
+        "A fix draft for slop.undeclared_package is not rescannable yet (patches/target.ts lists the phantom rules only)."
       ]
     }
   ]

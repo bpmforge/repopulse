@@ -234,6 +234,36 @@
       "note": "db.query per row (N+1)."
     },
     {
+      "id": "perf-sql-callback",
+      "tree": "perf/triggering",
+      "file": "callbacks.js",
+      "lines": [9, 9],
+      "rule": "bpm-perf-sql-call-in-loop",
+      "dimension": "performance",
+      "expect": "finding",
+      "note": "sqlite3 db.get with a callback, once per id (N+1); no await for the ORM rule to see."
+    },
+    {
+      "id": "perf-sql-callback-nested",
+      "tree": "perf/triggering",
+      "file": "callbacks.js",
+      "lines": [10, 10],
+      "rule": "bpm-perf-sql-call-in-loop",
+      "dimension": "performance",
+      "expect": "finding",
+      "note": "Second query nested in the first one's callback, still once per id."
+    },
+    {
+      "id": "perf-sql-foreach",
+      "tree": "perf/triggering",
+      "file": "callbacks.js",
+      "lines": [20, 20],
+      "rule": "bpm-perf-sql-call-in-loop",
+      "dimension": "performance",
+      "expect": "finding",
+      "note": "conn.query with a template-literal UPDATE inside forEach."
+    },
+    {
       "id": "perf-regex",
       "tree": "perf/triggering",
       "file": "app.js",
