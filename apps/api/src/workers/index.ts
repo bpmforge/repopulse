@@ -224,6 +224,7 @@ async function main(): Promise<void> {
     AI_JUDGE_SCAN_MINUTES: process.env.AI_JUDGE_SCAN_MINUTES,
     AI_JUDGE_FAST_MIN_CONFIDENCE: process.env.AI_JUDGE_FAST_MIN_CONFIDENCE,
     AI_JUDGE_BATCH_SIZE: process.env.AI_JUDGE_BATCH_SIZE,
+    AI_JUDGE_REASONING: process.env.AI_JUDGE_REASONING,
   });
   // W25-01: the first-look pass after a repository's first scan.
   const firstLookConfig = firstLookConfigFromEnv({ AI_FIRST_LOOK: process.env.AI_FIRST_LOOK });

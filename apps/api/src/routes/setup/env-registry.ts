@@ -583,8 +583,8 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     purpose:
       'Most model calls one first look makes, 1 to 30 (W27-16). At most half go to the quick areas; security gets the rest, about 8,000 tokens of code a call.',
     ifWrong:
-      "Too low and the security review stops after the first one or two large files (on gin, 7 calls read 2 of 11 picked files); too high and a repository's first AI result takes longer on a one-slot local model. Outside 1-30 the default is used.",
-    default: '7',
+      "Too low and the security review stops after the first one or two large files (on gin, 7 calls read 2 of 11 picked files and 12 read all 11); too high and a repository's first AI result takes longer on a one-slot local model. Outside 1-30 the default is used.",
+    default: '12',
   },
   {
     name: 'AI_JUDGE_REASONING',

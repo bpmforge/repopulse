@@ -379,7 +379,13 @@ async function runCombined(
   maxCalls: number,
   deps: SpecialistRunDeps,
 ): Promise<SpecialistRunResult> {
-  const planned: Specialist[] = plan.waves.flatMap((w) => w.specialists.map((p) => p.specialist));
+  const planned: Specialist[] = plan.waves
+    .flatMap((w) => w.specialists.map((p) => p.specialist))
+    // A whole-repository first look reads slices of ranked files, never the
+    // tests beside them, so the test-coverage checklist can only say "no test
+    // in this change" (4 of 9 quick findings on gin, 2026-11-18, all wrong).
+    // Test gaps are the mechanical test-gap scanner's job there.
+    .filter((s) => input.kind === 'diff' || s.id !== 'test_coverage');
   if (planned.length === 0) return result;
   result.combinedLead = planned[0]!.id;
   const plannedIds = new Set(planned.map((s) => s.id));

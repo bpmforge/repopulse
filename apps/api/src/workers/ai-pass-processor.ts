@@ -97,7 +97,9 @@ export const AI_PASS_MAX_CALLS = 30;
  */
 // W27-10: 7 = up to 4 quick combined calls (~30-40 s each) + 3 security
 // calls with reasoning low. gin on dca89b5 with 4 calls, all security: 66 min.
-export const FIRST_LOOK_MAX_CALLS = 7;
+// 12 since 2026-11-18: on gin (M4, 27B) 7 calls let security read 2 of its 11
+// picked files; 12 read all 11 for about 9 more minutes.
+export const FIRST_LOOK_MAX_CALLS = 12;
 export const FIRST_LOOK_MAX_FILES = 15;
 export const FIRST_LOOK_MAX_BYTES = 150_000;
 

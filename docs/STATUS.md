@@ -4411,3 +4411,10 @@ on the Mac:**
   measured. FIRST_LOOK_SECURITY_REASONING was in CONFIG.md but not in the env registry; it is
   now. (An earlier W27-16, a fallback for hosts ignoring reasoning none, was reverted: the
   LM Studio warning is cosmetic and none is honoured.)
+- 2026-11-18 — W27-16 measured on gin (M4, abe3bfc, calls 12, security low, quick low): security
+  read all 11 picked files in 7 calls (122-349 s each; 3 real low-severity findings, 2 false,
+  open redirect still missed); the quick group at low took 24 min for 9 findings (4 trivial, 4
+  test-coverage noise, 1 unclear), so it stays at none. Defaults now: FIRST_LOOK_CALLS 12, and
+  a whole-repository first look no longer asks the test-coverage checklist (it cannot see the
+  tests; every such finding was "no test in this diff"). AI_JUDGE_REASONING was read by the
+  processor but not passed from the worker's env; fixed, still to be measured.

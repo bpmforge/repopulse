@@ -209,6 +209,18 @@ describe('runSpecialists({ combined: true })', () => {
     expect(r.leftForBudget).toEqual(['src/b.ts', 'src/c.ts']);
   });
 
+  it('a whole-repository first look does not ask the test-coverage checklist; a diff does', async () => {
+    const { gateway } = scripted(() => '{"findings":[]}');
+    const whole = await runSpecialists(one, { gateway, prTitle: 'First look', meta, combined: true });
+    expect(Object.keys(whole.usage)).not.toContain('test_coverage');
+    expect(Object.keys(whole.usage)).toContain('code_health');
+    const diff = await runSpecialists(
+      { kind: 'diff', files: [{ path: 'src/users.ts', patch: SOURCE.replace(/^/gm, '+') }] },
+      { gateway, prTitle: 'PR', meta, combined: true },
+    );
+    expect(Object.keys(diff.usage)).toContain('test_coverage');
+  });
+
   it('security reads the code with the strongest signals first when calls run short', async () => {
     // Rank order puts the plain file first; the redirect handler is last.
     const pad = (body: string) => `${body}\n${'// filler line of code\n'.repeat(1500)}`;

@@ -1096,10 +1096,10 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
       expect(firstLookQuickReasoning({})).toBe('none');
       expect(firstLookQuickReasoning({ FIRST_LOOK_QUICK_REASONING: 'Low' })).toBe('low');
       expect(firstLookQuickReasoning({ FIRST_LOOK_QUICK_REASONING: 'full' })).toBe('none');
-      expect(firstLookMaxCalls({})).toBe(7);
-      expect(firstLookMaxCalls({ FIRST_LOOK_CALLS: '12' })).toBe(12);
+      expect(firstLookMaxCalls({})).toBe(FIRST_LOOK_MAX_CALLS);
+      expect(firstLookMaxCalls({ FIRST_LOOK_CALLS: '9' })).toBe(9);
       for (const bad of ['0', '31', '2.5', 'many']) {
-        expect(firstLookMaxCalls({ FIRST_LOOK_CALLS: bad })).toBe(7);
+        expect(firstLookMaxCalls({ FIRST_LOOK_CALLS: bad })).toBe(FIRST_LOOK_MAX_CALLS);
       }
       expect(firstLookSecurityReasoning({ FIRST_LOOK_SECURITY_REASONING: 'high' })).toBe('low');
     });
