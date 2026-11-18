@@ -13931,9 +13931,34 @@
         "Measured on gin with the real engine: hit count and whether redirectTrailingSlash / redirectFixedPath is among them"
       ],
       "points": 1,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
+        "2026-11-18 Mac, opengrep 1.27.1 --taint-intrafile: both triggering fixtures hit, clean 0; gin 0f09c3a9 has exactly one hit, gin.go:859 http.Redirect in redirectRequest, the shared sink of redirectTrailingSlash and redirectFixedPath.",
         "2026-11-18: the model missed gin's open redirect on every real run (2026-11-08 budget, 2026-11-18 before run and run A with every picked file read at low reasoning). Mechanical first: the shape is a taint from the request URL to a redirect. Fixtures pass with semgrep 1.186.0 in the cloud; the opengrep check and the gin measurement run on the Mac."
+      ]
+    },
+    {
+      "id": "W27-18",
+      "title": "Sync now really syncs: one delta per kind with the repository name",
+      "phase": 27,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/routes/runs",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-17"
+      ],
+      "acceptance": [
+        "POST /repos/:id/sync queues one delta job per cursor-pullable kind (commits, pull requests, issues, releases, deployments), each with kind and the repository's full name",
+        "started is true only when at least one job was newly queued"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "2026-11-18 demo run on the Mac: the route queued one job with no kind and no repo; the delta processor returned skipped in 7 ms while the API answered started. On a connection without webhooks a new pull request then only appeared at the nightly reconcile."
       ]
     }
   ]

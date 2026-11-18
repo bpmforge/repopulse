@@ -543,6 +543,18 @@ describeIfLiveInfra('run it now (W16-10)', () => {
       expect(res.statusCode).toBe(202);
       expect(res.json().started).toBe(true);
       expect(added[0]?.data).toMatchObject({ repoId, trigger: 'manual' });
+      // Every job names a kind the delta processor pulls and the repository's
+      // full name: a job without them is skipped by the processor at once.
+      expect(added.map((j) => (j.data as { kind?: string }).kind)).toEqual([
+        'push_commits',
+        'pull_requests',
+        'issues',
+        'releases',
+        'deployments',
+      ]);
+      for (const j of added) {
+        expect((j.data as { repo?: string }).repo).toMatch(/^[^/]+\/[^/]+$/);
+      }
     });
 
     it('refuses when the forge budget is spent, rather than queueing a doomed job', async () => {

@@ -4422,3 +4422,9 @@ on the Mac:**
   request's own URL or a parameter to `http.Redirect` / a context `Redirect`. The model
   missed gin's open redirect on every real run, including one that read the function, so the
   shape goes to a rule. Fixtures pass in the cloud; gin measurement on the Mac pending.
+- 2026-11-18 — W27-17 done: on the Mac (opengrep 1.27.1) `bpm-go-open-redirect` hits both
+  fixtures and exactly one place in gin, gin.go:859, the redirect the model kept missing.
+- 2026-11-18 — W27-18: "Sync now" did nothing. The route queued one delta job with no kind
+  and no repository name, which the processor skipped in 7 ms while the API answered
+  "started". It now queues one delta per kind (commits, pull requests, issues, releases,
+  deployments). Found by the demo run: a new pull request never appeared without webhooks.
