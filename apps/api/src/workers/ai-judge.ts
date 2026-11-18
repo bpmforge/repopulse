@@ -122,6 +122,8 @@ export interface JudgeConfig {
    * AI_JUDGE_BATCH_SIZE (default 4).
    */
   batchSize?: number;
+  /** W27-17: AI_JUDGE_REASONING. 'full' (default) sends no effort: the model's own. */
+  reasoning?: 'full' | 'medium' | 'low';
 }
 
 function wholeMinutes(raw: string | undefined, fallback: number, max: number): number {
@@ -137,7 +139,13 @@ export function judgeConfigFromEnv(env: Record<string, string | undefined>): Jud
     scanMinutes: wholeMinutes(env.AI_JUDGE_SCAN_MINUTES, JUDGE_DEFAULT_SCAN_MINUTES, 1440),
     fastMinConfidence: shareOf(env.AI_JUDGE_FAST_MIN_CONFIDENCE, JUDGE_DEFAULT_FAST_MIN_CONFIDENCE),
     batchSize: batchSizeOf(env.AI_JUDGE_BATCH_SIZE),
+    reasoning: judgeReasoningOf(env.AI_JUDGE_REASONING),
   };
+}
+
+function judgeReasoningOf(raw: string | undefined): 'full' | 'medium' | 'low' {
+  const v = (raw ?? '').trim().toLowerCase();
+  return v === 'medium' || v === 'low' ? v : 'full';
 }
 
 function batchSizeOf(raw: string | undefined): number {
@@ -699,7 +707,12 @@ export async function runJudge(a: {
         // W27-06: the judge keeps reasoning. Measured on the Mac (27B, 7 hits),
         // reasoning none turned all 4 'needs human' into 'likely false
         // positive': uncertain hits dismissed. Only CVE checks drop it.
-        const r = await a.wg.gateway.complete(prompt, opts);
+        // W27-17: AI_JUDGE_REASONING can bound it (low or medium); never none.
+        const effort = a.config.reasoning ?? 'full';
+        const r = await a.wg.gateway.complete(
+          prompt,
+          effort === 'full' || opts.reasoning !== undefined ? opts : { ...opts, reasoning: effort },
+        );
         queuedMs += r.queuedMs ?? 0;
         return r;
       } catch (err) {

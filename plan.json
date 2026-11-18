@@ -13879,6 +13879,35 @@
       "notes": [
         "2026-11-18: pnpm audit 13 advisories -> 3 (zod 3.25.76 High GHSA-mrhx-c7xc-m3w5 fixed only in zod 4; glob 11.1.0 in the vendored Lodestone; minimatch 10 under typescript-eslint)."
       ]
+    },
+    {
+      "id": "W27-16",
+      "title": "Settings to measure AI speed against depth: judge reasoning, first look quick reasoning, first look calls",
+      "phase": 27,
+      "module": "analysis",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers",
+        "apps/api/src/routes/setup/env-registry.ts",
+        "packages/analysis/src/specialists/run.ts",
+        "docs/CONFIG.md",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-15"
+      ],
+      "acceptance": [
+        "AI_JUDGE_REASONING (full, medium, low) bounds the judge's reasoning; the default is unchanged",
+        "FIRST_LOOK_QUICK_REASONING (none, low) and FIRST_LOOK_CALLS (1-30) are settings; the defaults are unchanged",
+        "FIRST_LOOK_SECURITY_REASONING and the three new settings are in the env registry and docs/CONFIG.md"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "2026-11-18 gin on the M4 (ef2f71b, qwen3.8-27b), per call from the LM Studio stream: the judge sends no reasoning effort and one batch took 960 s and 17,922 output tokens; the first look's quick calls (reasoning none) answered an empty list in 6 tokens after 70-103 s of prompt processing; security at low took 66-125 s a call but its 4 calls read 2 of 11 picked files and missed the open redirect. Defaults stay until each setting is measured on the same repository.",
+        "A first W27-16 (fall back to low when a host ignores reasoning none) was reverted: LM Studio logs a warning for none on this model package but does honour it (CVE checks 4-6 s, no thinking)."
+      ]
     }
   ]
 }

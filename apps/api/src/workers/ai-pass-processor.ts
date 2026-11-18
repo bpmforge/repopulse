@@ -113,6 +113,20 @@ export function firstLookSecurityReasoning(
   return v === 'medium' || v === 'full' ? v : 'low';
 }
 
+/**
+ * W27-16: FIRST_LOOK_QUICK_REASONING = none (default) | low, for the first
+ * look's areas other than security.
+ */
+export function firstLookQuickReasoning(env: Record<string, string | undefined>): 'none' | 'low' {
+  return (env.FIRST_LOOK_QUICK_REASONING ?? '').trim().toLowerCase() === 'low' ? 'low' : 'none';
+}
+
+/** W27-16: FIRST_LOOK_CALLS = 1 to 30 model calls for a first look (default FIRST_LOOK_MAX_CALLS). */
+export function firstLookMaxCalls(env: Record<string, string | undefined>): number {
+  const n = Number((env.FIRST_LOOK_CALLS ?? '').trim());
+  return Number.isInteger(n) && n >= 1 && n <= AI_PASS_MAX_CALLS ? n : FIRST_LOOK_MAX_CALLS;
+}
+
 export interface AiPassJobData {
   workspaceId: number;
   runId: number;
@@ -753,9 +767,15 @@ export function aiPassProcessor(deps: AiPassDeps) {
         gateway: wg.gateway,
         contextWindowFor: window,
         // W27-05: a first look is one combined review per chunk, small budget.
-        maxCalls: firstLook ? Math.min(FIRST_LOOK_MAX_CALLS, maxCalls) : maxCalls - triageReserve,
+        maxCalls: firstLook
+          ? Math.min(firstLookMaxCalls(globalThis.process.env), maxCalls)
+          : maxCalls - triageReserve,
         ...(firstLook
-          ? { combined: true, securityReasoning: firstLookSecurityReasoning(globalThis.process.env) }
+          ? {
+              combined: true,
+              securityReasoning: firstLookSecurityReasoning(globalThis.process.env),
+              quickReasoning: firstLookQuickReasoning(globalThis.process.env),
+            }
           : {}),
         prTitle: promptTitle,
         meta: { repoId: String(run.repoId), prNumber: 0, initiator: 'ai-pass' },

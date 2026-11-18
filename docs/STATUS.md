@@ -4402,3 +4402,12 @@ on the Mac:**
   fast-uri, seroval and the router plugin's zod take `pnpm audit` from 13 advisories to 3. Open:
   zod 3.25.76 (High, fixed only in zod 4, which is a brief-fixed major), glob inside the
   vendored Lodestone, minimatch under typescript-eslint. See docs/TECH_STACK.md.
+- 2026-11-18 — W27-16: settings to measure AI speed against depth. gin on the M4 (ef2f71b),
+  per call: the judge sends no reasoning effort (one batch 960 s, 17,922 output tokens); the
+  first look's quick calls answer an empty list in 6 tokens after 70-103 s of prompt
+  processing; security at low takes 66-125 s a call, read 2 of 11 picked files in its 4 calls
+  and missed the open redirect. New: AI_JUDGE_REASONING (full/medium/low),
+  FIRST_LOOK_QUICK_REASONING (none/low), FIRST_LOOK_CALLS (1-30); defaults unchanged until
+  measured. FIRST_LOOK_SECURITY_REASONING was in CONFIG.md but not in the env registry; it is
+  now. (An earlier W27-16, a fallback for hosts ignoring reasoning none, was reverted: the
+  LM Studio warning is cosmetic and none is honoured.)

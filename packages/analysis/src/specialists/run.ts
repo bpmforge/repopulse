@@ -52,6 +52,12 @@ export interface SpecialistRunDeps {
    * (6-14 min a call on gin, and it found an open redirect 'low' missed).
    */
   securityReasoning?: 'low' | 'medium' | 'full';
+  /**
+   * W27-16: how much the first look's quick group (every area but security)
+   * reasons. 'none' (the default) answers in seconds; measured on gin
+   * (2026-11-18) it returned an empty list for every call.
+   */
+  quickReasoning?: 'none' | 'low';
 }
 
 export interface SpecialistFinding extends Finding {
@@ -398,7 +404,7 @@ async function runCombined(
       ? [
           {
             members: rest,
-            reasoning: 'none' as const,
+            reasoning: deps.quickReasoning ?? ('none' as const),
             chunkTokens: COMBINED_QUICK_CHUNK_TOKENS,
             cap: () => Math.min(maxCalls, quickCap),
           },
