@@ -25,6 +25,7 @@ import { plansVerifyProcessor } from './plans-processor.js';
 import { scanProcessor } from './scan-processor.js';
 import { patchProcessor } from './patch-processor.js';
 import { aiPassProcessor } from './ai-pass-processor.js';
+import { aiPassBootRecoveryOn, recoverAiPassRuns } from './ai-pass-recovery.js';
 import { judgeConfigFromEnv, queueJudgeAfterScan } from './ai-judge.js';
 import {
   firstLookConfigFromEnv,
@@ -1692,6 +1693,24 @@ async function main(): Promise<void> {
   const schedulerOn = (process.env.AI_PASS_SCHEDULER ?? 'on') !== 'off';
   const tickMs = Number(process.env.AI_PASS_SCHEDULER_TICK_MS ?? SCHEDULER_TICK_MS);
   const aiPassQueue = createQueue(QUEUE.aiPass, connection);
+
+  // W27-22: passes a stopped worker left `running` or `pending`. Best effort:
+  // a failed sweep must not stop the worker from booting.
+  if (aiPassBootRecoveryOn(process.env)) {
+    try {
+      const recovered = await recoverAiPassRuns({
+        db,
+        enqueue: async (data, bootId) => {
+          await aiPassQueue.add('ai.pass', data, { jobId: `ai-pass-${data.runId}-boot-${bootId}` });
+        },
+      });
+      log.info(
+        `[worker] ai pass recovery on boot: closed ${recovered.interrupted.length} interrupted, requeued ${recovered.requeued.length} pending`,
+      );
+    } catch (err) {
+      log.warn({ err }, '[worker] ai pass recovery on boot failed');
+    }
+  }
   let schedulerRunning = false;
   const schedulerTimer = schedulerOn
     ? setInterval(() => {

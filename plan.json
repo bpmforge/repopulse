@@ -14045,6 +14045,36 @@
         "Cloud measurements: undeclared packages 0 hits on this repository (1,977 files), 1 hit on SampleCo (the planted one). SQL rule with semgrep 1.186.0: 3 hits on the new triggering fixture, 0 on clean, whole perf pack still 0 on clean.",
         "A fix draft for slop.undeclared_package is not rescannable yet (patches/target.ts lists the phantom rules only)."
       ]
+    },
+    {
+      "id": "W27-22",
+      "title": "AI passes a stopped worker left behind are closed or queued again at boot",
+      "phase": 27,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers/ai-pass-recovery.ts",
+        "apps/api/src/workers/ai-pass-recovery.test.ts",
+        "apps/api/src/workers/index.ts",
+        "apps/api/src/routes/setup/env-registry.ts",
+        "docs/CONFIG.md",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-21"
+      ],
+      "acceptance": [
+        "At worker boot every ai_pass_runs row still 'running' is set to failed with reason code interrupted and a sentence a person can read",
+        "Every 'pending' row gets a queue entry again; finished rows are untouched; each write and queue entry stays in the row's workspace",
+        "AI_PASS_BOOT_RECOVERY=off switches the sweep off (for installs with more than one worker); a failed sweep does not stop the worker from booting"
+      ],
+      "points": 2,
+      "status": "done",
+      "notes": [
+        "2026-11-18 on the M4: the container host went down mid first look. After the restart the first look read running and the judge pending until cancelled by hand. Cause: the queue redelivers the job, but the processor's compare-and-set on pending answers already_started, so the row never moves.",
+        "A requeued pending run loses its per-job options (maxCalls, force, includeTests) and runs with defaults."
+      ]
     }
   ]
 }

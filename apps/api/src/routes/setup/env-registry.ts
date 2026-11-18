@@ -478,6 +478,16 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     secret: true,
   },
   {
+    name: 'AI_PASS_BOOT_RECOVERY',
+    scope: 'worker',
+    required: false,
+    purpose:
+      "When the worker starts, close AI passes a stopped worker left 'running' (marked interrupted, in words) and queue 'pending' ones again (W27-22). Without it such a pass reads as running for ever and blocks the repository's next one.",
+    ifWrong:
+      "Set to 'off' when more than one worker runs: a starting worker cannot tell another worker's live pass from an orphan and would close it. With 'off' on a single worker, a pass cut short by a restart stays 'running' until someone cancels it.",
+    default: 'on',
+  },
+  {
     name: 'AI_PASS_SCHEDULER',
     scope: 'worker',
     required: false,

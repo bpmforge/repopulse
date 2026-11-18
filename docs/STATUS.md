@@ -4445,3 +4445,8 @@ on the Mac:**
   SampleCo's `currency-fmt`). New shadow rule `bpm-perf-sql-call-in-loop`: a SQL string sent
   from inside a loop without `await` (callback drivers such as sqlite3), which the awaited
   rule could not see. The real-install check on the Mac is pending.
+- 2026-11-18 — W27-22: an AI pass cut short by a worker restart stayed "running" for ever
+  (the queue redelivered the job, the processor refused it as already started), and blocked
+  the repository's judge run. Found when the M4's container host went down mid first look.
+  At boot the worker now closes such passes as interrupted and queues pending ones again.
+  `AI_PASS_BOOT_RECOVERY=off` for installs with more than one worker.
