@@ -4418,3 +4418,7 @@ on the Mac:**
   a whole-repository first look no longer asks the test-coverage checklist (it cannot see the
   tests; every such finding was "no test in this diff"). AI_JUDGE_REASONING was read by the
   processor but not passed from the worker's env; fixed, still to be measured.
+- 2026-11-18 — W27-17 (in progress): `bpm-go-open-redirect`, a shadow taint rule from the
+  request's own URL or a parameter to `http.Redirect` / a context `Redirect`. The model
+  missed gin's open redirect on every real run, including one that read the function, so the
+  shape goes to a rule. Fixtures pass in the cloud; gin measurement on the Mac pending.

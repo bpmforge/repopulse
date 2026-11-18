@@ -13908,6 +13908,33 @@
         "2026-11-18 gin on the M4 (ef2f71b, qwen3.8-27b), per call from the LM Studio stream: the judge sends no reasoning effort and one batch took 960 s and 17,922 output tokens; the first look's quick calls (reasoning none) answered an empty list in 6 tokens after 70-103 s of prompt processing; security at low took 66-125 s a call but its 4 calls read 2 of 11 picked files and missed the open redirect. Defaults stay until each setting is measured on the same repository.",
         "A first W27-16 (fall back to low when a host ignores reasoning none) was reverted: LM Studio logs a warning for none on this model package but does honour it (CVE checks 4-6 s, no thinking)."
       ]
+    },
+    {
+      "id": "W27-17",
+      "title": "Go open-redirect rule (shadow), from the redirect the model missed on gin",
+      "phase": 27,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "packages/security/rulepacks/semgrep/bpm-baseline.go.v1.yaml",
+        "packages/security/fixtures/go/semgrep",
+        "packages/security/src/scanners/code-health/go-pack.test.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-16"
+      ],
+      "acceptance": [
+        "bpm-go-open-redirect (taint, lifecycle candidate) fires when the request's own URL or a request parameter reaches http.Redirect or a context Redirect",
+        "It does not fire on a constant target or a parameter parsed to a number",
+        "Measured on gin with the real engine: hit count and whether redirectTrailingSlash / redirectFixedPath is among them"
+      ],
+      "points": 1,
+      "status": "in_progress",
+      "notes": [
+        "2026-11-18: the model missed gin's open redirect on every real run (2026-11-08 budget, 2026-11-18 before run and run A with every picked file read at low reasoning). Mechanical first: the shape is a taint from the request URL to a redirect. Fixtures pass with semgrep 1.186.0 in the cloud; the opengrep check and the gin measurement run on the Mac."
+      ]
     }
   ]
 }

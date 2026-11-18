@@ -52,6 +52,7 @@ const PACKS = {
     golden: [
       'bpm-go-http-server-no-timeout',
       'bpm-go-math-rand-secret',
+      'bpm-go-open-redirect',
       'bpm-go-shell-exec-dynamic',
       'bpm-go-sql-string-build',
       'bpm-go-tls-insecure-skip-verify',
