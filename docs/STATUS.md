@@ -4402,3 +4402,8 @@ on the Mac:**
   fast-uri, seroval and the router plugin's zod take `pnpm audit` from 13 advisories to 3. Open:
   zod 3.25.76 (High, fixed only in zod 4, which is a brief-fixed major), glob inside the
   vendored Lodestone, minimatch under typescript-eslint. See docs/TECH_STACK.md.
+- 2026-11-18 — W27-16: a host that ignores `reasoning_effort: "none"`. On the M4's LM Studio
+  the 27B takes only low/medium/xhigh; "none" was skipped with a log warning, so every quick
+  call (CVE checks, the judge's quick pass, the first look's quick group) reasoned in full.
+  The local client now notices reasoning text on a call that asked for none and asks that
+  host for "low" from then on.

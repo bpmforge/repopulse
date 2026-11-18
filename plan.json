@@ -13879,6 +13879,30 @@
       "notes": [
         "2026-11-18: pnpm audit 13 advisories -> 3 (zod 3.25.76 High GHSA-mrhx-c7xc-m3w5 fixed only in zod 4; glob 11.1.0 in the vendored Lodestone; minimatch 10 under typescript-eslint)."
       ]
+    },
+    {
+      "id": "W27-16",
+      "title": "Quick model calls fall back to low reasoning on a host that ignores reasoning none",
+      "phase": 27,
+      "module": "analysis",
+      "stories": [],
+      "write_scope": [
+        "packages/analysis/src/t2",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-15"
+      ],
+      "acceptance": [
+        "A local host that returns reasoning text on a call that asked for reasoning none is asked for low on every later quick call",
+        "Calls that ask for low or medium, and hosts that honour none, are unchanged"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "2026-11-18 M4 real run: LM Studio answered reasoning_effort none for qwen3.8-27b with a log warning (valid: xhigh, medium, low) and skipped the field, so CVE checks, the judge's quick pass and the first look's quick group all ran at default reasoning. Nothing in the response says so except the reasoning text itself."
+      ]
     }
   ]
 }

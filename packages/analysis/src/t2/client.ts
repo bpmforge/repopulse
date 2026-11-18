@@ -162,6 +162,12 @@ export const T2_DEFAULTS: Omit<T2Config, 'hosts'> = {
   quickReasoning: (process.env.AI_QUICK_VERDICTS ?? 'on') !== 'off',
 };
 
+/**
+ * W27-16: reasoning text longer than this on a call that asked for none means
+ * the host ignored the setting (a compliant host returns none at all).
+ */
+export const IGNORED_NONE_REASONING_CHARS = 200;
+
 /** A 400 from a host that does not know the reasoning_effort field (W25-19). */
 function rejectsReasoningField(err: unknown): boolean {
   return (
@@ -387,6 +393,13 @@ export class T2Client {
   private readonly warm = new Set<string>();
   /** W25-19: hosts that answered 400 to reasoning_effort; never sent it again. */
   private readonly noReasoningField = new Set<string>();
+  /**
+   * W27-16: hosts that took `reasoning_effort: "none"` and reasoned anyway.
+   * Some LM Studio builds accept only low/medium/xhigh for a model, log a
+   * warning and skip the field, so every "quick" call ran at full reasoning
+   * with nothing in the response to say so. Such a host is asked for "low".
+   */
+  private readonly noneIgnored = new Set<string>();
   private readonly inFlight = new Map<string, number>();
 
   constructor(
@@ -613,6 +626,8 @@ export class T2Client {
         // crashed model without reloading it just crashes again.
         if (opts.signal?.aborted) throw abortReason(opts.signal);
         if (!this.warm.has(host.baseUrl)) await this.warmUp(host);
+        const effort =
+          opts.reasoning === 'none' && this.noneIgnored.has(host.baseUrl) ? 'low' : opts.reasoning;
 
         try {
           // 45000 ALWAYS, whatever the caller asked for. The cap is a property
@@ -625,9 +640,17 @@ export class T2Client {
             this.config.requestTimeoutMs,
             opts.promptParts,
             opts.signal,
-            quick ? opts.reasoning : undefined,
+            quick ? effort : undefined,
           );
           this.warm.add(host.baseUrl);
+          if (
+            quick &&
+            effort === 'none' &&
+            (body.choices?.[0]?.message?.reasoning_content ?? '').trim().length >
+              IGNORED_NONE_REASONING_CHARS
+          ) {
+            this.noneIgnored.add(host.baseUrl);
+          }
           // A model that thought and never concluded is a FAILURE with a name,
           // not an empty answer (W16-38). Thrown rather than returned empty,
           // because every caller parses `text` and an empty string becomes a
