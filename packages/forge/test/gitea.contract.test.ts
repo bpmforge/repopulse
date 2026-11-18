@@ -269,6 +269,91 @@ describe('GiteaProvider contract (W7-02, zero network)', () => {
     });
   });
 
+  it("a reviewer (scan lane) gets each file's hunks from the pull request diff", async () => {
+    // Trimmed from a live Gitea 1.24.6 (2026-11-18): /pulls/{n}/files has no
+    // `patch` field at all; /pulls/{n}.diff is plain `git diff` output.
+    const DIFF = [
+      'diff --git a/src/services/reportService.js b/src/services/reportService.js',
+      'index 1c2d3e4..5f6a7b8 100644',
+      '--- a/src/services/reportService.js',
+      '+++ b/src/services/reportService.js',
+      '@@ -8,3 +8,4 @@ function byRegion(db, region) {',
+      '   const sql =',
+      '-    "select * from sales";',
+      '+    "select * from sales where region = \'" + region + "\'";',
+      '+  return db.all(sql);',
+      ' }',
+      'diff --git a/assets/logo.png b/assets/logo.png',
+      'new file mode 100644',
+      'index 0000000..9a8b7c6',
+      'Binary files /dev/null and b/assets/logo.png differ',
+      'diff --git a/src/new file.js b/src/new file.js',
+      'new file mode 100644',
+      '--- /dev/null',
+      '+++ b/src/new file.js',
+      '@@ -0,0 +1 @@',
+      '+module.exports = 1;',
+      '',
+    ].join('\n');
+    const routes = [
+      {
+        method: 'GET',
+        url: `${API}/repos/${REPO}/pulls/7/files?page=1&limit=50`,
+        response: {
+          status: 200,
+          headers: { 'x-total-count': '3' },
+          body: [
+            {
+              filename: 'src/services/reportService.js',
+              status: 'changed',
+              additions: 2,
+              deletions: 1,
+            },
+            { filename: 'assets/logo.png', status: 'added', additions: 0, deletions: 0 },
+            { filename: 'src/new file.js', status: 'added', additions: 1, deletions: 0 },
+          ],
+        },
+      },
+      {
+        method: 'GET',
+        url: `${API}/repos/${REPO}/pulls/7.diff`,
+        response: { status: 200, body: DIFF },
+      },
+    ];
+    const page = await provider(routes).getPullRequestFiles({ lane: 'scan' }, REPO, 7);
+    expect(page.items[0]).toMatchObject({
+      path: 'src/services/reportService.js',
+      patchTruncated: false,
+    });
+    expect(page.items[0]!.patch).toMatch(/^@@ -8,3 \+8,4 @@/);
+    expect(page.items[0]!.patch).toContain('+  return db.all(sql);');
+    expect(page.items[0]!.patch).not.toContain('logo.png');
+    // A binary file has no hunks: still reported, still without a patch.
+    expect(page.items[1]).toMatchObject({ path: 'assets/logo.png', patchTruncated: true });
+    expect(page.items[1]!.patch).toBeUndefined();
+    expect(page.items[2]).toMatchObject({
+      path: 'src/new file.js',
+      patch: '@@ -0,0 +1 @@\n+module.exports = 1;',
+    });
+
+    // Ingestion needs only the churn and makes no second request.
+    const ingest = provider(routes.slice(0, 1));
+    const lean = await ingest.getPullRequestFiles(ctx, REPO, 7);
+    expect(lean.items[0]).toMatchObject({ additions: 2, patchTruncated: true });
+
+    // A Gitea that does not serve the diff: files come back without patches.
+    const none = provider([
+      routes[0]!,
+      {
+        method: 'GET',
+        url: `${API}/repos/${REPO}/pulls/7.diff`,
+        response: { status: 404, body: '' },
+      },
+    ]);
+    const bare = await none.getPullRequestFiles({ lane: 'scan' }, REPO, 7);
+    expect(bare.items.every((f) => f.patchTruncated)).toBe(true);
+  });
+
   it('listReviews maps Gitea review states and drops ones we do not model', async () => {
     const p = provider([
       {

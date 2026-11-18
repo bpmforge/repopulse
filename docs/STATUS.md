@@ -4428,3 +4428,8 @@ on the Mac:**
   and no repository name, which the processor skipped in 7 ms while the API answered
   "started". It now queues one delta per kind (commits, pull requests, issues, releases,
   deployments). Found by the demo run: a new pull request never appeared without webhooks.
+- 2026-11-18 — W27-19 (in progress): AI review of a Gitea pull request never worked. Gitea's
+  `pulls/{n}/files` has no patch text, so every such pass failed with "none of the changed
+  files came with a complete patch", and the commit-range fallback failed because pull
+  request head commits are not ingested. The Gitea provider now reads `pulls/{n}.diff` on the
+  scan lane and gives each file its hunks. Contract tests pass; the real-Gitea run is pending.

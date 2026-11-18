@@ -44,6 +44,7 @@ import {
   normalizeIssue,
   normalizePR,
   normalizePrFile,
+  splitUnifiedDiff,
   normalizeRelease,
   normalizeReview,
   normalizeStatus,
@@ -84,6 +85,9 @@ export interface GiteaProviderOptions {
   /** Self-hosted, so there is no sensible default — the operator's instance. */
   baseUrl: string;
 }
+
+/** Largest pull request diff read for per-file patches; a larger one is left unread. */
+export const GITEA_PR_DIFF_MAX_BYTES = 4_000_000;
 
 /** One file-list call per commit in the range; a longer range is reported truncated. */
 export const GITEA_COMPARE_MAX_COMMITS = 50;
@@ -289,15 +293,38 @@ export class GiteaProvider implements ForgeProvider {
     cursor?: ForgeCursor,
   ): Promise<Page<ForgeDiffFile>> {
     // Unlike commit files, PR files DO carry per-file churn (verified live).
+    // They never carry patch text, though (Gitea 1.24.6, verified live
+    // 2026-11-18), which left every AI review of a Gitea pull request with
+    // "none of the changed files came with a complete patch". A reviewer (the
+    // scan lane) gets the hunks from the pull request's own `.diff`; ingestion
+    // only needs the churn and does not pay for the extra request.
+    const patches =
+      ctx.lane === 'scan' ? await this.pullRequestPatches(ctx, repo, n) : new Map<string, string>();
     return this.paged<RawGiteaPrFile, ForgeDiffFile>(
       ctx,
       `${this.base}/repos/${repo}/pulls/${n}/files`,
       cursor,
       'pulls',
-      normalizePrFile,
+      (f) => normalizePrFile(f, patches.get(f.filename)),
       undefined,
       { entity: 'pr_files' },
     );
+  }
+
+  /**
+   * The pull request's unified diff, split per file. Empty when Gitea does not
+   * serve it or it is larger than GITEA_PR_DIFF_MAX_BYTES: the files are then
+   * reported without a patch, which callers already treat as unreadable.
+   */
+  private async pullRequestPatches(
+    ctx: CallCtx,
+    repo: string,
+    n: number,
+  ): Promise<Map<string, string>> {
+    const res = await this.get(ctx, `${this.base}/repos/${repo}/pulls/${n}.diff`, 'pulls');
+    if (res.status !== 200 || typeof res.body !== 'string') return new Map();
+    if (res.body.length > GITEA_PR_DIFF_MAX_BYTES) return new Map();
+    return splitUnifiedDiff(res.body);
   }
 
   async listReviews(ctx: CallCtx, repo: string, n: number): Promise<ForgeReview[]> {

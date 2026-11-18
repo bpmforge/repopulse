@@ -124,15 +124,44 @@ export interface RawGiteaPrFile {
   deletions?: number;
 }
 
-export function normalizePrFile(f: RawGiteaPrFile): ForgeDiffFile {
+/**
+ * `patch` is the file's hunks from the pull request's `.diff` (splitUnifiedDiff),
+ * when the caller fetched it. Gitea's files endpoint itself never returns patch
+ * text, so without it the file is reported as truncated.
+ */
+export function normalizePrFile(f: RawGiteaPrFile, patch?: string): ForgeDiffFile {
   return {
     path: f.filename,
     ...(f.previous_filename ? { previousPath: f.previous_filename } : {}),
     status: mapFileStatus(f.status),
     additions: f.additions ?? 0,
     deletions: f.deletions ?? 0,
-    patchTruncated: true,
+    ...(patch ? { patch } : {}),
+    patchTruncated: !patch,
   };
+}
+
+/**
+ * Split a unified diff (`git diff` output, as Gitea's `pulls/{n}.diff` serves
+ * it) into each file's hunks, keyed by the new-side path. A file's patch is
+ * its text from the first `@@` on, the same shape GitHub puts in `patch`.
+ * Files with no hunk (binary, mode-only, pure renames) are left out. Pure.
+ */
+export function splitUnifiedDiff(diff: string): Map<string, string> {
+  const out = new Map<string, string>();
+  const sections = diff.split(/^(?=diff --git )/m);
+  for (const section of sections) {
+    if (!section.startsWith('diff --git ')) continue;
+    const firstHunk = section.search(/^@@ /m);
+    if (firstHunk === -1) continue;
+    const header = section.slice(0, firstHunk);
+    // The `+++ b/path` line is exact; the `diff --git` line is ambiguous for
+    // paths with spaces. A deleted file has `+++ /dev/null` and is not needed.
+    const plus = /^\+\+\+ (?:"?b\/(.+?)"?)\t?$/m.exec(header);
+    if (!plus?.[1]) continue;
+    out.set(plus[1], section.slice(firstHunk).replace(/\n$/, ''));
+  }
+  return out;
 }
 
 // Gitea reports 'changed' where GitHub says 'modified'; both use added/renamed,

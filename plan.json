@@ -13960,6 +13960,32 @@
       "notes": [
         "2026-11-18 demo run on the Mac: the route queued one job with no kind and no repo; the delta processor returned skipped in 7 ms while the API answered started. On a connection without webhooks a new pull request then only appeared at the nightly reconcile."
       ]
+    },
+    {
+      "id": "W27-19",
+      "title": "Gitea pull requests can be reviewed: per-file patches from the pull request diff",
+      "phase": 27,
+      "module": "forge",
+      "stories": [],
+      "write_scope": [
+        "packages/forge/src/gitea",
+        "packages/forge/test/gitea.contract.test.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-18"
+      ],
+      "acceptance": [
+        "On the scan lane, GiteaProvider.getPullRequestFiles returns each file's hunks, read from pulls/{n}.diff through the budgeted client",
+        "Ingestion lanes make no extra request; a missing or oversized diff leaves files without patches, as before",
+        "An AI review of a Gitea pull request reads the changed files (measured on a real Gitea)"
+      ],
+      "points": 2,
+      "status": "in_progress",
+      "notes": [
+        "2026-11-18 demo on Gitea 1.24.6: POST ai-pass {pull_request} failed at once with no_files because pulls/{n}/files has no patch field; the commit-range fallback failed too (pull request head commits are not ingested). So no AI review ever read a Gitea pull request; only the mechanical PR scan ran. Gitea serves the whole diff at pulls/{n}.diff (swagger repoDownloadPullDiffOrPatch)."
+      ]
     }
   ]
 }
