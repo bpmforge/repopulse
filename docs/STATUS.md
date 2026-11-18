@@ -4433,3 +4433,6 @@ on the Mac:**
   files came with a complete patch", and the commit-range fallback failed because pull
   request head commits are not ingested. The Gitea provider now reads `pulls/{n}.diff` on the
   scan lane and gives each file its hunks. Contract tests pass; the real-Gitea run is pending.
+- 2026-11-18 — W27-20 (in progress): the rule engine's pull request findings were written
+  with no pull request id, so the pull request page showed fewer findings than the CI API for
+  the same head (1 against 2 in the demo). They are now tagged like the other PR scanners'.

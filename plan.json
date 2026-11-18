@@ -13986,6 +13986,31 @@
       "notes": [
         "2026-11-18 demo on Gitea 1.24.6: POST ai-pass {pull_request} failed at once with no_files because pulls/{n}/files has no patch field; the commit-range fallback failed too (pull request head commits are not ingested). So no AI review ever read a Gitea pull request; only the mechanical PR scan ran. Gitea serves the whole diff at pulls/{n}.diff (swagger repoDownloadPullDiffOrPatch)."
       ]
+    },
+    {
+      "id": "W27-20",
+      "title": "Rule findings from a pull request scan are tagged with the pull request",
+      "phase": 27,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "packages/security/src/scanners/semgrep/run-modes.ts",
+        "packages/security/src/scanners/pr/run.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-19"
+      ],
+      "acceptance": [
+        "The rule-engine (semgrep) findings of a pull request scan carry the pull request id, like the other PR scanners' findings",
+        "The pull request page and the CI API list the same findings for the same head (measured on a real install)"
+      ],
+      "points": 1,
+      "status": "in_progress",
+      "notes": [
+        "2026-11-18 demo: the PR page showed 1 automated finding while the CI check returned 2; the SQL injection finding (semgrep) had pull_request_id NULL, the empty-catch finding (anti_slop) had it set."
+      ]
     }
   ]
 }

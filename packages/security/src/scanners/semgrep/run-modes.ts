@@ -452,6 +452,13 @@ async function tryIncrementalMerge(
 export async function runSemgrepIncremental(
   deps: SemgrepModeDeps & {
     prNumber: number;
+    /**
+     * The pull request's row id. Findings are tagged with it like every other
+     * PR scanner's, so the pull request page lists them (until 2026-11-18 they
+     * were written with no pull request, and the page showed fewer findings
+     * than the CI API returned for the same head).
+     */
+    pullRequestId?: number;
     maxFiles?: number;
     /**
      * W21-02. The PR's changed files, already copied out of the ONE snapshot the
@@ -546,7 +553,7 @@ export async function runSemgrepIncremental(
       workspaceId: deps.workspaceId,
       repoId: deps.repoId,
       scanRunId: runId,
-      pullRequestId: null,
+      pullRequestId: deps.pullRequestId ?? null,
       tier: 1,
       findings: await attachExcerpts(root, findings),
       // NO reviewedFiles: a diff-scoped run has seen a handful of files, not
