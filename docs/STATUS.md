@@ -4398,3 +4398,7 @@ on the Mac:**
   files and missed the open redirect. The SIGKILL snapshot test raced its own cleanup (a
   `finally` after setInterval); fixed. ci-local on f46c562 (M5): 10 of 13 steps, 6,145 tests
   pass; open: osv-scanner reports 21 dependency advisories (zod, vite and others).
+- 2026-11-18 — W27-15: dependency advisories. vite 6.4.6, vitest 4.1.12, and overrides for
+  fast-uri, seroval and the router plugin's zod take `pnpm audit` from 13 advisories to 3. Open:
+  zod 3.25.76 (High, fixed only in zod 4, which is a brief-fixed major), glob inside the
+  vendored Lodestone, minimatch under typescript-eslint. See docs/TECH_STACK.md.
