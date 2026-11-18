@@ -12,7 +12,11 @@ async function branchLog(db, branch, table) {
   await run('git status --porcelain');
   const query = promisify(db.exec);
   await query('VACUUM ' + table);
-  return stdout;
+  // A RegExp's exec with arithmetic in its argument is not a shell command
+  // (16 false hits on Repo Pulse's own scanners, 2026-11-18).
+  const word = /[a-z]+$/.exec(stdout.slice(0, stdout.length - 1 + 1));
+  const tail = new RegExp(`^(${table})`).exec('x' + branch);
+  return [stdout, word, tail];
 }
 
 module.exports = { branchLog };

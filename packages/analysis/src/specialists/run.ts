@@ -16,7 +16,7 @@ import {
   COMBINED_QUICK_CHUNK_TOKENS,
   splitByDimension,
 } from './combined.js';
-import { fileAreas, planWaves, type Plan } from './planner.js';
+import { fileAreas, planWaves, securityPriority, type Plan } from './planner.js';
 import type { Specialist, SpecialistId } from './registry.js';
 import { toCombinedDiffFiles, toDiffFiles, toDiffFilesFor, type ReviewInput } from './units.js';
 
@@ -479,6 +479,12 @@ async function runCombinedGroup(
   }
   for (const f of files) {
     if (!sent.has(f.path)) outOfArea.push({ path: f.path, reason: 'other_area' });
+  }
+  // Security alone, with fewer calls than files: the code with the most
+  // dangerous sinks and inputs goes first (stable, so ties keep rank order).
+  if (planned.length === 1 && lead.id === 'security') {
+    const score = new Map(sendable.map((f) => [f.path, securityPriority(f.patch)]));
+    sendable.sort((a, b) => (score.get(b.path) ?? 0) - (score.get(a.path) ?? 0));
   }
   const chunked = chunkDiff(sendable, lead.dimension, combinedBudget(base, planned, chunkTokens));
   const chunks = chunked.chunks;

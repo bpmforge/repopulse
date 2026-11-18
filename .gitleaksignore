@@ -70,3 +70,6 @@ adc466577b079467755608c2862ed58e495e5041:packages/security/src/excerpt.test.ts:j
 da42923d52cc87973139578de453609a8d6c0b3d:apps/web/src/widgets/admin/settings/contracts.ts:generic-api-key:44
 3c92751e8ac142b25cacb976d20ae696692b3768:apps/api/src/routes/admin/identities/index.test.ts:generic-api-key:290
 5d5d979ad112110fc0df275a9153cc6ce068d7c7:apps/api/src/routes/findings/transitions.test.ts:generic-api-key:445
+# The upstream gitleaks commit SHA recorded in the third-party rule ledger (#213): a
+# git commit id, which the sourcegraph-access-token pattern (40 hex) matches. Not a credential.
+4e151e94b6543360cb65b765375bd628f241c14e:packages/security/rulepacks/third-party/LEDGER.json:sourcegraph-access-token:4868

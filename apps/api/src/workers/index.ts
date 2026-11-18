@@ -452,6 +452,10 @@ async function main(): Promise<void> {
           } catch (err) {
             log.warn({ err, repoId }, '[worker] reprice after scan not queued');
           }
+          // A workspace-level scan (rule drafts, repo_id 0) has no repository
+          // to review: queueing a first look for it broke the repos foreign key
+          // on every such scan (seen in the 2026-11-15 worker log).
+          if (repoId <= 0) return;
           // W25-01: the AI's first look for code issues, queued BEFORE the
           // judge so it is ahead of it for the model (it uses the foreground
           // gateway; the judge's calls wait behind every other analysis).

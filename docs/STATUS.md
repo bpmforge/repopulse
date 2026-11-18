@@ -4388,3 +4388,13 @@ on the Mac:**
   (they missed anti-slop, supply chain and end-of-life, so gin read 44 in a report and 48 on
   screen); finished AI passes show run time and wait time; anti-slop sends 10 candidates per
   call (25 timed out on a local 27B). Mac A/B on gin's redirect slice: low found it in 82 s.
+- 2026-11-18 — W27-14: goals review, fixes from the 2026-11-08 real runs. A workspace-level
+  scan (repo_id 0) no longer tries to queue a first look or a judge run (it broke the repos
+  foreign key on every rule-draft scan). `bpm-js-child-process-concat` now needs the receiver
+  of `.exec`/`.execSync` to be child_process in that file: on Repo Pulse's own code 16 of 16
+  hits were a RegExp's `exec`, and they were 13 of the judge's 17 false positives. A first
+  look's security calls read the code with the most dangerous sinks and inputs first
+  (securityPriority) instead of findings-and-churn order: on gin they stopped after 2 of 11
+  files and missed the open redirect. The SIGKILL snapshot test raced its own cleanup (a
+  `finally` after setInterval); fixed. ci-local on f46c562 (M5): 10 of 13 steps, 6,145 tests
+  pass; open: osv-scanner reports 21 dependency advisories (zod, vite and others).
