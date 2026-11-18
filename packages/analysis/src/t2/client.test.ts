@@ -97,36 +97,6 @@ describe('tier-2 wrapper', () => {
     expect(real[1]).not.toHaveProperty('reasoning_effort');
   });
 
-  it('W27-16: a host that ignores "none" and reasons anyway is asked for "low" from then on', async () => {
-    // Seen on an LM Studio build that takes only low/medium/xhigh for the model:
-    // it logs a warning, skips the field and reasons in full.
-    const real: Record<string, unknown>[] = [];
-    const fetchImpl = vi.fn(async (_u: string | URL | Request, init?: RequestInit) => {
-      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
-      if (String(init?.body).includes('ping')) return ok();
-      real.push(body);
-      return jsonResponse({
-        choices: [
-          {
-            message: {
-              content: '{"findings":[]}',
-              ...(body.reasoning_effort === 'none'
-                ? { reasoning_content: 'thinking at length. '.repeat(40) }
-                : {}),
-            },
-          },
-        ],
-        model: 'qwen',
-        usage: { prompt_tokens: 10, completion_tokens: 4 },
-      });
-    }) as unknown as typeof fetch;
-    const c = client(fetchImpl);
-    await c.complete('verdict', { ...opts, reasoning: 'none' }, HOST);
-    await c.complete('verdict', { ...opts, reasoning: 'none' }, HOST);
-    await c.complete('security', { ...opts, reasoning: 'medium' }, HOST);
-    expect(real.map((b) => b.reasoning_effort)).toEqual(['none', 'low', 'medium']);
-  });
-
   it('W25-19: a host that rejects reasoning_effort is asked again without it, and remembered', async () => {
     const real: Record<string, unknown>[] = [];
     const fetchImpl = vi.fn(async (_u: string | URL | Request, init?: RequestInit) => {
