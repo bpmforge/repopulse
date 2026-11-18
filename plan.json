@@ -14075,6 +14075,31 @@
         "2026-11-18 on the M4: the container host went down mid first look. After the restart the first look read running and the judge pending until cancelled by hand. Cause: the queue redelivers the job, but the processor's compare-and-set on pending answers already_started, so the row never moves.",
         "A requeued pending run loses its per-job options (maxCalls, force, includeTests) and runs with defaults."
       ]
+    },
+    {
+      "id": "W27-23",
+      "title": "A pull request brought in by Sync now or the nightly reconcile gets its scan",
+      "phase": 27,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers/processors.ts",
+        "apps/api/src/workers/pr-scans.test.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-22"
+      ],
+      "acceptance": [
+        "After reconciling one repository the worker queues the pattern scans for its unscanned open pull request heads, as a pull request delta does",
+        "A queue failure there is reported in the job result and does not fail the reconcile"
+      ],
+      "points": 1,
+      "status": "in_progress",
+      "notes": [
+        "2026-11-18 real click on Sync now (webhooks off): the pull request appeared within 30 s, and scan_runs had no pr_synced row. Only the delta processor called queuePrScans."
+      ]
     }
   ]
 }

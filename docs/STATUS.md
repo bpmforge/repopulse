@@ -4450,3 +4450,6 @@ on the Mac:**
   the repository's judge run. Found when the M4's container host went down mid first look.
   At boot the worker now closes such passes as interrupted and queues pending ones again.
   `AI_PASS_BOOT_RECOVERY=off` for installs with more than one worker.
+- 2026-11-18 — W27-23 (in progress): with webhooks off, "Sync now" brought a new pull request
+  in and nothing scanned it, because only the delta path queued pull request scans. The
+  reconcile of one repository (Sync now and the nightly sweep) now queues them too.

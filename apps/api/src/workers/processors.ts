@@ -611,7 +611,20 @@ export function reconcileProcessor(deps: ProcessorDeps) {
       { db: deps.db, provider: resolved.provider },
       { workspaceId: data.workspaceId, repoId: data.repoId, repo: resolved.repoFullName },
     );
-    return { counts };
+    // W27-23: a pull request this reconcile brought in (webhooks off, or one
+    // missed) gets its pattern scan, as it would have from the delta. Without
+    // this "Sync now" showed the pull request and nothing ever scanned it.
+    // Idempotent (one job per unscanned open head) and best-effort, like the
+    // delta's: a queue hiccup must not fail the reconcile.
+    let prScans: { queued: number; deferred: number } | { error: string } | undefined;
+    if (deps.queuePrScans) {
+      try {
+        prScans = await deps.queuePrScans(data.workspaceId, data.repoId);
+      } catch (err) {
+        prScans = { error: err instanceof Error ? err.message : String(err) };
+      }
+    }
+    return { counts, ...(prScans ? { prScans } : {}) };
   };
 }
 
