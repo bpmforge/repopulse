@@ -4463,3 +4463,6 @@ on the Mac:**
   reviews. The demo's 3-file pull request review took about 44 minutes on the local model at
   default reasoning; the first-look settings did not reach it. Default stays full until the
   lower settings are measured.
+- 2026-11-19 — W27-27 (todo, found on the M4): with the Claude Code CLI backend, the API
+  container (Alpine) cannot run the CLI binary the worker (Debian) runs, so Settings shows a
+  false "the two containers disagree" and Test connection cannot pass. Reviews are unaffected.

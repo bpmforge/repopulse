@@ -14178,6 +14178,35 @@
       "notes": [
         "2026-11-19 demo, local 27B: the pull request review of 3 files made 6 calls at default reasoning (79, 149, 393, 554, 604, 362, 503 s with a retry), about 44 minutes, 26 findings for about 12 distinct problems, none false. The first-look settings did not apply to it. Default unchanged until medium and low are measured."
       ]
+    },
+    {
+      "id": "W27-27",
+      "title": "Claude Code CLI backend: the API container cannot run the CLI the worker runs",
+      "phase": 27,
+      "module": "deploy",
+      "stories": [],
+      "write_scope": [
+        "deploy",
+        "apps/api/src/routes/admin/claude-cli",
+        "apps/web/src/widgets/admin/LlmProviders.tsx",
+        "docs/INSTALL.md",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-26"
+      ],
+      "acceptance": [
+        "With the stack started by deploy/up.sh --with-claude-cli and the CLI installed as INSTALL.md says, Settings, Models shows no container mismatch",
+        "Test connection for a claude_cli provider passes when the worker's CLI is signed in (run through the worker, or the API image can run the same binary)",
+        "The mismatch advice names the real cause when the two containers differ for another reason"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": [
+        "2026-11-19 on the M4 (install rpcli, 8719e00): the API image is Alpine (musl) and the worker is Debian 12 (glibc). npm installs a glibc native binary for @anthropic-ai/claude-code 2.1.327, so in the API container the CLI fails with exit 127 (not found) while the worker runs it and reports logged in. The page then says the two containers disagree and advises --with-claude-cli, which was already used. Reviews work (they run in the worker); only the status line and Test connection are wrong.",
+        "Options: run Test connection through the worker; build the API image on the worker's base; or install a musl build for the API."
+      ]
     }
   ]
 }
