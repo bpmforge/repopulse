@@ -123,6 +123,21 @@ export function firstLookQuickReasoning(env: Record<string, string | undefined>)
   return (env.FIRST_LOOK_QUICK_REASONING ?? '').trim().toLowerCase() === 'low' ? 'low' : 'none';
 }
 
+/**
+ * W27-26: AI_REVIEW_REASONING = full (default) | medium | low, for the area
+ * calls of a pull request, commit-range or folder review. Measured on a
+ * 3-file pull request with the local 27B at full: 6 calls of 79 to 604 s,
+ * 44 minutes, and all six planted problems found. Lower is faster and not yet
+ * measured for quality, so full stays the default. Never none: with no
+ * reasoning the first look found nothing (W27-06).
+ */
+export function reviewReasoning(
+  env: Record<string, string | undefined>,
+): 'full' | 'medium' | 'low' {
+  const v = (env.AI_REVIEW_REASONING ?? '').trim().toLowerCase();
+  return v === 'medium' || v === 'low' ? v : 'full';
+}
+
 /** W27-16: FIRST_LOOK_CALLS = 1 to 30 model calls for a first look (default FIRST_LOOK_MAX_CALLS). */
 export function firstLookMaxCalls(env: Record<string, string | undefined>): number {
   const n = Number((env.FIRST_LOOK_CALLS ?? '').trim());
@@ -765,8 +780,22 @@ export function aiPassProcessor(deps: AiPassDeps) {
       // W27-04: a first look triages no rule hits (they are the judge's), so its
       // whole cap goes to reading code.
       const triageReserve = triageReserveFor(run, maxCalls);
+      // W27-26: a review that is not a first look reasons as much as
+      // AI_REVIEW_REASONING says (a call that sets its own effort keeps it).
+      const effort = firstLook ? 'full' : reviewReasoning(globalThis.process.env);
+      const reviewGateway: typeof wg.gateway =
+        effort === 'full'
+          ? wg.gateway
+          : {
+              ...wg.gateway,
+              complete: (prompt, opts) =>
+                wg.gateway.complete(
+                  prompt,
+                  opts.reasoning !== undefined ? opts : { ...opts, reasoning: effort },
+                ),
+            };
       const spec = await runSpecialists(input, {
-        gateway: wg.gateway,
+        gateway: reviewGateway,
         contextWindowFor: window,
         // W27-05: a first look is one combined review per chunk, small budget.
         maxCalls: firstLook

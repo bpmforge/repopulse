@@ -4459,3 +4459,7 @@ on the Mac:**
 - 2026-11-19 — W27-25: a drafted fix was rejected as malformed because the model wrote a
   column-0 context line (`}`) without its leading space. Such a line is now read as context;
   the hunk still has to match the file's own text to be accepted.
+- 2026-11-19 — W27-26: `AI_REVIEW_REASONING` (full, medium, low) for pull request and folder
+  reviews. The demo's 3-file pull request review took about 44 minutes on the local model at
+  default reasoning; the first-look settings did not reach it. Default stays full until the
+  lower settings are measured.

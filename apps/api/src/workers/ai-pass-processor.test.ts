@@ -25,6 +25,7 @@ import {
   AI_PASS_MAX_CALLS,
   FIRST_LOOK_MAX_CALLS,
   firstLookMaxCalls,
+  reviewReasoning,
   firstLookQuickReasoning,
   firstLookSecurityReasoning,
   type AiPassDeps,
@@ -1091,11 +1092,18 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
     it('FIRST_LOOK_SECURITY_REASONING picks low, medium or full (W27-11)', () => {
       expect(firstLookSecurityReasoning({})).toBe('low');
       expect(firstLookSecurityReasoning({ FIRST_LOOK_SECURITY_REASONING: ' Full ' })).toBe('full');
-      expect(firstLookSecurityReasoning({ FIRST_LOOK_SECURITY_REASONING: 'medium' })).toBe('medium');
+      expect(firstLookSecurityReasoning({ FIRST_LOOK_SECURITY_REASONING: 'medium' })).toBe(
+        'medium',
+      );
       // W27-16: the quick areas' reasoning and the call budget are settings too.
       expect(firstLookQuickReasoning({})).toBe('none');
       expect(firstLookQuickReasoning({ FIRST_LOOK_QUICK_REASONING: 'Low' })).toBe('low');
       expect(firstLookQuickReasoning({ FIRST_LOOK_QUICK_REASONING: 'full' })).toBe('none');
+      // W27-26: pull request and folder reviews; never none.
+      expect(reviewReasoning({})).toBe('full');
+      expect(reviewReasoning({ AI_REVIEW_REASONING: ' Medium ' })).toBe('medium');
+      expect(reviewReasoning({ AI_REVIEW_REASONING: 'low' })).toBe('low');
+      expect(reviewReasoning({ AI_REVIEW_REASONING: 'none' })).toBe('full');
       expect(firstLookMaxCalls({})).toBe(FIRST_LOOK_MAX_CALLS);
       expect(firstLookMaxCalls({ FIRST_LOOK_CALLS: '9' })).toBe(9);
       for (const bad of ['0', '31', '2.5', 'many']) {

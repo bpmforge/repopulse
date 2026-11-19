@@ -607,6 +607,16 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     default: 'full',
   },
   {
+    name: 'AI_REVIEW_REASONING',
+    scope: 'worker',
+    required: false,
+    purpose:
+      "How much the model reasons on each area call of a pull request, commit-range or folder review: `full` (the model's default, unbounded), `medium` or `low` (W27-26). Applies to local models that take a reasoning effort. The first look after a scan has its own settings.",
+    ifWrong:
+      'Full is the measured default: on a local 27B model a 3-file pull request took 6 calls and 44 minutes, and found every planted problem. Lower settings answer faster but are not yet measured for what they miss.',
+    default: 'full',
+  },
+  {
     name: 'AI_JUDGE_BATCH_SIZE',
     scope: 'shared',
     required: false,
