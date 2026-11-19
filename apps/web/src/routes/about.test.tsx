@@ -12,7 +12,7 @@ import { RELEASE_ACCURACY, type ReleaseAccuracy } from '../about/accuracy.js';
 let version: string;
 
 beforeEach(() => {
-  version = '0.2.0';
+  version = '0.3.0';
   vi.stubGlobal(
     'fetch',
     vi.fn((input: unknown) => {
@@ -41,7 +41,7 @@ describe('About (W20-23)', () => {
   it('shows the installed version from the API', async () => {
     renderAbout();
     expect(
-      await screen.findByText('0.2.0', { selector: '[data-testid="about-version"]' }),
+      await screen.findByText('0.3.0', { selector: '[data-testid="about-version"]' }),
     ).toBeInTheDocument();
     expect(screen.queryByTestId('about-version-note')).toBeNull();
   });
@@ -63,7 +63,7 @@ describe('About (W20-23)', () => {
     version = '2026.10.3';
     renderAbout();
     expect(await screen.findByTestId('about-version-note')).toHaveTextContent(
-      'published with the code of release 0.2.0',
+      'published with the code of release 0.3.0',
     );
   });
 
@@ -77,12 +77,12 @@ describe('About (W20-23)', () => {
     expect(juliet).toHaveTextContent('docs/benchmarks/report.json, bySuite → juliet-java');
     const owasp = screen.getByTestId('about-row-owasp-benchmark');
     expect(within(owasp).getByText('82.6%')).toBeInTheDocument();
-    expect(screen.getByTestId('about-row-total')).toHaveTextContent('77.8%');
+    expect(screen.getByTestId('about-row-total')).toHaveTextContent('77.9%');
     expect(screen.getByTestId('about-accuracy')).toHaveTextContent(
-      'Measured 2026-11-02 at commit 3a35f2468e5b with opengrep 1.27.1',
+      'Measured 2026-11-19 at commit 17dec08ef2dc with opengrep 1.27.1',
     );
     expect(screen.getByTestId('about-previous')).toHaveTextContent(
-      'Previous release (0.1.0) measured 2026-10-16.',
+      'Previous release (0.2.0) measured 2026-11-02.',
     );
   });
 

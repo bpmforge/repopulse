@@ -4,7 +4,7 @@
   "scope": "Deterministic layers only: the in-process fast lane (anti_slop arithmetic and graph checks, secrets rulepack) and the YAML rulepacks. No LLM tier is measured.",
   "engines": {
     "fastLane": {
-      "rules": 130
+      "rules": 131
     },
     "yaml": {
       "status": "ran",
@@ -64,7 +64,7 @@
         "rulepacks/semgrep/bpm-baseline.swift.v1.yaml",
         "rulepacks/semgrep/bpm-baseline.v1.yaml"
       ],
-      "rules": 332,
+      "rules": 334,
       "parseErrors": [
         "juice-shop/codefixes/loginAdminChallenge_1.ts",
         "juice-shop/codefixes/loginAdminChallenge_2.ts",
@@ -160,7 +160,7 @@
       },
       "status": "scored",
       "trees": 8,
-      "labels": 147
+      "labels": 151
     },
     {
       "id": "sampleco",
@@ -178,15 +178,15 @@
     }
   ],
   "totals": {
-    "tp": 1737,
-    "fp": 497,
-    "fn": 1156,
+    "tp": 1742,
+    "fp": 494,
+    "fn": 1155,
     "tn": 3470,
     "duplicate": 224,
     "ignored": 2370,
     "skipped": 11,
-    "precision": 0.778,
-    "recall": 0.6
+    "precision": 0.779,
+    "recall": 0.601
   },
   "byDimension": [
     {
@@ -262,21 +262,21 @@
     {
       "dimension": "performance",
       "score": {
-        "tp": 34,
-        "fp": 3,
+        "tp": 37,
+        "fp": 0,
         "fn": 1,
         "tn": 0,
         "duplicate": 2,
         "ignored": 4,
         "skipped": 0,
-        "precision": 0.919,
-        "recall": 0.971
+        "precision": 1,
+        "recall": 0.974
       }
     },
     {
       "dimension": "sast",
       "score": {
-        "tp": 1535,
+        "tp": 1536,
         "fp": 485,
         "fn": 1145,
         "tn": 3470,
@@ -304,15 +304,15 @@
     {
       "dimension": "slop",
       "score": {
-        "tp": 32,
+        "tp": 33,
         "fp": 0,
-        "fn": 8,
+        "fn": 7,
         "tn": 0,
         "duplicate": 0,
         "ignored": 29,
         "skipped": 0,
         "precision": 1,
-        "recall": 0.8
+        "recall": 0.825
       }
     }
   ],
@@ -2043,6 +2043,22 @@
         "skipped": 0,
         "precision": null,
         "recall": null
+      }
+    },
+    {
+      "rule": "bpm-go-open-redirect",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
       }
     },
     {
@@ -4307,13 +4323,13 @@
       "dimension": "performance",
       "score": {
         "tp": 1,
-        "fp": 3,
+        "fp": 0,
         "fn": 0,
         "tn": 0,
         "duplicate": 0,
         "ignored": 0,
         "skipped": 0,
-        "precision": 0.25,
+        "precision": 1,
         "recall": 1
       }
     },
@@ -4779,6 +4795,22 @@
         "skipped": 0,
         "precision": null,
         "recall": null
+      }
+    },
+    {
+      "rule": "bpm-perf-sql-call-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 3,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
       }
     },
     {
@@ -7406,6 +7438,22 @@
       }
     },
     {
+      "rule": "slop.undeclared_package",
+      "engine": "fast-lane",
+      "dimension": "slop",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
       "rule": "slop.unused_export",
       "engine": "fast-lane",
       "dimension": "slop",
@@ -9135,13 +9183,13 @@
       "suite": "juice-shop",
       "score": {
         "tp": 7,
-        "fp": 3,
+        "fp": 0,
         "fn": 4,
         "tn": 5,
         "duplicate": 0,
         "ignored": 0,
         "skipped": 8,
-        "precision": 0.7,
+        "precision": 1,
         "recall": 0.636
       }
     },
@@ -9176,7 +9224,7 @@
     {
       "suite": "rule-fixtures",
       "score": {
-        "tp": 147,
+        "tp": 151,
         "fp": 0,
         "fn": 0,
         "tn": 0,
@@ -9190,15 +9238,15 @@
     {
       "suite": "sampleco",
       "score": {
-        "tp": 4,
+        "tp": 5,
         "fp": 1,
-        "fn": 8,
+        "fn": 7,
         "tn": 0,
         "duplicate": 0,
         "ignored": 0,
         "skipped": 3,
-        "precision": 0.8,
-        "recall": 0.333
+        "precision": 0.833,
+        "recall": 0.417
       }
     }
   ],
@@ -9447,8 +9495,8 @@
     }
   ],
   "measured": {
-    "date": "2026-11-02",
-    "commit": "3a35f2468e5bd2f851525dde9d6669da40e8b111"
+    "date": "2026-11-19",
+    "commit": "17dec08ef2dcbadf7241289f38923fb7a7c66b36"
   },
   "outcomes": [
     {
@@ -11247,17 +11295,6 @@
     {
       "suite": "juice-shop",
       "tree": "codefixes",
-      "file": "redirectChallenge_1.ts",
-      "line": 15,
-      "ruleId": "bpm-perf-includes-in-loop",
-      "dimension": "performance",
-      "cwe": null,
-      "kind": "fp",
-      "labelId": null
-    },
-    {
-      "suite": "juice-shop",
-      "tree": "codefixes",
       "file": "redirectChallenge_2.ts",
       "line": 15,
       "ruleId": null,
@@ -11269,17 +11306,6 @@
     {
       "suite": "juice-shop",
       "tree": "codefixes",
-      "file": "redirectChallenge_2.ts",
-      "line": 15,
-      "ruleId": "bpm-perf-includes-in-loop",
-      "dimension": "performance",
-      "cwe": null,
-      "kind": "fp",
-      "labelId": null
-    },
-    {
-      "suite": "juice-shop",
-      "tree": "codefixes",
       "file": "redirectChallenge_3.ts",
       "line": 15,
       "ruleId": null,
@@ -11287,17 +11313,6 @@
       "labelId": "redirect-3",
       "cwe": null,
       "kind": "fn"
-    },
-    {
-      "suite": "juice-shop",
-      "tree": "codefixes",
-      "file": "redirectChallenge_3.ts",
-      "line": 15,
-      "ruleId": "bpm-perf-includes-in-loop",
-      "dimension": "performance",
-      "cwe": null,
-      "kind": "fp",
-      "labelId": null
     },
     {
       "suite": "juice-shop",
@@ -112482,6 +112497,17 @@
       "tree": "injection/triggering",
       "file": "go/main.go",
       "line": 52,
+      "ruleId": "bpm-go-open-redirect",
+      "dimension": "sast",
+      "cwe": 601,
+      "kind": "tp",
+      "labelId": "inj-go-open-redirect-go-main-52"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "go/main.go",
+      "line": 52,
       "ruleId": "bpm-inj-redirect-go",
       "dimension": "sast",
       "cwe": 601,
@@ -113063,6 +113089,39 @@
     {
       "suite": "rule-fixtures",
       "tree": "perf/triggering",
+      "file": "callbacks.js",
+      "line": 9,
+      "ruleId": "bpm-perf-sql-call-in-loop",
+      "dimension": "performance",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "perf-sql-callback"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "callbacks.js",
+      "line": 10,
+      "ruleId": "bpm-perf-sql-call-in-loop",
+      "dimension": "performance",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "perf-sql-callback-nested"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "callbacks.js",
+      "line": 20,
+      "ruleId": "bpm-perf-sql-call-in-loop",
+      "dimension": "performance",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "perf-sql-foreach"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
       "file": "joins.py",
       "line": 8,
       "ruleId": "bpm-perf-find-by-key-in-loop-py",
@@ -113549,11 +113608,11 @@
       "tree": "app",
       "file": "src/utils/format.js",
       "line": 2,
-      "ruleId": null,
+      "ruleId": "slop.undeclared_package",
       "dimension": "slop",
-      "labelId": "D4",
       "cwe": null,
-      "kind": "fn"
+      "kind": "tp",
+      "labelId": "D4"
     },
     {
       "suite": "sampleco",
