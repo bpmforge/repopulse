@@ -4,7 +4,7 @@ From the install script to a working install: connect a forge, choose repositori
 
 **For:** Admin · **10 steps** · [All tours](README.md)
 
-> Real screens from a RepoPulse test install built from the current main branch (0.2.1 in development). It tracks copies of three open-source projects on a local Gitea: gin (Go), saleor (Python) and RepoPulse's own code (TypeScript), with the qwen3.8-27b model running in LM Studio on the same network.
+> Real screens from a RepoPulse test install built from the main branch on 2026-11-08, shortly before 0.3.0, so small details may differ from the release. It tracks copies of three open-source projects on a local Gitea: gin (Go), saleor (Python) and RepoPulse's own code (TypeScript), with the qwen3.8-27b model running in LM Studio on the same network.
 
 ## 1. Install, then sign in
 
@@ -44,7 +44,7 @@ History is read through the forge API, never cloned. This install tracks gin (he
 
 ## 7. Route each kind of analysis to a model
 
-Every role has its own chain of models to try in order: security, performance, code health, best practices, AI slop, test coverage, triage, patch, and the **quick first look**. Here each uses qwen3.8-27b in LM Studio, marked **Stays on your network**, and **Local only** refuses any role that would send code off the network.
+Every role has its own chain of models to try in order: security, performance, code health, best practices, AI slop, test coverage, triage, patch, and the **quick first look**. Here every role except the optional quick first look uses qwen3.8-27b in LM Studio, marked **Stays on your network**, and **Local only** refuses any role that would send code off the network.
 
 ![Route each kind of analysis to a model](images/setup-07-routing.webp)
 

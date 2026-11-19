@@ -4,7 +4,7 @@ Start from the overview, open a repository to see its health score, ask why it h
 
 **For:** Engineering lead, Manager or exec · **7 steps** · [All tours](README.md)
 
-> Real screens from a RepoPulse test install built from the current main branch (0.2.1 in development). It tracks copies of three open-source projects on a local Gitea: gin (Go), saleor (Python) and RepoPulse's own code (TypeScript), with the qwen3.8-27b model running in LM Studio on the same network.
+> Real screens from a RepoPulse test install built from the main branch on 2026-11-08, shortly before 0.3.0, so small details may differ from the release. It tracks copies of three open-source projects on a local Gitea: gin (Go), saleor (Python) and RepoPulse's own code (TypeScript), with the qwen3.8-27b model running in LM Studio on the same network.
 
 ## 1. Start from the overview
 
