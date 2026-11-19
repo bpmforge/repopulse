@@ -96,7 +96,7 @@ drizzle-orm's pg-core (verified: no `bytea.ts` under `pg-core/columns/`) — def
 as a real `bytea` column against live Postgres (`\d forge_connections`), not just at the
 TypeScript level.
 | BullMQ | **5.x** | Brief-fixed; per-queue concurrency, repeatable jobs (nightly snapshot/reconciliation), DLQ pattern for NFR-11. |
-| zod | **3.x** (currently `^3.25.76`) | One validation library everywhere: route bodies, LLM output (FR-ANALYSIS-5), config parsing. **W1-04 note**: zod 4.x is current upstream, but 3.x is brief-fixed — not relitigated. `fastify-type-provider-zod@^4.0.2` (not the current v7, which requires zod ^4) is the zod-3-compatible major that wires zod schemas into Fastify's validator/serializer + OpenAPI generation (verified via installed `.d.ts`: `jsonSchemaTransform`/`validatorCompiler`/`serializerCompiler`). |
+| zod | **4.x** (`^4.6.7`, since W27-38, 2026-11-19) | One validation library everywhere: route bodies, LLM output (FR-ANALYSIS-5), config parsing. Moved from 3.x to clear GHSA-mrhx-c7xc-m3w5, in lockstep with `fastify-type-provider-zod@^7.0.0` (peer: zod >=4.1.5, fastify ^5.5.0, @fastify/swagger >=9.5.1), which wires zod schemas into Fastify's validator/serializer and OpenAPI generation. The vendored `@bpmforge/lodestone` lists zod ^3.25 as an *optional* peer for its MCP entry point only, which RepoPulse does not load. |
 | @fastify/swagger | **9.8.1** | Not brief-fixed; added W1-04 for OpenAPI generation from Fastify+zod route schemas (FR-API-1), served at `GET /api/v1/openapi.json` (no UI/`@fastify/swagger-ui` — not required by API_DESIGN.md §5). |
 
 ## GitHub access (packages/forge only — Law 7)
@@ -326,3 +326,14 @@ Left open, each needs a decision rather than a patch bump:
   `fastify-type-provider-zod@4` needs it. Fastify's body limit bounds the input size today.
 - glob 11.1.0 (moderate) inside the vendored `@bpmforge/lodestone` tarball: fix in Lodestone.
 - minimatch 10.2.5 (moderate, fixed only in 11) under typescript-eslint: lint-time only.
+
+## 2026-11-19 advisory refresh for 0.3.0 (W27-38)
+
+`pnpm audit` reports no known vulnerabilities after:
+
+- zod ^3.25.76 → ^4.6.7 in `apps/api`, `packages/shared`, `packages/security`,
+  `packages/analysis`, with `fastify-type-provider-zod` ^4.0.2 → ^7.0.0. Source changes needed:
+  `z.record()` takes a key schema (one call), and a validation issue's `message` may be
+  undefined in the error envelope (one line).
+- Overrides: `@typescript-eslint/typescript-estree>minimatch` ^11.0.1 (lint-time only) and
+  `@bpmforge/lodestone>glob` ^14.0.2 (code map file walk; glob 14 supports Node 18, 20, >=22).

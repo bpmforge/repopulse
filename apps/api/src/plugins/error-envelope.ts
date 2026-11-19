@@ -16,7 +16,7 @@ async function errorEnvelope(app: FastifyInstance): Promise<void> {
         detail: error.message,
         errors: error.validation.map((issue) => ({
           path: issue.instancePath || '/',
-          message: issue.message,
+          message: issue.message ?? 'invalid value',
         })),
       });
       return;

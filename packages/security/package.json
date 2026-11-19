@@ -1,6 +1,6 @@
 {
   "name": "@repopulse/security",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
@@ -24,7 +24,7 @@
     "@repopulse/shared": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "@repopulse/forge": "workspace:*",
-    "zod": "^3.25.76",
+    "zod": "^4.6.7",
     "@repopulse/insights": "workspace:*",
     "@bpmforge/lodestone": "file:../../vendor/lodestone/bpmforge-lodestone-0.1.0-bd1e554.tgz"
   },
