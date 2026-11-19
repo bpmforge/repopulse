@@ -596,6 +596,8 @@ describeIfLiveInfra('CI pull: PR findings API + read-only CI token (W18-18)', ()
     const first = (res.json() as { items: Record<string, unknown>[] }).items[0]!;
     expect(Object.keys(first).sort()).toEqual(
       [
+        'ai_review',
+        'verify_status',
         'confidence',
         'dimension',
         'evidence',
@@ -639,6 +641,87 @@ describeIfLiveInfra('CI pull: PR findings API + read-only CI token (W18-18)', ()
     expect(got.map((i) => i.id)).toContain(ids['experimental']);
     expect(got.filter((i) => i.experimental).map((i) => i.id)).toEqual([ids['experimental']]);
     expect(got).toHaveLength(4);
+  });
+
+  it('W27-36: an AI review finding counts for CI only once a second model confirmed it', async () => {
+    const [ar] = await db
+      .insert(read.analysisRuns)
+      .values({
+        workspaceId,
+        repoId: repoA,
+        tier: 2,
+        dimension: 'security',
+        checklistVersion: 'w27-36-test',
+        chunkCount: 1,
+        promptTokens: 0,
+        outputTokens: 0,
+        modelId: 'test-model',
+        status: 'succeeded',
+        startedAt: T1,
+        finishedAt: T1,
+      })
+      .returning({ id: read.analysisRuns.id });
+    const ai = {
+      workspaceId,
+      repoId: repoA,
+      tier: 2,
+      confidence: 4,
+      evidence: 'evidence',
+      recommendation: 'fix it',
+      status: 'open',
+      dimension: 'security',
+      file: 'src/refunds.ts',
+      lineStart: 30,
+      lineEnd: 31,
+      severity: 4,
+      analysisRunId: ar!.id,
+      pullRequestId: prId,
+      scannerKey: null,
+      ruleId: null,
+    };
+    const inserted = await db
+      .insert(read.findings)
+      .values([
+        { ...ai, title: 'ai-unverified', dedupKey: 'w27-36-ai-unverified' },
+        {
+          ...ai,
+          title: 'ai-confirmed',
+          dedupKey: 'w27-36-ai-confirmed',
+          verifyStatus: 'confirmed',
+        },
+      ])
+      .returning({ id: read.findings.id, title: read.findings.title });
+    const idOf = (t: string) => inserted.find((r) => r.title === t)!.id;
+    try {
+      type Item = { id: number; ai_review: boolean; verify_status: string };
+      // What a CI check asks: the confirmed one only.
+      const ci = (await get(findingsUrl(repoA, 'new=true'), { token })).json() as { items: Item[] };
+      expect(ci.items.map((i) => i.id)).toContain(idOf('ai-confirmed'));
+      expect(ci.items.map((i) => i.id)).not.toContain(idOf('ai-unverified'));
+      expect(ci.items.find((i) => i.id === idOf('ai-confirmed'))).toMatchObject({
+        ai_review: true,
+        verify_status: 'confirmed',
+      });
+      // A scanner's finding is not an AI review finding, verified or not.
+      expect(ci.items.find((i) => i.id === ids['new_on_head'])).toMatchObject({ ai_review: false });
+      // What the pull request page asks: both, each saying which it is.
+      const page = (
+        await get(findingsUrl(repoA, 'new=true&include_unconfirmed_ai=true'), { token })
+      ).json() as { items: Item[] };
+      expect(page.items.find((i) => i.id === idOf('ai-unverified'))).toMatchObject({
+        ai_review: true,
+        verify_status: 'unverified',
+      });
+      expect(page.items).toHaveLength(ci.items.length + 1);
+    } finally {
+      await db.delete(read.findings).where(
+        inArray(
+          read.findings.id,
+          inserted.map((r) => r.id),
+        ),
+      );
+      await db.delete(read.analysisRuns).where(eq(read.analysisRuns.id, ar!.id));
+    }
   });
 
   it('new=false adds pre-existing findings on touched files, marked as not introduced', async () => {

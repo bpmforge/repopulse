@@ -120,6 +120,60 @@ export function isDependencyManifest(file: string): boolean {
   );
 }
 
+/**
+ * W27-37: store a pull request's file list (path, churn, kind of change; no
+ * patch text) and its size at this head.
+ * Replaces the stored list, so a file dropped by a later push goes away.
+ * Workspace-filtered (Law 5).
+ */
+export async function recordPrFiles(
+  db: Database,
+  key: { workspaceId: number; repoId: number; pullRequestId: number },
+  files: readonly ForgeDiffFile[],
+): Promise<void> {
+  const rows = new Map(
+    files.map((f) => [
+      f.path,
+      {
+        workspaceId: key.workspaceId,
+        repoId: key.repoId,
+        pullRequestId: key.pullRequestId,
+        path: f.path,
+        additions: f.additions,
+        deletions: f.deletions,
+        changeType: f.status,
+      },
+    ]),
+  );
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(facts.prFiles)
+      .where(
+        and(
+          eq(facts.prFiles.workspaceId, key.workspaceId),
+          eq(facts.prFiles.pullRequestId, key.pullRequestId),
+        ),
+      );
+    if (rows.size > 0) await tx.insert(facts.prFiles).values([...rows.values()]);
+    const additions = files.reduce((n, f) => n + f.additions, 0);
+    const deletions = files.reduce((n, f) => n + f.deletions, 0);
+    // Gitea's list endpoint gives a pull request no size, which left
+    // 0 / 0 / 0; the complete file list at this head is the size. An empty
+    // list changes nothing (a forge that could not list is not a 0-line PR).
+    if (rows.size > 0) {
+      await tx
+        .update(facts.pullRequests)
+        .set({ additions, deletions, changedFiles: rows.size })
+        .where(
+          and(
+            eq(facts.pullRequests.workspaceId, key.workspaceId),
+            eq(facts.pullRequests.id, key.pullRequestId),
+          ),
+        );
+    }
+  });
+}
+
 export interface PrScanTarget {
   commitSha: string;
   prNumber: number;
@@ -346,6 +400,15 @@ export async function runPrPatternScans(deps: PrScanDeps): Promise<PrScanResult>
     } while (cursor !== undefined);
   } catch (err) {
     return unreachable(err, always);
+  }
+  // W27-37: the file list the scan just read is also what the pull request
+  // page shows. Nothing else stored it, so the page said "No file changes
+  // ingested" and "0 lines" for every pull request. Best effort: a failure
+  // here must not cost the scan.
+  try {
+    await recordPrFiles(db, { workspaceId, repoId, pullRequestId: target.pullRequestId }, files);
+  } catch {
+    // The page keeps its previous file list; the scan goes on.
   }
   const changed = files.filter((f) => f.status !== 'removed');
   result.filesChanged = changed.length;

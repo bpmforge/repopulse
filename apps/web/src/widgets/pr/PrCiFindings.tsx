@@ -5,7 +5,7 @@ import { useApiQuery } from '../../api/useApiQuery.js';
 import { foundByLabel, locationOf, type FoundBy } from '../findings/contracts.js';
 import { FindingSeverityBadge } from '../findings/FindingSeverity.js';
 
-// "New on this PR (what your CI sees)" (W20-15, UX_TODO X-15).
+// "New on this PR" (W20-15, UX_TODO X-15).
 //
 // The panel asked /findings?pr_number=, which matches only findings stamped
 // with the PR's id. It left out the Semgrep incremental findings the CI answer
@@ -28,6 +28,9 @@ export interface PrCiFinding {
   status: string;
   introduced_by_pr: boolean;
   seen_at_head: boolean;
+  /** W27-36: absent from an older API. */
+  verify_status?: string;
+  ai_review?: boolean;
   /** W21-01: absent from an older API, which then falls back to the key. */
   found_by?: FoundBy;
 }
@@ -66,18 +69,58 @@ export function headSummary(head: PrCiFindings['head']): string {
   return parts.join(' ');
 }
 
+/**
+ * W27-36: several review areas often report the same line (on the M4 demo, 28
+ * AI notes for about 10 problems). Unconfirmed AI notes on the same file and
+ * line fold into the first one, which is the most severe (the API sorts by
+ * severity); the row says how many more there are. Scanner findings and
+ * confirmed AI findings are never folded: each of those counts in CI.
+ */
+export function foldAiNotes<
+  T extends {
+    file: string | null;
+    line_start: number | null;
+    ai_review?: boolean;
+    verify_status?: string;
+  },
+>(items: readonly T[]): { item: T; more: number }[] {
+  const out: { item: T; more: number }[] = [];
+  const at = new Map<string, { item: T; more: number }>();
+  for (const item of items) {
+    const foldable =
+      item.ai_review === true && item.verify_status !== 'confirmed' && item.file !== null;
+    if (!foldable) {
+      out.push({ item, more: 0 });
+      continue;
+    }
+    const key = `${item.file}:${item.line_start ?? 0}`;
+    const first = at.get(key);
+    if (first) {
+      first.more += 1;
+      continue;
+    }
+    const row = { item, more: 0 };
+    at.set(key, row);
+    out.push(row);
+  }
+  return out;
+}
+
 export function PrCiFindingsPanel({ repoId, number }: { repoId: string; number: string }) {
   const [includePreexisting, setIncludePreexisting] = useState(false);
   const { data, isLoading, isError, error, refetch } = useApiQuery<PrCiFindings>({
     endpoint: '/repos/{id}/pulls/{number}/findings',
     path: { id: repoId, number },
-    query: { new: includePreexisting ? 'false' : 'true' },
+    // W27-36: the page also lists AI review findings no second model has
+    // confirmed, labelled; a CI check leaves those out.
+    query: { new: includePreexisting ? 'false' : 'true', include_unconfirmed_ai: 'true' },
   });
   const items = data?.items ?? [];
+  const rows = foldAiNotes(items);
 
   return (
     <WidgetFrame
-      title="New on this PR (what your CI sees)"
+      title="New on this PR"
       state={frameState({
         isLoading,
         isError,
@@ -134,7 +177,7 @@ export function PrCiFindingsPanel({ repoId, number }: { repoId: string; number: 
                 </tr>
               </thead>
               <tbody>
-                {items.map((f) => (
+                {rows.map(({ item: f, more }) => (
                   <tr key={f.id} className="border-t border-border" data-testid="pr-ci-row">
                     <td className="py-1 whitespace-nowrap">
                       <FindingSeverityBadge severity={f.severity} />
@@ -150,6 +193,16 @@ export function PrCiFindingsPanel({ repoId, number }: { repoId: string; number: 
                       </Link>
                       {!f.introduced_by_pr && (
                         <span className="ml-1 text-xs text-fg-muted">(pre-existing)</span>
+                      )}
+                      {f.ai_review && f.verify_status !== 'confirmed' && (
+                        <span className="ml-1 text-xs text-fg-muted" data-testid="pr-ci-ai-uncounted">
+                          (AI review, not confirmed by a second model: not counted in CI)
+                        </span>
+                      )}
+                      {more > 0 && (
+                        <span className="ml-1 text-xs text-fg-muted" data-testid="pr-ci-ai-more">
+                          (+{more} more AI {more === 1 ? 'note' : 'notes'} on this line)
+                        </span>
                       )}
                     </th>
                     <td className="py-1 font-mono text-xs">

@@ -151,6 +151,8 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
       await db.delete(read.findingEvents).where(eq(read.findingEvents.workspaceId, w));
     }
     if (REPO) {
+      // W27-36: a review's findings point at their pull request; they go first.
+      await db.delete(read.findings).where(eq(read.findings.repoId, REPO));
       await db.delete(facts.pullRequests).where(eq(facts.pullRequests.repoId, REPO));
       await db.delete(facts.commits).where(eq(facts.commits.repoId, REPO));
     }
@@ -1530,6 +1532,46 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
     // And nothing was dismissed or resolved.
     const [f] = await db.select().from(read.findings).where(eq(read.findings.id, inside));
     expect(f!.status).toBe('open');
+  });
+
+  it('W27-36: a pull request review raises its findings on that pull request', async () => {
+    const [pr] = await db
+      .insert(facts.pullRequests)
+      .values({
+        workspaceId: WS,
+        repoId: REPO,
+        number: 7,
+        forgePrId: 'pr-7-w27-36',
+        title: 'Add users route',
+        authorIdentityId: IDENT,
+        state: 'open',
+        isDraft: false,
+        isBot: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        baseRef: 'main',
+        headSha: 'headsha1234567',
+        additions: 1,
+        deletions: 0,
+        changedFiles: 1,
+      })
+      .returning({ id: facts.pullRequests.id });
+    const aiFindings = () =>
+      db
+        .select({ pullRequestId: read.findings.pullRequestId })
+        .from(read.findings)
+        .where(
+          and(
+            eq(read.findings.workspaceId, WS),
+            eq(read.findings.repoId, REPO),
+            isNull(read.findings.scannerKey),
+          ),
+        );
+    const { d } = deps({ loadDiff: async () => okDiff() });
+    expect((await aiPassProcessor(d)(job(await newDiffRun()))).status).toBe('succeeded');
+    const raised = await aiFindings();
+    expect(raised.length).toBeGreaterThan(0);
+    expect(raised.every((f) => f.pullRequestId === pr!.id)).toBe(true);
   });
 
   it('a commit-range pass passes the base and head through and records them', async () => {

@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import type { Job } from 'bullmq';
-import { core, read, safeErrorText, type Database } from '@repopulse/shared';
+import { core, facts, read, safeErrorText, type Database } from '@repopulse/shared';
 import {
   contentHash,
   contextWindowForRole,
@@ -621,6 +621,9 @@ export function aiPassProcessor(deps: AiPassDeps) {
       let commitSha: string;
       let incremental: Extract<ReviewScopePlan, { scope: 'incremental' }> | null = null;
       let reviewScope: { scope: 'full' | 'incremental'; baseRunId?: number } = { scope: 'full' };
+      // W27-36: the pull request a pull_request review is about (null for a
+      // repository pass or a commit range, and for a PR not ingested yet).
+      let reviewedPullRequestId: number | null = null;
       let fullDiff: readonly DiffEntry[] = [];
       // W25-07: a repository pass over the same paths as an earlier one.
       let pathsIncremental: Extract<PathsScopePlan, { scope: 'incremental' }> | null = null;
@@ -755,6 +758,20 @@ export function aiPassProcessor(deps: AiPassDeps) {
           .update(read.aiPassRuns)
           .set({ baseRef: loaded.baseRef, headRef: loaded.headRef })
           .where(eq(read.aiPassRuns.id, runId));
+        if (run.mode === 'pull_request' && run.prNumber !== null) {
+          const [pr] = await db
+            .select({ id: facts.pullRequests.id })
+            .from(facts.pullRequests)
+            .where(
+              and(
+                eq(facts.pullRequests.workspaceId, workspaceId),
+                eq(facts.pullRequests.repoId, run.repoId),
+                eq(facts.pullRequests.number, run.prNumber),
+              ),
+            )
+            .limit(1);
+          reviewedPullRequestId = pr?.id ?? null;
+        }
       }
       await db
         .update(read.aiPassRuns)
@@ -876,7 +893,9 @@ export function aiPassProcessor(deps: AiPassDeps) {
           workspaceId,
           repoId: run.repoId,
           analysisRunId: ar!.id,
-          pullRequestId: null,
+          // W27-36: a review of a pull request raises findings ON that pull
+          // request, so its page shows them (they exist on no other branch).
+          pullRequestId: reviewedPullRequestId,
           tier: 2,
           findings: incoming,
         });

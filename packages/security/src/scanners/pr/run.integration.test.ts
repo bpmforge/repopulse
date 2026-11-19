@@ -182,6 +182,7 @@ describeIfLiveInfra('pattern scanners on a PR push (W21-02)', () => {
     await db
       .delete(security.repoScannerConfig)
       .where(eq(security.repoScannerConfig.repoId, repoId));
+    await db.delete(facts.prFiles).where(eq(facts.prFiles.repoId, repoId));
     await db.delete(facts.pullRequests).where(eq(facts.pullRequests.repoId, repoId));
     await db.delete(core.identities).where(eq(core.identities.id, identityId));
     await db.delete(core.repos).where(eq(core.repos.id, repoId));
@@ -337,6 +338,19 @@ describeIfLiveInfra('pattern scanners on a PR push (W21-02)', () => {
     expect(rec.seen['antiSlopTarget']).toBe(rec.seen['semgrepDir']);
     expect(rec.seen['antiSlopGateway']).toBeUndefined();
     expect(rec.seen['loggingGateway']).toBeUndefined();
+
+    // W27-37: the file list the scan read is stored for the pull request page,
+    // with the size at this head.
+    const stored = await db
+      .select({ path: facts.prFiles.path, changeType: facts.prFiles.changeType })
+      .from(facts.prFiles)
+      .where(eq(facts.prFiles.pullRequestId, target.pullRequestId));
+    expect(stored.map((f) => f.path).sort()).toEqual(['README.md', 'src/app.ts']);
+    const [pr] = await db
+      .select({ changedFiles: facts.pullRequests.changedFiles })
+      .from(facts.pullRequests)
+      .where(eq(facts.pullRequests.id, target.pullRequestId));
+    expect(pr!.changedFiles).toBe(2);
   });
 
   it('runs the dependency scan first, on the shared tree, when a lockfile changed', async () => {

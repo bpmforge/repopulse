@@ -44,6 +44,8 @@ const flag = (fallback: 'true' | 'false') =>
 const query = z.object({
   new: flag('true'),
   include_experimental: flag('false'),
+  // W27-36: AI review findings no second model confirmed (the page asks; a CI check does not).
+  include_unconfirmed_ai: flag('false'),
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
@@ -64,6 +66,8 @@ const item = z.object({
   suggested_fix: z.string(),
   experimental: z.boolean(),
   status: z.string(),
+  verify_status: z.string(),
+  ai_review: z.boolean(),
   introduced_by_pr: z.boolean(),
   seen_at_head: z.boolean(),
   first_seen_at: z.string(),
@@ -165,6 +169,7 @@ export default async function pullsRoutes(
         prNumber: number,
         newOnly: request.query.new,
         includeExperimental: request.query.include_experimental,
+        includeUnconfirmedAi: request.query.include_unconfirmed_ai,
         cursor,
         limit: request.query.limit,
       });
