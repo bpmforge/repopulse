@@ -132,6 +132,8 @@ describe('New on this PR (W20-15, UX_TODO X-15)', () => {
     expect(screen.getAllByTestId('pr-ci-row')).toHaveLength(4);
     expect(screen.getByTestId('pr-ci-ai-more')).toHaveTextContent('(+2 more AI notes on this line)');
     expect(screen.getAllByTestId('pr-ci-ai-uncounted')).toHaveLength(2);
+    expect(screen.getAllByTestId('pr-ci-ai-uncounted')[0]).toHaveTextContent('not in CI');
+    expect(screen.getByTestId('pr-ci-ai-note')).toHaveTextContent(/do not fail a CI check/);
     expect(screen.queryByText('best practices: SQL from a parameter')).not.toBeInTheDocument();
     expect(screen.getByText('A confirmed AI finding')).toBeInTheDocument();
   });
