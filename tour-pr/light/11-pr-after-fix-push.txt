@@ -6,7 +6,7 @@ RepoPulse
 Overview
 Repositories
 Findings
-781
+785
 Improvement plans
 Reports
 Settings
@@ -39,7 +39,7 @@ Data as of Nov 19, 08:09 AM
 Security
 0/100
 · needs attention
-10 open findings, sub-score 0
+9 open findings, sub-score 0
 Supply Chain
 100/100
 · healthy
@@ -73,7 +73,7 @@ First review → approved
 Approved → merged
 —
 Open for
-36m
+43m
 Review activity
 
 No reviews yet.
@@ -98,44 +98,53 @@ Rows marked "not in CI" come from an AI review that no second model has confirme
 Include pre-existing findings in touched files
 Findings on this pull request
 Severity	Finding	File	Found by	On the head
-Critical	regionTotals concatenates raw req.query.region into SQL (injection)(+2 more AI notes on this line)	src/services/reportService.js:9	your AI model claude-haiku-5-5not in CI	not checked yet
-Critical	Money-discount tiers added with no tests in this PR	src/services/reportService.js:34–39	your AI model claude-haiku-5-5not in CI	not checked yet
-Critical	Live billing key hardcoded in source and passed to the CSV writer as auth(+2 more AI notes on this line)	src/services/reportService.js:6	your AI model claude-haiku-5-5not in CI	not checked yet
+Critical	/download passes unvalidated query param to sendFile with no test(+1 more AI note on this line)	src/routes/reportRoutes.js:22–24	your AI model claude-haiku-5-5not in CI	not checked yet
+Critical	Hardcoded live billing key committed in source and passed to the CSV writer(+3 more AI notes on this line)	src/services/reportService.js:6	your AI model claude-haiku-5-5not in CI	not checked yet
+Critical	Path traversal in /download via unnormalized file parameter	src/routes/reportRoutes.js:23	your AI model claude-haiku-5-5not in CI	not checked yet
+Critical	discountFor money tier logic has no tests in this PR	src/services/reportService.js:34–39	your AI model claude-haiku-5-5not in CI	not checked yet
+High	Query errors discarded; /region returns 200 with [] so a failed query looks like an empty result	src/routes/reportRoutes.js:7	your AI model claude-haiku-5-5not in CI	not checked yet
+High	regionTotals SUM aggregation for invoices is untested(+2 more AI notes on this line)	src/services/reportService.js:8–10	your AI model claude-haiku-5-5not in CI	not checked yet
+High	Unbounded ids list fans out into one query pair per id with no cap	src/routes/reportRoutes.js:11–12	your AI model claude-haiku-5-5not in CI	not checked yet
 High	exportCsv swallows every error, so a failed export leaves the response open	src/services/reportService.js:27–32	your AI model claude-haiku-5-5not in CI	not checked yet
-High	customerReport never calls back when given no ids, so /customers hangs	src/services/reportService.js:15–24	your AI model claude-haiku-5-5not in CI	not checked yet
+High	customerReport never calls back when the id list is empty	src/services/reportService.js:15–24	your AI model claude-haiku-5-5not in CI	not checked yet
 High	customerReport has no tests; empty id list never invokes callback(+1 more AI note on this line)	src/services/reportService.js:13–23	your AI model claude-haiku-5-5not in CI	not checked yet
-High	regionTotals builds SQL from raw input with no test(+1 more AI note on this line)	src/services/reportService.js:8–11	your AI model claude-haiku-5-5not in CI	not checked yet
 High	bpm-ch-empty-catch: exportCsv swallows every write failure	src/services/reportService.js:31–32	your AI model claude-haiku-5-5not in CI	not checked yet
-High	customerReport never calls back when ids is empty, so the request hangs	src/services/reportService.js:14–16	your AI model claude-haiku-5-5not in CI	not checked yet
-High	bpm-ch-silent-fallback-return: customer and invoice query errors dropped; unknown ids yield undefined entries(+1 more AI note on this line)	src/services/reportService.js:17–18	your AI model claude-haiku-5-5not in CI	not checked yet
-High	bpm-ch-silent-fallback-return: region error returns an empty array, same as no data	src/routes/reportRoutes.js:6	your AI model claude-haiku-5-5not in CI	not checked yet
-High	customerReport issues two queries per id from unbounded request input (N+1)	src/services/reportService.js:16–22	your AI model claude-haiku-5-5not in CI	not checked yet
-Medium	/region turns database errors into a 200 with an empty array and does not normalise its input(+1 more AI note on this line)	src/routes/reportRoutes.js:5–7	your AI model claude-haiku-5-5not in CI	not checked yet
+High	customerReport never calls back for an empty id list, so /customers hangs	src/services/reportService.js:14–16	your AI model claude-haiku-5-5not in CI	not checked yet
+High	bpm-ch-empty-catch: query errors discarded; failed lookups push rows with undefined data(+1 more AI note on this line)	src/services/reportService.js:17–18	your AI model claude-haiku-5-5not in CI	not checked yet
+High	bpm-ch-silent-fallback-return: region DB error is returned as an empty array	src/routes/reportRoutes.js:6	your AI model claude-haiku-5-5not in CI	not checked yet
+High	N+1 queries: two database calls per customer id in customerReport(+1 more AI note on this line)	src/services/reportService.js:16–22	your AI model claude-haiku-5-5not in CI	not checked yet
+Medium	customerReport never calls back when given no IDs, and discards lookup errors	src/services/reportService.js:19	your AI model claude-haiku-5-5not in CI	not checked yet
+Medium	customerReport never calls back for an empty ids list and has no tests	src/services/reportService.js:12–23	your AI model claude-haiku-5-5not in CI	not checked yet
+Medium	exportCsv try/catch cannot catch async stream errors; success is reported before write completes	src/services/reportService.js:26–30	your AI model claude-haiku-5-5not in CI	not checked yet
+Medium	Customer invoice data routes added without visible authorization guard	src/routes/reportRoutes.js:10	your AI model claude-haiku-5-5not in CI	not checked yet
+Medium	/region drops the query error and returns 200 with an empty array(+1 more AI note on this line)	src/routes/reportRoutes.js:5–7	your AI model claude-haiku-5-5not in CI	not checked yet
 Medium	/export parses ids without the empty-filter used by /customers; no test covers it	src/routes/reportRoutes.js:14–20	your AI model claude-haiku-5-5not in CI	not checked yet
-Medium	exportCsv silently swallows errors and nothing asserts the failure path	src/services/reportService.js:25–32	your AI model claude-haiku-5-5not in CI	not checked yet
-Medium	Export route skips the ids filter used by /customers and ignores the query error	src/routes/reportRoutes.js:15–18	your AI model claude-haiku-5-5not in CI	not checked yet
-Medium	Invoices query has no limit or pagination and selects all columns(+1 more AI note on this line)	src/services/reportService.js:18	your AI model claude-haiku-5-5not in CI	not checked yet
-Low	discountFor is exported but not used anywhere in this change	src/services/reportService.js:35	your AI model claude-haiku-5-5not in CI	not checked yet
+Medium	exportCsv error path is never exercised by a test(+2 more AI notes on this line)	src/services/reportService.js:25–32	your AI model claude-haiku-5-5not in CI	not checked yet
+Medium	Export splits ids without filtering empties, unlike /customers	src/routes/reportRoutes.js:15–18	your AI model claude-haiku-5-5not in CI	not checked yet
+Medium	Every invoice for each customer is loaded with SELECT * and no limit(+2 more AI notes on this line)	src/services/reportService.js:18	your AI model claude-haiku-5-5not in CI	not checked yet
+Low	discountFor is exported but nothing in this change calls it(+1 more AI note on this line)	src/services/reportService.js:35–41	your AI model claude-haiku-5-5not in CI	not checked yet
+Low	/export parses ids differently from /customers and ignores the report error	src/routes/reportRoutes.js:16	your AI model claude-haiku-5-5not in CI	not checked yet
+Low	regionTotals returns every customer in a region with no LIMIT or pagination	src/services/reportService.js:9	your AI model claude-haiku-5-5not in CI	not checked yet
 Low	Unbounded customer ID list fans out into unlimited sequential queries	src/routes/reportRoutes.js:8	your AI model claude-haiku-5-5not in CI	not checked yet
 Automated review
 AI review controls for this repository →
 Automated review findings for this pull request
 Severity	Finding	File	Status	Verification
-Critical	regionTotals concatenates raw req.query.region into SQL (injection)	src/services/reportService.js:9	Open	· not independently verified
-Critical	Money-discount tiers added with no tests in this PR	src/services/reportService.js:34–39	Open	· not independently verified
+Critical	regionTotals concatenates raw req.query.region into SQL (injection)	src/services/reportService.js:9	Resolved	· not independently verified
+Critical	discountFor money tier logic has no tests in this PR	src/services/reportService.js:34–39	Open	· not independently verified
 Critical	Live billing key hardcoded in source and passed to the CSV writer as auth	src/services/reportService.js:6	Open	· not independently verified
-Critical	SQL injection: region query parameter is concatenated into the SQL string	src/services/reportService.js:9	Open	· not independently verified
-Critical	Live billing API key hardcoded in source and passed to CSV writer	src/services/reportService.js:6	Open	· not independently verified
-Critical	SQL injection in regionTotals via string-concatenated region parameter	src/services/reportService.js:9	Open	· not independently verified
+Critical	SQL injection: region query parameter is concatenated into the SQL string	src/services/reportService.js:9	Resolved	· not independently verified
+Critical	Live billing API key hardcoded in source	src/services/reportService.js:6	Open	· not independently verified
+Critical	SQL injection in regionTotals via string-concatenated region parameter	src/services/reportService.js:9	Resolved	· not independently verified
 High	SQL assembled by concatenation or interpolation.	src/services/reportService.js:10	Resolved	✓✓ confirmed on AI review
 Medium	An empty catch block, or one whose only comment defers the handling (TODO, FIXME, "handle this").	src/services/reportService.js:27–32	Resolved	✓✓ confirmed on AI review
-High	Hardcoded live billing key, obfuscated by array join, passed to a CSV writer	src/services/reportService.js:6	Open	· not independently verified
-High	customerReport never calls back when given no ids, so /customers hangs	src/services/reportService.js:15–24	Open	· not independently verified
+High	Live-looking billing key split into an array and passed to a CSV writer as an unused option	src/services/reportService.js:6	Open	· not independently verified
+High	customerReport never calls back when the id list is empty	src/services/reportService.js:15–24	Open	· not independently verified
 High	bpm-ch-empty-catch: exportCsv swallows every write failure	src/services/reportService.js:31–32	Open	· not independently verified
-High	customerReport never calls back when ids is empty, so the request hangs	src/services/reportService.js:14–16	Open	· not independently verified
-High	bpm-ch-silent-fallback-return: customer and invoice query errors dropped; unknown ids yield undefined entries	src/services/reportService.js:17–18	Open	· not independently verified
-High	bpm-ch-silent-fallback-return: region error returns an empty array, same as no data	src/routes/reportRoutes.js:6	Open	· not independently verified
-High	customerReport issues two queries per id from unbounded request input (N+1)	src/services/reportService.js:16–22	Open	· not independently verified
+High	customerReport never calls back for an empty id list, so /customers hangs	src/services/reportService.js:14–16	Open	· not independently verified
+High	bpm-ch-empty-catch: query errors discarded; failed lookups push rows with undefined data	src/services/reportService.js:17–18	Open	· not independently verified
+High	bpm-ch-silent-fallback-return: region DB error is returned as an empty array	src/routes/reportRoutes.js:6	Open	· not independently verified
+High	N+1 queries: two database calls per customer id in customerReport	src/services/reportService.js:16–22	Open	· not independently verified
 High	exportCsv swallows every error, so a failed export leaves the response open	src/services/reportService.js:27–32	Open	· not independently verified
 High	customerReport has no tests; empty id list never invokes callback	src/services/reportService.js:13–23	Open	· not independently verified
 High	regionTotals builds SQL from raw input with no test	src/services/reportService.js:8–11	Open	· not independently verified
@@ -143,11 +152,29 @@ Medium	customerReport ignores DB errors and never calls back for an empty id lis
 Medium	Nested db callbacks ignore their error arguments and push partial rows	src/services/reportService.js:17–22	Open	· not independently verified
 Medium	regionTotals returns per-customer totals, not region totals	src/services/reportService.js:8–11	Open	· not independently verified
 Medium	Route error argument is discarded; DB failures return 200 with empty array untested	src/routes/reportRoutes.js:5–7	Open	· not independently verified
-Medium	exportCsv silently swallows errors and nothing asserts the failure path	src/services/reportService.js:25–32	Open	· not independently verified
-Medium	Export route skips the ids filter used by /customers and ignores the query error	src/routes/reportRoutes.js:15–18	Open	· not independently verified
-Medium	/region turns database errors into a 200 with an empty array and does not normalise its input	src/routes/reportRoutes.js:5–7	Open	· not independently verified
+Medium	exportCsv error path is never exercised by a test	src/services/reportService.js:25–32	Open	· not independently verified
+Medium	Export splits ids without filtering empties, unlike /customers	src/routes/reportRoutes.js:15–18	Open	· not independently verified
+Medium	/region drops the query error and returns 200 with an empty array	src/routes/reportRoutes.js:5–7	Open	· not independently verified
 Medium	/export parses ids without the empty-filter used by /customers; no test covers it	src/routes/reportRoutes.js:14–20	Open	· not independently verified
-Medium	Invoices query has no limit or pagination and selects all columns	src/services/reportService.js:18	Open	· not independently verified
+Medium	Every invoice for each customer is loaded with SELECT * and no limit	src/services/reportService.js:18	Open	· not independently verified
 Low	Invoice query nested inside the customer query, serialising two independent reads per id	src/services/reportService.js:18	Open	· not independently verified
 Low	Unbounded customer ID list fans out into unlimited sequential queries	src/routes/reportRoutes.js:8	Open	· not independently verified
-Low	discountFor is exported but not used anywhere in this change	src/services/reportService.js:35	Open	· not independently verified
+Low	discountFor is exported but no route or caller in this PR uses it	src/services/reportService.js:35	Open	· not independently verified
+Critical	/download passes unvalidated query param to sendFile with no test	src/routes/reportRoutes.js:22–24	Open	· not independently verified
+Critical	Download route joins a user-supplied file name into a path, allowing traversal outside exports/	src/routes/reportRoutes.js:22–24	Open	· not independently verified
+Critical	Hardcoded live billing key committed in source and passed to the CSV writer	src/services/reportService.js:6	Open	· not independently verified
+Critical	Path traversal in /download via unnormalized file parameter	src/routes/reportRoutes.js:23	Open	· not independently verified
+High	Query errors discarded; /region returns 200 with [] so a failed query looks like an empty result	src/routes/reportRoutes.js:7	Open	· not independently verified
+High	regionTotals SUM aggregation for invoices is untested	src/services/reportService.js:8–10	Open	· not independently verified
+High	Unbounded ids list fans out into one query pair per id with no cap	src/routes/reportRoutes.js:11–12	Open	· not independently verified
+Medium	customerReport never calls back when given no IDs, and discards lookup errors	src/services/reportService.js:19	Open	· not independently verified
+Medium	Database errors in customerReport are received and ignored	src/services/reportService.js:16	Open	· not independently verified
+Medium	customerReport never calls back for an empty ids list and has no tests	src/services/reportService.js:12–23	Open	· not independently verified
+Medium	exportCsv try/catch cannot catch async stream errors; success is reported before write completes	src/services/reportService.js:26–30	Open	· not independently verified
+Medium	Customer invoice data routes added without visible authorization guard	src/routes/reportRoutes.js:10	Open	· not independently verified
+Low	cb(null) sits inside try, so a throwing callback is reported as a CSV error and can fire twice	src/services/reportService.js:25–31	Open	· not independently verified
+Low	discountFor is exported but nothing in this change calls it	src/services/reportService.js:35–41	Open	· not independently verified
+Low	exportCsv reports success before the writer has finished	src/services/reportService.js:25–34	Open	· not independently verified
+Low	/export parses ids differently from /customers and ignores the report error	src/routes/reportRoutes.js:16	Open	· not independently verified
+Low	Report rows are ordered by query completion, not by the requested ids	src/services/reportService.js:18	Open	· not independently verified
+Low	regionTotals returns every customer in a region with no LIMIT or pagination	src/services/reportService.js:9	Open	· not independently verified
