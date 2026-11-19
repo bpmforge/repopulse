@@ -36,4 +36,4 @@ AI suggestions never change a finding by themselves: the model can confirm, doub
 
 ---
 
-Next tour: [Install and set up RepoPulse](setup.md) · [All tours](README.md)
+Next tour: [Catch problems on a pull request before it merges](pull-request.md) · [All tours](README.md)

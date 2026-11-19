@@ -18,13 +18,14 @@ Step-by-step tours of RepoPulse, one per job, with a real screen for every step.
 | [Decide which rules count](rules.md) | Engineering lead | 3 |
 | [Share status as reports and PDFs](reports.md) | Manager or exec, Security engineer | 3 |
 | [Let a local model review your code](ai-review.md) | Developer, Security engineer, Engineering lead | 4 |
+| [Catch problems on a pull request before it merges](pull-request.md) | Developer, Security engineer, Engineering lead | 7 |
 
 ## By role
 
 - **Admin:** [Install and set up RepoPulse](setup.md)
-- **Developer:** [Triage security findings: CVEs, code flaws and secrets](security.md) · [Fix code that gets slower as data grows](performance.md) · [Fix the mistakes AI coding tools make](ai-slop.md) · [Review and apply verified fixes](fixes.md) · [Let a local model review your code](ai-review.md)
-- **Security engineer:** [Triage security findings: CVEs, code flaws and secrets](security.md) · [Review and apply verified fixes](fixes.md) · [Share status as reports and PDFs](reports.md) · [Let a local model review your code](ai-review.md)
-- **Engineering lead:** [See where every repository stands](overview.md) · [Review and apply verified fixes](fixes.md) · [Track code health and the improvement plan](health.md) · [Decide which rules count](rules.md) · [Let a local model review your code](ai-review.md)
+- **Developer:** [Triage security findings: CVEs, code flaws and secrets](security.md) · [Fix code that gets slower as data grows](performance.md) · [Fix the mistakes AI coding tools make](ai-slop.md) · [Review and apply verified fixes](fixes.md) · [Let a local model review your code](ai-review.md) · [Catch problems on a pull request before it merges](pull-request.md)
+- **Security engineer:** [Triage security findings: CVEs, code flaws and secrets](security.md) · [Review and apply verified fixes](fixes.md) · [Share status as reports and PDFs](reports.md) · [Let a local model review your code](ai-review.md) · [Catch problems on a pull request before it merges](pull-request.md)
+- **Engineering lead:** [See where every repository stands](overview.md) · [Review and apply verified fixes](fixes.md) · [Track code health and the improvement plan](health.md) · [Decide which rules count](rules.md) · [Let a local model review your code](ai-review.md) · [Catch problems on a pull request before it merges](pull-request.md)
 - **Manager or exec:** [See where every repository stands](overview.md) · [Share status as reports and PDFs](reports.md)
 
 The same tours are on the website at [bpmforge.com/repopulse](https://bpmforge.com/repopulse#roles). To install RepoPulse yourself, start with [INSTALL.md](../INSTALL.md).
