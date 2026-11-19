@@ -1,0 +1,140 @@
+URL /repos/10/ai-review
+
+Skip to content
+RepoPulse
+«
+Overview
+Repositories
+Findings
+781
+Improvement plans
+Reports
+Settings
+Workspace
+My Focus
+Pull Requests
+Saved Views
+☾
+⋯
+Inbox
+99+
+new
+Search
+⌘K
+Live updates on
+Overview
+›
+Repositories
+›
+sampleco7
+›
+AI review
+rpadmin/sampleco7gitea
+
+Synced Nov 19, 08:20 AM
+Data as of Nov 19, 08:22 AM
+
+Security
+0/100
+· needs attention
+8 open findings, sub-score 0
+Supply Chain
+100/100
+· healthy
+0 open findings, sub-score 100
+1 not measured
+: Code Health — no sub-score for this scope, which is neither a good score nor a zero
+54
+why?
+Save as view…
+Pulse
+Delivery
+Findings
+Security
+Code health
+AI review
+AI review pass
+
+AI
+Reads the files you name, or the diff of a pull request or a short range of commits, through the models you configured, asks specialist reviewers for findings and gives rule-raised findings on the reviewed lines an evidence-backed second opinion. Everything it produces is a suggestion on a finding. It changes no finding and writes nothing to your repository.
+
+Limits: at most 50 paths, 40 files and 400 KB read (of source, or of diff), 30 model calls per pass, and 10 passes a day for the workspace (passes that ran, failed ones included; a scheduled run that was skipped does not count). Over a limit the pass is refused with the reason; it never reads part of what you asked for and calls it all.
+
+What to review
+Files or directories
+A pull request’s diff
+A range of commits
+Files or directories to review (one per line, relative to the repository root)
+Reads JavaScript and TypeScript (.js, .jsx, .ts, .tsx, .mjs, .cjs, .vue, .svelte), Python, Go (and go.mod), Ruby, Java, Kotlin, Scala, C#, PHP, Rust, Swift, C and C++, Objective-C, Dart, Elixir, shell scripts, Terraform (.tf, .hcl), YAML and SQL files only, each up to 512 KB. Other files in these paths are not reviewed.
+Add a file or directory changed in an ingested commit
+Add
+Full review: read every file again. Without it, a repeat pass over the same paths sends the model only what changed since the last clean pass and keeps that pass’s findings for the rest.
+Include tests: also review test code under these folders. Without it, test files are left out so the model spends its time on the code that runs. A test file or folder you name yourself is always read.
+
+Where the code goes: Leaves your network: Claude CLI (Haiku) (api.anthropic.com) would receive the contents of the files in scope, or the diff of a pull request, with their paths. Each request is recorded in the egress audit.
+
+Claude CLI (Haiku) api.anthropic.com — off your network · model haiku
+
+Sent: the contents of the files in scope, or the diff of a pull request, with their paths.
+
+Start an AI pass
+
+To start: enter at least one file or directory.
+
+Newest AI pass: finished.
+
+✓ finished · Nov 19, 2026, 08:20 AM EST · started by admin · 6 model calls
+
+Ran for 3 min.
+
+Reviewed the diff of pull request #1 (base main, head a0eeb68a).
+
+Specialists raised: AI slop 6, Security 2, Code health 8, Performance 4, Test coverage 6, Best practices 6. Show the findings this pass raised
+Triage did not run: No open rule-raised finding sits on lines this change adds or alters (with stored code context and no earlier suggestion), so there was nothing to triage.
+
+✓ finished · Nov 19, 2026, 08:20 AM EST · 4 model calls
+
+Ran for 2 min.
+
+Reviewed the open rule hits, judged after a scan.
+
+No specialist raised a finding in this pass.
+Triage: 2 of 2 eligible findings reviewed, 2 gave a usable answer (2 real, 0 needs human, 0 likely false positive). Suggestions are on the findings: open this repository’s findings.
+
+✓ finished · Nov 19, 2026, 08:15 AM EST · 5 model calls
+
+Ran for 1 min, after waiting 2 min to start.
+
+Reviewed the open rule hits, judged after a scan.
+
+No specialist raised a finding in this pass.
+Triage: 3 of 3 eligible findings reviewed, 3 gave a usable answer (3 real, 0 needs human, 0 likely false positive). Suggestions are on the findings: open this repository’s findings.
+
+✓ finished · first look after the first scan · Nov 19, 2026, 08:15 AM EST · 2 model calls
+
+Ran for under a minute, after waiting 1 min to start.
+
+Reviewed the files src/routes/authRoutes.js, src/services/invoiceService.js, src/services/userService.js, src/routes/adminRoutes.js, src/routes/invoiceRoutes.js, src/services/authService.js, src/utils/format.js, src/utils/validate.js, src/index.js, src/config.js.
+
+Specialists raised: Security 5, Code health 3, Performance 1, Best practices 2. Show the findings this pass raised
+A quick first look: security read its code first, then one combined review covered the other checklists.
+10 files read. Only JavaScript and TypeScript (.js, .jsx, .ts, .tsx, .mjs, .cjs, .vue, .svelte), Python, Go (and go.mod), Ruby, Java, Kotlin, Scala, C#, PHP, Rust, Swift, C and C++, Objective-C, Dart, Elixir, shell scripts, Terraform (.tf, .hcl), YAML and SQL files are read.
+Triage did not run: A first look reviews code only; rule hits from the scan are left to the AI judge.
+Scheduled passes
+
+✓ On Daily, reviewing new pull requests since the last run.
+
+Runs at any time of day. Times are kept in UTC (the server’s time zone).
+
+Next run Nov 20, 2026, 08:15 AM EST · last run never · enabled by admin on Nov 19, 2026, 08:15 AM EST.
+
+Monthly cap: 264 of 300 model calls used this month (36 left). Scheduled passes stop when it is used up; passes started by hand count toward it but are never blocked by it. At most 10 passes a day, each limited to 30 calls. What hosted calls cost is estimated under Settings → Analysis → AI spend.
+
+Change schedule
+Turn off
+Workspace monthly cap (model calls, all repositories)
+Save cap
+Applies to every repository in this workspace. 0 stops every scheduled pass.
+Last scheduled runs
+
+None yet. The first run happens at the next-run time above.

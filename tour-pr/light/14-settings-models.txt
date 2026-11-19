@@ -1,0 +1,240 @@
+URL /admin/models
+
+Skip to content
+RepoPulse
+«
+Overview
+Repositories
+Findings
+758
+Improvement plans
+Reports
+Settings
+Workspace
+My Focus
+Pull Requests
+Saved Views
+☀
+⋯
+Inbox
+99+
+new
+Search
+⌘K
+Live updates on
+Overview
+›
+Settings
+›
+Models
+Settings
+
+Connections, models, analysis policy, members, and the health of this install.
+
+Workspace
+Members
+Identities
+Agreements
+Scoring
+Sources
+Connections
+Sync
+CI tokens
+Analysis
+Rules
+Analysis
+Models
+Verified fixes
+System
+Setup
+Audit log
+Configured providers
+Configured LLM providers
+Name	Endpoint	Model	Capabilities	Key	Off-network	Last call	
+Claude CLI (Haiku)
+Claude Code CLI · customer-supplied
+Statement accepted by admin
+	your Claude Code CLI
+Reached by a host name, so it counts as leaving your network: its calls are audited and Local only refuses it. Use the machine's IP address to keep it on your network.
+	haiku	not probed	the CLI keeps its own login	⚠ yes	answered 11/19/2026, 7:59:14 AM	TestEditSwitch offRemove…
+Set up another model
+
+Last changed by admin on 11/18/2026, 8:25:40 PM (model routing changed). Audit log
+
+Routing
+
+Choose which connection and model handles each kind of analysis. A role with no chain uses your connections as a shared pool. If a connection is down or refuses a request, the next one in the chain is tried; a model that answers badly is not retried on another model. Changes apply within about a minute.
+
+Local only. Refuse any role that would send code outside my network (including Tier-3, the Claude API). Roles without a chain use only my local connections.
+Use one connection for every role:
+Choose…
+Claude CLI (Haiku)
+Replaces every chain with that one connection (the optional quick first look is left as it is); nothing is saved until Save routing.
+Connection chain per role
+Role	Chain (first choice first)	
+Add a connection
+
+Security	
+1.
+Claude CLI (Haiku)
+↑
+↓
+Remove
+
+Uses Claude CLI (Haiku) · haiku. If it is down or refuses, the role skips and says so.
+
+⚠ Leaves your network. Claude CLI (Haiku) (api.anthropic.com) receives diffs, pull-request descriptions and file paths. Each request is recorded in the egress audit.
+
+	
+Add a connection…
+Claude CLI (Haiku)
+
+Performance	
+1.
+Claude CLI (Haiku)
+↑
+↓
+Remove
+
+Uses Claude CLI (Haiku) · haiku. If it is down or refuses, the role skips and says so.
+
+⚠ Leaves your network. Claude CLI (Haiku) (api.anthropic.com) receives diffs, pull-request descriptions and file paths. Each request is recorded in the egress audit.
+
+	
+Add a connection…
+Claude CLI (Haiku)
+
+Code health	
+1.
+Claude CLI (Haiku)
+↑
+↓
+Remove
+
+Uses Claude CLI (Haiku) · haiku. If it is down or refuses, the role skips and says so.
+
+⚠ Leaves your network. Claude CLI (Haiku) (api.anthropic.com) receives diffs, pull-request descriptions and file paths. Each request is recorded in the egress audit.
+
+	
+Add a connection…
+Claude CLI (Haiku)
+
+Best practices	
+1.
+Claude CLI (Haiku)
+↑
+↓
+Remove
+
+Uses Claude CLI (Haiku) · haiku. If it is down or refuses, the role skips and says so.
+
+⚠ Leaves your network. Claude CLI (Haiku) (api.anthropic.com) receives diffs, pull-request descriptions and file paths. Each request is recorded in the egress audit.
+
+	
+Add a connection…
+Claude CLI (Haiku)
+
+AI slop	
+1.
+Claude CLI (Haiku)
+↑
+↓
+Remove
+
+Uses Claude CLI (Haiku) · haiku. If it is down or refuses, the role skips and says so.
+
+⚠ Leaves your network. Claude CLI (Haiku) (api.anthropic.com) receives diffs, pull-request descriptions and file paths. Each request is recorded in the egress audit.
+
+	
+Add a connection…
+Claude CLI (Haiku)
+
+Test coverage	
+1.
+Claude CLI (Haiku)
+↑
+↓
+Remove
+
+Uses Claude CLI (Haiku) · haiku. If it is down or refuses, the role skips and says so.
+
+⚠ Leaves your network. Claude CLI (Haiku) (api.anthropic.com) receives diffs, pull-request descriptions and file paths. Each request is recorded in the egress audit.
+
+	
+Add a connection…
+Claude CLI (Haiku)
+
+Triage	
+1.
+Claude CLI (Haiku)
+↑
+↓
+Remove
+
+Uses Claude CLI (Haiku) · haiku. If it is down or refuses, the role skips and says so.
+
+⚠ Leaves your network. Claude CLI (Haiku) (api.anthropic.com) receives diffs, pull-request descriptions and file paths. Each request is recorded in the egress audit.
+
+	
+Add a connection…
+Claude CLI (Haiku)
+
+Patch	
+1.
+Claude CLI (Haiku)
+↑
+↓
+Remove
+
+Uses Claude CLI (Haiku) · haiku. If it is down or refuses, the role skips and says so.
+
+⚠ Leaves your network. Claude CLI (Haiku) (api.anthropic.com) receives diffs, pull-request descriptions and file paths. Each request is recorded in the egress audit.
+
+	
+Add a connection…
+Claude CLI (Haiku)
+
+Quick first look at rule hits (optional, a smaller faster model)	
+
+Not used: with no chain, rule hits go straight to Triage. Add a smaller, faster model here and it looks at each rule hit first; only its confident "likely false positive" answers are kept, everything else goes on to Triage.
+
+— Not used. Nothing is sent for this role.
+
+	
+Add a connection…
+Claude CLI (Haiku)
+Save routing
+Quality per model
+
+How each model did on labelled test cases, per role. Precision (P): of what it reported, how much was real. Recall (R): of the planted defects, how many it found.
+
+Reading it: each role has only four cases, so one case moves a number by 25 points or more; read a gap smaller than that as a tie. For Security and Triage, low recall matters most (a missed real issue); for the other roles, low precision means noise to wade through. To use a model for a role, put it first in that role’s chain in Routing.
+
+The cases are small and their labels have not been reviewed by a person: a rough guide, not a guarantee. “Not yet run” means nothing was measured.
+Role	
+haiku
+Claude CLI (Haiku)
+	
+qwen/qwen3.8-27b
+not configured here
+measured 2026-11-02
+OpenAI-compatible endpoint at localhost:1234
+
+P	R	P	R
+Security	not yet run	100%	100%
+Performance	not yet run	67%	50%
+Code health	not yet run	100%	100%
+Test coverage	not yet run	50%	50%
+Best practices	not yet run	100%	100%
+AI slop	not yet run	67%	100%
+Triage agreement	not yet run	100%
+
+Not measured yet: haiku. Measuring is not run from this screen: from a RepoPulse checkout, run npx tsx packages/security/src/eval/cli.ts --base-url <address> --model <model id>. Expect about an hour per model on a local model (the first measured run took 54 minutes). The results appear here once they are committed and RepoPulse is rebuilt.
+
+Prompt cache per model
+
+Share of input tokens the model’s server answered from its prompt cache, over the last 50 runs of each model. A higher figure means the checklist was reused instead of re-read, so reviews start faster and cost less.
+
+Prompt cache hit rate per model
+Model	Runs	Tokens in	From cache	Hit rate
+claude-haiku-5-5	50	1.3M	54k	4.3%

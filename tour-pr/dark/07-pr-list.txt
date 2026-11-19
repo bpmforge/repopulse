@@ -1,0 +1,77 @@
+URL /repos/10/prs
+
+Skip to content
+RepoPulse
+«
+Overview
+Repositories
+Findings
+781
+Improvement plans
+Reports
+Settings
+Workspace
+My Focus
+Pull Requests
+Saved Views
+☾
+⋯
+Time window
+7d
+14d
+30d
+90d
+365d
+Custom range…
+Inbox
+99+
+new
+Search
+⌘K
+Live updates on
+Overview
+›
+Repositories
+›
+sampleco7
+›
+Pull Requests
+rpadmin/sampleco7gitea
+
+Synced Nov 19, 08:20 AM
+Data as of Nov 19, 08:22 AM
+
+Security
+0/100
+· needs attention
+8 open findings, sub-score 0
+Supply Chain
+100/100
+· healthy
+0 open findings, sub-score 100
+1 not measured
+: Code Health — no sub-score for this scope, which is neither a good score nor a zero
+54
+why?
+Save as view…
+Pulse
+Delivery
+Findings
+Security
+Code health
+AI review
+Activity
+Pull requests
+PR flow
+CI
+Review bots
+State
+All
+Open
+Merged
+Closed
+No review yet
+Pull requests opened in the last 30d
+Download CSV
+PR	Author	State	Age	Size	Reviewed
+#1 Add customer and region reports	rpadmin	open	1h	S	no

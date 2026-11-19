@@ -1,0 +1,576 @@
+URL /findings?finding=16057
+
+Skip to content
+RepoPulse
+«
+Overview
+Repositories
+Findings
+781
+Improvement plans
+Reports
+Settings
+Workspace
+My Focus
+Pull Requests
+Saved Views
+☀
+⋯
+All repos ▾
+Inbox
+99+
+new
+Search
+⌘K
+Live updates on
+Overview
+›
+Findings
+Findings
+
+Findings from every scanner and model review, across repositories.
+
+Sensitive changes
+Save filters as view…
+Export…
+Triage this page (50 of 14,099)
+Search
+Search
+Dimension
+Any
+Code health
+Security
+Performance
+Test coverage — not yet produced
+Best practices
+AI slop (model review)
+Secrets
+Dependencies
+Static analysis (SAST)
+Infrastructure as code
+Attack chain
+Compound
+Logging
+AI slop (scanner)
+Knowledge
+Dependency health
+Architecture
+Test gap
+Status
+Any
+Still to fix (open + confirmed)
+Open
+Confirmed
+Dismissed
+Resolved
+Won't fix
+Min severity
+Any
+● critical and above
+● high and above
+● medium and above
+○ low and above
+Risk
+Any
+Act now
+Schedule
+Track
+Scanner
+Any source
+Anti-slop
+Architecture register
+Attack chainer
+Code health (complexity, duplication)
+GitHub code scanning alerts (import)
+Container image CVEs
+Dependency CVEs
+Knowledge register
+Logging hygiene
+OWASP LLM checklist
+OWASP Web checklist
+Performance patterns
+Rule draft pass
+Secrets
+Semgrep (Opengrep, in-house rules)
+Sensitive-change radar
+Hallucinated and typosquatted packages
+Supply chain register
+Test gap register
+Verification
+Any
+Confirmed on AI review
+Not independently verified
+Contradicted on review
+Sort
+Severity (highest first)
+Risk (highest first)
+Finding (A to Z)
+Repository (A to Z)
+File (A to Z)
+Status (open first)
+Age (oldest first)
+Known exploited (KEV)
+In an attack chain
+More filters
+Analysis quality (whole workspace)
+
+—
+
+no findings triaged yet
+
+16154
+
+findings total, all repositories
+
+shadow
+2047 findings from rules still in shadow match these filters and are not listed.
+Show them, marked
+
+Fixes ready to apply (25)
+
+Each fix was applied to the scanned commit and re-scanned: the finding cleared and nothing new fired. Open one to copy or download the patch and apply it with your own tools; Repo Pulse does not change your repository.
+
+Medium
+An empty catch block, or one whose only comment defers the handling (TODO, FIXME, "handle this").
+src/services/reportService.js:27
+sampleco7
+AI-confirmed
+drafted after the scan
+High
+SQL assembled by concatenation or interpolation.
+src/services/reportService.js:10
+sampleco7
+AI-confirmed
+drafted after the scan
+High
+SQL assembled by concatenation or interpolation.
+src/services/invoiceService.js:13
+sampleco7
+AI-confirmed
+drafted after the scan
+High
+SQL assembled by concatenation or interpolation.
+src/services/invoiceService.js:7
+sampleco7
+AI-confirmed
+drafted after the scan
+High
+SQL assembled by concatenation or interpolation.
+src/services/invoiceService.js:13
+sampleco6
+AI-confirmed
+drafted after the scan
+High
+SQL assembled by concatenation or interpolation.
+src/services/invoiceService.js:7
+sampleco6
+AI-confirmed
+drafted after the scan
+High
+SQL assembled by concatenation or interpolation.
+src/services/invoiceService.js:13
+sampleco5
+AI-confirmed
+drafted after the scan
+High
+SQL assembled by concatenation or interpolation.
+src/services/invoiceService.js:7
+sampleco5
+AI-confirmed
+drafted after the scan
+Medium
+A function that exists and does nothing but refuse.
+saleor/order/events.py:231
+saleor2
+AI-confirmed
+drafted after the scan
+Medium
+A function that exists and does nothing but refuse.
+saleor/order/events.py:231
+saleor
+AI-confirmed
+drafted after the scan
+Medium
+An empty catch block, or one whose only comment defers the handling (TODO, FIXME, "handle this").
+src/services/reportService.js:27
+sampleco4
+AI-confirmed
+drafted after the scan
+High
+SQL assembled by concatenation or interpolation.
+src/services/reportService.js:10
+sampleco4
+AI-confirmed
+drafted after the scan
+Medium
+An error from a call whose failure changes the result is thrown away.
+binding/form_mapping.go:469
+gin
+AI-confirmed
+drafted after the scan
+High
+SQL assembled by concatenation or interpolation.
+src/services/invoiceService.js:13
+sampleco4
+AI-confirmed
+drafted after the scan
+Medium
+An empty catch block, or one whose only comment defers the handling (TODO, FIXME, "handle this").
+src/services/userService.js:6
+sampleco7
+AI-confirmed
+drafted after the scan
+Medium
+An empty catch block, or one whose only comment defers the handling (TODO, FIXME, "handle this").
+src/services/userService.js:6
+sampleco6
+AI-confirmed
+drafted after the scan
+Medium
+An empty catch block, or one whose only comment defers the handling (TODO, FIXME, "handle this").
+src/services/userService.js:6
+sampleco5
+AI-confirmed
+drafted after the scan
+Low
+A comment restating what the next line does.
+saleor/graphql/metrics.py:19
+saleor2
+AI-confirmed
+drafted after the scan
+Low
+A comment restating what the next line does.
+saleor/graphql/account/mutations/staff/customer_update.py:207
+saleor2
+AI-confirmed
+drafted after the scan
+Low
+A comment restating what the next line does.
+saleor/checkout/calculations.py:835
+saleor2
+AI-confirmed
+drafted after the scan
+Low
+`in` against a list scans the whole list, and this runs once per element of another collection: O(n·m) overall.
+saleor/graphql/tax/mutations/tax_class_update.py:126
+saleor
+AI-confirmed
+drafted after the scan
+Low
+A comment restating what the next line does.
+saleor/webhook/transport/metrics.py:18
+saleor
+AI-confirmed
+drafted after the scan
+Low
+A comment restating what the next line does.
+saleor/graphql/account/mutations/staff/customer_update.py:207
+saleor
+AI-confirmed
+drafted after the scan
+Medium
+An empty catch block, or one whose only comment defers the handling (TODO, FIXME, "handle this").
+src/services/userService.js:6
+sampleco4
+AI-confirmed
+drafted after the scan
+Medium
+An error from a call whose failure changes the result is thrown away.
+binding/form_mapping.go:469
+gin2
+AI-confirmed
+drafted after the scan
+Findings
+Findings across every analysed repository
+	Severity
+↕
+	Risk
+▼
+	Finding
+↕
+	Repository
+↕
+	File
+↕
+	Status
+↕
+	Age
+↕
+	Verification
+	Critical	Act now	Compound risk: shared/editor/extensions/Mermaid.ts flagged by 3 dimensions	outline	
+shared/editor/extensions/
+Mermaid.ts
+	Open	today	· not independently verified
+	Critical	Act now	Compound risk: saleor/core/jwt.py flagged by 3 dimensions	saleor	
+saleor/core/
+jwt.py
+	Open	today	· not independently verified
+	Critical	Act now	Compound risk: apps/api/src/routes/rules/index.ts flagged by 3 dimensions	repopulse	
+apps/api/src/routes/rules/
+index.ts
+	Open	today	· not independently verified
+	Critical	Act now	Compound risk: apps/api/src/routes/risk/index.ts flagged by 3 dimensions	repopulse	
+apps/api/src/routes/risk/
+index.ts
+	Open	today	· not independently verified
+	Critical	Act now	Compound risk: apps/api/src/routes/reports/index.ts flagged by 4 dimensions	repopulse	
+apps/api/src/routes/reports/
+index.ts
+	Open	today	· not independently verified
+	Critical	Act now	Compound risk: apps/api/src/routes/plans/index.ts flagged by 3 dimensions	repopulse	
+apps/api/src/routes/plans/
+index.ts
+	Open	today	· not independently verified
+	Critical	Act now	Compound risk: apps/api/src/routes/org/index.ts flagged by 3 dimensions	repopulse	
+apps/api/src/routes/org/
+index.ts
+	Open	today	· not independently verified
+	Critical	Act now	Compound risk: apps/api/src/routes/connections/index.ts flagged by 4 dimensions	repopulse	
+apps/api/src/routes/connections/
+index.ts
+	Open	today	· not independently verified
+	Critical	Act now	Compound risk: apps/api/src/routes/auth/oidc.ts flagged by 3 dimensions	repopulse	
+apps/api/src/routes/auth/
+oidc.ts
+	Open	today	· not independently verified
+	Critical	Act now	Compound risk: apps/api/src/routes/auth/index.ts flagged by 3 dimensions	repopulse	
+apps/api/src/routes/auth/
+index.ts
+	Open	today	· not independently verified
+	Critical	Act now	Compound risk: apps/api/src/routes/admin/index.ts flagged by 3 dimensions	repopulse	
+apps/api/src/routes/admin/
+index.ts
+	Open	today	· not independently verified
+	Critical	Act now	Compound risk: apps/api/src/routes/admin/identities/index.ts flagged by 3 dimensions	repopulse	
+apps/api/src/routes/admin/identities/
+index.ts
+	Open	today	· not independently verified
+	Critical	Act now	Compound risk: apps/api/src/routes/patches/index.ts flagged by 3 dimensions	repopulse	
+apps/api/src/routes/patches/
+index.ts
+	Open	today	· not independently verified
+	Critical	Act now	Compound risk: saleor/core/jwt.py flagged by 3 dimensions	saleor2	
+saleor/core/
+jwt.py
+	Open	today	· not independently verified
+	Critical	Act now	Compound risk: server/middlewares/passport.ts flagged by 3 dimensions	outline	
+server/middlewares/
+passport.ts
+	Open	today	· not independently verified
+	High	Act now	Compound risk: saleor/graphql/utils/__init__.py flagged by 5 dimensions	saleor2	
+saleor/graphql/utils/
+__init__.py
+	Open	today	· not independently verified
+	High	Act now	Compound risk: server/models/User.ts flagged by 3 dimensions	outline	
+server/models/
+User.ts
+	Open	today	· not independently verified
+	High	Act now	Compound risk: saleor/graphql/utils/__init__.py flagged by 5 dimensions	saleor	
+saleor/graphql/utils/
+__init__.py
+	Open	today	· not independently verified
+	Critical	Act now	Compound risk: apps/api/src/routes/runs/index.ts flagged by 5 dimensions	repopulse	
+apps/api/src/routes/runs/
+index.ts
+	Open	today	· not independently verified
+	High	Act now · KEV	CVE-2020-11023 in jquery 3.4.1	repopulse	
+packages/security/fixtures/dependency/vulnerable/
+package-lock.json
+	Open	today	· not independently verified
+	High	Act now · KEV	CVE-2020-11023 in jquery 3.3.1	repopulse	
+packages/security/fixtures/vex/
+package-lock.json
+	Open	today	· not independently verified
+	Critical	Act now	Compound risk: plugins/azure/server/auth/azure.ts flagged by 3 dimensions	outline	
+plugins/azure/server/auth/
+azure.ts
+	Open	today	· not independently verified
+	High	Act now	Compound risk: server/emails/mailer.tsx flagged by 3 dimensions	outline	
+server/emails/
+mailer.tsx
+	Open	today	· not independently verified
+	Critical	Act now	MAL-2022-1: rustdecimal 1.23.1 is a known malicious package	repopulse	
+packages/security/fixtures/slopsquat/repo/crate/
+Cargo.lock
+	Open	today	· not independently verified
+	Critical	Act now	MAL-2025-2545: github.com/boltdb-go/bolt v1.3.1 is a known malicious package	repopulse	
+packages/security/fixtures/slopsquat/repo/svc/
+go.mod
+	Open	today	· not independently verified
+	Critical	Act now · KEV	CVE-2021-45046 in log4j-core 2.14.1	repopulse	
+packages/security/fixtures/ecosystems/maven/
+pom.xml
+	Open	today	· not independently verified
+	Critical	Act now · KEV	CVE-2021-44228 in log4j-core 2.14.1	repopulse	
+packages/security/fixtures/ecosystems/maven/
+pom.xml
+	Open	today	· not independently verified
+	Critical	Act now	CVE-2026-78663 in golang.org/x/net v0.57.0	gin	go.mod	Open	today	✓✓ confirmed on AI review
+	Critical	Act now	CVE-2020-7471 in django 2.2.0	repopulse	
+packages/security/fixtures/ecosystems/uv/
+uv.lock
+	Open	today	· not independently verified
+	Critical	Act now	Compound risk: server/queues/tasks/UpdateDocumentsPopularityScoreTask.ts flagged by 5 dimensions	outline	
+server/queues/tasks/
+UpdateDocumentsPopularityScoreTask.ts
+	Open	today	· not independently verified
+	Critical	Schedule	CVE-2021-3711 in openssl 1.1.1k	repopulse	
+packages/security/fixtures/ecosystems/conan/
+conanfile.txt
+	Open	today	· not independently verified
+	Medium	Schedule	CVE-2020-11022 in jquery 3.4.1	repopulse	
+packages/security/fixtures/dependency/vulnerable/
+package-lock.json
+	Open	today	· not independently verified
+	Medium	Schedule	CVE-2020-11022 in jquery 3.3.1	repopulse	
+packages/security/fixtures/vex/
+package-lock.json
+	Open	today	· not independently verified
+	Critical	Schedule	regionTotals concatenates raw req.query.region into SQL (injection)AI	sampleco6	
+src/services/
+reportService.js:9
+	Open	today	· not independently verified
+	Critical	Schedule	Money-discount tiers added with no tests in this PRAI	sampleco6	
+src/services/
+reportService.js:34–39
+	Open	today	· not independently verified
+	Critical	Schedule	Live billing key hardcoded in source and passed to the CSV writer as authAI	sampleco6	
+src/services/
+reportService.js:6
+	Open	today	· not independently verified
+	Critical	Schedule	SQL injection: region query parameter is concatenated into the SQL stringAI	sampleco6	
+src/services/
+reportService.js:9
+	Open	today	· not independently verified
+	Critical	Schedule	Live billing API key hardcoded in source and passed to CSV writerAI	sampleco6	
+src/services/
+reportService.js:6
+	Open	today	· not independently verified
+	Critical	Schedule	SQL injection in regionTotals via string-concatenated region parameterAI	sampleco6	
+src/services/
+reportService.js:9
+	Open	today	· not independently verified
+	Critical	Schedule	CVE-2020-14343 in pyyaml 5.3.1	repopulse	
+packages/security/fixtures/dependency/python/
+requirements.txt
+	Open	today	· not independently verified
+	Critical	Schedule	CVE-2021-44906 in minimist 1.2.0	repopulse	
+packages/security/fixtures/fixpaths/npm/
+package-lock.json
+	Open	today	· not independently verified
+	Critical	Schedule	download route allows path traversal out of the exports directoryAI	sampleco4	
+src/routes/
+reportRoutes.js:23
+	Open	today	· not independently verified
+	Critical	Schedule	discountFor tier boundaries and invalid inputs are untested; PR contains no test changesAI	sampleco4	
+src/services/
+reportService.js:35–40
+	Open	today	· not independently verified
+	Critical	Schedule	Hardcoded live API key in source, forwarded to the CSV writer as an auth optionAI	sampleco4	
+src/services/
+reportService.js:6
+	Open	today	· not independently verified
+	Critical	Act now	Compound risk: saleor/discount/models.py flagged by 3 dimensions	saleor2	
+saleor/discount/
+models.py
+	Open	today	· not independently verified
+	High	Schedule	SQL assembled by concatenation or interpolation.	sampleco7	
+src/services/
+reportService.js:10
+	Open	today	✓✓ confirmed on AI review
+	High	Schedule	CVE-2021-45105 in log4j-core 2.14.1	repopulse	
+packages/security/fixtures/ecosystems/maven/
+pom.xml
+	Open	today	· not independently verified
+	Medium	Schedule	An empty catch block, or one whose only comment defers the handling (TODO, FIXME, "handle this").	sampleco7	
+src/services/
+reportService.js:27–32
+	Open	today	✓✓ confirmed on AI review
+	High	Schedule	CVE-2026-97032 in golang.org/x/net v0.57.0	gin	go.mod	Open	today	✓✓ confirmed on AI review
+	High	Schedule	CVE-2026-78669 in golang.org/x/net v0.57.0	gin	go.mod	Open	today	✓✓ confirmed on AI review
+Previous page
+1–50 of 14,099 matching
+Next page
+Live API key and JWT signing secret hardcoded in config
+● critical
+confidence 5/5
+Security
+seen 1×
+Found by: your AI model claude-haiku-5-5
+AI review: No second AI connection on a different host is configured, so no other model could check this. A model asked whether it was right agrees with itself, so it was not asked.
+Status: Open
+The issue
+JS
+src/config.js
+L1–2
+Wrap
+Copy
+  apiKey: "sk_live_51H8xQ2eZvKf9sampleco_DO_NOT_USE_9f3a",
+  jwtSecret: "sampleco-super-secret-key",
+
+src/config.js:1–7
+
+Opens the default branch — this finding records no commit, so the lines may have moved since it was raised.
+
+What to do
+
+Load apiKey and jwtSecret from environment variables or a secrets manager, fail startup if missing, and rotate the exposed values.
+
+Why this applies
+
+A live-looking API key and a JWT secret are committed as literals. Anyone with repository access can forge tokens or use the key. The `DO_NOT_USE` comment does not make the value safe if it is real or reused. The secret should not live in source.
+
+Suggested change
+
+No verified fix for this finding: Only findings from a deterministic rule can get a verified fix: the rule is re-run on the patched file to prove it clears, and a model finding has no rule to re-run.
+
+AI review
+
+This finding was raised by an AI specialist (Security), Claude CLI (Haiku) · haiku, in a pass over the files src/routes/authRoutes.js, src/services/invoiceService.js, src/services/userService.js, src/routes/adminRoutes.js, src/routes/invoiceRoutes.js, src/services/authService.js, src/utils/format.js, src/utils/validate.js, src/index.js, src/config.js. A rule did not find it.
+
+No triage suggestion has been recorded for this finding.
+
+History (1)
+Status
+Open
+Note (required)
+Dismiss reason
+False positive
+Accepted risk
+Not applicable
+Duplicate
+The rule is wrong here: the code does not have this problem. Counts toward the rule’s false-positive rate.
+Confirm
+Mark fixed
+Dismiss
+Won't fix
+
+A note is required before changing status.
+
+Dismiss and Won't fix need a note of at least 10 characters, and an admin for this finding.
+
+Does not close on its own: no later scan re-checks it. Mark it fixed once the code is fixed.
+
+Details
+Repository
+rpadmin/sampleco6
+Risk
+Track · 17.1
+First seen
+11/19/2026
+Last seen
+11/19/2026
+File
+Owners and history of this file
+External ticket
+
+No ticket linked.
+Link a ticket
+
+Findings have no assignee in RepoPulse. To hand one to a developer, open a ticket in your tracker (Copy review summary gives you the text) and link it above.
+
+Copy review summary
+Copy link
+Improvement plan for this repository →
+Propose a rule from this finding
+Close

@@ -1,0 +1,151 @@
+URL /repos/9
+
+Skip to content
+RepoPulse
+«
+Overview
+Repositories
+Findings
+781
+Improvement plans
+Reports
+Settings
+Workspace
+My Focus
+Pull Requests
+Saved Views
+☾
+⋯
+Time window
+7d
+14d
+30d
+90d
+365d
+Custom range…
+Inbox
+99+
+new
+Search
+⌘K
+Live updates on
+Overview
+›
+Repositories
+›
+sampleco6
+rpadmin/sampleco6gitea
+
+Synced Nov 19, 08:08 AM
+Data as of Nov 19, 08:09 AM
+
+Security
+0/100
+· needs attention
+10 open findings, sub-score 0
+Supply Chain
+100/100
+· healthy
+0 open findings, sub-score 100
+1 not measured
+: Code Health — no sub-score for this scope, which is neither a good score nor a zero
+54
+why?
+Save as view…
+Pulse
+Delivery
+Findings
+Security
+Code health
+AI review
+Current values
+ⓘ
+Review coverage
+0
+%
+no prior window to compare
+0 of 0 · small sample
+See merged pull requests without a review
+CI pass rate
+0
+%
+no prior window to compare
+See CI
+PR cycle time
+0
+h
+no prior window to compare
+See PR flow
+Commit churn
+0
+lines
+no prior window to compare
+See activity
+Issue throughput
+0
+no prior window to compare
+Top risks
+· schedule
+regionTotals concatenates raw req.query.region into SQL (injection)
+rpadmin/sampleco6 · src/services/reportService.js
+49.00
+sev 5
+why?
+· schedule
+Money-discount tiers added with no tests in this PR
+rpadmin/sampleco6 · src/services/reportService.js
+49.00
+sev 5
+why?
+· schedule
+Live billing key hardcoded in source and passed to the CSV writer as auth
+rpadmin/sampleco6 · src/services/reportService.js
+49.00
+sev 5
+why?
+· schedule
+SQL injection: region query parameter is concatenated into the SQL string
+rpadmin/sampleco6 · src/services/reportService.js
+49.00
+sev 5
+why?
+· schedule
+Live billing API key hardcoded in source and passed to CSV writer
+rpadmin/sampleco6 · src/services/reportService.js
+49.00
+sev 5
+why?
+
+53 open findings → 0 act, 21 schedule, 32 track
+act = fix now · schedule = plan it for this sprint · track = watch it, no work yet
+
+Improvement plan
+
+A plan ranks the fixes for the thresholds this repository is breaching, and closes each one when its number moves.
+
+Improvement plan for this repository →
+Generate 30d plan for 1 repository
+PR cycle time
+
+Rolling 30d value, computed nightly — last 30d.
+
+View as table
+Download CSV
+Commit churn
+
+Rolling 30d value, computed nightly — last 30d.
+
+View as table
+Download CSV
+Review coverage
+
+Rolling 30d value, computed nightly — last 30d.
+
+View as table
+Download CSV
+Issue throughput
+
+Rolling 30d value, computed nightly — last 30d.
+
+View as table
+Download CSV
