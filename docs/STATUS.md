@@ -4481,3 +4481,7 @@ on the Mac:**
   is visible. On Haiku the CVE check was refused for gin until Tier 3 was turned on; then
   8 of 8 confirmed, 8 to 26 s per call. The Claude Code CLI runner also ignores the
   reasoning settings.
+- 2026-11-19 — W27-33 (in progress): the first look ranks database migrations, seed and
+  demo-data scripts and management commands below production source. On saleor it had given
+  17 of 23 findings to a demo-data script. Still open: one large file can take most of the
+  first look's 150 KB budget.

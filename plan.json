@@ -14340,6 +14340,32 @@
         "2026-11-19 on the M4 (install rpcli, Haiku through the Claude Code CLI): the first look ran once a review schedule was enabled, but the CVE second opinion was refused for gin and the Repo Pulse copy because core.repos.tier3_opt_in was false. The only trace was the worker's info line. After PATCH /admin/analysis/repos/:id tier3_opt_in true and a forced rescan: asked 8, confirmed 8, 8 to 26 s per call. Working as designed (Law 8), but a person cannot see it.",
         "Same run: providers/claude-cli.ts passes no reasoning flag, so AI_JUDGE_REASONING, AI_REVIEW_REASONING and FIRST_LOOK_QUICK_REASONING do nothing on this backend."
       ]
+    },
+    {
+      "id": "W27-33",
+      "title": "First look: seed scripts, migrations and management commands rank below production source",
+      "phase": 27,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers/ai-first-look.ts",
+        "apps/api/src/workers/ai-pass-processor.test.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-14"
+      ],
+      "acceptance": [
+        "pathTier puts database migrations, seed and demo-data scripts and management commands in the non-runtime tier",
+        "A demo-data script with more rule findings than order or payment code ranks after them",
+        "A fresh first look on saleor reads no file under core/development or a migrations folder while production source is left"
+      ],
+      "points": 2,
+      "status": "in_progress",
+      "notes": [
+        "2026-11-19 on the M4 (rpcli, Haiku): saleor's first look read 5 files, and 17 of its 23 findings were on saleor/core/development/random_data.py (2,379 lines, second by rule-finding weight). It also read app/migrations/0027. The four strongest shop files by findings (order_bulk_create, order/actions, payment/utils, complete_checkout) were not read: one large file takes most of the 150 KB first-look budget. That second cause is open; this ticket fixes the ranking only."
+      ]
     }
   ]
 }

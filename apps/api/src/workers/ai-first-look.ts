@@ -277,10 +277,19 @@ export async function rankFirstLookPaths(
 const NOT_RUNTIME =
   /\.(ya?ml)$|(^|\/)(go\.mod|doc\.go)$|(\.pb\.go|_gen\.go|\.generated\.[a-z]+|\.d\.ts)$|(^|\/)(examples?|docs?|scripts)\//;
 
+// W27-33: code a developer runs by hand, not code the product runs. On saleor
+// the first look gave 17 of its 23 findings to core/development/random_data.py
+// (a 2,379-line demo-data script, second by lint volume) and read a database
+// migration, while order and checkout code went unread. Database migrations,
+// seed and demo-data scripts and one-off management commands rank with the
+// non-runtime files: still read when a repository has little else.
+const DEV_TOOLING =
+  /(^|\/)(migrations|alembic\/versions|management\/commands|development|seeds?|seeders?|db\/migrate)\/|(^|\/)(seeds?|seeders?|populate(_?db|_?data)?|random_data|fake_data|sample_data|demo_data|dummy_data)\.[a-z]+$/;
+
 /** 0 production source, 1 config and other non-runtime files, 2 tests. Pure, for tests. */
 export function pathTier(path: string): 0 | 1 | 2 {
   if (isTestPath(path)) return 2;
-  if (NOT_RUNTIME.test(path)) return 1;
+  if (NOT_RUNTIME.test(path) || DEV_TOOLING.test(path)) return 1;
   return 0;
 }
 

@@ -2207,6 +2207,45 @@ describe('rankPaths (W25-01)', () => {
     }
   });
 
+  it('W27-33: seed scripts, migrations and management commands rank below production source', () => {
+    for (const p of [
+      'saleor/core/development/random_data.py',
+      'saleor/app/migrations/0027_set_identifier_when_missing.py',
+      'saleor/core/management/commands/populatedb.py',
+      'db/migrate/20240101000000_add_users.rb',
+      'alembic/versions/ab12_add_table.py',
+      'prisma/seed.ts',
+      'scripts-dev/populate_db.py',
+      'src/seeders/users.js',
+    ]) {
+      expect(pathTier(p), p).toBe(1);
+    }
+    for (const p of [
+      'saleor/order/actions.py',
+      'saleor/payment/utils.py',
+      'src/seedling/grow.ts',
+      'app/services/migration_planner.rb',
+      'src/populate_cache.py',
+    ]) {
+      expect(pathTier(p), p).toBe(0);
+    }
+    // Lint volume no longer puts the demo-data script ahead of shop code.
+    expect(
+      rankPaths(
+        [
+          { path: 'saleor/core/development/random_data.py', weight: 77 },
+          { path: 'saleor/order/actions.py', weight: 73 },
+          { path: 'saleor/payment/utils.py', weight: 57 },
+        ],
+        [],
+      ),
+    ).toEqual([
+      'saleor/order/actions.py',
+      'saleor/payment/utils.py',
+      'saleor/core/development/random_data.py',
+    ]);
+  });
+
   it('stops at the limit', () => {
     const many = Array.from({ length: 10 }, (_, i) => ({ path: `f${i}.ts`, weight: 10 - i }));
     expect(rankPaths(many, [], 3)).toEqual(['f0.ts', 'f1.ts', 'f2.ts']);
