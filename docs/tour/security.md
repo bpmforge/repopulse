@@ -4,7 +4,7 @@ Security findings are ranked by real risk, not just severity: whether the vulner
 
 **For:** Security engineer, Developer · **9 steps** · [All tours](README.md)
 
-> Real screens from a RepoPulse test install built from the current main branch (0.2.1 in development). It tracks copies of three open-source projects on a local Gitea: gin (Go), saleor (Python) and RepoPulse's own code (TypeScript), with the qwen3.8-27b model running in LM Studio on the same network.
+> Real screens from a RepoPulse test install built from the main branch on 2026-11-08, shortly before 0.3.0, so small details may differ from the release. It tracks copies of three open-source projects on a local Gitea: gin (Go), saleor (Python) and RepoPulse's own code (TypeScript), with the qwen3.8-27b model running in LM Studio on the same network.
 
 ## 1. Start from the summary
 
@@ -36,11 +36,11 @@ A finding is one column of cards. CVE-2020-14343 in pyyaml 5.3.1 (from RepoPulse
 
 ![Open the finding: evidence, fix and why it applies](images/security-04-cve.webp)
 
-## 6. A code flaw, at the line
+## 6. A code flaw at the line, from a rule on trial
 
-SAST findings open on the code. In `apps/api/src/routes/auth/oidc.ts:261` request data decides where the user is redirected after sign-in (rule bpm-inj-redirect-js). The fix: redirect only to a single-`/` path or an allowlisted host. This rule is still on trial, and the dashed box says its precision is being measured.
+SAST findings open on the code. Here a new rule, bpm-inj-redirect-js, flags `apps/api/src/routes/auth/oidc.ts:261` in RepoPulse's own code: a redirect after sign-in built from request data, with the fix to redirect only to a single-`/` path or an allowlisted host. In this code the value has already passed a same-origin check, so this hit is a false positive, which is why new rules start on trial: the dashed box says its precision is still being measured, and it counts toward no score until it is promoted.
 
-![A code flaw, at the line](images/security-05-sast.webp)
+![A code flaw at the line, from a rule on trial](images/security-05-sast.webp)
 
 ## 7. Read the AI verdict and its evidence
 

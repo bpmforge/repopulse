@@ -2,7 +2,7 @@
 
 Step-by-step tours of RepoPulse, one per job, with a real screen for every step.
 
-> Real screens from a RepoPulse test install built from the current main branch (0.2.1 in development). It tracks copies of three open-source projects on a local Gitea: gin (Go), saleor (Python) and RepoPulse's own code (TypeScript), with the qwen3.8-27b model running in LM Studio on the same network. Numbers on the screens are from that install on 2026-11-08.
+> Real screens from a RepoPulse test install built from the main branch on 2026-11-08, shortly before 0.3.0, so small details may differ from the release. It tracks copies of three open-source projects on a local Gitea: gin (Go), saleor (Python) and RepoPulse's own code (TypeScript), with the qwen3.8-27b model running in LM Studio on the same network. Numbers on the screens are from that install on 2026-11-08. The pull request tour is newer: it was captured on 2026-11-19 on a small demo app, with a small hosted model doing the AI review.
 
 ## Tours
 

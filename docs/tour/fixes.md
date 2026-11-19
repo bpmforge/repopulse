@@ -4,7 +4,7 @@ A model drafts the patch; RepoPulse applies it to the scanned commit and re-runs
 
 **For:** Developer, Security engineer, Engineering lead · **6 steps** · [All tours](README.md)
 
-> Real screens from a RepoPulse test install built from the current main branch (0.2.1 in development). It tracks copies of three open-source projects on a local Gitea: gin (Go), saleor (Python) and RepoPulse's own code (TypeScript), with the qwen3.8-27b model running in LM Studio on the same network.
+> Real screens from a RepoPulse test install built from the main branch on 2026-11-08, shortly before 0.3.0, so small details may differ from the release. It tracks copies of three open-source projects on a local Gitea: gin (Go), saleor (Python) and RepoPulse's own code (TypeScript), with the qwen3.8-27b model running in LM Studio on the same network.
 
 ## 1. Fixes ready to apply
 
