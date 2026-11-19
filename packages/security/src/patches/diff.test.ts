@@ -51,6 +51,11 @@ describe('extractDiff', () => {
     expect(extractDiff('Here you go:\n```diff\n' + GOOD + '\n```\n')).toBe(GOOD + '\n');
     expect(extractDiff(GOOD)).toBe(GOOD);
   });
+  it('W27-28: reads the JSON answer when it is itself inside a fence', () => {
+    const json = JSON.stringify({ diff: GOOD });
+    expect(extractDiff('```json\n' + json + '\n```')).toBe(GOOD);
+    expect(extractDiff('Here is the fix:\n```\n' + json + '\n```\nDone.')).toBe(GOOD);
+  });
 });
 
 describe('parseUnifiedDiff — shape gate', () => {

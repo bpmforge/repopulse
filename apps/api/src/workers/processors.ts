@@ -616,6 +616,27 @@ export function reconcileProcessor(deps: ProcessorDeps) {
     // this "Sync now" showed the pull request and nothing ever scanned it.
     // Idempotent (one job per unscanned open head) and best-effort, like the
     // delta's: a queue hiccup must not fail the reconcile.
+    // W27-29: and the stream scanners (secrets, sensitive change, slopsquat)
+    // for the same unscanned heads. Without them the pull request's head never
+    // counted as fully scanned and the CI check answered "not fully scanned
+    // yet" for ever. Before the pattern scans, as in the delta. Best-effort too.
+    let secrets:
+      | Awaited<ReturnType<NonNullable<ProcessorDeps['runSecretsStream']>>>
+      | { error: string }
+      | undefined;
+    if (deps.runSecretsStream) {
+      try {
+        secrets = await deps.runSecretsStream({
+          workspaceId: data.workspaceId,
+          repoId: data.repoId,
+          repo: resolved.repoFullName,
+          provider: resolved.provider,
+          trigger: 'pr_synced',
+        });
+      } catch (err) {
+        secrets = { error: err instanceof Error ? err.message : String(err) };
+      }
+    }
     let prScans: { queued: number; deferred: number } | { error: string } | undefined;
     if (deps.queuePrScans) {
       try {
@@ -624,7 +645,7 @@ export function reconcileProcessor(deps: ProcessorDeps) {
         prScans = { error: err instanceof Error ? err.message : String(err) };
       }
     }
-    return { counts, ...(prScans ? { prScans } : {}) };
+    return { counts, ...(secrets ? { secrets } : {}), ...(prScans ? { prScans } : {}) };
   };
 }
 

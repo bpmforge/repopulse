@@ -4466,3 +4466,13 @@ on the Mac:**
 - 2026-11-19 — W27-27 (todo, found on the M4): with the Claude Code CLI backend, the API
   container (Alpine) cannot run the CLI binary the worker (Debian) runs, so Settings shows a
   false "the two containers disagree" and Test connection cannot pass. Reviews are unaffected.
+- 2026-11-19 — W27-28: a fix answer wrapped in a json code fence is read (Haiku does this).
+- 2026-11-19 — W27-29 (in progress): a reconcile (Sync now, nightly) also runs the secrets,
+  sensitive-change and slopsquat stream for pull request heads, so the CI check no longer
+  answers "not fully scanned yet" for ever on a pull request that arrived that way.
+- 2026-11-19 — W27-30 (in progress): a rule finding first raised on a pull request and fixed
+  by its next push stayed open. Pull request runs of the rule engine, the performance pack
+  and the anti-slop pack now close what that pull request introduced and no longer has.
+- 2026-11-19 — W27-31: the worker logs, at info and in words, why no AI review was queued
+  when the cause needs an admin (not opted in to a hosted model, routing changed, local-only,
+  no model, monthly limit). The UI does not show it yet.

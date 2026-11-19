@@ -61,20 +61,31 @@ export class PatchRejectedError extends Error {
  */
 export function extractDiff(modelText: string): string {
   const trimmed = modelText.trim();
-  if (trimmed.startsWith('{')) {
-    try {
-      const parsed = JSON.parse(trimmed) as unknown;
-      if (parsed && typeof parsed === 'object' && 'diff' in parsed) {
-        const diff = (parsed as { diff: unknown }).diff;
-        if (typeof diff === 'string') return diff;
-      }
-    } catch {
-      // Fall through: not JSON after all.
-    }
+  const direct = diffFromJson(trimmed);
+  if (direct !== null) return direct;
+  const fenced = /```[A-Za-z]*[^\n]*\n([\s\S]*?)```/.exec(trimmed);
+  if (fenced?.[1] !== undefined) {
+    // W27-28: the JSON answer itself inside a fence (```json {"diff": ...} ```),
+    // which hosted models do by habit. Before this the JSON text was read as
+    // the diff and refused as malformed.
+    return diffFromJson(fenced[1].trim()) ?? fenced[1];
   }
-  const fenced = /```(?:diff|patch)?[^\n]*\n([\s\S]*?)```/.exec(trimmed);
-  if (fenced?.[1] !== undefined) return fenced[1];
   return trimmed;
+}
+
+/** The `diff` string of a `{"diff": "..."}` answer, or null when `text` is not one. */
+function diffFromJson(text: string): string | null {
+  if (!text.startsWith('{')) return null;
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    if (parsed && typeof parsed === 'object' && 'diff' in parsed) {
+      const diff = (parsed as { diff: unknown }).diff;
+      if (typeof diff === 'string') return diff;
+    }
+  } catch {
+    // Not JSON after all.
+  }
+  return null;
 }
 
 function stripPrefix(raw: string): string {

@@ -560,6 +560,11 @@ export async function runSemgrepIncremental(
       // the repository, and auto-resolving from a partial view would close
       // findings on files this PR never touched.
       sweepScannerKey: SEMGREP_SCANNER_KEY,
+      // W27-30: except what this pull request itself introduced. Those rows
+      // exist on no other branch, and this run scanned the pull request's
+      // files at its new head. Not when the engine reported any error: a rule
+      // or a file it could not read is not a fix.
+      ...(deps.pullRequestId != null && scan.toolErrors.length === 0 ? { prSweep: {} } : {}),
     });
 
     await closeRun(deps, runId, {

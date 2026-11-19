@@ -14207,6 +14207,110 @@
         "2026-11-19 on the M4 (install rpcli, 8719e00): the API image is Alpine (musl) and the worker is Debian 12 (glibc). npm installs a glibc native binary for @anthropic-ai/claude-code 2.1.327, so in the API container the CLI fails with exit 127 (not found) while the worker runs it and reports logged in. The page then says the two containers disagree and advises --with-claude-cli, which was already used. Reviews work (they run in the worker); only the status line and Test connection are wrong.",
         "Options: run Test connection through the worker; build the API image on the worker's base; or install a musl build for the API."
       ]
+    },
+    {
+      "id": "W27-28",
+      "title": "Fix drafts: a JSON answer inside a code fence is read",
+      "phase": 27,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "packages/security/src/patches/diff.ts",
+        "packages/security/src/patches/diff.test.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-27"
+      ],
+      "acceptance": [
+        "extractDiff reads the diff from a {\"diff\": ...} answer that is itself inside a fenced block, with or without prose around it",
+        "A fenced bare diff is still read as before"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "2026-11-19 on Haiku: a fix draft was rejected as diff_malformed (Unexpected line outside a hunk: {\"diff\":...). The model wrapped its JSON answer in a json code fence."
+      ]
+    },
+    {
+      "id": "W27-29",
+      "title": "A reconcile runs the stream scanners for pull request heads",
+      "phase": 27,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers/processors.ts",
+        "apps/api/src/workers/pr-scans.test.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-28"
+      ],
+      "acceptance": [
+        "After reconciling one repository the worker runs the secrets stream (secrets, sensitive change, slopsquat) for unscanned pull request heads, before queueing the pattern scans",
+        "A failure there is reported in the job result and does not fail the reconcile"
+      ],
+      "points": 1,
+      "status": "in_progress",
+      "notes": [
+        "2026-11-19: after a Sync now click the pull request head had semgrep, anti_slop, logging and performance runs only, so the CI check exited 4 (not fully scanned yet) for ever."
+      ]
+    },
+    {
+      "id": "W27-30",
+      "title": "A pull request run closes the findings that pull request introduced and fixed",
+      "phase": 27,
+      "module": "insights",
+      "stories": [],
+      "write_scope": [
+        "packages/insights/src/findings/store.ts",
+        "packages/insights/src/findings/store-sweep.integration.test.ts",
+        "packages/security/src/scanners/semgrep/run-modes.ts",
+        "packages/security/src/scanners/perf/run.ts",
+        "packages/security/src/scanners/anti-slop/run.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-29"
+      ],
+      "acceptance": [
+        "persistFindings.prSweep closes open findings stamped with the run's pull request and scanner that the run no longer reports; no other pull request's, the default branch's or another scanner's rows are touched",
+        "The rule engine, performance pack and anti-slop pack use it on pull request runs, only when the engine reported no error; anti-slop keeps judgements and in-process rules open",
+        "After a second push that fixes a rule finding, the finding reads resolved (measured on a real install)"
+      ],
+      "points": 2,
+      "status": "in_progress",
+      "notes": [
+        "2026-11-19: semgrep SQL concat and the anti_slop empty catch stayed open after commit 2 removed them; AI review findings did close.",
+        "Logging, dependency and image pull request runs are unchanged."
+      ]
+    },
+    {
+      "id": "W27-31",
+      "title": "The worker says why no AI review was queued when only an admin can change it",
+      "phase": 27,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers/index.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-30"
+      ],
+      "acceptance": [
+        "A first look not queued for not_opted_in, routing_changed, local_only_forbids, no_gateway or cap_reached is logged at info with a sentence naming what to do",
+        "Other reasons stay at debug"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "2026-11-19 on Haiku: with a model outside the network, the after-scan first look returned not_opted_in until a schedule was enabled, and nothing in the UI or the worker log said so. The UI still does not show it: a follow-up."
+      ]
     }
   ]
 }

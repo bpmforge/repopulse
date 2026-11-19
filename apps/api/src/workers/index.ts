@@ -96,6 +96,21 @@ import {
 import { security } from '@repopulse/shared';
 
 /**
+ * W27-31: why no AI review was queued after a scan, for the reasons that stay
+ * true until an admin changes something.
+ */
+const AI_SKIP_NEEDS_ACTION: Record<string, string | undefined> = {
+  not_opted_in:
+    'a model outside your network is configured and this repository has no enabled AI review schedule. Enable one on the repository (AI review, Schedule) to acknowledge where its code is sent.',
+  routing_changed:
+    'the model routing changed since this repository was opted in. Open its AI review schedule and acknowledge the new destination.',
+  local_only_forbids:
+    'the workspace is set to local models only and the configured model is outside your network.',
+  no_gateway: 'no model is configured for AI review (Settings, Models).',
+  cap_reached: "this month's AI call limit is used up (Settings, AI review).",
+};
+
+/**
  * Products the nightly EOL sync tracks (W10-02).
  *
  * A FIXED list, tunable by env, rather than "every product endoflife.date
@@ -474,6 +489,13 @@ async function main(): Promise<void> {
             );
             if (looked.queued)
               log.info({ repoId, runId: looked.runId }, '[worker] AI first look queued');
+            else if (AI_SKIP_NEEDS_ACTION[looked.code] !== undefined)
+              // W27-31: a skip only an admin can undo is said at info, in
+              // words. At debug nothing anywhere told them why no AI review ran.
+              log.info(
+                { repoId, code: looked.code },
+                `[worker] AI first look not queued: ${AI_SKIP_NEEDS_ACTION[looked.code]}`,
+              );
             else log.debug({ repoId, code: looked.code }, '[worker] AI first look not queued');
           } catch (err) {
             log.warn({ err, repoId }, '[worker] AI first look after scan not queued');

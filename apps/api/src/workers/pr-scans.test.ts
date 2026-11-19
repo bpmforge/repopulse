@@ -53,6 +53,23 @@ describe('a reconcile queues the pattern scanners too (W27-23)', () => {
     });
   });
 
+  it('W27-29: runs the stream scanners for the pull request heads first', async () => {
+    const order: string[] = [];
+    const run = reconcileProcessor({
+      ...deltaDeps(async () => {
+        order.push('pr-scans');
+        return { queued: 1, deferred: 0 };
+      }),
+      runSecretsStream: async (req: { trigger: string; repo: string }) => {
+        order.push(`stream:${req.trigger}:${req.repo}`);
+        return { scanned: [], findingsCreated: 0, deferred: 0 };
+      },
+    } as never);
+    const result = (await run(job)) as { secrets?: unknown };
+    expect(order).toEqual(['stream:pr_synced:acme/app', 'pr-scans']);
+    expect(result.secrets).toEqual({ scanned: [], findingsCreated: 0, deferred: 0 });
+  });
+
   it('a queue failure is reported, not thrown: the reconcile still succeeds', async () => {
     const run = reconcileProcessor(
       deltaDeps(async () => {

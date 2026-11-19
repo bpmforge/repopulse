@@ -1136,6 +1136,23 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
       findings: await attachExcerpts(deps.targetDir, findings),
       sweepScannerKey: ANTI_SLOP_SCANNER_KEY,
       ...antiSlopSweep(deps, packRun, packRuleIds),
+      // W27-30: a pull request run closes the PACK findings that pull request
+      // introduced and no longer has (an empty catch fixed by the next push).
+      // Only the pack's own rules, and only when the engine reported no
+      // error; judgements and the in-process rules stay as they are.
+      ...(deps.trigger === 'pr_synced' &&
+      deps.pullRequestId != null &&
+      packRun !== null &&
+      (packRun.toolErrors ?? []).length === 0
+        ? {
+            prSweep: {
+              keepOpen: (row: { ruleId: string | null }) =>
+                row.ruleId === null ||
+                !row.ruleId.startsWith(PACK_RULE_PREFIX) ||
+                !packRuleIds.includes(row.ruleId),
+            },
+          }
+        : {}),
     });
 
     await deps.db
