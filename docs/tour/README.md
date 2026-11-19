@@ -18,7 +18,7 @@ Step-by-step tours of RepoPulse, one per job, with a real screen for every step.
 | [Decide which rules count](rules.md) | Engineering lead | 3 |
 | [Share status as reports and PDFs](reports.md) | Manager or exec, Security engineer | 3 |
 | [Let a local model review your code](ai-review.md) | Developer, Security engineer, Engineering lead | 4 |
-| [Catch problems on a pull request before it merges](pull-request.md) | Developer, Security engineer, Engineering lead | 7 |
+| [Catch problems on a pull request before it merges](pull-request.md) | Developer, Security engineer, Engineering lead | 8 |
 
 ## By role
 
