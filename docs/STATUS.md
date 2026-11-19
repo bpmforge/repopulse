@@ -4489,3 +4489,6 @@ on the Mac:**
   no longer ranked as "no code", and a first look reads at most one large file so that one
   80 KB file cannot leave room for only 5. Found on saleor. A file above 75 KB is still not
   read by a first look.
+- 2026-11-19 — W27-21 noise read: the undeclared-package rule had 0 hits on gin, saleor and
+  the Repo Pulse copy and 41 on outline, about 36 of them type-only imports. Those are now
+  skipped; the handful of runtime imports of undeclared packages still report.

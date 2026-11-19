@@ -163,6 +163,34 @@ describe('undeclared packages', () => {
     expect(found.map((f) => f.name)).toEqual(['not-optional']);
   });
 
+  it('W27-21: is quiet on type-only imports and still reports the runtime import beside them', () => {
+    const found = run([
+      {
+        path: 'app/components/NavLink.tsx',
+        source: [
+          'import type { LocationDescriptor } from "history";',
+          'import { type match, type RouteComponentProps } from "react-router";',
+          'export type { Location } from "history";',
+          'import {',
+          '  type Transform,',
+          '} from "@dnd-kit/utilities";',
+        ].join('\n'),
+      },
+      {
+        path: 'app/hooks/useActionContext.ts',
+        source: [
+          'import type { Location } from "history";',
+          'import { useHistory, type match } from "react-router";',
+          'import { parsePath } from "history";',
+        ].join('\n'),
+      },
+    ]);
+    expect(found.map((f) => [f.file, f.name, f.line])).toEqual([
+      ['app/hooks/useActionContext.ts', 'react-router', 2],
+      ['app/hooks/useActionContext.ts', 'history', 3],
+    ]);
+  });
+
   it('ignores a specifier that only appears in a comment or a string', () => {
     const found = run([
       {

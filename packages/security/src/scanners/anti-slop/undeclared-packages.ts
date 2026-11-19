@@ -27,6 +27,8 @@ import { CODE, importsOf, lineAt, maskSource } from './source-graph.js';
 //     bare specifiers that name a directory of the project (baseUrl imports)
 //     are never packages somebody forgot to declare;
 //   - a `require` inside a `try` is the optional-dependency idiom.
+//   - a type-only import (`import type`, `export type … from`, `{ type X }`)
+//     is erased at build time, so nothing fails at load (W27-21, outline).
 //
 // Ships in shadow like every in-code rule (shippedRuleStatus in run.ts).
 
@@ -186,6 +188,25 @@ function insideTry(masked: string, index: number): boolean {
 }
 
 /**
+ * True for an import that leaves nothing behind at build time:
+ * `import type … from`, `export type … from`, or a brace list in which every
+ * name is `type X` and there is no default. On outline 36 of 41 hits were
+ * these (types of `history` and `react-router`, which arrive through
+ * react-router-dom): true by the letter, and nothing fails at load.
+ */
+function typeOnly(masked: string, index: number): boolean {
+  const head = masked.slice(index, index + 600);
+  if (/^(import|export)\s+type\b/.test(head)) return true;
+  const m = /^import\s+\{([^}]*)\}\s*from\b/.exec(head);
+  if (!m) return false;
+  const names = (m[1] as string)
+    .split(',')
+    .map((n) => n.trim())
+    .filter(Boolean);
+  return names.length > 0 && names.every((n) => /^type\s+/.test(n));
+}
+
+/**
  * Bare imports of packages no package.json above the file declares.
  *
  * One finding per file and package, at the first import of it.
@@ -265,6 +286,7 @@ export function undeclaredPackages(
       }
       if (aliased) continue;
       if (imp.dynamic && insideTry(text, imp.index)) continue;
+      if (!imp.dynamic && typeOnly(text, imp.index)) continue;
 
       seen.add(name);
       const specAt = file.source.indexOf(specifier, imp.index);

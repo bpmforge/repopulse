@@ -14043,7 +14043,8 @@
       "notes": [
         "2026-11-18 demo PR: require(\"fastcsv-stream-writer-pro\") with no such dependency and a sqlite3 callback query per id in a for-of loop both went unreported; bpm-perf-orm-call-in-loop needs await, and the phantom rules only resolve relative specifiers. SampleCo label D4 (currency-fmt) is the same shape.",
         "Cloud measurements: undeclared packages 0 hits on this repository (1,977 files), 1 hit on SampleCo (the planted one). SQL rule with semgrep 1.186.0: 3 hits on the new triggering fixture, 0 on clean, whole perf pack still 0 on clean.",
-        "A fix draft for slop.undeclared_package is not rescannable yet (patches/target.ts lists the phantom rules only)."
+        "A fix draft for slop.undeclared_package is not rescannable yet (patches/target.ts lists the phantom rules only).",
+        "2026-11-19 noise read on the M4: gin 0, Repo Pulse copy 0, saleor 0, sampleco 1 (the planted one), outline 41. All 41 are true (history, react-router, koa-compose and others arrive through other packages), but about 36 are type-only imports. Type-only imports are now skipped (import type, export type from, a brace list of type names); the runtime ones (useHistory, parsePath, CSS, compose) still report. Recount on outline pending."
       ]
     },
     {
