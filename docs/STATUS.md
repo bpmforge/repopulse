@@ -4453,3 +4453,6 @@ on the Mac:**
 - 2026-11-18 — W27-23 (in progress): with webhooks off, "Sync now" brought a new pull request
   in and nothing scanned it, because only the delta path queued pull request scans. The
   reconcile of one repository (Sync now and the nightly sweep) now queues them too.
+- 2026-11-19 — W27-24 (in progress): a pull request's stored head commit never changed after
+  first sight, so a second push was never scanned or reviewed. The writer now updates head,
+  title, draft state, base and (when stated) size on every listing. Real-install check pending.

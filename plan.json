@@ -14100,6 +14100,32 @@
       "notes": [
         "2026-11-18 real click on Sync now (webhooks off): the pull request appeared within 30 s, and scan_runs had no pr_synced row. Only the delta processor called queuePrScans."
       ]
+    },
+    {
+      "id": "W27-24",
+      "title": "A second push to an open pull request updates its stored head commit",
+      "phase": 27,
+      "module": "ingest",
+      "stories": [],
+      "write_scope": [
+        "packages/ingest/src/backfill/writers.ts",
+        "packages/ingest/src/backfill/review-requests.integration.test.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-23"
+      ],
+      "acceptance": [
+        "upsertPullRequests updates head_sha, title, draft state and base branch on a later listing, and the size when the listing states it",
+        "After a second push the pull request scan and the incremental AI review run on the new head (measured on a real install)"
+      ],
+      "points": 1,
+      "status": "in_progress",
+      "notes": [
+        "2026-11-19 demo: commit 2 pushed to the open pull request; the forge showed the new head, the delta ran (itemsTotal 1) and pull_requests kept the first head, so no scan was queued. The conflict update never set head_sha, on any forge.",
+        "Open: the stored updated_at did not move either in that run although it was in the update set. Possible stale cached listing; to be checked on the Mac. Checks and reviews for the new head are not re-fetched (enriched_at is not reset)."
+      ]
     }
   ]
 }

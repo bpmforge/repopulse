@@ -222,4 +222,52 @@ describeIfLiveInfra('review-request times (W20-24, DSH-41)', () => {
     expect(out.reviewRequests).toBe(0);
     expect(await requestRows()).toHaveLength(2);
   });
+  it('W27-24: a later listing updates the head commit, title, draft state and size', async () => {
+    const number = 9;
+    const first = pr({
+      externalId: `${slug}-pr-9`,
+      number,
+      title: 'Add the report',
+      isDraft: true,
+      headSha: 'head-one',
+      additions: 10,
+      deletions: 1,
+      changedFiles: 2,
+    });
+    await list(first);
+    await list({
+      ...first,
+      title: 'Add the customer report',
+      isDraft: false,
+      headSha: 'head-two',
+      updatedAt: '2026-10-03T00:00:00Z',
+      additions: 25,
+      deletions: 4,
+      changedFiles: 3,
+    });
+    const read = async () =>
+      (
+        await db
+          .select()
+          .from(facts.pullRequests)
+          .where(eq(facts.pullRequests.forgePrId, `${slug}-pr-9`))
+      )[0]!;
+    expect(await read()).toMatchObject({
+      headSha: 'head-two',
+      title: 'Add the customer report',
+      isDraft: false,
+      additions: 25,
+      deletions: 4,
+      changedFiles: 3,
+      updatedAt: new Date('2026-10-03T00:00:00Z'),
+    });
+
+    // A listing that does not state the size (most list endpoints) keeps it.
+    const bare = { ...first, headSha: 'head-three', updatedAt: '2026-10-04T00:00:00Z' } as ForgePR;
+    delete (bare as { additions?: number }).additions;
+    delete (bare as { deletions?: number }).deletions;
+    delete (bare as { changedFiles?: number }).changedFiles;
+    await list(bare);
+    expect(await read()).toMatchObject({ headSha: 'head-three', additions: 25, changedFiles: 3 });
+  });
 });
