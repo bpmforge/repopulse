@@ -145,6 +145,18 @@ export async function upsertPullRequests(
         target: [facts.pullRequests.repoId, facts.pullRequests.number],
         set: {
           state: p.state,
+          // W27-24: what a later push or edit changes. Before this the head
+          // commit stored at first sight was kept for ever, so a second push
+          // to an open pull request was never scanned or reviewed: the scans
+          // and the AI review both start from head_sha.
+          ...(p.headSha ? { headSha: p.headSha } : {}),
+          title: p.title,
+          isDraft: p.isDraft,
+          baseRef: p.baseRef,
+          // List endpoints often omit the size; only a stated one overwrites.
+          ...(p.additions !== undefined ? { additions: p.additions } : {}),
+          ...(p.deletions !== undefined ? { deletions: p.deletions } : {}),
+          ...(p.changedFiles !== undefined ? { changedFiles: p.changedFiles } : {}),
           updatedAt: new Date(p.updatedAt),
           closedAt: p.closedAt ? new Date(p.closedAt) : null,
           mergedAt: p.mergedAt ? new Date(p.mergedAt) : null,

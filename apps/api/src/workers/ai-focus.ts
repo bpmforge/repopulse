@@ -154,7 +154,8 @@ export async function focusFiles(
       and(
         eq(read.codeIndexDefs.workspaceId, key.workspaceId),
         eq(read.codeIndexes.repoId, key.repoId),
-        eq(read.codeIndexDefs.kind, 'function'),
+        // W27-34: methods are sliced like functions.
+        inArray(read.codeIndexDefs.kind, ['function', 'method']),
         inArray(read.codeIndexDefs.path, paths),
       ),
     );

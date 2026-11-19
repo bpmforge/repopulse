@@ -2,7 +2,7 @@ import { and, desc, eq, gte, inArray, isNotNull, sql } from 'drizzle-orm';
 import { facts, isConstraintViolation, read, type Database } from '@repopulse/shared';
 import { passEgress, PASS_ROLES } from '../lib/ai-pass-egress.js';
 import { isAiPaused } from '../lib/ai-pause.js';
-import { FIRST_LOOK_MAX_CALLS } from './ai-pass-processor.js';
+import { firstLookMaxCalls } from './ai-pass-processor.js';
 import { AI_PASS_READABLE } from './ai-pass-sources.js';
 import { isTestPath } from './code-kind.js';
 import { MIN_CALLS_TO_START, monthlyCallsUsed, monthlyCap } from './ai-pass-scheduler.js';
@@ -143,7 +143,7 @@ export async function queueFirstLookAfterScan(
   await deps.enqueue({
     workspaceId: ws,
     runId,
-    maxCalls: Math.min(FIRST_LOOK_MAX_CALLS, remaining),
+    maxCalls: Math.min(firstLookMaxCalls(globalThis.process.env), remaining),
   });
   return { queued: true, runId };
 }
@@ -248,7 +248,9 @@ export async function rankFirstLookPaths(
                 and(
                   eq(read.codeIndexDefs.workspaceId, workspaceId),
                   eq(read.codeIndexes.repoId, repoId),
-                  eq(read.codeIndexDefs.kind, 'function'),
+                  // W27-34: a class's methods are functions too (a file of Django or
+                  // GraphQL mutation classes has no top-level function at all).
+                  inArray(read.codeIndexDefs.kind, ['function', 'method']),
                   inArray(read.codeIndexDefs.path, [...candidates, ...byDefs.map((r) => r.path)]),
                 ),
               )
@@ -277,10 +279,19 @@ export async function rankFirstLookPaths(
 const NOT_RUNTIME =
   /\.(ya?ml)$|(^|\/)(go\.mod|doc\.go)$|(\.pb\.go|_gen\.go|\.generated\.[a-z]+|\.d\.ts)$|(^|\/)(examples?|docs?|scripts)\//;
 
+// W27-33: code a developer runs by hand, not code the product runs. On saleor
+// the first look gave 17 of its 23 findings to core/development/random_data.py
+// (a 2,379-line demo-data script, second by lint volume) and read a database
+// migration, while order and checkout code went unread. Database migrations,
+// seed and demo-data scripts and one-off management commands rank with the
+// non-runtime files: still read when a repository has little else.
+const DEV_TOOLING =
+  /(^|\/)(migrations|alembic\/versions|management\/commands|development|seeds?|seeders?|db\/migrate)\/|(^|\/)(seeds?|seeders?|populate(_?db|_?data)?|random_data|fake_data|sample_data|demo_data|dummy_data)\.[a-z]+$/;
+
 /** 0 production source, 1 config and other non-runtime files, 2 tests. Pure, for tests. */
 export function pathTier(path: string): 0 | 1 | 2 {
   if (isTestPath(path)) return 2;
-  if (NOT_RUNTIME.test(path)) return 1;
+  if (NOT_RUNTIME.test(path) || DEV_TOOLING.test(path)) return 1;
   return 0;
 }
 

@@ -234,6 +234,36 @@
       "note": "db.query per row (N+1)."
     },
     {
+      "id": "perf-sql-callback",
+      "tree": "perf/triggering",
+      "file": "callbacks.js",
+      "lines": [9, 9],
+      "rule": "bpm-perf-sql-call-in-loop",
+      "dimension": "performance",
+      "expect": "finding",
+      "note": "sqlite3 db.get with a callback, once per id (N+1); no await for the ORM rule to see."
+    },
+    {
+      "id": "perf-sql-callback-nested",
+      "tree": "perf/triggering",
+      "file": "callbacks.js",
+      "lines": [10, 10],
+      "rule": "bpm-perf-sql-call-in-loop",
+      "dimension": "performance",
+      "expect": "finding",
+      "note": "Second query nested in the first one's callback, still once per id."
+    },
+    {
+      "id": "perf-sql-foreach",
+      "tree": "perf/triggering",
+      "file": "callbacks.js",
+      "lines": [20, 20],
+      "rule": "bpm-perf-sql-call-in-loop",
+      "dimension": "performance",
+      "expect": "finding",
+      "note": "conn.query with a template-literal UPDATE inside forEach."
+    },
+    {
       "id": "perf-regex",
       "tree": "perf/triggering",
       "file": "app.js",
@@ -1062,6 +1092,16 @@
       "dimension": "sast",
       "expect": "finding",
       "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-go-open-redirect-go-main-52",
+      "tree": "injection/triggering",
+      "file": "go/main.go",
+      "lines": [52, 52],
+      "rule": "bpm-go-open-redirect",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "The same redirect, also reported by the Go pack's open-redirect rule (W27-17): a true hit for both rules, labelled once per rule."
     },
     {
       "id": "inj-inj-redirect-java-java-UserController-57",

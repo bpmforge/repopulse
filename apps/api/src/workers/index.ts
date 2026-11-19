@@ -25,6 +25,7 @@ import { plansVerifyProcessor } from './plans-processor.js';
 import { scanProcessor } from './scan-processor.js';
 import { patchProcessor } from './patch-processor.js';
 import { aiPassProcessor } from './ai-pass-processor.js';
+import { aiPassBootRecoveryOn, recoverAiPassRuns } from './ai-pass-recovery.js';
 import { judgeConfigFromEnv, queueJudgeAfterScan } from './ai-judge.js';
 import {
   firstLookConfigFromEnv,
@@ -93,6 +94,21 @@ import {
   indexSnapshot,
 } from '@repopulse/security';
 import { security } from '@repopulse/shared';
+
+/**
+ * W27-31: why no AI review was queued after a scan, for the reasons that stay
+ * true until an admin changes something.
+ */
+const AI_SKIP_NEEDS_ACTION: Record<string, string | undefined> = {
+  not_opted_in:
+    'a model outside your network is configured and this repository has no enabled AI review schedule. Enable one on the repository (AI review, Schedule) to acknowledge where its code is sent.',
+  routing_changed:
+    'the model routing changed since this repository was opted in. Open its AI review schedule and acknowledge the new destination.',
+  local_only_forbids:
+    'the workspace is set to local models only and the configured model is outside your network.',
+  no_gateway: 'no model is configured for AI review (Settings, Models).',
+  cap_reached: "this month's AI call limit is used up (Settings, AI review).",
+};
 
 /**
  * Products the nightly EOL sync tracks (W10-02).
@@ -224,6 +240,7 @@ async function main(): Promise<void> {
     AI_JUDGE_SCAN_MINUTES: process.env.AI_JUDGE_SCAN_MINUTES,
     AI_JUDGE_FAST_MIN_CONFIDENCE: process.env.AI_JUDGE_FAST_MIN_CONFIDENCE,
     AI_JUDGE_BATCH_SIZE: process.env.AI_JUDGE_BATCH_SIZE,
+    AI_JUDGE_REASONING: process.env.AI_JUDGE_REASONING,
   });
   // W25-01: the first-look pass after a repository's first scan.
   const firstLookConfig = firstLookConfigFromEnv({ AI_FIRST_LOOK: process.env.AI_FIRST_LOOK });
@@ -452,6 +469,10 @@ async function main(): Promise<void> {
           } catch (err) {
             log.warn({ err, repoId }, '[worker] reprice after scan not queued');
           }
+          // A workspace-level scan (rule drafts, repo_id 0) has no repository
+          // to review: queueing a first look for it broke the repos foreign key
+          // on every such scan (seen in the 2026-11-15 worker log).
+          if (repoId <= 0) return;
           // W25-01: the AI's first look for code issues, queued BEFORE the
           // judge so it is ahead of it for the model (it uses the foreground
           // gateway; the judge's calls wait behind every other analysis).
@@ -468,6 +489,13 @@ async function main(): Promise<void> {
             );
             if (looked.queued)
               log.info({ repoId, runId: looked.runId }, '[worker] AI first look queued');
+            else if (AI_SKIP_NEEDS_ACTION[looked.code] !== undefined)
+              // W27-31: a skip only an admin can undo is said at info, in
+              // words. At debug nothing anywhere told them why no AI review ran.
+              log.info(
+                { repoId, code: looked.code },
+                `[worker] AI first look not queued: ${AI_SKIP_NEEDS_ACTION[looked.code]}`,
+              );
             else log.debug({ repoId, code: looked.code }, '[worker] AI first look not queued');
           } catch (err) {
             log.warn({ err, repoId }, '[worker] AI first look after scan not queued');
@@ -1687,6 +1715,24 @@ async function main(): Promise<void> {
   const schedulerOn = (process.env.AI_PASS_SCHEDULER ?? 'on') !== 'off';
   const tickMs = Number(process.env.AI_PASS_SCHEDULER_TICK_MS ?? SCHEDULER_TICK_MS);
   const aiPassQueue = createQueue(QUEUE.aiPass, connection);
+
+  // W27-22: passes a stopped worker left `running` or `pending`. Best effort:
+  // a failed sweep must not stop the worker from booting.
+  if (aiPassBootRecoveryOn(process.env)) {
+    try {
+      const recovered = await recoverAiPassRuns({
+        db,
+        enqueue: async (data, bootId) => {
+          await aiPassQueue.add('ai.pass', data, { jobId: `ai-pass-${data.runId}-boot-${bootId}` });
+        },
+      });
+      log.info(
+        `[worker] ai pass recovery on boot: closed ${recovered.interrupted.length} interrupted, requeued ${recovered.requeued.length} pending`,
+      );
+    } catch (err) {
+      log.warn({ err }, '[worker] ai pass recovery on boot failed');
+    }
+  }
   let schedulerRunning = false;
   const schedulerTimer = schedulerOn
     ? setInterval(() => {

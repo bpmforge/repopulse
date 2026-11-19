@@ -51,6 +51,11 @@ describe('extractDiff', () => {
     expect(extractDiff('Here you go:\n```diff\n' + GOOD + '\n```\n')).toBe(GOOD + '\n');
     expect(extractDiff(GOOD)).toBe(GOOD);
   });
+  it('W27-28: reads the JSON answer when it is itself inside a fence', () => {
+    const json = JSON.stringify({ diff: GOOD });
+    expect(extractDiff('```json\n' + json + '\n```')).toBe(GOOD);
+    expect(extractDiff('Here is the fix:\n```\n' + json + '\n```\nDone.')).toBe(GOOD);
+  });
 });
 
 describe('parseUnifiedDiff — shape gate', () => {
@@ -72,6 +77,25 @@ describe('parseUnifiedDiff — shape gate', () => {
     expect(code(() => parseUnifiedDiff('please apply my fix'))).toBe('malformed');
     expect(code(() => parseUnifiedDiff(GOOD.replace(' function run', '*function run')))).toBe(
       'malformed',
+    );
+  });
+
+  it('W27-25: reads a column-0 context line written without its leading space', () => {
+    const unprefixed = [
+      `--- a/${FILE}`,
+      `+++ b/${FILE}`,
+      '@@ -3,3 +3,3 @@',
+      'function run(cmd) {',
+      '-  return eval(cmd);',
+      '+  return JSON.parse(cmd);',
+      '}',
+    ].join('\n');
+    const applied = validateAndApply({ modelText: unprefixed, file: FILE, source: SOURCE });
+    expect(applied.after).toBe(SOURCE.replace('eval(cmd)', 'JSON.parse(cmd)'));
+    // Not taken on trust: an unprefixed line that is not the file's text is refused.
+    const wrong = unprefixed.replace(/\}$/, 'end');
+    expect(code(() => validateAndApply({ modelText: wrong, file: FILE, source: SOURCE }))).toBe(
+      'does_not_apply',
     );
   });
 

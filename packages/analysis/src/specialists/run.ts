@@ -16,7 +16,7 @@ import {
   COMBINED_QUICK_CHUNK_TOKENS,
   splitByDimension,
 } from './combined.js';
-import { fileAreas, planWaves, type Plan } from './planner.js';
+import { fileAreas, planWaves, securityPriority, type Plan } from './planner.js';
 import type { Specialist, SpecialistId } from './registry.js';
 import { toCombinedDiffFiles, toDiffFiles, toDiffFilesFor, type ReviewInput } from './units.js';
 
@@ -52,6 +52,12 @@ export interface SpecialistRunDeps {
    * (6-14 min a call on gin, and it found an open redirect 'low' missed).
    */
   securityReasoning?: 'low' | 'medium' | 'full';
+  /**
+   * W27-16: how much the first look's quick group (every area but security)
+   * reasons. 'none' (the default) answers in seconds; measured on gin
+   * (2026-11-18) it returned an empty list for every call.
+   */
+  quickReasoning?: 'none' | 'low';
 }
 
 export interface SpecialistFinding extends Finding {
@@ -373,7 +379,13 @@ async function runCombined(
   maxCalls: number,
   deps: SpecialistRunDeps,
 ): Promise<SpecialistRunResult> {
-  const planned: Specialist[] = plan.waves.flatMap((w) => w.specialists.map((p) => p.specialist));
+  const planned: Specialist[] = plan.waves
+    .flatMap((w) => w.specialists.map((p) => p.specialist))
+    // A whole-repository first look reads slices of ranked files, never the
+    // tests beside them, so the test-coverage checklist can only say "no test
+    // in this change" (4 of 9 quick findings on gin, 2026-11-18, all wrong).
+    // Test gaps are the mechanical test-gap scanner's job there.
+    .filter((s) => input.kind === 'diff' || s.id !== 'test_coverage');
   if (planned.length === 0) return result;
   result.combinedLead = planned[0]!.id;
   const plannedIds = new Set(planned.map((s) => s.id));
@@ -398,7 +410,7 @@ async function runCombined(
       ? [
           {
             members: rest,
-            reasoning: 'none' as const,
+            reasoning: deps.quickReasoning ?? ('none' as const),
             chunkTokens: COMBINED_QUICK_CHUNK_TOKENS,
             cap: () => Math.min(maxCalls, quickCap),
           },
@@ -479,6 +491,12 @@ async function runCombinedGroup(
   }
   for (const f of files) {
     if (!sent.has(f.path)) outOfArea.push({ path: f.path, reason: 'other_area' });
+  }
+  // Security alone, with fewer calls than files: the code with the most
+  // dangerous sinks and inputs goes first (stable, so ties keep rank order).
+  if (planned.length === 1 && lead.id === 'security') {
+    const score = new Map(sendable.map((f) => [f.path, securityPriority(f.patch)]));
+    sendable.sort((a, b) => (score.get(b.path) ?? 0) - (score.get(a.path) ?? 0));
   }
   const chunked = chunkDiff(sendable, lead.dimension, combinedBudget(base, planned, chunkTokens));
   const chunks = chunked.chunks;

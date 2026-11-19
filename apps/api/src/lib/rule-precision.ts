@@ -152,6 +152,7 @@ export const SHIPPED_SHADOW_RULES: readonly string[] = [
   'slop.unused_export',
   'slop.phantom_symbol',
   'slop.phantom_module',
+  'slop.undeclared_package',
 ];
 
 /**

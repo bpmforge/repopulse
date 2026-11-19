@@ -3,7 +3,13 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Queue } from 'bullmq';
 import { auditLog, core, read, security, type Database } from '@repopulse/shared';
 import { getScanner, isUpToDate, listScanners, type ScanProbe } from '@repopulse/security';
-import { QUEUE, createQueue, createRedisConnection, type QueueName } from '@repopulse/ingest';
+import {
+  QUEUE,
+  createQueue,
+  createRedisConnection,
+  type DeltaJobData,
+  type QueueName,
+} from '@repopulse/ingest';
 import { requireAdmin } from '../../lib/rbac.js';
 import { sendProblem } from '../../lib/problem.js';
 import { startableScannerKeys } from '../../lib/startable-scanners.js';
@@ -63,6 +69,15 @@ function fail(
  * coarse that someone who has actually fixed their configuration has to wait to
  * try again. Five minutes is about the length of "did that work?".
  */
+/** What "Sync now" pulls: every kind the delta processor re-lists by cursor. */
+export const MANUAL_SYNC_KINDS = [
+  'push_commits',
+  'pull_requests',
+  'issues',
+  'releases',
+  'deployments',
+] as const satisfies readonly DeltaJobData['kind'][];
+
 export function runWindowKey(nowMs: number): string {
   return String(Math.floor(nowMs / (5 * 60_000)));
 }
@@ -355,14 +370,31 @@ export default async function runRoutes(
         );
       }
 
-      const jobId = `delta-manual-${repoId}-${runWindowKey(Date.now())}`;
-      const started = (await queue.getJob(jobId)) === undefined;
-      if (started) {
+      // One delta per kind the processor can pull by cursor. Until 2026-11-18
+      // this queued a single job with no `kind`, which the delta processor
+      // skipped in 7 ms: the button answered "started" and nothing was
+      // synced, so on a connection without webhooks a new pull request only
+      // appeared at the nightly reconcile.
+      const repoFullName = `${repo.org}/${repo.name}`;
+      const window = runWindowKey(Date.now());
+      let started = false;
+      for (const kind of MANUAL_SYNC_KINDS) {
+        const jobId = `delta-manual-${repoId}-${kind}-${window}`;
+        if ((await queue.getJob(jobId)) !== undefined) continue;
         await queue.add(
           'manual',
-          { workspaceId, repoId, trigger: 'manual', requestId: request.id, requestedBy: userId },
+          {
+            workspaceId,
+            repoId,
+            repo: repoFullName,
+            kind,
+            trigger: 'manual',
+            requestId: request.id,
+            requestedBy: userId,
+          },
           { jobId },
         );
+        started = true;
       }
 
       auditLog(request.log, {

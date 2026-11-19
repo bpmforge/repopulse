@@ -46,8 +46,38 @@ rules:
       yields: ['rce']
     patterns:
       - pattern-either:
-          - pattern: $CP.exec($CMD, ...)
-          - pattern: $CP.execSync($CMD, ...)
+          # `$CP.exec(...)` only when $CP is child_process in this file. Measured
+          # on Repo Pulse's own code (2026-11-18): 16 of 16 hits of the bare
+          # `$CP.exec($CMD)` shape were `/regex/.exec(text.slice(i, j + 1))`,
+          # a RegExp's exec with arithmetic somewhere in the argument, and the
+          # judge spent its budget dismissing them.
+          - patterns:
+              - pattern-either:
+                  - pattern-inside: |
+                      import * as $CP from $MOD;
+                      ...
+                  - pattern-inside: |
+                      import $CP from $MOD;
+                      ...
+                  - pattern-inside: |
+                      const $CP = require($MOD);
+                      ...
+                  - pattern-inside: |
+                      $CP = require($MOD);
+                      ...
+              - metavariable-regex:
+                  metavariable: $MOD
+                  regex: ^['"]?(node:)?child_process['"]?$
+              - pattern-either:
+                  - pattern: $CP.exec($CMD, ...)
+                  - pattern: $CP.execSync($CMD, ...)
+          - patterns:
+              - pattern-either:
+                  - pattern: require($MOD).exec($CMD, ...)
+                  - pattern: require($MOD).execSync($CMD, ...)
+              - metavariable-regex:
+                  metavariable: $MOD
+                  regex: ^['"]?(node:)?child_process['"]?$
           # exec/execSync taken out of child_process by name. The engine
           # usually resolves a bare `exec` to the module already, but saying
           # so keeps the rule from depending on that; the import has to be in

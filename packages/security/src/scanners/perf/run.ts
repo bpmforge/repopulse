@@ -179,7 +179,10 @@ export async function runPerfScan(deps: PerfRunDeps): Promise<PerfRunResult> {
       // W20-08 (UX_TODO FND-58): a pass over the tree closes the N+1 that was
       // fixed. It saved with no reviewed files, so nothing ever closed.
       ...(deps.trigger === 'pr_synced'
-        ? {}
+        ? // W27-30: a pull request run closes what that pull request introduced.
+          deps.pullRequestId != null && (pack.toolErrors ?? []).length === 0
+          ? { prSweep: {} }
+          : {}
         : fullRunSweep(
             pack,
             perf.map((f) => f.file),

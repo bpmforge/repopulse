@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { and, eq, inArray } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { core, createDb, read, security, type Database } from '@repopulse/shared';
+import { core, createDb, facts, read, security, type Database } from '@repopulse/shared';
 import {
   falsePositiveRate,
   persistFindings,
@@ -260,5 +260,78 @@ describeIfLiveInfra('persistFindings full-run sweep (W20-08)', () => {
       .from(read.findings)
       .where(eq(read.findings.repoId, repoId));
     expect(row).toEqual({ rationale: 'Why it applies.', recommendation: 'Do the fix.' });
+  });
+  it('W27-30: a pull request run closes what that pull request introduced and no longer has', async () => {
+    await clean();
+    await db
+      .insert(core.identities)
+      .values({ workspaceId, provider: 'github', forgeLogin: 'w27-30-dev', displayName: 'Dev' })
+      .onConflictDoNothing();
+    const [author] = await db
+      .select({ id: core.identities.id })
+      .from(core.identities)
+      .where(
+        and(
+          eq(core.identities.workspaceId, workspaceId),
+          eq(core.identities.forgeLogin, 'w27-30-dev'),
+        ),
+      )
+      .limit(1);
+    const pr = async (number: number) => {
+      const [row] = await db
+        .insert(facts.pullRequests)
+        .values({
+          workspaceId,
+          repoId,
+          number,
+          forgePrId: `w27-30-pr-${number}`,
+          title: 'pr',
+          authorIdentityId: author!.id,
+          additions: 1,
+          deletions: 0,
+          changedFiles: 1,
+          state: 'open',
+          isDraft: false,
+          isBot: false,
+          createdAt: new Date('2026-11-18T00:00:00Z'),
+          updatedAt: new Date('2026-11-18T00:00:00Z'),
+          baseRef: 'main',
+          headSha: `head-${number}`,
+        })
+        .onConflictDoUpdate({
+          target: [facts.pullRequests.repoId, facts.pullRequests.number],
+          set: { title: 'pr' },
+        })
+        .returning({ id: facts.pullRequests.id });
+      return row!.id;
+    };
+    const mine = await pr(9101);
+    const other = await pr(9102);
+
+    // On the default branch, on another pull request, and two on this one.
+    await run([hit('src/main.js', 'r.base')]);
+    await run([hit('src/other.js', 'r.other')], { pullRequestId: other });
+    await run([hit('src/report.js', 'r.sql'), hit('src/report.js', 'r.catch')], {
+      pullRequestId: mine,
+    });
+
+    // The next push fixed r.sql; r.catch is on a file the run failed to read.
+    const second = await run([], {
+      pullRequestId: mine,
+      prSweep: { keepOpen: (row) => row.ruleId === 'r.catch' },
+    });
+    expect(second.autoResolved).toBe(1);
+    expect(await statusOf('src/report.js', 'r.sql')).toBe('resolved');
+    expect(await statusOf('src/report.js', 'r.catch')).toBe('open');
+    expect(await statusOf('src/other.js', 'r.other')).toBe('open');
+    expect(await statusOf('src/main.js', 'r.base')).toBe('open');
+
+    // Without prSweep a pull request run closes nothing, as before.
+    const third = await run([], { pullRequestId: mine });
+    expect(third.autoResolved).toBe(0);
+    expect(await statusOf('src/report.js', 'r.catch')).toBe('open');
+
+    await clean();
+    await db.delete(facts.pullRequests).where(inArray(facts.pullRequests.id, [mine, other]));
   });
 });

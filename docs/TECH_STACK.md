@@ -308,3 +308,21 @@ Result: `osv-scanner scan source --lockfile=pnpm-lock.yaml` reports no issues.
 4. Security advisories override: patch immediately on any branch, backfill the paperwork.
 5. shadcn/ui components are vendored — "upgrading" a component is a diff-reviewed re-copy,
    never a blind regeneration.
+
+## 2026-11-18 advisory refresh (W27-15)
+
+`pnpm audit` on main reported 13 advisories (osv-scanner in `ci-local`: 21). Patch-level fixes only:
+
+- vite ^6.4.3 → ^6.4.6 (apps/web; five advisories, one High, fixed in 6.4.4).
+- vitest ^4.1.11 → ^4.1.12 (root + apps/web; two @vitest/mocker advisories).
+- Overrides for transitive packages: `fast-uri@3` ^3.1.9, `fast-uri@4` ^4.2.3 (fastify's
+  compilers, @fastify/swagger), `seroval@1` ^1.6.12 (@tanstack/router-core), and zod ^4.6.7
+  under `@tanstack/router-generator` / `@tanstack/router-plugin` only (build-time).
+
+Left open, each needs a decision rather than a patch bump:
+
+- **zod 3.25.76, High, GHSA-mrhx-c7xc-m3w5** (memory exhaustion validating oversized constrained
+  collections; fixed only in zod ≥4.6.6). zod 3.x is brief-fixed and
+  `fastify-type-provider-zod@4` needs it. Fastify's body limit bounds the input size today.
+- glob 11.1.0 (moderate) inside the vendored `@bpmforge/lodestone` tarball: fix in Lodestone.
+- minimatch 10.2.5 (moderate, fixed only in 11) under typescript-eslint: lint-time only.

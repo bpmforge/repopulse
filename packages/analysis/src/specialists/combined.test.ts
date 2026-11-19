@@ -10,7 +10,7 @@ import {
   combinedChecklists,
   splitByDimension,
 } from './combined.js';
-import { fileAreas } from './planner.js';
+import { fileAreas, securityPriority } from './planner.js';
 import { SPECIALISTS, specialistById } from './registry.js';
 import { runSpecialists } from './run.js';
 import type { ReviewInput } from './units.js';
@@ -207,6 +207,41 @@ describe('runSpecialists({ combined: true })', () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]!.prompt).toContain('src/a.ts');
     expect(r.leftForBudget).toEqual(['src/b.ts', 'src/c.ts']);
+  });
+
+  it('a whole-repository first look does not ask the test-coverage checklist; a diff does', async () => {
+    const { gateway } = scripted(() => '{"findings":[]}');
+    const whole = await runSpecialists(one, { gateway, prTitle: 'First look', meta, combined: true });
+    expect(Object.keys(whole.usage)).not.toContain('test_coverage');
+    expect(Object.keys(whole.usage)).toContain('code_health');
+    const diff = await runSpecialists(
+      { kind: 'diff', files: [{ path: 'src/users.ts', patch: SOURCE.replace(/^/gm, '+') }] },
+      { gateway, prTitle: 'PR', meta, combined: true },
+    );
+    expect(Object.keys(diff.usage)).toContain('test_coverage');
+  });
+
+  it('security reads the code with the strongest signals first when calls run short', async () => {
+    // Rank order puts the plain file first; the redirect handler is last.
+    const pad = (body: string) => `${body}\n${'// filler line of code\n'.repeat(1500)}`;
+    const files = [
+      { path: 'src/plain.ts', content: pad('export function open(path: string) { return path; }') },
+      {
+        path: 'src/redirect.ts',
+        content: pad(
+          'export function go(req, res) { const token = req.query.token; res.redirect(req.query.next); }',
+        ),
+      },
+    ];
+    expect(securityPriority(files[1]!.content)).toBeGreaterThan(securityPriority(files[0]!.content));
+    const { gateway, calls } = scripted(() => '{"findings":[]}');
+    await runSpecialists(
+      { kind: 'module', name: 'm', files },
+      { gateway, prTitle: 'First look', meta, combined: true, only: ['security'], maxCalls: 1 },
+    );
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.prompt).toContain('src/redirect.ts');
+    expect(calls[0]!.prompt).not.toContain('src/plain.ts');
   });
 
   it('retries a malformed answer once, then a reasoning-only answer once', async () => {

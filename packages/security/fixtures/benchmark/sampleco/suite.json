@@ -56,7 +56,7 @@
       "lines": [2, 2],
       "dimension": "slop",
       "expect": "finding",
-      "note": "Phantom import of an uninstalled package (currency-fmt) via require. No rule claims bare packages; slop.phantom_module resolves relative specifiers only."
+      "note": "Phantom import of an uninstalled package (currency-fmt) via require. Found by slop.undeclared_package since W27-21 (no package.json above the file declares it); before that no rule claimed bare packages."
     },
     {
       "id": "D5a",

@@ -504,7 +504,12 @@ async function scanSnapshot(
     }
 
     await step(SEMGREP_SCANNER_KEY, () =>
-      runners.semgrep({ ...forge, prNumber: target.prNumber, scoped }),
+      runners.semgrep({
+        ...forge,
+        prNumber: target.prNumber,
+        pullRequestId: target.pullRequestId,
+        scoped,
+      }),
     );
 
     await step(ANTI_SLOP_SCANNER_KEY, () => {

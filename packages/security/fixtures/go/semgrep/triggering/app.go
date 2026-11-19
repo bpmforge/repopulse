@@ -60,3 +60,19 @@ func ServeTLS(h http.Handler) error {
 	srv := &http.Server{Addr: ":8443", Handler: h}
 	return srv.ListenAndServeTLS("cert.pem", "key.pem")
 }
+
+// The gin shape: the request's own path, "fixed" and sent back as a redirect.
+// A request for //evil.example/ is redirected to //evil.example.
+func RedirectTrailingSlash(w http.ResponseWriter, req *http.Request) {
+	p := req.URL.Path
+	if len(p) > 1 && p[len(p)-1] == '/' {
+		req.URL.Path = p[:len(p)-1]
+	}
+	target := req.URL.String()
+	http.Redirect(w, req, target, http.StatusMovedPermanently)
+}
+
+func AfterLogin(w http.ResponseWriter, req *http.Request) {
+	next := req.URL.Query().Get("next")
+	http.Redirect(w, req, next, http.StatusFound)
+}

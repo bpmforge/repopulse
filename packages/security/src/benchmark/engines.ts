@@ -9,6 +9,11 @@ import {
   PHANTOM_SYMBOL_RULE_ID,
   phantomRefs,
 } from '../scanners/anti-slop/phantom-refs.js';
+import {
+  UNDECLARED_PACKAGE_RULE_ID,
+  readPackageManifests,
+  undeclaredPackages,
+} from '../scanners/anti-slop/undeclared-packages.js';
 import { runCodeHealthTools } from '../scanners/code-health/tools.js';
 import { scanPatch } from '../scanners/secrets/detect.js';
 import { loadRulepack } from '../scanners/secrets/rulepack.js';
@@ -35,6 +40,7 @@ export const FAST_LANE_SLOP_RULES = [
   UNUSED_EXPORT_RULE_ID,
   PHANTOM_SYMBOL_RULE_ID,
   PHANTOM_MODULE_RULE_ID,
+  UNDECLARED_PACKAGE_RULE_ID,
 ] as const;
 
 export function fastLaneRules(): Map<string, string> {
@@ -90,6 +96,10 @@ export function runFastLane(tree: Tree): BenchFinding[] {
   for (const f of unusedExports(sources)) push(f.ruleId, 'slop', f.file, f.line);
   // complete: true — the corpus tree is read whole, with no cap to hit.
   for (const f of phantomRefs(sources, { complete: true })) push(f.ruleId, 'slop', f.file, f.line);
+  // W27-21: the manifests come from the tree on disk, as in a real scan.
+  for (const f of undeclaredPackages(sources, readPackageManifests(tree.dir))) {
+    push(f.ruleId, 'slop', f.file, f.line);
+  }
 
   const pack = loadRulepack();
   for (const s of sources) {

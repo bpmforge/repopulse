@@ -79,6 +79,47 @@ rules:
           # The ORM surfaces this codebase and its customers actually use.
           regex: ^(query|execute|findUnique|findFirst|findMany|select|insert|update|delete|raw|get|all|one)$
 
+  - id: bpm-perf-sql-call-in-loop
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      A SQL statement sent from inside a loop, once per item. N items means N
+      round trips (a nested callback query makes it two per item). One query
+      with IN (...) or a join returns the same rows in one trip.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    # The rule above needs `await`, so it never saw callback-style drivers
+    # (sqlite3 `db.get(sql, params, cb)`, mysql `conn.query(sql, cb)`), where
+    # the loop body returns at once and the queries pile up behind it (W27-21:
+    # the seeded N+1 in the 2026-11-18 demo pull request went unreported).
+    # What keeps this one honest without `await` is the first argument: a
+    # string or template literal that IS a SQL statement. Map.get(key) and
+    # every other namesake takes no such argument.
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              for (...) { ... }
+          - pattern-inside: |
+              while (...) { ... }
+          - pattern-inside: $ITEMS.forEach(...)
+          - pattern-inside: $ITEMS.map(...)
+      - pattern: $DB.$M($SQL, ...)
+      # The literal's own text, opening quote included: a string or a template
+      # that starts with a whole SQL verb phrase. `update the label` is not one.
+      - metavariable-regex:
+          metavariable: $SQL
+          regex: (?is)^["'`]\s*(select\s.+\sfrom\s|insert\s+into\s|update\s+\S+\s+set\s|delete\s+from\s)
+      - metavariable-regex:
+          metavariable: $M
+          regex: ^(query|execute|exec|get|all|run|each|raw|prepare|one|many|any|oneOrNone|manyOrNone)$
+      # An awaited call is the rule above's finding; two findings for one line
+      # are two triage decisions for one problem.
+      - pattern-not-inside: await $DB.$M(...)
+      # A bounded batch is the fix, not the defect (same reasoning as above).
+      - pattern-not-inside: Promise.all(...)
   - id: bpm-perf-await-in-loop
     languages: [javascript, typescript]
     severity: INFO

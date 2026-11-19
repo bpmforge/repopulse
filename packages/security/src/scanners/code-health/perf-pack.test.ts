@@ -109,6 +109,8 @@ describeIfScanImage('perf pack golden set', () => {
       'bpm-perf-pop-front-in-loop-py',
       'bpm-perf-regex-compile-in-loop',
       'bpm-perf-regex-compile-in-loop-py',
+      // fixtures/perf/triggering/callbacks.js: callback-style drivers (W27-21).
+      'bpm-perf-sql-call-in-loop',
       'bpm-perf-string-concat-in-loop',
       'bpm-perf-string-concat-in-loop-py',
       'bpm-perf-sync-io-in-async',

@@ -24,6 +24,9 @@ import {
   triageReserveFor,
   AI_PASS_MAX_CALLS,
   FIRST_LOOK_MAX_CALLS,
+  firstLookMaxCalls,
+  reviewReasoning,
+  firstLookQuickReasoning,
   firstLookSecurityReasoning,
   type AiPassDeps,
   type AiPassJobData,
@@ -1089,7 +1092,23 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
     it('FIRST_LOOK_SECURITY_REASONING picks low, medium or full (W27-11)', () => {
       expect(firstLookSecurityReasoning({})).toBe('low');
       expect(firstLookSecurityReasoning({ FIRST_LOOK_SECURITY_REASONING: ' Full ' })).toBe('full');
-      expect(firstLookSecurityReasoning({ FIRST_LOOK_SECURITY_REASONING: 'medium' })).toBe('medium');
+      expect(firstLookSecurityReasoning({ FIRST_LOOK_SECURITY_REASONING: 'medium' })).toBe(
+        'medium',
+      );
+      // W27-16: the quick areas' reasoning and the call budget are settings too.
+      expect(firstLookQuickReasoning({})).toBe('none');
+      expect(firstLookQuickReasoning({ FIRST_LOOK_QUICK_REASONING: 'Low' })).toBe('low');
+      expect(firstLookQuickReasoning({ FIRST_LOOK_QUICK_REASONING: 'full' })).toBe('none');
+      // W27-26: pull request and folder reviews; never none.
+      expect(reviewReasoning({})).toBe('full');
+      expect(reviewReasoning({ AI_REVIEW_REASONING: ' Medium ' })).toBe('medium');
+      expect(reviewReasoning({ AI_REVIEW_REASONING: 'low' })).toBe('low');
+      expect(reviewReasoning({ AI_REVIEW_REASONING: 'none' })).toBe('full');
+      expect(firstLookMaxCalls({})).toBe(FIRST_LOOK_MAX_CALLS);
+      expect(firstLookMaxCalls({ FIRST_LOOK_CALLS: '9' })).toBe(9);
+      for (const bad of ['0', '31', '2.5', 'many']) {
+        expect(firstLookMaxCalls({ FIRST_LOOK_CALLS: bad })).toBe(FIRST_LOOK_MAX_CALLS);
+      }
       expect(firstLookSecurityReasoning({ FIRST_LOOK_SECURITY_REASONING: 'high' })).toBe('low');
     });
 
@@ -2186,6 +2205,45 @@ describe('rankPaths (W25-01)', () => {
     ]) {
       expect(pathTier(p), p).toBe(0);
     }
+  });
+
+  it('W27-33: seed scripts, migrations and management commands rank below production source', () => {
+    for (const p of [
+      'saleor/core/development/random_data.py',
+      'saleor/app/migrations/0027_set_identifier_when_missing.py',
+      'saleor/core/management/commands/populatedb.py',
+      'db/migrate/20240101000000_add_users.rb',
+      'alembic/versions/ab12_add_table.py',
+      'prisma/seed.ts',
+      'scripts-dev/populate_db.py',
+      'src/seeders/users.js',
+    ]) {
+      expect(pathTier(p), p).toBe(1);
+    }
+    for (const p of [
+      'saleor/order/actions.py',
+      'saleor/payment/utils.py',
+      'src/seedling/grow.ts',
+      'app/services/migration_planner.rb',
+      'src/populate_cache.py',
+    ]) {
+      expect(pathTier(p), p).toBe(0);
+    }
+    // Lint volume no longer puts the demo-data script ahead of shop code.
+    expect(
+      rankPaths(
+        [
+          { path: 'saleor/core/development/random_data.py', weight: 77 },
+          { path: 'saleor/order/actions.py', weight: 73 },
+          { path: 'saleor/payment/utils.py', weight: 57 },
+        ],
+        [],
+      ),
+    ).toEqual([
+      'saleor/order/actions.py',
+      'saleor/payment/utils.py',
+      'saleor/core/development/random_data.py',
+    ]);
   });
 
   it('stops at the limit', () => {

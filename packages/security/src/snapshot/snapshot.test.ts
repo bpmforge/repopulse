@@ -253,7 +253,11 @@ describe('shred and the sweeper (NFR-13)', () => {
       const dir = fs.mkdtempSync(require('node:path').join(${JSON.stringify(root)}, 'snap-'));
       fs.writeFileSync(dir + '/source.ts', 'const customerCode = 1;');
       process.stdout.write(dir);
-      try { setInterval(() => {}, 1000); } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+      // The cleanup a normal exit would run. (It used to sit in a \`finally\`
+      // after setInterval, which returns at once, so the directory was removed
+      // right after the write and the test raced the kill.)
+      process.on('exit', () => fs.rmSync(dir, { recursive: true, force: true }));
+      setInterval(() => {}, 1000);
     `;
     const child = spawn(process.execPath, ['-e', script], { stdio: ['ignore', 'pipe', 'ignore'] });
     const dir = await new Promise<string>((resolve) => {

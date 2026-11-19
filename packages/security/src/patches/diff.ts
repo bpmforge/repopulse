@@ -61,20 +61,31 @@ export class PatchRejectedError extends Error {
  */
 export function extractDiff(modelText: string): string {
   const trimmed = modelText.trim();
-  if (trimmed.startsWith('{')) {
-    try {
-      const parsed = JSON.parse(trimmed) as unknown;
-      if (parsed && typeof parsed === 'object' && 'diff' in parsed) {
-        const diff = (parsed as { diff: unknown }).diff;
-        if (typeof diff === 'string') return diff;
-      }
-    } catch {
-      // Fall through: not JSON after all.
-    }
+  const direct = diffFromJson(trimmed);
+  if (direct !== null) return direct;
+  const fenced = /```[A-Za-z]*[^\n]*\n([\s\S]*?)```/.exec(trimmed);
+  if (fenced?.[1] !== undefined) {
+    // W27-28: the JSON answer itself inside a fence (```json {"diff": ...} ```),
+    // which hosted models do by habit. Before this the JSON text was read as
+    // the diff and refused as malformed.
+    return diffFromJson(fenced[1].trim()) ?? fenced[1];
   }
-  const fenced = /```(?:diff|patch)?[^\n]*\n([\s\S]*?)```/.exec(trimmed);
-  if (fenced?.[1] !== undefined) return fenced[1];
   return trimmed;
+}
+
+/** The `diff` string of a `{"diff": "..."}` answer, or null when `text` is not one. */
+function diffFromJson(text: string): string | null {
+  if (!text.startsWith('{')) return null;
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    if (parsed && typeof parsed === 'object' && 'diff' in parsed) {
+      const diff = (parsed as { diff: unknown }).diff;
+      if (typeof diff === 'string') return diff;
+    }
+  } catch {
+    // Not JSON after all.
+  }
+  return null;
 }
 
 function stripPrefix(raw: string): string {
@@ -84,6 +95,13 @@ function stripPrefix(raw: string): string {
 }
 
 const HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
+
+/**
+ * An unprefixed line inside a hunk that can be source text starting in column
+ * 0: a letter, an underscore or dollar, a bracket, a quote or a slash. A star,
+ * a hash or other punctuation is not read this way.
+ */
+const UNPREFIXED_CONTEXT = /^[A-Za-z_$(){}[\]'"`/]/;
 
 /**
  * Parses a single-file unified diff.
@@ -168,6 +186,13 @@ export function parseUnifiedDiff(text: string): ParsedDiff {
       current.lines.push({ kind: ' ', text: '' });
     } else if (kind === ' ' || kind === '-' || kind === '+') {
       current.lines.push({ kind, text: line.slice(1) });
+    } else if (UNPREFIXED_CONTEXT.test(line)) {
+      // W27-25: a context line that starts in column 0 (`}`, `module.exports`)
+      // written without its leading space, which local models do often enough
+      // to lose an otherwise valid fix. Read as the context line it claims to
+      // be; nothing is taken on trust, because applyPatch only accepts a hunk
+      // whose context matches the file's own text.
+      current.lines.push({ kind: ' ', text: line });
     } else {
       throw new PatchRejectedError('malformed', `Unrecognised diff line: ${line.slice(0, 80)}`);
     }

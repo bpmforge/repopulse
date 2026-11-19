@@ -252,3 +252,70 @@ rules:
               $S := &http.Server{...}
               ...
               $S.ReadTimeout = $T
+
+  # 2026-11-18. gin's own open redirect (a request for `//evil.example/` is
+  # redirected to the "fixed" path, which a browser reads as another host) was
+  # missed by the model on every real run, including one that read the
+  # function. The shape is mechanical: the request's own URL, or a parameter,
+  # reaches a redirect.
+  - id: bpm-go-open-redirect
+    mode: taint
+    languages: [go]
+    severity: WARNING
+    message: >-
+      Request data decides where the user is redirected. A link to your own
+      domain can then send visitors to another site: a path that starts with
+      `//` or `/\` is read by browsers as a host. Redirect only to a path that
+      starts with a single `/` followed by something other than `/` or `\`, or
+      to an allowlisted host.
+    metadata:
+      category: security
+      cwe: "CWE-601: URL Redirection to Untrusted Site ('Open Redirect')"
+      owasp: 'A01:2021 Broken Access Control'
+      yields: ['open-redirect']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - '*_test.go'
+        - 'examples/'
+        - '_examples/'
+        - 'example/'
+        - 'testdata/'
+    pattern-sources:
+      # net/http: the request's own URL and its parameters.
+      - pattern: $R.URL.Path
+      - pattern: $R.URL.RawPath
+      - pattern: $R.URL.RawQuery
+      - pattern: $R.URL.String()
+      - pattern: $R.URL.RequestURI()
+      - pattern: $R.URL.EscapedPath()
+      - pattern: $R.RequestURI
+      - pattern: $R.URL.Query().Get(...)
+      - pattern: $R.FormValue(...)
+      - pattern: $R.PostFormValue(...)
+      - pattern: $R.Referer()
+      - pattern: $R.Header.Get(...)
+      # gin, echo, fiber, chi style contexts.
+      - pattern: $C.Query(...)
+      - pattern: $C.DefaultQuery(...)
+      - pattern: $C.QueryParam(...)
+      - pattern: $C.PostForm(...)
+      - pattern: $C.Param(...)
+      - pattern: $C.GetHeader(...)
+      - pattern: chi.URLParam(...)
+    pattern-sanitizers:
+      - pattern: strconv.Atoi(...)
+      - pattern: strconv.ParseInt(...)
+      - pattern: url.QueryEscape(...)
+      - pattern: url.PathEscape(...)
+      - pattern: isSafeRedirect(...)
+      - pattern: safeRedirect(...)
+      - pattern: isLocalRedirect(...)
+    pattern-sinks:
+      - patterns:
+          - pattern: http.Redirect($W, $REQ, $X, ...)
+          - focus-metavariable: $X
+      - patterns:
+          - pattern: $C.Redirect($CODE, $X)
+          - focus-metavariable: $X

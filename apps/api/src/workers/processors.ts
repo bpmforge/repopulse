@@ -611,7 +611,41 @@ export function reconcileProcessor(deps: ProcessorDeps) {
       { db: deps.db, provider: resolved.provider },
       { workspaceId: data.workspaceId, repoId: data.repoId, repo: resolved.repoFullName },
     );
-    return { counts };
+    // W27-23: a pull request this reconcile brought in (webhooks off, or one
+    // missed) gets its pattern scan, as it would have from the delta. Without
+    // this "Sync now" showed the pull request and nothing ever scanned it.
+    // Idempotent (one job per unscanned open head) and best-effort, like the
+    // delta's: a queue hiccup must not fail the reconcile.
+    // W27-29: and the stream scanners (secrets, sensitive change, slopsquat)
+    // for the same unscanned heads. Without them the pull request's head never
+    // counted as fully scanned and the CI check answered "not fully scanned
+    // yet" for ever. Before the pattern scans, as in the delta. Best-effort too.
+    let secrets:
+      | Awaited<ReturnType<NonNullable<ProcessorDeps['runSecretsStream']>>>
+      | { error: string }
+      | undefined;
+    if (deps.runSecretsStream) {
+      try {
+        secrets = await deps.runSecretsStream({
+          workspaceId: data.workspaceId,
+          repoId: data.repoId,
+          repo: resolved.repoFullName,
+          provider: resolved.provider,
+          trigger: 'pr_synced',
+        });
+      } catch (err) {
+        secrets = { error: err instanceof Error ? err.message : String(err) };
+      }
+    }
+    let prScans: { queued: number; deferred: number } | { error: string } | undefined;
+    if (deps.queuePrScans) {
+      try {
+        prScans = await deps.queuePrScans(data.workspaceId, data.repoId);
+      } catch (err) {
+        prScans = { error: err instanceof Error ? err.message : String(err) };
+      }
+    }
+    return { counts, ...(secrets ? { secrets } : {}), ...(prScans ? { prScans } : {}) };
   };
 }
 

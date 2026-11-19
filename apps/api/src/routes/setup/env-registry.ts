@@ -478,6 +478,16 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     secret: true,
   },
   {
+    name: 'AI_PASS_BOOT_RECOVERY',
+    scope: 'worker',
+    required: false,
+    purpose:
+      "When the worker starts, close AI passes a stopped worker left 'running' (marked interrupted, in words) and queue 'pending' ones again (W27-22). Without it such a pass reads as running for ever and blocks the repository's next one.",
+    ifWrong:
+      "Set to 'off' when more than one worker runs: a starting worker cannot tell another worker's live pass from an orphan and would close it. With 'off' on a single worker, a pass cut short by a restart stays 'running' until someone cancels it.",
+    default: 'on',
+  },
+  {
     name: 'AI_PASS_SCHEDULER',
     scope: 'worker',
     required: false,
@@ -555,6 +565,56 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     ifWrong:
       "Off and a local reasoning model spends minutes thinking on each yes/no verdict, so CVE checks and the judge take hours on a one-slot host; on and a model whose verdicts need long reasoning may judge less carefully (compare on your model before relying on it).",
     default: 'on',
+  },
+  {
+    name: 'FIRST_LOOK_SECURITY_REASONING',
+    scope: 'worker',
+    required: false,
+    purpose:
+      "How much the first look's security review reasons: `low`, `medium` or `full` (the model's default, unbounded). The other first-look areas always answer quickly.",
+    ifWrong:
+      'Low is fast (about 2 to 3 minutes a call on a local 27B model) and can miss an issue that needs a long chain of reasoning; full found more on gin but took 6 to 14 minutes a call, so the first look reads fewer files in its call budget.',
+    default: 'low',
+  },
+  {
+    name: 'FIRST_LOOK_QUICK_REASONING',
+    scope: 'worker',
+    required: false,
+    purpose:
+      "How much the first look's areas other than security (performance, code health, best practices, tests, AI slop) reason: `none` or `low` (W27-16).",
+    ifWrong:
+      'None answers in seconds but a local 27B model returned an empty list on every such call on gin (2026-11-18), so those calls cost prompt time for nothing; low finds more and takes minutes a call.',
+    default: 'none',
+  },
+  {
+    name: 'FIRST_LOOK_CALLS',
+    scope: 'worker',
+    required: false,
+    purpose:
+      'Most model calls one first look makes, 1 to 30 (W27-16). At most half go to the quick areas; security gets the rest, about 8,000 tokens of code a call.',
+    ifWrong:
+      "Too low and the security review stops after the first one or two large files (on gin, 7 calls read 2 of 11 picked files and 12 read all 11); too high and a repository's first AI result takes longer on a one-slot local model. Outside 1-30 the default is used.",
+    default: '12',
+  },
+  {
+    name: 'AI_JUDGE_REASONING',
+    scope: 'worker',
+    required: false,
+    purpose:
+      "How much the AI judge reasons on each verdict over rule hits: `full` (the model's default, unbounded), `medium` or `low` (W27-17). Applies to local models that take a reasoning effort.",
+    ifWrong:
+      "Full is the measured default: a local 27B model can think for 5 to 16 minutes on one call, so a 30-minute run judges a handful of hits. Lower settings answer faster but are not yet measured for verdict quality; with no reasoning at all the judge dismissed every uncertain hit (W27-06), which is why 'none' is not offered.",
+    default: 'full',
+  },
+  {
+    name: 'AI_REVIEW_REASONING',
+    scope: 'worker',
+    required: false,
+    purpose:
+      "How much the model reasons on each area call of a pull request, commit-range or folder review: `full` (the model's default, unbounded), `medium` or `low` (W27-26). Applies to local models that take a reasoning effort. The first look after a scan has its own settings.",
+    ifWrong:
+      'Full is the measured default: on a local 27B model a 3-file pull request took 6 calls and 44 minutes, and found every planted problem. Lower settings answer faster but are not yet measured for what they miss.',
+    default: 'full',
   },
   {
     name: 'AI_JUDGE_BATCH_SIZE',

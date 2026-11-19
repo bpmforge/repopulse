@@ -4388,3 +4388,120 @@ on the Mac:**
   (they missed anti-slop, supply chain and end-of-life, so gin read 44 in a report and 48 on
   screen); finished AI passes show run time and wait time; anti-slop sends 10 candidates per
   call (25 timed out on a local 27B). Mac A/B on gin's redirect slice: low found it in 82 s.
+- 2026-11-18 — W27-14: goals review, fixes from the 2026-11-08 real runs. A workspace-level
+  scan (repo_id 0) no longer tries to queue a first look or a judge run (it broke the repos
+  foreign key on every rule-draft scan). `bpm-js-child-process-concat` now needs the receiver
+  of `.exec`/`.execSync` to be child_process in that file: on Repo Pulse's own code 16 of 16
+  hits were a RegExp's `exec`, and they were 13 of the judge's 17 false positives. A first
+  look's security calls read the code with the most dangerous sinks and inputs first
+  (securityPriority) instead of findings-and-churn order: on gin they stopped after 2 of 11
+  files and missed the open redirect. The SIGKILL snapshot test raced its own cleanup (a
+  `finally` after setInterval); fixed. ci-local on f46c562 (M5): 10 of 13 steps, 6,145 tests
+  pass; open: osv-scanner reports 21 dependency advisories (zod, vite and others).
+- 2026-11-18 — W27-15: dependency advisories. vite 6.4.6, vitest 4.1.12, and overrides for
+  fast-uri, seroval and the router plugin's zod take `pnpm audit` from 13 advisories to 3. Open:
+  zod 3.25.76 (High, fixed only in zod 4, which is a brief-fixed major), glob inside the
+  vendored Lodestone, minimatch under typescript-eslint. See docs/TECH_STACK.md.
+- 2026-11-18 — W27-16: settings to measure AI speed against depth. gin on the M4 (ef2f71b),
+  per call: the judge sends no reasoning effort (one batch 960 s, 17,922 output tokens); the
+  first look's quick calls answer an empty list in 6 tokens after 70-103 s of prompt
+  processing; security at low takes 66-125 s a call, read 2 of 11 picked files in its 4 calls
+  and missed the open redirect. New: AI_JUDGE_REASONING (full/medium/low),
+  FIRST_LOOK_QUICK_REASONING (none/low), FIRST_LOOK_CALLS (1-30); defaults unchanged until
+  measured. FIRST_LOOK_SECURITY_REASONING was in CONFIG.md but not in the env registry; it is
+  now. (An earlier W27-16, a fallback for hosts ignoring reasoning none, was reverted: the
+  LM Studio warning is cosmetic and none is honoured.)
+- 2026-11-18 — W27-16 measured on gin (M4, abe3bfc, calls 12, security low, quick low): security
+  read all 11 picked files in 7 calls (122-349 s each; 3 real low-severity findings, 2 false,
+  open redirect still missed); the quick group at low took 24 min for 9 findings (4 trivial, 4
+  test-coverage noise, 1 unclear), so it stays at none. Defaults now: FIRST_LOOK_CALLS 12, and
+  a whole-repository first look no longer asks the test-coverage checklist (it cannot see the
+  tests; every such finding was "no test in this diff"). AI_JUDGE_REASONING was read by the
+  processor but not passed from the worker's env; fixed, still to be measured.
+- 2026-11-18 — W27-17 (in progress): `bpm-go-open-redirect`, a shadow taint rule from the
+  request's own URL or a parameter to `http.Redirect` / a context `Redirect`. The model
+  missed gin's open redirect on every real run, including one that read the function, so the
+  shape goes to a rule. Fixtures pass in the cloud; gin measurement on the Mac pending.
+- 2026-11-18 — W27-17 done: on the Mac (opengrep 1.27.1) `bpm-go-open-redirect` hits both
+  fixtures and exactly one place in gin, gin.go:859, the redirect the model kept missing.
+- 2026-11-18 — W27-18: "Sync now" did nothing. The route queued one delta job with no kind
+  and no repository name, which the processor skipped in 7 ms while the API answered
+  "started". It now queues one delta per kind (commits, pull requests, issues, releases,
+  deployments). Found by the demo run: a new pull request never appeared without webhooks.
+- 2026-11-18 — W27-19 (verified on the M4 2026-11-19): AI review of a Gitea pull request never worked. Gitea's
+  `pulls/{n}/files` has no patch text, so every such pass failed with "none of the changed
+  files came with a complete patch", and the commit-range fallback failed because pull
+  request head commits are not ingested. The Gitea provider now reads `pulls/{n}.diff` on the
+  scan lane and gives each file its hunks. Contract tests pass; the real-Gitea run is pending.
+- 2026-11-18 — W27-20 (verified on the M4 2026-11-19): the rule engine's pull request findings were written
+  with no pull request id, so the pull request page showed fewer findings than the CI API for
+  the same head (1 against 2 in the demo). They are now tagged like the other PR scanners'.
+- 2026-11-18 — W27-18 correction: the dead route was the API-only `POST /repos/:id/sync`.
+  The admin page's "Sync now" button calls `POST /repos/:id/sync-now`, which queues a
+  reconcile and was not affected.
+- 2026-11-18 — W27-21 (verified on the M4 2026-11-19): two problems seeded in the demo pull request were
+  reported by nothing. New shadow rule `slop.undeclared_package`: an import or require of a
+  package that no package.json above the file declares (0 hits on this repository, finds
+  SampleCo's `currency-fmt`). New shadow rule `bpm-perf-sql-call-in-loop`: a SQL string sent
+  from inside a loop without `await` (callback drivers such as sqlite3), which the awaited
+  rule could not see. The real-install check on the Mac is pending.
+- 2026-11-18 — W27-22: an AI pass cut short by a worker restart stayed "running" for ever
+  (the queue redelivered the job, the processor refused it as already started), and blocked
+  the repository's judge run. Found when the M4's container host went down mid first look.
+  At boot the worker now closes such passes as interrupted and queues pending ones again.
+  `AI_PASS_BOOT_RECOVERY=off` for installs with more than one worker.
+- 2026-11-18 — W27-23 (verified on the M4 2026-11-19): with webhooks off, "Sync now" brought a new pull request
+  in and nothing scanned it, because only the delta path queued pull request scans. The
+  reconcile of one repository (Sync now and the nightly sweep) now queues them too.
+- 2026-11-19 — W27-24 (verified on the M4 2026-11-19): a pull request's stored head commit never changed after
+  first sight, so a second push was never scanned or reviewed. The writer now updates head,
+  title, draft state, base and (when stated) size on every listing. Real-install check pending.
+- 2026-11-19 — W27-25: a drafted fix was rejected as malformed because the model wrote a
+  column-0 context line (`}`) without its leading space. Such a line is now read as context;
+  the hunk still has to match the file's own text to be accepted.
+- 2026-11-19 — W27-26: `AI_REVIEW_REASONING` (full, medium, low) for pull request and folder
+  reviews. The demo's 3-file pull request review took about 44 minutes on the local model at
+  default reasoning; the first-look settings did not reach it. Default stays full until the
+  lower settings are measured.
+- 2026-11-19 — W27-27 (todo, found on the M4): with the Claude Code CLI backend, the API
+  container (Alpine) cannot run the CLI binary the worker (Debian) runs, so Settings shows a
+  false "the two containers disagree" and Test connection cannot pass. Reviews are unaffected.
+- 2026-11-19 — W27-28: a fix answer wrapped in a json code fence is read (Haiku does this).
+- 2026-11-19 — W27-29 (verified on the M4 2026-11-19): a reconcile (Sync now, nightly) also runs the secrets,
+  sensitive-change and slopsquat stream for pull request heads, so the CI check no longer
+  answers "not fully scanned yet" for ever on a pull request that arrived that way.
+- 2026-11-19 — W27-30 (verified on the M4 2026-11-19): a rule finding first raised on a pull request and fixed
+  by its next push stayed open. Pull request runs of the rule engine, the performance pack
+  and the anti-slop pack now close what that pull request introduced and no longer has.
+- 2026-11-19 — W27-31: the worker logs, at info and in words, why no AI review was queued
+  when the cause needs an admin (not opted in to a hosted model, routing changed, local-only,
+  no model, monthly limit). The UI does not show it yet.
+- 2026-11-19 — W27-32 (todo, found on the M4): with a hosted model the first look and the
+  CVE second opinion need two separate permissions (a review schedule, Tier 3), and neither
+  is visible. On Haiku the CVE check was refused for gin until Tier 3 was turned on; then
+  8 of 8 confirmed, 8 to 26 s per call. The Claude Code CLI runner also ignores the
+  reasoning settings.
+- 2026-11-19 — W27-33 (verified on the M4 2026-11-19): the first look ranks database migrations, seed and
+  demo-data scripts and management commands below production source. On saleor it had given
+  17 of 23 findings to a demo-data script. Still open: one large file can take most of the
+  first look's 150 KB budget.
+- 2026-11-19 — W27-34 (verified on the M4 2026-11-19): a file of class methods (Django, GraphQL mutations) is
+  no longer ranked as "no code", and a first look reads at most one large file so that one
+  80 KB file cannot leave room for only 5. Found on saleor. A file above 75 KB is still not
+  read by a first look.
+- 2026-11-19 — W27-21 noise read: the undeclared-package rule had 0 hits on gin, saleor and
+  the Repo Pulse copy and 41 on outline, about 36 of them type-only imports. Those are now
+  skipped; the handful of runtime imports of undeclared packages still report.
+- 2026-11-19 — M4 confirmation at 11931a1 (Haiku through the Claude Code CLI): saleor's first
+  look reads order/actions.py first and no development or migrations file (3 min, 10 calls);
+  gin reads the same 11 files as before. Sync now alone runs all 7 pull request scanners and
+  the CI check answers exit 1 with 2 new findings (W27-29). A second push closes the fixed SQL
+  and empty-catch findings (W27-30). 5 of 5 fixes verified (W27-28).
+- 2026-11-19 — W27-35 (todo, found on the M4): the CI check refuses a short commit id with a
+  message that prints two identical ids, and passes a pull request that has a severity 4
+  finding from a shadow rule without saying it was left out.
+- 2026-11-19 — ci-local on c5e21ed (M5): 11 of 13 steps, 6,175 tests pass, 1 fails (main:
+  10 of 13, 6,145 pass). The failure was new: the rule-fixtures floor counted 4 false
+  positives from this branch's own fixtures (a redirect line two rules both report, and
+  interpolated SQL in the new performance fixtures). Fixed in the fixtures and labels. The
+  other failing step is the dependency audit (zod, minimatch, glob), as on main.

@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -83,4 +84,18 @@ func DeleteMany(db *sql.DB, ids []any) error {
 	ph := strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",")
 	_, err := db.Exec("delete from users where id in ("+strings.Join(strings.Split(ph, ","), ",")+")", ids...)
 	return err
+}
+
+// Redirects to a constant, and to an id that was parsed to a number.
+func AfterLogout(w http.ResponseWriter, req *http.Request) {
+	http.Redirect(w, req, "/login", http.StatusFound)
+}
+
+func ShowOrder(w http.ResponseWriter, req *http.Request) {
+	id, err := strconv.Atoi(req.URL.Query().Get("id"))
+	if err != nil {
+		http.Error(w, "bad id", http.StatusBadRequest)
+		return
+	}
+	http.Redirect(w, req, "/orders/"+strconv.Itoa(id), http.StatusFound)
 }

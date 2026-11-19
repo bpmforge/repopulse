@@ -85,6 +85,7 @@ describe('judgeConfigFromEnv', () => {
       scanMinutes: 30,
       fastMinConfidence: 0.8,
       batchSize: 4,
+      reasoning: 'full',
     });
   });
   it("reads 'off' and whole minutes, and ignores nonsense", () => {
@@ -102,7 +103,14 @@ describe('judgeConfigFromEnv', () => {
       scanMinutes: 30,
       fastMinConfidence: 0.6,
       batchSize: 1,
+      reasoning: 'full',
     });
+    // W27-17: low or medium only; 'none' is not offered (it dismissed uncertain hits).
+    expect(judgeConfigFromEnv({ AI_JUDGE_REASONING: 'Low' }).reasoning).toBe('low');
+    expect(judgeConfigFromEnv({ AI_JUDGE_REASONING: 'medium' }).reasoning).toBe('medium');
+    for (const bad of ['none', 'off', 'high', '']) {
+      expect(judgeConfigFromEnv({ AI_JUDGE_REASONING: bad }).reasoning).toBe('full');
+    }
     expect(judgeConfigFromEnv({ AI_JUDGE_MINUTES_PER_DAY: '5000' }).minutesPerDay).toBe(240);
     for (const bad of ['0', '1.5', 'high', '-1']) {
       expect(judgeConfigFromEnv({ AI_JUDGE_FAST_MIN_CONFIDENCE: bad }).fastMinConfidence).toBe(0.8);
@@ -171,6 +179,8 @@ function scripted(
   /** W22-14: hits asked by each call (1 = a single-hit call) and the prompt version. */
   const hits: number[] = [];
   const versions: string[] = [];
+  /** W27-17: the reasoning effort each call asked for (undefined = the model's own). */
+  const efforts: (string | undefined)[] = [];
   const answerFor = (text: string, role: string) => {
     const flagged = /Flagged lines: (\d+)-/.exec(text)?.[1] ?? '1';
     const line = new RegExp(`^\\s*${flagged}\\| (.*)$`, 'm').exec(text)?.[1] ?? '';
@@ -193,6 +203,7 @@ function scripted(
       prompts.push(prompt);
       roles.push(role);
       versions.push(o.meta.checklistVersion);
+      efforts.push(o.reasoning);
       opts.onCall?.(role);
       expect(['triage', 'triage_fast']).toContain(role);
       expect(o.meta.initiator).toBe('ai-judge');
@@ -267,7 +278,7 @@ function scripted(
       return { ok: true };
     },
   };
-  return { gateway, prompts, roles, hits, versions };
+  return { gateway, prompts, roles, hits, versions, efforts };
 }
 
 describeIfLiveInfra('the AI judge after a scan (W22-03)', () => {
@@ -1178,6 +1189,21 @@ describeIfLiveInfra('the AI judge after a scan (W22-03)', () => {
       db.select().from(read.aiTriageVerdicts).where(eq(read.aiTriageVerdicts.findingId, id));
     const judgeOf = async (runId: number) =>
       ((await runOf(runId)).plan as { judge: JudgeSummary }).judge;
+
+    it('AI_JUDGE_REASONING bounds the judge; the default sends no effort (W27-17)', async () => {
+      await ruleHit({ effectiveRisk: '90', title: 'Bounded' });
+      const config = { ...CFG, reasoning: 'low' as const };
+      const gw = scripted();
+      const { runId } = await queue({ config });
+      await processor(gw, { config })(job(runId!));
+      expect(gw.efforts).toEqual(['low']);
+      await clear();
+      await ruleHit({ effectiveRisk: '90', title: 'Unbounded' });
+      const plain = scripted();
+      const q2 = await queue();
+      await processor(plain)(job(q2.runId!));
+      expect(plain.efforts).toEqual([undefined]);
+    });
 
     it('batch size 1 makes exactly the calls of one hit per call', async () => {
       const ids: number[] = [];

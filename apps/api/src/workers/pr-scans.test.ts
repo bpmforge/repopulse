@@ -16,9 +16,10 @@ vi.mock('./forge-provider.js', () => ({
 vi.mock('@repopulse/ingest', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@repopulse/ingest')>()),
   processDeltaJob: async () => ({ applied: 1 }),
+  reconcileRepo: async () => ({ pull_requests: 1 }),
 }));
 
-const { deltaProcessor } = await import('./processors.js');
+const { deltaProcessor, reconcileProcessor } = await import('./processors.js');
 
 const queue = {} as Queue;
 const deltaDeps = (
@@ -31,6 +32,55 @@ const deltaDeps = (
   enrichQueue: queue,
   reconcileQueue: queue,
   queuePrScans,
+});
+
+describe('a reconcile queues the pattern scanners too (W27-23)', () => {
+  const job = { name: 'repo', data: { workspaceId: 7, repoId: 42 } } as unknown as Job;
+
+  it('asks for PR scans after reconciling one repository (Sync now, or the nightly sweep)', async () => {
+    const asked: [number, number][] = [];
+    const run = reconcileProcessor(
+      deltaDeps(async (ws, repo) => {
+        asked.push([ws, repo]);
+        return { queued: 1, deferred: 0 };
+      }) as never,
+    );
+    const result = await run(job);
+    expect(asked).toEqual([[7, 42]]);
+    expect(result).toEqual({
+      counts: { pull_requests: 1 },
+      prScans: { queued: 1, deferred: 0 },
+    });
+  });
+
+  it('W27-29: runs the stream scanners for the pull request heads first', async () => {
+    const order: string[] = [];
+    const run = reconcileProcessor({
+      ...deltaDeps(async () => {
+        order.push('pr-scans');
+        return { queued: 1, deferred: 0 };
+      }),
+      runSecretsStream: async (req: { trigger: string; repo: string }) => {
+        order.push(`stream:${req.trigger}:${req.repo}`);
+        return { scanned: [], findingsCreated: 0, deferred: 0 };
+      },
+    } as never);
+    const result = (await run(job)) as { secrets?: unknown };
+    expect(order).toEqual(['stream:pr_synced:acme/app', 'pr-scans']);
+    expect(result.secrets).toEqual({ scanned: [], findingsCreated: 0, deferred: 0 });
+  });
+
+  it('a queue failure is reported, not thrown: the reconcile still succeeds', async () => {
+    const run = reconcileProcessor(
+      deltaDeps(async () => {
+        throw new Error('redis is away');
+      }) as never,
+    );
+    expect(await run(job)).toEqual({
+      counts: { pull_requests: 1 },
+      prScans: { error: 'redis is away' },
+    });
+  });
 });
 
 describe('a PR delta queues the pattern scanners (W21-02)', () => {

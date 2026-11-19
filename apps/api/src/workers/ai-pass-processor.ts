@@ -97,7 +97,9 @@ export const AI_PASS_MAX_CALLS = 30;
  */
 // W27-10: 7 = up to 4 quick combined calls (~30-40 s each) + 3 security
 // calls with reasoning low. gin on dca89b5 with 4 calls, all security: 66 min.
-export const FIRST_LOOK_MAX_CALLS = 7;
+// 12 since 2026-11-18: on gin (M4, 27B) 7 calls let security read 2 of its 11
+// picked files; 12 read all 11 for about 9 more minutes.
+export const FIRST_LOOK_MAX_CALLS = 12;
 export const FIRST_LOOK_MAX_FILES = 15;
 export const FIRST_LOOK_MAX_BYTES = 150_000;
 
@@ -111,6 +113,35 @@ export function firstLookSecurityReasoning(
 ): 'low' | 'medium' | 'full' {
   const v = (env.FIRST_LOOK_SECURITY_REASONING ?? '').trim().toLowerCase();
   return v === 'medium' || v === 'full' ? v : 'low';
+}
+
+/**
+ * W27-16: FIRST_LOOK_QUICK_REASONING = none (default) | low, for the first
+ * look's areas other than security.
+ */
+export function firstLookQuickReasoning(env: Record<string, string | undefined>): 'none' | 'low' {
+  return (env.FIRST_LOOK_QUICK_REASONING ?? '').trim().toLowerCase() === 'low' ? 'low' : 'none';
+}
+
+/**
+ * W27-26: AI_REVIEW_REASONING = full (default) | medium | low, for the area
+ * calls of a pull request, commit-range or folder review. Measured on a
+ * 3-file pull request with the local 27B at full: 6 calls of 79 to 604 s,
+ * 44 minutes, and all six planted problems found. Lower is faster and not yet
+ * measured for quality, so full stays the default. Never none: with no
+ * reasoning the first look found nothing (W27-06).
+ */
+export function reviewReasoning(
+  env: Record<string, string | undefined>,
+): 'full' | 'medium' | 'low' {
+  const v = (env.AI_REVIEW_REASONING ?? '').trim().toLowerCase();
+  return v === 'medium' || v === 'low' ? v : 'full';
+}
+
+/** W27-16: FIRST_LOOK_CALLS = 1 to 30 model calls for a first look (default FIRST_LOOK_MAX_CALLS). */
+export function firstLookMaxCalls(env: Record<string, string | undefined>): number {
+  const n = Number((env.FIRST_LOOK_CALLS ?? '').trim());
+  return Number.isInteger(n) && n >= 1 && n <= AI_PASS_MAX_CALLS ? n : FIRST_LOOK_MAX_CALLS;
 }
 
 export interface AiPassJobData {
@@ -749,13 +780,33 @@ export function aiPassProcessor(deps: AiPassDeps) {
       // W27-04: a first look triages no rule hits (they are the judge's), so its
       // whole cap goes to reading code.
       const triageReserve = triageReserveFor(run, maxCalls);
+      // W27-26: a review that is not a first look reasons as much as
+      // AI_REVIEW_REASONING says (a call that sets its own effort keeps it).
+      const effort = firstLook ? 'full' : reviewReasoning(globalThis.process.env);
+      const reviewGateway: typeof wg.gateway =
+        effort === 'full'
+          ? wg.gateway
+          : {
+              ...wg.gateway,
+              complete: (prompt, opts) =>
+                wg.gateway.complete(
+                  prompt,
+                  opts.reasoning !== undefined ? opts : { ...opts, reasoning: effort },
+                ),
+            };
       const spec = await runSpecialists(input, {
-        gateway: wg.gateway,
+        gateway: reviewGateway,
         contextWindowFor: window,
         // W27-05: a first look is one combined review per chunk, small budget.
-        maxCalls: firstLook ? Math.min(FIRST_LOOK_MAX_CALLS, maxCalls) : maxCalls - triageReserve,
+        maxCalls: firstLook
+          ? Math.min(firstLookMaxCalls(globalThis.process.env), maxCalls)
+          : maxCalls - triageReserve,
         ...(firstLook
-          ? { combined: true, securityReasoning: firstLookSecurityReasoning(globalThis.process.env) }
+          ? {
+              combined: true,
+              securityReasoning: firstLookSecurityReasoning(globalThis.process.env),
+              quickReasoning: firstLookQuickReasoning(globalThis.process.env),
+            }
           : {}),
         prTitle: promptTitle,
         meta: { repoId: String(run.repoId), prNumber: 0, initiator: 'ai-pass' },

@@ -64,6 +64,24 @@ export function fileAreas(path: string, text?: string | null): Set<SpecialistId>
 const SECURITY_SIGNAL =
   /\b(req|request|params|query|body|headers?|cookies?|session|token|passw(or)?d|secret|api_?key|auth\w*|login|jwt|oauth|crypto|cipher|hash\w*|encrypt|decrypt|hmac|random|exec\w*|spawn|eval|system|shell|subprocess|popen|sql|select|insert|update|delete|readFile\w*|writeFile\w*|unlink|open|fs|path|fetch|http\w*|url|redirect|upload|socket|deserializ\w*|unmarshal|pickle|yaml|innerHTML|dangerouslySetInnerHTML|template|render|permission|role|admin|acl|cors|csrf|tls|ssl|cert\w*)\b/i;
 
+// What a security review should read FIRST when its calls will not reach every
+// file: code that takes outside input to a dangerous place. Narrow on purpose,
+// unlike SECURITY_SIGNAL (which matches almost any handler).
+const SECURITY_STRONG_SIGNAL =
+  /\b(redirect\w*|exec\w*|spawn\w*|eval|system|popen|subprocess|shell\w*|deserializ\w*|unmarshal\w*|pickle|innerHTML|dangerouslySetInnerHTML|passw(or)?d|secret\w*|api_?key|jwt|token\w*|hmac|encrypt\w*|decrypt\w*|cipher\w*|md5|sha1|csrf|cors|sql|raw_?query|readFile\w*|writeFile\w*|sendFile|serveFile|filepath|upload\w*|set_?cookie|x-forwarded-\w+|authoriz\w*|authenticat\w*|permission\w*|is_?admin)\b/gi;
+
+/**
+ * How much a slice of code offers a security review: the number of strong
+ * signals in it (capped, so one huge file does not always win). The first
+ * look's security calls read the highest first: on gin (2026-11-08, c702608)
+ * security's calls ended after 2 of 11 picked files in findings-and-churn
+ * order, and the known open redirect was in one of the 9 it never read.
+ */
+export function securityPriority(text: string | null | undefined): number {
+  if (!text) return 0;
+  return Math.min(50, text.match(SECURITY_STRONG_SIGNAL)?.length ?? 0);
+}
+
 /**
  * W27-08: whether a slice of code has anything for performance or security to
  * read (the same signals fileAreas uses per file). Other areas have no signal.

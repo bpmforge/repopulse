@@ -142,6 +142,24 @@ export interface PersistParams {
    * scanner's findings on the same files.
    */
   fullSweep?: FullSweep;
+  /**
+   * W27-30: a pull request run may close what THIS pull request introduced.
+   *
+   * A diff-scoped run passes no `reviewedFiles` (it has not seen the
+   * repository), so before this a finding first raised on a pull request and
+   * fixed by its next push stayed open for good. Rows stamped with this run's
+   * `pullRequestId` are different: they exist on no other branch, the run
+   * scanned the pull request's files at its new head, and it did not report
+   * them. Those close, as `outdated_diff`.
+   *
+   * Honoured only with a `pullRequestId` and a `sweepScannerKey`. Nothing
+   * else is touched: not another pull request's rows, not the default
+   * branch's, not another scanner's.
+   */
+  prSweep?: {
+    /** Rows this run could not have reproduced (a file it failed on, a judgement). */
+    keepOpen?: (row: { ruleId: string | null; file: string | null }) => boolean;
+  };
 }
 
 export interface FullSweep {
@@ -490,6 +508,48 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
         reason: decision.reason,
         // W20-21 (FND-51): WHICH scan stopped seeing it, so the history can
         // name its commit and date.
+        scanRunId: params.scanRunId ?? null,
+      });
+      result.autoResolved += 1;
+    }
+  }
+
+  // W27-30: what this pull request introduced and this run no longer reports.
+  if (
+    params.prSweep !== undefined &&
+    params.pullRequestId !== null &&
+    params.sweepScannerKey !== undefined &&
+    params.sweepScannerKey !== null
+  ) {
+    const seenKeys = new Set(deduped.map((k) => k.key));
+    const own = await db
+      .select()
+      .from(read.findings)
+      .where(
+        and(
+          eq(read.findings.workspaceId, params.workspaceId),
+          eq(read.findings.repoId, params.repoId),
+          eq(read.findings.pullRequestId, params.pullRequestId),
+          eq(read.findings.scannerKey, params.sweepScannerKey),
+          inArray(read.findings.status, ['open', 'confirmed']),
+        ),
+      );
+    for (const row of own) {
+      if (seenKeys.has(row.dedupKey)) continue;
+      if (params.prSweep.keepOpen?.({ ruleId: row.ruleId, file: row.file })) continue;
+      const decision = autoResolveOutdated(row.status as FindingStatus);
+      if (!decision) continue;
+      await db
+        .update(read.findings)
+        .set({ status: decision.next, statusChangedAt: now })
+        .where(eq(read.findings.id, row.id));
+      await db.insert(read.findingEvents).values({
+        workspaceId: params.workspaceId,
+        findingId: row.id,
+        fromStatus: row.status,
+        toStatus: decision.next,
+        actor: null,
+        reason: decision.reason,
         scanRunId: params.scanRunId ?? null,
       });
       result.autoResolved += 1;

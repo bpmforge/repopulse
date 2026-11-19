@@ -13821,6 +13821,610 @@
       "notes": [
         "2026-11-08 tour capture on :8399: header/list health gin 48, repopulse 46, saleor 45 vs exec report 44/50/44 (report missed slop/supply-chain/EOL inputs); pass rows showed only the queued time; repopulse anti-slop: 25 candidates (~10.4k tokens) hit the 1,200 s timeout."
       ]
+    },
+    {
+      "id": "W27-14",
+      "title": "Goals review fixes: no first look for workspace scans, command-injection rule needs child_process, security reads the riskiest code first",
+      "phase": 27,
+      "module": "analysis",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers/index.ts",
+        "packages/analysis/src/specialists",
+        "packages/security/rulepacks/semgrep/bpm-baseline.v1.yaml",
+        "packages/security/fixtures/rule-gaps",
+        "packages/security/src/snapshot/snapshot.test.ts",
+        ".gitleaksignore",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-13"
+      ],
+      "acceptance": [
+        "A workspace-level scan (repo_id 0) queues no first look and no judge run",
+        "bpm-js-child-process-concat fires on .exec/.execSync only when the receiver is child_process in that file; a RegExp's exec is not a hit",
+        "A first look's security calls read the files with the most dangerous sinks and inputs first",
+        "The SIGKILL snapshot test no longer races its own cleanup; the ledger's upstream commit id is in .gitleaksignore"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "2026-11-18 review of the 2026-11-08 real runs (rpw26, c702608): the worker logged a repos foreign key violation after each rule_draft_pass scan; on Repo Pulse's own code 13 of the judge's 17 false positives were this rule on RegExp.exec (16 of 16 hits false, measured in the cloud with semgrep 1.186.0); gin's security calls stopped after 2 of 11 picked files and missed the known open redirect. ci-local on f46c562: 1 flaky test (snapshot SIGKILL), 1 gitleaks false positive."
+      ]
+    },
+    {
+      "id": "W27-15",
+      "title": "Dependency advisory refresh: vite, vitest, fast-uri, seroval patched; zod 3 advisory recorded for a decision",
+      "phase": 27,
+      "module": "shared",
+      "stories": [],
+      "write_scope": [
+        "package.json",
+        "apps/web/package.json",
+        "pnpm-lock.yaml",
+        "docs/TECH_STACK.md",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-14"
+      ],
+      "acceptance": [
+        "pnpm audit reports no advisory that a patch-level bump or override fixes",
+        "The advisories left open (zod 3, glob in Lodestone, minimatch under typescript-eslint) are recorded in docs/TECH_STACK.md with why"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "2026-11-18: pnpm audit 13 advisories -> 3 (zod 3.25.76 High GHSA-mrhx-c7xc-m3w5 fixed only in zod 4; glob 11.1.0 in the vendored Lodestone; minimatch 10 under typescript-eslint)."
+      ]
+    },
+    {
+      "id": "W27-16",
+      "title": "Settings to measure AI speed against depth: judge reasoning, first look quick reasoning, first look calls",
+      "phase": 27,
+      "module": "analysis",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers",
+        "apps/api/src/routes/setup/env-registry.ts",
+        "packages/analysis/src/specialists/run.ts",
+        "docs/CONFIG.md",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-15"
+      ],
+      "acceptance": [
+        "AI_JUDGE_REASONING (full, medium, low) bounds the judge's reasoning; the default is unchanged",
+        "FIRST_LOOK_QUICK_REASONING (none, low) and FIRST_LOOK_CALLS (1-30) are settings; the defaults are unchanged",
+        "FIRST_LOOK_SECURITY_REASONING and the three new settings are in the env registry and docs/CONFIG.md"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "2026-11-18 gin on the M4 (ef2f71b, qwen3.8-27b), per call from the LM Studio stream: the judge sends no reasoning effort and one batch took 960 s and 17,922 output tokens; the first look's quick calls (reasoning none) answered an empty list in 6 tokens after 70-103 s of prompt processing; security at low took 66-125 s a call but its 4 calls read 2 of 11 picked files and missed the open redirect. Defaults stay until each setting is measured on the same repository.",
+        "A first W27-16 (fall back to low when a host ignores reasoning none) was reverted: LM Studio logs a warning for none on this model package but does honour it (CVE checks 4-6 s, no thinking)."
+      ]
+    },
+    {
+      "id": "W27-17",
+      "title": "Go open-redirect rule (shadow), from the redirect the model missed on gin",
+      "phase": 27,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "packages/security/rulepacks/semgrep/bpm-baseline.go.v1.yaml",
+        "packages/security/fixtures/go/semgrep",
+        "packages/security/src/scanners/code-health/go-pack.test.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-16"
+      ],
+      "acceptance": [
+        "bpm-go-open-redirect (taint, lifecycle candidate) fires when the request's own URL or a request parameter reaches http.Redirect or a context Redirect",
+        "It does not fire on a constant target or a parameter parsed to a number",
+        "Measured on gin with the real engine: hit count and whether redirectTrailingSlash / redirectFixedPath is among them"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "2026-11-18 Mac, opengrep 1.27.1 --taint-intrafile: both triggering fixtures hit, clean 0; gin 0f09c3a9 has exactly one hit, gin.go:859 http.Redirect in redirectRequest, the shared sink of redirectTrailingSlash and redirectFixedPath.",
+        "2026-11-18: the model missed gin's open redirect on every real run (2026-11-08 budget, 2026-11-18 before run and run A with every picked file read at low reasoning). Mechanical first: the shape is a taint from the request URL to a redirect. Fixtures pass with semgrep 1.186.0 in the cloud; the opengrep check and the gin measurement run on the Mac."
+      ]
+    },
+    {
+      "id": "W27-18",
+      "title": "The sync API route really syncs: one delta per kind with the repository name",
+      "phase": 27,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/routes/runs",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-17"
+      ],
+      "acceptance": [
+        "POST /repos/:id/sync queues one delta job per cursor-pullable kind (commits, pull requests, issues, releases, deployments), each with kind and the repository's full name",
+        "started is true only when at least one job was newly queued"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "2026-11-18 demo run on the Mac: the route queued one job with no kind and no repo; the delta processor returned skipped in 7 ms while the API answered started. On a connection without webhooks a new pull request then only appeared at the nightly reconcile.",
+        "Correction 2026-11-18: this is the API-only route POST /repos/:id/sync. The admin page's Sync now button calls POST /repos/:id/sync-now (connections), which queues a reconcile and was not affected."
+      ]
+    },
+    {
+      "id": "W27-19",
+      "title": "Gitea pull requests can be reviewed: per-file patches from the pull request diff",
+      "phase": 27,
+      "module": "forge",
+      "stories": [],
+      "write_scope": [
+        "packages/forge/src/gitea",
+        "packages/forge/test/gitea.contract.test.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-18"
+      ],
+      "acceptance": [
+        "On the scan lane, GiteaProvider.getPullRequestFiles returns each file's hunks, read from pulls/{n}.diff through the budgeted client",
+        "Ingestion lanes make no extra request; a missing or oversized diff leaves files without patches, as before",
+        "An AI review of a Gitea pull request reads the changed files (measured on a real Gitea)"
+      ],
+      "points": 2,
+      "status": "done",
+      "notes": [
+        "2026-11-18 demo on Gitea 1.24.6: POST ai-pass {pull_request} failed at once with no_files because pulls/{n}/files has no patch field; the commit-range fallback failed too (pull request head commits are not ingested). So no AI review ever read a Gitea pull request; only the mechanical PR scan ran. Gitea serves the whole diff at pulls/{n}.diff (swagger repoDownloadPullDiffOrPatch)."
+      ]
+    },
+    {
+      "id": "W27-20",
+      "title": "Rule findings from a pull request scan are tagged with the pull request",
+      "phase": 27,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "packages/security/src/scanners/semgrep/run-modes.ts",
+        "packages/security/src/scanners/pr/run.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-19"
+      ],
+      "acceptance": [
+        "The rule-engine (semgrep) findings of a pull request scan carry the pull request id, like the other PR scanners' findings",
+        "The pull request page and the CI API list the same findings for the same head (measured on a real install)"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "2026-11-18 demo: the PR page showed 1 automated finding while the CI check returned 2; the SQL injection finding (semgrep) had pull_request_id NULL, the empty-catch finding (anti_slop) had it set."
+      ]
+    },
+    {
+      "id": "W27-21",
+      "title": "Two detection gaps from the demo pull request: undeclared package imports and callback SQL in a loop",
+      "phase": 27,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "packages/security/src/scanners/anti-slop",
+        "packages/security/src/benchmark/engines.ts",
+        "packages/security/rulepacks/code-health/perf/perf.v1.yaml",
+        "packages/security/fixtures/perf",
+        "packages/security/fixtures/benchmark",
+        "packages/security/src/scanners/code-health/perf-pack.test.ts",
+        "apps/api/src/lib/rule-precision.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-20"
+      ],
+      "acceptance": [
+        "slop.undeclared_package (shadow): a bare import or require of a package that no package.json above the file declares is reported once per file and package; quiet on built-ins, workspace siblings, tsconfig path aliases, baseUrl directories, ambient modules, optional requires in try, and where no package.json parses",
+        "bpm-perf-sql-call-in-loop (shadow): a call whose first argument is a SQL string or template literal inside for, while, forEach or map is reported when it is not awaited; nothing on the clean fixtures",
+        "Both find the seeded problems of the demo pull request on a real install"
+      ],
+      "points": 3,
+      "status": "done",
+      "notes": [
+        "2026-11-18 demo PR: require(\"fastcsv-stream-writer-pro\") with no such dependency and a sqlite3 callback query per id in a for-of loop both went unreported; bpm-perf-orm-call-in-loop needs await, and the phantom rules only resolve relative specifiers. SampleCo label D4 (currency-fmt) is the same shape.",
+        "Cloud measurements: undeclared packages 0 hits on this repository (1,977 files), 1 hit on SampleCo (the planted one). SQL rule with semgrep 1.186.0: 3 hits on the new triggering fixture, 0 on clean, whole perf pack still 0 on clean.",
+        "A fix draft for slop.undeclared_package is not rescannable yet (patches/target.ts lists the phantom rules only).",
+        "2026-11-19 noise read on the M4: gin 0, Repo Pulse copy 0, saleor 0, sampleco 1 (the planted one), outline 41. All 41 are true (history, react-router, koa-compose and others arrive through other packages), but about 36 are type-only imports. Type-only imports are now skipped (import type, export type from, a brace list of type names); the runtime ones (useHistory, parsePath, CSS, compose) still report. Recount on outline at d69faf4: 45 to 15 over 2,501 files with tests included, all runtime imports (history 7, react-router 4, jszip 2 in tests, @dnd-kit/utilities 1, koa-compose 1)."
+      ]
+    },
+    {
+      "id": "W27-22",
+      "title": "AI passes a stopped worker left behind are closed or queued again at boot",
+      "phase": 27,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers/ai-pass-recovery.ts",
+        "apps/api/src/workers/ai-pass-recovery.test.ts",
+        "apps/api/src/workers/index.ts",
+        "apps/api/src/routes/setup/env-registry.ts",
+        "docs/CONFIG.md",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-21"
+      ],
+      "acceptance": [
+        "At worker boot every ai_pass_runs row still 'running' is set to failed with reason code interrupted and a sentence a person can read",
+        "Every 'pending' row gets a queue entry again; finished rows are untouched; each write and queue entry stays in the row's workspace",
+        "AI_PASS_BOOT_RECOVERY=off switches the sweep off (for installs with more than one worker); a failed sweep does not stop the worker from booting"
+      ],
+      "points": 2,
+      "status": "done",
+      "notes": [
+        "2026-11-18 on the M4: the container host went down mid first look. After the restart the first look read running and the judge pending until cancelled by hand. Cause: the queue redelivers the job, but the processor's compare-and-set on pending answers already_started, so the row never moves.",
+        "A requeued pending run loses its per-job options (maxCalls, force, includeTests) and runs with defaults."
+      ]
+    },
+    {
+      "id": "W27-23",
+      "title": "A pull request brought in by Sync now or the nightly reconcile gets its scan",
+      "phase": 27,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers/processors.ts",
+        "apps/api/src/workers/pr-scans.test.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-22"
+      ],
+      "acceptance": [
+        "After reconciling one repository the worker queues the pattern scans for its unscanned open pull request heads, as a pull request delta does",
+        "A queue failure there is reported in the job result and does not fail the reconcile"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "2026-11-18 real click on Sync now (webhooks off): the pull request appeared within 30 s, and scan_runs had no pr_synced row. Only the delta processor called queuePrScans."
+      ]
+    },
+    {
+      "id": "W27-24",
+      "title": "A second push to an open pull request updates its stored head commit",
+      "phase": 27,
+      "module": "ingest",
+      "stories": [],
+      "write_scope": [
+        "packages/ingest/src/backfill/writers.ts",
+        "packages/ingest/src/backfill/review-requests.integration.test.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-23"
+      ],
+      "acceptance": [
+        "upsertPullRequests updates head_sha, title, draft state and base branch on a later listing, and the size when the listing states it",
+        "After a second push the pull request scan and the incremental AI review run on the new head (measured on a real install)"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "2026-11-19 demo: commit 2 pushed to the open pull request; the forge showed the new head, the delta ran (itemsTotal 1) and pull_requests kept the first head, so no scan was queued. The conflict update never set head_sha, on any forge.",
+        "Open: the stored updated_at did not move either in that run although it was in the update set. Possible stale cached listing; to be checked on the Mac. Checks and reviews for the new head are not re-fetched (enriched_at is not reset)."
+      ]
+    },
+    {
+      "id": "W27-25",
+      "title": "Fix drafts: a context line without its leading space is still read",
+      "phase": 27,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "packages/security/src/patches/diff.ts",
+        "packages/security/src/patches/diff.test.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-24"
+      ],
+      "acceptance": [
+        "An unprefixed line inside a hunk that starts with a letter, bracket, quote or slash is read as a context line; other unprefixed lines are still refused as malformed",
+        "A hunk whose unprefixed line does not match the file is refused as does_not_apply"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "2026-11-19 demo: the empty-catch fix on the pull request was rejected as diff_malformed (Unrecognised diff line: }). The model wrote the closing brace context line without its leading space; the rest of the hunk was valid."
+      ]
+    },
+    {
+      "id": "W27-26",
+      "title": "A reasoning setting for pull request and folder reviews",
+      "phase": 27,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers/ai-pass-processor.ts",
+        "apps/api/src/workers/ai-pass-processor.test.ts",
+        "apps/api/src/routes/setup/env-registry.ts",
+        "docs/CONFIG.md",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-25"
+      ],
+      "acceptance": [
+        "AI_REVIEW_REASONING (full, medium, low; default full) bounds the reasoning of the area calls of a review that is not a first look; a call that sets its own effort keeps it",
+        "Registered in the env registry and docs/CONFIG.md"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "2026-11-19 demo, local 27B: the pull request review of 3 files made 6 calls at default reasoning (79, 149, 393, 554, 604, 362, 503 s with a retry), about 44 minutes, 26 findings for about 12 distinct problems, none false. The first-look settings did not apply to it. Default unchanged until medium and low are measured."
+      ]
+    },
+    {
+      "id": "W27-27",
+      "title": "Claude Code CLI backend: the API container cannot run the CLI the worker runs",
+      "phase": 27,
+      "module": "deploy",
+      "stories": [],
+      "write_scope": [
+        "deploy",
+        "apps/api/src/routes/admin/claude-cli",
+        "apps/web/src/widgets/admin/LlmProviders.tsx",
+        "docs/INSTALL.md",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-26"
+      ],
+      "acceptance": [
+        "With the stack started by deploy/up.sh --with-claude-cli and the CLI installed as INSTALL.md says, Settings, Models shows no container mismatch",
+        "Test connection for a claude_cli provider passes when the worker's CLI is signed in (run through the worker, or the API image can run the same binary)",
+        "The mismatch advice names the real cause when the two containers differ for another reason"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": [
+        "2026-11-19 on the M4 (install rpcli, 8719e00): the API image is Alpine (musl) and the worker is Debian 12 (glibc). npm installs a glibc native binary for @anthropic-ai/claude-code 2.1.327, so in the API container the CLI fails with exit 127 (not found) while the worker runs it and reports logged in. The page then says the two containers disagree and advises --with-claude-cli, which was already used. Reviews work (they run in the worker); only the status line and Test connection are wrong.",
+        "Options: run Test connection through the worker; build the API image on the worker's base; or install a musl build for the API."
+      ]
+    },
+    {
+      "id": "W27-28",
+      "title": "Fix drafts: a JSON answer inside a code fence is read",
+      "phase": 27,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "packages/security/src/patches/diff.ts",
+        "packages/security/src/patches/diff.test.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-27"
+      ],
+      "acceptance": [
+        "extractDiff reads the diff from a {\"diff\": ...} answer that is itself inside a fenced block, with or without prose around it",
+        "A fenced bare diff is still read as before"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "2026-11-19 on Haiku: a fix draft was rejected as diff_malformed (Unexpected line outside a hunk: {\"diff\":...). The model wrapped its JSON answer in a json code fence."
+      ]
+    },
+    {
+      "id": "W27-29",
+      "title": "A reconcile runs the stream scanners for pull request heads",
+      "phase": 27,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers/processors.ts",
+        "apps/api/src/workers/pr-scans.test.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-28"
+      ],
+      "acceptance": [
+        "After reconciling one repository the worker runs the secrets stream (secrets, sensitive change, slopsquat) for unscanned pull request heads, before queueing the pattern scans",
+        "A failure there is reported in the job result and does not fail the reconcile"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "2026-11-19: after a Sync now click the pull request head had semgrep, anti_slop, logging and performance runs only, so the CI check exited 4 (not fully scanned yet) for ever."
+      ]
+    },
+    {
+      "id": "W27-30",
+      "title": "A pull request run closes the findings that pull request introduced and fixed",
+      "phase": 27,
+      "module": "insights",
+      "stories": [],
+      "write_scope": [
+        "packages/insights/src/findings/store.ts",
+        "packages/insights/src/findings/store-sweep.integration.test.ts",
+        "packages/security/src/scanners/semgrep/run-modes.ts",
+        "packages/security/src/scanners/perf/run.ts",
+        "packages/security/src/scanners/anti-slop/run.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-29"
+      ],
+      "acceptance": [
+        "persistFindings.prSweep closes open findings stamped with the run's pull request and scanner that the run no longer reports; no other pull request's, the default branch's or another scanner's rows are touched",
+        "The rule engine, performance pack and anti-slop pack use it on pull request runs, only when the engine reported no error; anti-slop keeps judgements and in-process rules open",
+        "After a second push that fixes a rule finding, the finding reads resolved (measured on a real install)"
+      ],
+      "points": 2,
+      "status": "done",
+      "notes": [
+        "2026-11-19: semgrep SQL concat and the anti_slop empty catch stayed open after commit 2 removed them; AI review findings did close.",
+        "Logging, dependency and image pull request runs are unchanged."
+      ]
+    },
+    {
+      "id": "W27-31",
+      "title": "The worker says why no AI review was queued when only an admin can change it",
+      "phase": 27,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers/index.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-30"
+      ],
+      "acceptance": [
+        "A first look not queued for not_opted_in, routing_changed, local_only_forbids, no_gateway or cap_reached is logged at info with a sentence naming what to do",
+        "Other reasons stay at debug"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "2026-11-19 on Haiku: with a model outside the network, the after-scan first look returned not_opted_in until a schedule was enabled, and nothing in the UI or the worker log said so. The UI still does not show it: a follow-up."
+      ]
+    },
+    {
+      "id": "W27-32",
+      "title": "Hosted model: one visible opt-in story for the first look and the CVE second opinion",
+      "phase": 27,
+      "module": "web",
+      "stories": [],
+      "write_scope": [
+        "apps/web/src",
+        "apps/api/src/routes/admin/analysis",
+        "apps/api/src/workers",
+        "docs/INSTALL.md",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-31"
+      ],
+      "acceptance": [
+        "With only a connection that leaves the network, the repository's AI page says in words which of the two permissions is missing (the review schedule, Tier 3) and links to where each is turned on",
+        "A dependency scan whose CVE second opinion was refused shows the refusal reason on the scan row, not only in the worker log",
+        "The Claude Code CLI backend's page says that the reasoning settings do not apply to it, or the runner passes them once the CLI's flag is verified against its documentation"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": [
+        "2026-11-19 on the M4 (install rpcli, Haiku through the Claude Code CLI): the first look ran once a review schedule was enabled, but the CVE second opinion was refused for gin and the Repo Pulse copy because core.repos.tier3_opt_in was false. The only trace was the worker's info line. After PATCH /admin/analysis/repos/:id tier3_opt_in true and a forced rescan: asked 8, confirmed 8, 8 to 26 s per call. Working as designed (Law 8), but a person cannot see it.",
+        "Same run: providers/claude-cli.ts passes no reasoning flag, so AI_JUDGE_REASONING, AI_REVIEW_REASONING and FIRST_LOOK_QUICK_REASONING do nothing on this backend."
+      ]
+    },
+    {
+      "id": "W27-33",
+      "title": "First look: seed scripts, migrations and management commands rank below production source",
+      "phase": 27,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers/ai-first-look.ts",
+        "apps/api/src/workers/ai-pass-processor.test.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-14"
+      ],
+      "acceptance": [
+        "pathTier puts database migrations, seed and demo-data scripts and management commands in the non-runtime tier",
+        "A demo-data script with more rule findings than order or payment code ranks after them",
+        "A fresh first look on saleor reads no file under core/development or a migrations folder while production source is left"
+      ],
+      "points": 2,
+      "status": "done",
+      "notes": [
+        "2026-11-19 on the M4 (rpcli, Haiku): saleor's first look read 5 files, and 17 of its 23 findings were on saleor/core/development/random_data.py (2,379 lines, second by rule-finding weight). It also read app/migrations/0027. The four strongest shop files by findings (order_bulk_create, order/actions, payment/utils, complete_checkout) were not read: one large file takes most of the 150 KB first-look budget. That second cause is open; this ticket fixes the ranking only."
+      ]
+    },
+    {
+      "id": "W27-34",
+      "title": "First look: class-method files count as code, and one large file cannot take the budget",
+      "phase": 27,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers/ai-first-look.ts",
+        "apps/api/src/workers/ai-focus.ts",
+        "apps/api/src/workers/ai-pass-sources.ts",
+        "apps/api/src/workers/ai-pass-sources.test.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-33"
+      ],
+      "acceptance": [
+        "A source file whose only definitions in the code map are methods stays in the production tier and is sliced by method",
+        "A first look passes over a file above half its byte budget and reads at most one file above a third of it, with the plain fill as the fallback when nothing else fits",
+        "A fresh first look on saleor reads more than 5 files and the best-ranked one is order or payment code"
+      ],
+      "points": 2,
+      "status": "done",
+      "notes": [
+        "2026-11-19 on the M4 (rpcli, saleor at b8025bac): order_bulk_create.py (first by findings, 97,044 bytes) has 81 definitions in the code map and none of kind function, so W27-12 ranked it as non-runtime. random_data.py (79,783 bytes) then took over half of the 150,000-byte budget, order/actions.py (74,528), payment/utils.py (76,084) and complete_checkout.py (72,531) no longer fitted, and the pass read 5 files.",
+        "Limit kept: a file above half the budget (75 KB) is not read by a first look unless every candidate is that large. Reading part of a large file is a follow-up."
+      ]
+    },
+    {
+      "id": "W27-35",
+      "title": "CI check: a short commit id is understood, and uncounted shadow findings are listed",
+      "phase": 27,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "tools/repopulse-cli",
+        "apps/api/src/routes/pulls",
+        "apps/api/src/lib/new-findings.ts",
+        "docs/CI_INTEGRATION.md",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-30"
+      ],
+      "acceptance": [
+        "check --sha with a unique prefix of the stored head passes the head test, or the refusal prints both full commit ids",
+        "When findings from shadow rules exist on the pull request and are not counted, the result says how many and their highest severity, and how to count them",
+        "The exit code is unchanged for a run with no shadow findings"
+      ],
+      "points": 2,
+      "status": "todo",
+      "notes": [
+        "2026-11-19 on the M4 (rpcli at 11931a1, repo sampleco5): check --sha bedd5f7 answered exit 4 'RepoPulse has head bedd5f7, not bedd5f7, for this PR' because the comparison is on full ids and the message prints short ones. With the full id the check passed with 0 new findings while a severity 4 path traversal from the shadow rule bpm-inj-path-js was open on the pull request: shadow findings are left out by default and nothing says so.",
+        "Whether bpm-inj-path-js should leave shadow is the promotion rule's call (20 findings, 30 days, under 20% false), not this ticket's."
+      ]
     }
   ]
 }
