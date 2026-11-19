@@ -5,7 +5,7 @@ import { useApiQuery } from '../../api/useApiQuery.js';
 import { foundByLabel, locationOf, type FoundBy } from '../findings/contracts.js';
 import { FindingSeverityBadge } from '../findings/FindingSeverity.js';
 
-// "New on this PR (what your CI sees)" (W20-15, UX_TODO X-15).
+// "New on this PR" (W20-15, UX_TODO X-15).
 //
 // The panel asked /findings?pr_number=, which matches only findings stamped
 // with the PR's id. It left out the Semgrep incremental findings the CI answer
@@ -28,6 +28,9 @@ export interface PrCiFinding {
   status: string;
   introduced_by_pr: boolean;
   seen_at_head: boolean;
+  /** W27-36: absent from an older API. */
+  verify_status?: string;
+  ai_review?: boolean;
   /** W21-01: absent from an older API, which then falls back to the key. */
   found_by?: FoundBy;
 }
@@ -71,13 +74,15 @@ export function PrCiFindingsPanel({ repoId, number }: { repoId: string; number: 
   const { data, isLoading, isError, error, refetch } = useApiQuery<PrCiFindings>({
     endpoint: '/repos/{id}/pulls/{number}/findings',
     path: { id: repoId, number },
-    query: { new: includePreexisting ? 'false' : 'true' },
+    // W27-36: the page also lists AI review findings no second model has
+    // confirmed, labelled; a CI check leaves those out.
+    query: { new: includePreexisting ? 'false' : 'true', include_unconfirmed_ai: 'true' },
   });
   const items = data?.items ?? [];
 
   return (
     <WidgetFrame
-      title="New on this PR (what your CI sees)"
+      title="New on this PR"
       state={frameState({
         isLoading,
         isError,
@@ -150,6 +155,11 @@ export function PrCiFindingsPanel({ repoId, number }: { repoId: string; number: 
                       </Link>
                       {!f.introduced_by_pr && (
                         <span className="ml-1 text-xs text-fg-muted">(pre-existing)</span>
+                      )}
+                      {f.ai_review && f.verify_status !== 'confirmed' && (
+                        <span className="ml-1 text-xs text-fg-muted" data-testid="pr-ci-ai-uncounted">
+                          (AI review, not confirmed by a second model: not counted in CI)
+                        </span>
                       )}
                     </th>
                     <td className="py-1 font-mono text-xs">

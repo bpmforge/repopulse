@@ -591,6 +591,31 @@ role's fallbacks and removing connections. The *Quality per model* table shows
 how each model did on labelled test cases, and says *not yet run* for any model
 nobody has measured.
 
+### Which model: fast or private
+
+Both paths give the same kinds of results. They differ in speed and in what
+leaves your network. Times below are from one test install (2026-11-19, an
+Apple M4 Max; the local model is a 27B model in LM Studio on the same machine,
+the hosted one a small fast model through the Claude Code CLI option below).
+
+| Run | Local 27B model | Small hosted model |
+|---|---|---|
+| Demo repository, everything done | about 30 min | about 5 min |
+| Review of one pull request | 47 min | under 3 min |
+| gin (Go), first AI finding | 44 min | 6 min |
+| gin, everything done | 76 min | about 9 min |
+| saleor and outline (large), everything done | did not finish | about 30 min each |
+
+- **Fast path:** a small hosted model. Use it to see RepoPulse work end to end
+  in minutes. Your code leaves your network, each repository must be opted in,
+  and every request is in the egress audit.
+- **Private path:** a local model. Nothing leaves your network. Expect the
+  first results on a new repository in tens of minutes, and plan AI work for
+  off hours. The rule-based scans do not use a model and are as fast either way.
+
+On the quality side the two were close on the labelled demo (10 and 11 of 15
+planted problems found, 0 and 2 false). This is one install, not a benchmark.
+
 ### Worked example 1: LM Studio on the same network
 
 **Verified end to end** on 2026-10-18 by driving the wizard in a real browser

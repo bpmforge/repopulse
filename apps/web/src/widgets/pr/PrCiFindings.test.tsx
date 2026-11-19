@@ -55,10 +55,10 @@ describe('New on this PR (W20-15, UX_TODO X-15)', () => {
       expect.objectContaining({
         endpoint: '/repos/{id}/pulls/{number}/findings',
         path: { id: '3', number: '7' },
-        query: { new: 'true' },
+        query: { new: 'true', include_unconfirmed_ai: 'true' },
       }),
     );
-    expect(screen.getByText('New on this PR (what your CI sees)')).toBeInTheDocument();
+    expect(screen.getByText('New on this PR')).toBeInTheDocument();
     expect(screen.getByText('SQL built from request input')).toBeInTheDocument();
     expect(screen.getByText('src/db.ts:12')).toBeInTheDocument();
   });
@@ -95,7 +95,7 @@ describe('New on this PR (W20-15, UX_TODO X-15)', () => {
     });
     fireEvent.click(screen.getByTestId('pr-ci-preexisting'));
     expect(useApiQuery).toHaveBeenLastCalledWith(
-      expect.objectContaining({ query: { new: 'false' } }),
+      expect.objectContaining({ query: { new: 'false', include_unconfirmed_ai: 'true' } }),
     );
     expect(screen.getByText('(pre-existing)')).toBeInTheDocument();
   });

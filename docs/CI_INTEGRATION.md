@@ -80,6 +80,7 @@ RepoPulse distribution.
 | `--fail-on LEVEL` | fail when a new finding is at or above `critical`, `high` (default), `medium`, `low`, `info`; `none` disables |
 | `--max-new N` | fail when more than N new findings remain |
 | `--include-experimental` | also count findings from rules still in shadow mode (excluded by default) |
+| `--include-unconfirmed-ai` | also count findings an AI review raised that no second model has confirmed (excluded by default; the pull request page lists them, labelled) |
 | `--sha SHA` | the PR head commit this pipeline tests; RepoPulse must have scanned exactly this commit |
 | `--wait SECONDS` | poll (every 15 s at most) until every PR scanner has finished on that commit — and, on a PR's first pipeline, until RepoPulse has ingested the PR at all |
 | `--allow-unscanned` | do not fail when the head has not been scanned yet |

@@ -71,6 +71,7 @@ export const SEVERITIES = /** @type {const} */ (['info', 'low', 'medium', 'high'
  * @property {Severity | 'none'} failOn
  * @property {number | null} maxNew
  * @property {boolean} includeExperimental
+ * @property {boolean} [includeUnconfirmedAi]
  * @property {string | null} sha
  * @property {number} waitSeconds
  * @property {boolean} allowUnscanned
@@ -92,6 +93,7 @@ Options:
                          critical | high | medium | low | info | none  (default: high)
   --max-new N            fail when more than N new findings remain (default: no limit)
   --include-experimental count findings from rules still in shadow mode
+  --include-unconfirmed-ai count AI review findings no second model confirmed
   --sha SHA              the PR head commit this pipeline is testing; wait for
                          RepoPulse to have scanned exactly this commit
   --wait SECONDS         how long to wait for that scan (default: 0)
@@ -147,7 +149,7 @@ export function parseArgs(argv, env) {
     'markdown',
     'json',
   ]);
-  const boolean = new Set(['include-experimental', 'allow-unscanned']);
+  const boolean = new Set(['include-experimental', 'include-unconfirmed-ai', 'allow-unscanned']);
   while (args.length > 0) {
     const raw = /** @type {string} */ (args.shift());
     if (!raw.startsWith('--')) throw new UsageError(`unexpected argument "${raw}"`);
@@ -187,6 +189,7 @@ export function parseArgs(argv, env) {
       failOn,
       maxNew: values['max-new'] === undefined ? null : nonNegativeInt('max-new', values['max-new']),
       includeExperimental: flags.has('include-experimental'),
+      includeUnconfirmedAi: flags.has('include-unconfirmed-ai'),
       sha: values['sha'] ?? null,
       waitSeconds: values['wait'] === undefined ? 0 : nonNegativeInt('wait', values['wait']),
       allowUnscanned: flags.has('allow-unscanned'),
@@ -231,6 +234,7 @@ export async function fetchPrFindings(config, fetchImpl) {
     const url = new URL(`${config.server}/api/v1/repos/${config.repo}/pulls/${config.pr}/findings`);
     url.searchParams.set('new', 'true');
     url.searchParams.set('include_experimental', String(config.includeExperimental));
+    if (config.includeUnconfirmedAi) url.searchParams.set('include_unconfirmed_ai', 'true');
     url.searchParams.set('limit', '100');
     if (cursor) url.searchParams.set('cursor', cursor);
 

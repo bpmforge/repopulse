@@ -14425,6 +14425,95 @@
         "2026-11-19 on the M4 (rpcli at 11931a1, repo sampleco5): check --sha bedd5f7 answered exit 4 'RepoPulse has head bedd5f7, not bedd5f7, for this PR' because the comparison is on full ids and the message prints short ones. With the full id the check passed with 0 new findings while a severity 4 path traversal from the shadow rule bpm-inj-path-js was open on the pull request: shadow findings are left out by default and nothing says so.",
         "Whether bpm-inj-path-js should leave shadow is the promotion rule's call (20 findings, 30 days, under 20% false), not this ticket's."
       ]
+    },
+    {
+      "id": "W27-36",
+      "title": "AI review findings show on the pull request page; CI counts only the confirmed ones",
+      "phase": 27,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers/ai-pass-processor.ts",
+        "apps/api/src/workers/ai-pass-processor.test.ts",
+        "apps/api/src/routes/pulls",
+        "apps/web/src/widgets/pr",
+        "tools/repopulse-cli",
+        "docs/CI_INTEGRATION.md",
+        "docs/INSTALL.md",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-20"
+      ],
+      "acceptance": [
+        "A finding raised by an AI review of a pull request carries that pull request's id",
+        "GET /repos/:id/pulls/:number/findings leaves out AI review findings no second model confirmed unless include_unconfirmed_ai=true, and each item says ai_review and verify_status",
+        "The pull request page lists unconfirmed AI review findings with a label that they are not counted in CI",
+        "The CLI counts them only with --include-unconfirmed-ai"
+      ],
+      "points": 3,
+      "status": "done",
+      "notes": [
+        "Decision by Brad 2026-11-19: show AI review findings on the pull request page, count in CI only those a second model confirmed.",
+        "Decision by Brad 2026-11-19 (model recommendation): docs/INSTALL.md gains 'Which model: fast or private' with the measured times from the M4.",
+        "Decision by Brad 2026-11-19: bpm-inj-path-js stays in shadow until the promotion rule moves it (20 findings, 30 days, under 20% false). No change.",
+        "Limit: with one AI connection nothing gives a second model's verdict on a review's own findings, so they stay labelled and uncounted."
+      ]
+    },
+    {
+      "id": "W27-37",
+      "title": "The pull request page shows its files and size (nothing stored them)",
+      "phase": 27,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "packages/security/src/scanners/pr",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-23"
+      ],
+      "acceptance": [
+        "After a pull request scan, pr_files holds the files the scan read, with churn and kind of change",
+        "The pull request's additions, deletions and changed files match that list",
+        "A failure to store the list does not fail the scan"
+      ],
+      "points": 2,
+      "status": "in_progress",
+      "notes": [
+        "2026-11-19 on the M4 (rpcli at 11931a1): both Gitea pull requests showed 'XS, 0 lines' and 'No file changes ingested for this PR'. No production code wrote facts.pr_files; only the seed and the fake forge did. The pull request scan already lists the files on every push, so it stores them."
+      ]
+    },
+    {
+      "id": "W27-38",
+      "title": "Migrate to zod 4 (clears the last High dependency advisory)",
+      "phase": 27,
+      "module": "shared",
+      "stories": [],
+      "write_scope": [
+        "package.json",
+        "pnpm-lock.yaml",
+        "apps",
+        "packages",
+        "docs/TECH_STACK.md",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-15"
+      ],
+      "acceptance": [
+        "zod 4 across the workspace, with fastify-type-provider-zod and every other zod consumer on versions verified to support it (recorded in docs/TECH_STACK.md)",
+        "The OpenAPI snapshot is unchanged or its differences are reviewed",
+        "The full gate passes and the dependency audit no longer reports GHSA-mrhx-c7xc-m3w5"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": [
+        "Decision by Brad 2026-11-19: do it later, as its own ticket. zod 3.25.76 to 4.x is the only fix for GHSA-mrhx-c7xc-m3w5 (CVSS 8.2)."
+      ]
     }
   ]
 }

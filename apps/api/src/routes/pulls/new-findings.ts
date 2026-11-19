@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNull, lt, max, ne, or, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, max, ne, or, sql, type SQL } from 'drizzle-orm';
 import { facts, read, security, type Database } from '@repopulse/shared';
 import {
   BUILTIN_SCANNERS,
@@ -49,6 +49,12 @@ export interface PrFindingsQuery {
   /** true: introduced by the PR. false: also pre-existing findings on files the PR touches. */
   newOnly: boolean;
   includeExperimental: boolean;
+  /**
+   * W27-36: also return findings an AI review raised that no second model has
+   * confirmed. Off for a CI check (a model's unconfirmed judgement must not
+   * fail a build); on for the pull request page, which labels them.
+   */
+  includeUnconfirmedAi?: boolean;
   cursor: { severity: number; id: number } | null;
   limit: number;
 }
@@ -69,6 +75,10 @@ export interface PrFindingItem {
   suggested_fix: string;
   experimental: boolean;
   status: string;
+  /** W27-36: 'unverified', 'confirmed' or 'contradicted' (a second model's verdict). */
+  verify_status: string;
+  /** W27-36: raised by an AI review, not by a scanner. */
+  ai_review: boolean;
   introduced_by_pr: boolean;
   seen_at_head: boolean;
   first_seen_at: string;
@@ -293,6 +303,16 @@ export async function prFindings(
     scope,
   ];
   if (!q.includeExperimental) filters.push(eq(read.findings.experimental, false));
+  if (!q.includeUnconfirmedAi) {
+    // An AI review's finding has an analysis run and no scanner behind it.
+    filters.push(
+      or(
+        isNotNull(read.findings.scannerKey),
+        isNull(read.findings.analysisRunId),
+        eq(read.findings.verifyStatus, 'confirmed'),
+      ) as SQL,
+    );
+  }
   // Not bumped by its scanner's head run ⇒ not on the head.
   for (const [scannerKey, startedAt] of scannedAt) {
     filters.push(
@@ -328,6 +348,8 @@ export async function prFindings(
       recommendation: read.findings.recommendation,
       experimental: read.findings.experimental,
       status: read.findings.status,
+      verifyStatus: read.findings.verifyStatus,
+      analysisRunId: read.findings.analysisRunId,
       firstSeenAt: read.findings.firstSeenAt,
       lastSeenAt: read.findings.lastSeenAt,
       introducedSql: sql<boolean>`${introduced}`,
@@ -380,6 +402,8 @@ export async function prFindings(
         suggested_fix: r.recommendation,
         experimental: r.experimental,
         status: r.status,
+        verify_status: r.verifyStatus,
+        ai_review: r.scannerKey === null && r.analysisRunId !== null,
         introduced_by_pr: r.introducedSql === true,
         seen_at_head: headRun !== undefined && r.lastSeenAt >= headRun,
         first_seen_at: r.firstSeenAt.toISOString(),

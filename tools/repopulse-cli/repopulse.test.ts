@@ -74,6 +74,7 @@ describe('parseArgs', () => {
       failOn: 'high',
       maxNew: null,
       includeExperimental: false,
+      includeUnconfirmedAi: false,
       sha: null,
       waitSeconds: 0,
       allowUnscanned: false,
