@@ -47,26 +47,52 @@ export function dirInScope(rel: string, paths: readonly string[]): boolean {
  * W25-01: the best-ranked files that fit one pass (AI_PASS_MAX_FILES files and
  * AI_PASS_MAX_BYTES), in the order of `ranked`. A file too big for what is left
  * is passed over for a smaller one further down, never cut.
+ *
+ * W27-34: with `spread`, one large file cannot starve the rest. On saleor a
+ * 79,783-byte demo-data script took over half of the first look's 150,000
+ * bytes, so the three strongest shop files (72 to 76 KB each) no longer fitted
+ * and the pass read 5 files. A file over half the budget is passed over, and
+ * only one file over a third of it is read: the best-ranked large file, then
+ * breadth. If that leaves nothing (every candidate is large), the plain fill
+ * is used.
  */
 export function fitRanked<T extends { path: string; source: string }>(
   files: readonly T[],
   ranked: readonly string[],
-  caps: { files: number; bytes: number } = { files: AI_PASS_MAX_FILES, bytes: AI_PASS_MAX_BYTES },
+  caps: { files: number; bytes: number; spread?: boolean } = {
+    files: AI_PASS_MAX_FILES,
+    bytes: AI_PASS_MAX_BYTES,
+  },
 ): T[] {
   const rank = new Map(ranked.map((p, i) => [p.replace(/\/+$/, ''), i]));
   const ordered = [...files].sort(
     (a, b) => (rank.get(a.path) ?? Infinity) - (rank.get(b.path) ?? Infinity),
   );
-  const chosen: T[] = [];
-  let used = 0;
-  for (const f of ordered) {
-    if (chosen.length >= caps.files) break;
-    const size = Buffer.byteLength(f.source);
-    if (used + size > caps.bytes) continue;
-    chosen.push(f);
-    used += size;
+  const fill = (spread: boolean): T[] => {
+    const chosen: T[] = [];
+    let used = 0;
+    let large = 0;
+    for (const f of ordered) {
+      if (chosen.length >= caps.files) break;
+      const size = Buffer.byteLength(f.source);
+      if (used + size > caps.bytes) continue;
+      if (spread) {
+        if (size > caps.bytes / 2) continue;
+        if (size > caps.bytes / 3) {
+          if (large >= 1) continue;
+          large += 1;
+        }
+      }
+      chosen.push(f);
+      used += size;
+    }
+    return chosen;
+  };
+  if (caps.spread) {
+    const spreadOut = fill(true);
+    if (spreadOut.length > 0) return spreadOut;
   }
-  return chosen;
+  return fill(false);
 }
 
 /**
@@ -205,6 +231,7 @@ export function snapshotSources(deps: SnapshotSourceDeps): AiPassDeps['loadSourc
           const chosen = fitRanked(picked, paths, {
             files: FIRST_LOOK_MAX_FILES,
             bytes: FIRST_LOOK_MAX_BYTES,
+            spread: true,
           });
           return {
             ok: true as const,

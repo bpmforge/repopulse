@@ -4485,3 +4485,7 @@ on the Mac:**
   demo-data scripts and management commands below production source. On saleor it had given
   17 of 23 findings to a demo-data script. Still open: one large file can take most of the
   first look's 150 KB budget.
+- 2026-11-19 — W27-34 (in progress): a file of class methods (Django, GraphQL mutations) is
+  no longer ranked as "no code", and a first look reads at most one large file so that one
+  80 KB file cannot leave room for only 5. Found on saleor. A file above 75 KB is still not
+  read by a first look.

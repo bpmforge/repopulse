@@ -14366,6 +14366,35 @@
       "notes": [
         "2026-11-19 on the M4 (rpcli, Haiku): saleor's first look read 5 files, and 17 of its 23 findings were on saleor/core/development/random_data.py (2,379 lines, second by rule-finding weight). It also read app/migrations/0027. The four strongest shop files by findings (order_bulk_create, order/actions, payment/utils, complete_checkout) were not read: one large file takes most of the 150 KB first-look budget. That second cause is open; this ticket fixes the ranking only."
       ]
+    },
+    {
+      "id": "W27-34",
+      "title": "First look: class-method files count as code, and one large file cannot take the budget",
+      "phase": 27,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/workers/ai-first-look.ts",
+        "apps/api/src/workers/ai-focus.ts",
+        "apps/api/src/workers/ai-pass-sources.ts",
+        "apps/api/src/workers/ai-pass-sources.test.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-33"
+      ],
+      "acceptance": [
+        "A source file whose only definitions in the code map are methods stays in the production tier and is sliced by method",
+        "A first look passes over a file above half its byte budget and reads at most one file above a third of it, with the plain fill as the fallback when nothing else fits",
+        "A fresh first look on saleor reads more than 5 files and the best-ranked one is order or payment code"
+      ],
+      "points": 2,
+      "status": "in_progress",
+      "notes": [
+        "2026-11-19 on the M4 (rpcli, saleor at b8025bac): order_bulk_create.py (first by findings, 97,044 bytes) has 81 definitions in the code map and none of kind function, so W27-12 ranked it as non-runtime. random_data.py (79,783 bytes) then took over half of the 150,000-byte budget, order/actions.py (74,528), payment/utils.py (76,084) and complete_checkout.py (72,531) no longer fitted, and the pass read 5 files.",
+        "Limit kept: a file above half the budget (75 KB) is not read by a first look unless every candidate is that large. Reading part of a large file is a follow-up."
+      ]
     }
   ]
 }

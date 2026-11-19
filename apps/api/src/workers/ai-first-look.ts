@@ -248,7 +248,9 @@ export async function rankFirstLookPaths(
                 and(
                   eq(read.codeIndexDefs.workspaceId, workspaceId),
                   eq(read.codeIndexes.repoId, repoId),
-                  eq(read.codeIndexDefs.kind, 'function'),
+                  // W27-34: a class's methods are functions too (a file of Django or
+                  // GraphQL mutation classes has no top-level function at all).
+                  inArray(read.codeIndexDefs.kind, ['function', 'method']),
                   inArray(read.codeIndexDefs.path, [...candidates, ...byDefs.map((r) => r.path)]),
                 ),
               )
