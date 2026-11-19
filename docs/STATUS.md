@@ -4428,12 +4428,12 @@ on the Mac:**
   and no repository name, which the processor skipped in 7 ms while the API answered
   "started". It now queues one delta per kind (commits, pull requests, issues, releases,
   deployments). Found by the demo run: a new pull request never appeared without webhooks.
-- 2026-11-18 — W27-19 (in progress): AI review of a Gitea pull request never worked. Gitea's
+- 2026-11-18 — W27-19 (verified on the M4 2026-11-19): AI review of a Gitea pull request never worked. Gitea's
   `pulls/{n}/files` has no patch text, so every such pass failed with "none of the changed
   files came with a complete patch", and the commit-range fallback failed because pull
   request head commits are not ingested. The Gitea provider now reads `pulls/{n}.diff` on the
   scan lane and gives each file its hunks. Contract tests pass; the real-Gitea run is pending.
-- 2026-11-18 — W27-20 (in progress): the rule engine's pull request findings were written
+- 2026-11-18 — W27-20 (verified on the M4 2026-11-19): the rule engine's pull request findings were written
   with no pull request id, so the pull request page showed fewer findings than the CI API for
   the same head (1 against 2 in the demo). They are now tagged like the other PR scanners'.
 - 2026-11-18 — W27-18 correction: the dead route was the API-only `POST /repos/:id/sync`.
@@ -4450,10 +4450,10 @@ on the Mac:**
   the repository's judge run. Found when the M4's container host went down mid first look.
   At boot the worker now closes such passes as interrupted and queues pending ones again.
   `AI_PASS_BOOT_RECOVERY=off` for installs with more than one worker.
-- 2026-11-18 — W27-23 (in progress): with webhooks off, "Sync now" brought a new pull request
+- 2026-11-18 — W27-23 (verified on the M4 2026-11-19): with webhooks off, "Sync now" brought a new pull request
   in and nothing scanned it, because only the delta path queued pull request scans. The
   reconcile of one repository (Sync now and the nightly sweep) now queues them too.
-- 2026-11-19 — W27-24 (in progress): a pull request's stored head commit never changed after
+- 2026-11-19 — W27-24 (verified on the M4 2026-11-19): a pull request's stored head commit never changed after
   first sight, so a second push was never scanned or reviewed. The writer now updates head,
   title, draft state, base and (when stated) size on every listing. Real-install check pending.
 - 2026-11-19 — W27-25: a drafted fix was rejected as malformed because the model wrote a

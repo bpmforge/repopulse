@@ -13983,7 +13983,7 @@
         "An AI review of a Gitea pull request reads the changed files (measured on a real Gitea)"
       ],
       "points": 2,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "2026-11-18 demo on Gitea 1.24.6: POST ai-pass {pull_request} failed at once with no_files because pulls/{n}/files has no patch field; the commit-range fallback failed too (pull request head commits are not ingested). So no AI review ever read a Gitea pull request; only the mechanical PR scan ran. Gitea serves the whole diff at pulls/{n}.diff (swagger repoDownloadPullDiffOrPatch)."
       ]
@@ -14008,7 +14008,7 @@
         "The pull request page and the CI API list the same findings for the same head (measured on a real install)"
       ],
       "points": 1,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "2026-11-18 demo: the PR page showed 1 automated finding while the CI check returned 2; the SQL injection finding (semgrep) had pull_request_id NULL, the empty-catch finding (anti_slop) had it set."
       ]
@@ -14096,7 +14096,7 @@
         "A queue failure there is reported in the job result and does not fail the reconcile"
       ],
       "points": 1,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "2026-11-18 real click on Sync now (webhooks off): the pull request appeared within 30 s, and scan_runs had no pr_synced row. Only the delta processor called queuePrScans."
       ]
@@ -14121,7 +14121,7 @@
         "After a second push the pull request scan and the incremental AI review run on the new head (measured on a real install)"
       ],
       "points": 1,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "2026-11-19 demo: commit 2 pushed to the open pull request; the forge showed the new head, the delta ran (itemsTotal 1) and pull_requests kept the first head, so no scan was queued. The conflict update never set head_sha, on any forge.",
         "Open: the stored updated_at did not move either in that run although it was in the update set. Possible stale cached listing; to be checked on the Mac. Checks and reviews for the new head are not re-fetched (enriched_at is not reset)."
