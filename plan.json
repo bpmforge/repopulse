@@ -14311,6 +14311,35 @@
       "notes": [
         "2026-11-19 on Haiku: with a model outside the network, the after-scan first look returned not_opted_in until a schedule was enabled, and nothing in the UI or the worker log said so. The UI still does not show it: a follow-up."
       ]
+    },
+    {
+      "id": "W27-32",
+      "title": "Hosted model: one visible opt-in story for the first look and the CVE second opinion",
+      "phase": 27,
+      "module": "web",
+      "stories": [],
+      "write_scope": [
+        "apps/web/src",
+        "apps/api/src/routes/admin/analysis",
+        "apps/api/src/workers",
+        "docs/INSTALL.md",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-31"
+      ],
+      "acceptance": [
+        "With only a connection that leaves the network, the repository's AI page says in words which of the two permissions is missing (the review schedule, Tier 3) and links to where each is turned on",
+        "A dependency scan whose CVE second opinion was refused shows the refusal reason on the scan row, not only in the worker log",
+        "The Claude Code CLI backend's page says that the reasoning settings do not apply to it, or the runner passes them once the CLI's flag is verified against its documentation"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": [
+        "2026-11-19 on the M4 (install rpcli, Haiku through the Claude Code CLI): the first look ran once a review schedule was enabled, but the CVE second opinion was refused for gin and the Repo Pulse copy because core.repos.tier3_opt_in was false. The only trace was the worker's info line. After PATCH /admin/analysis/repos/:id tier3_opt_in true and a forced rescan: asked 8, confirmed 8, 8 to 26 s per call. Working as designed (Law 8), but a person cannot see it.",
+        "Same run: providers/claude-cli.ts passes no reasoning flag, so AI_JUDGE_REASONING, AI_REVIEW_REASONING and FIRST_LOOK_QUICK_REASONING do nothing on this backend."
+      ]
     }
   ]
 }

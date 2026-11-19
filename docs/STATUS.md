@@ -4476,3 +4476,8 @@ on the Mac:**
 - 2026-11-19 — W27-31: the worker logs, at info and in words, why no AI review was queued
   when the cause needs an admin (not opted in to a hosted model, routing changed, local-only,
   no model, monthly limit). The UI does not show it yet.
+- 2026-11-19 — W27-32 (todo, found on the M4): with a hosted model the first look and the
+  CVE second opinion need two separate permissions (a review schedule, Tier 3), and neither
+  is visible. On Haiku the CVE check was refused for gin until Tier 3 was turned on; then
+  8 of 8 confirmed, 8 to 26 s per call. The Claude Code CLI runner also ignores the
+  reasoning settings.
