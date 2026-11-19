@@ -17,7 +17,7 @@ function customerReport(customerIds, cb) {
 
 function touchAll(conn, ids) {
   ids.forEach((id) => {
-    conn.query(`UPDATE users SET seen_at = now() WHERE id = ${Number(id)}`, () => {});
+    conn.query('UPDATE users SET seen_at = now() WHERE id = $1', [id], () => {});
   });
 }
 

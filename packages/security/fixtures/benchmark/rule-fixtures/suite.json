@@ -1094,6 +1094,16 @@
       "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
     },
     {
+      "id": "inj-go-open-redirect-go-main-52",
+      "tree": "injection/triggering",
+      "file": "go/main.go",
+      "lines": [52, 52],
+      "rule": "bpm-go-open-redirect",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "The same redirect, also reported by the Go pack's open-redirect rule (W27-17): a true hit for both rules, labelled once per rule."
+    },
+    {
       "id": "inj-inj-redirect-java-java-UserController-57",
       "tree": "injection/triggering",
       "file": "java/UserController.java",

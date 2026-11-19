@@ -4500,3 +4500,8 @@ on the Mac:**
 - 2026-11-19 — W27-35 (todo, found on the M4): the CI check refuses a short commit id with a
   message that prints two identical ids, and passes a pull request that has a severity 4
   finding from a shadow rule without saying it was left out.
+- 2026-11-19 — ci-local on c5e21ed (M5): 11 of 13 steps, 6,175 tests pass, 1 fails (main:
+  10 of 13, 6,145 pass). The failure was new: the rule-fixtures floor counted 4 false
+  positives from this branch's own fixtures (a redirect line two rules both report, and
+  interpolated SQL in the new performance fixtures). Fixed in the fixtures and labels. The
+  other failing step is the dependency audit (zod, minimatch, glob), as on main.

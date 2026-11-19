@@ -2,11 +2,12 @@ const sqlite3 = require('sqlite3');
 
 const db = new sqlite3.Database('app.db');
 
-// One round trip for all the customers, one for all their invoices.
+// One round trip for all the customers, one for all their invoices. The ids
+// travel as one JSON parameter, so the SQL text is a constant.
 function customerReport(customerIds, cb) {
-  const marks = customerIds.map(() => '?').join(',');
-  db.all(`SELECT * FROM customers WHERE id IN (${marks})`, customerIds, (err, customers) => {
-    db.all(`SELECT * FROM invoices WHERE customer_id IN (${marks})`, customerIds, (err2, inv) => {
+  const ids = JSON.stringify(customerIds);
+  db.all('SELECT * FROM customers WHERE id IN (SELECT value FROM json_each(?))', [ids], (err, customers) => {
+    db.all('SELECT * FROM invoices WHERE customer_id IN (SELECT value FROM json_each(?))', [ids], (err2, inv) => {
       cb(err || err2, { customers, inv });
     });
   });
