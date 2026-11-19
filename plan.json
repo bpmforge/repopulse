@@ -14511,8 +14511,9 @@
         "The full gate passes and the dependency audit no longer reports GHSA-mrhx-c7xc-m3w5"
       ],
       "points": 8,
-      "status": "todo",
+      "status": "done",
       "notes": [
+        "Done 2026-11-19 for 0.3.0 (Brad: release 0.3.0): zod ^4.6.7 with fastify-type-provider-zod ^7.0.0; two source lines changed (z.record key schema, validation issue message); overrides for minimatch ^11.0.1 under typescript-eslint and glob ^14.0.2 under Lodestone. pnpm audit: no known vulnerabilities. Cloud gate: lint and typecheck pass; 6,047 tests passed, 150 skipped, 3 failed, all environment-only (two deploy tests that need a container runtime, one dev-database isolation test on an unmigrated dev database).",
         "Decision by Brad 2026-11-19: do it later, as its own ticket. zod 3.25.76 to 4.x is the only fix for GHSA-mrhx-c7xc-m3w5 (CVSS 8.2)."
       ]
     }

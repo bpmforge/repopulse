@@ -73,3 +73,6 @@ da42923d52cc87973139578de453609a8d6c0b3d:apps/web/src/widgets/admin/settings/con
 # The upstream gitleaks commit SHA recorded in the third-party rule ledger (#213): a
 # git commit id, which the sourcegraph-access-token pattern (40 hex) matches. Not a credential.
 4e151e94b6543360cb65b765375bd628f241c14e:packages/security/rulepacks/third-party/LEDGER.json:sourcegraph-access-token:4868
+# A test dedup key ('w27-36-ai-unverified') in the pull request findings test (#242), which the
+# generic-api-key pattern matches. Not a credential.
+a5d0f48ec0bdc30da8d4ecbbb9db5e212e3c8c06:apps/api/src/routes/pulls/pulls.test.ts:generic-api-key:685

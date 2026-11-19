@@ -8,8 +8,8 @@ export const STARTER_SET_MANIFEST: StarterSetManifest = {
   "source": "docs/benchmarks/report.json",
   "ticket": "W18-17",
   "measured": {
-    "date": "2026-11-02",
-    "commit": "3a35f2468e5bd2f851525dde9d6669da40e8b111"
+    "date": "2026-11-19",
+    "commit": "17dec08ef2dcbadf7241289f38923fb7a7c66b36"
   },
   "bar": {
     "minPrecision": 0.8,

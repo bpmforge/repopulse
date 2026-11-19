@@ -286,16 +286,6 @@ export const BENCHMARK_PRECISION: BenchmarkSummary = {
       ],
       "engine": "yaml"
     },
-    "bpm-perf-includes-in-loop": {
-      "tp": 0,
-      "fp": 3,
-      "fn": 0,
-      "precision": 0,
-      "suites": [
-        "juice-shop"
-      ],
-      "engine": "yaml"
-    },
     "bpm-perf-orm-call-in-loop": {
       "tp": 0,
       "fp": 0,
@@ -374,6 +364,16 @@ export const BENCHMARK_PRECISION: BenchmarkSummary = {
       "precision": 1,
       "suites": [
         "changes"
+      ],
+      "engine": "fast-lane"
+    },
+    "slop.undeclared_package": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "sampleco"
       ],
       "engine": "fast-lane"
     },
@@ -1523,7 +1523,7 @@ export const BENCHMARK_PRECISION: BenchmarkSummary = {
     }
   ],
   "measured": {
-    "date": "2026-11-02",
-    "commit": "3a35f2468e5bd2f851525dde9d6669da40e8b111"
+    "date": "2026-11-19",
+    "commit": "17dec08ef2dcbadf7241289f38923fb7a7c66b36"
   }
 };

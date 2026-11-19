@@ -1,10 +1,10 @@
 {
-  "release": "0.2.0",
+  "release": "0.3.0",
   "source": "docs/benchmarks/report.json",
   "method": "docs/BENCHMARKS.md",
   "measured": {
-    "date": "2026-11-02",
-    "commit": "3a35f2468e5bd2f851525dde9d6669da40e8b111",
+    "date": "2026-11-19",
+    "commit": "17dec08ef2dcbadf7241289f38923fb7a7c66b36",
     "engine": "opengrep 1.27.1",
     "adapters": "checkov 3.3.29, actionlint 1.7.12, hadolint 2.15.1, shellcheck 0.11.0"
   },
@@ -40,9 +40,9 @@
       "kind": "public",
       "labels": 24,
       "tp": 7,
-      "fp": 3,
+      "fp": 0,
       "fn": 4,
-      "precision": 0.7,
+      "precision": 1,
       "recall": 0.636,
       "from": "bySuite → juice-shop"
     },
@@ -51,11 +51,11 @@
       "label": "SampleCo planted-defect app (AI-slop corpus)",
       "kind": "own",
       "labels": 15,
-      "tp": 4,
+      "tp": 5,
       "fp": 1,
-      "fn": 8,
-      "precision": 0.8,
-      "recall": 0.333,
+      "fn": 7,
+      "precision": 0.833,
+      "recall": 0.417,
       "from": "bySuite → sampleco"
     },
     {
@@ -85,11 +85,11 @@
   ],
   "total": {
     "label": "Every suite together, including the rule fixtures",
-    "tp": 1737,
-    "fp": 497,
-    "fn": 1156,
-    "precision": 0.778,
-    "recall": 0.6,
+    "tp": 1742,
+    "fp": 494,
+    "fn": 1155,
+    "precision": 0.779,
+    "recall": 0.601,
     "from": "totals"
   },
   "notShown": [
@@ -99,12 +99,12 @@
     }
   ],
   "previous": {
-    "release": "0.1.0",
+    "release": "0.2.0",
     "source": "docs/benchmarks/report.json",
     "method": "docs/BENCHMARKS.md",
     "measured": {
-      "date": "2026-10-16",
-      "commit": "e49421c6ccd61c52d3db5034859d1f4fa44a1e16",
+      "date": "2026-11-02",
+      "commit": "3a35f2468e5bd2f851525dde9d6669da40e8b111",
       "engine": "opengrep 1.27.1",
       "adapters": "checkov 3.3.29, actionlint 1.7.12, hadolint 2.15.1, shellcheck 0.11.0"
     },
@@ -140,9 +140,9 @@
         "kind": "public",
         "labels": 24,
         "tp": 7,
-        "fp": 0,
+        "fp": 3,
         "fn": 4,
-        "precision": 1,
+        "precision": 0.7,
         "recall": 0.636,
         "from": "bySuite → juice-shop"
       },
@@ -185,11 +185,11 @@
     ],
     "total": {
       "label": "Every suite together, including the rule fixtures",
-      "tp": 1725,
-      "fp": 494,
+      "tp": 1737,
+      "fp": 497,
       "fn": 1156,
-      "precision": 0.777,
-      "recall": 0.599,
+      "precision": 0.778,
+      "recall": 0.6,
       "from": "totals"
     },
     "notShown": [

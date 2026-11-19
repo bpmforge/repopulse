@@ -4513,3 +4513,11 @@ on the Mac:**
 - 2026-11-19 — W27-37 (verified on the M4 2026-11-19: 3 files, +65 lines): the pull request page showed no files and "0 lines"
   for every pull request because nothing stored the file list. The pull request scan now
   stores the list it reads.
+- 2026-11-19 — **0.3.0 release candidate** (Brad: "release 0.3.0"). W27-38 done: zod 4 with
+  `fastify-type-provider-zod` 7, overrides for minimatch and glob; `pnpm audit` reports no
+  known vulnerabilities. Version 0.3.0 in all twelve `package.json` files and the README
+  bundle names; `CHANGELOG.md` 0.3.0 entry; `docs/release-notes/v0.3.0.md`. Cloud gate: lint
+  and typecheck pass; 6,047 tests passed, 150 skipped, 3 failed (environment-only: two deploy
+  tests that need a container runtime, one dev-database isolation test). Not tagged. Still to
+  do on the release commit, on a Mac: `scripts/ci-local.sh`, `pnpm e2e`, benchmark, both
+  bundles, clean install; then the tag on Brad's "publish". Gitea `origin` is behind GitHub.

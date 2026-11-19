@@ -2,7 +2,7 @@
   "name": "repopulse",
   "private": true,
   "license": "Apache-2.0",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "engines": {
     "node": ">=22"
   },
@@ -54,7 +54,9 @@
       "fast-uri@4": "^4.2.3",
       "seroval@1": "^1.6.12",
       "@tanstack/router-generator>zod": "^4.6.7",
-      "@tanstack/router-plugin>zod": "^4.6.7"
+      "@tanstack/router-plugin>zod": "^4.6.7",
+      "@typescript-eslint/typescript-estree>minimatch": "^11.0.1",
+      "@bpmforge/lodestone>glob": "^14.0.2"
     },
     "onlyBuiltDependencies": []
   }

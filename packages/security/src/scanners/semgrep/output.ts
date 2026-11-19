@@ -20,7 +20,7 @@ export const opengrepOutputSchema = z.object({
       extra: z.object({
         message: z.string(),
         severity: z.string(),
-        metadata: z.record(z.unknown()).default({}),
+        metadata: z.record(z.string(), z.unknown()).default({}),
         fingerprint: z.string().optional(),
         lines: z.string().optional(),
       }),

@@ -10,6 +10,90 @@ The release procedure is in [docs/RELEASE.md](docs/RELEASE.md).
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-11-19
+
+### Added
+- **AI first look after the first scan (W25, W27-05..12).** When a repository's first scan
+  finishes and a model is configured, a short review reads the strongest-signal production
+  files and raises findings by area (security, code health, performance, best practices, AI
+  slop, test coverage). It runs as a small fixed number of model calls
+  (`FIRST_LOOK_CALLS`), security first, and no longer waits behind the CVE checks.
+- **AI review findings on the pull request page (W27-36).** Findings from an AI review of a
+  pull request are stored against that pull request and listed under "New on this PR". Rows
+  that no second model has confirmed carry a "not in CI" badge and do not fail a CI check;
+  `repopulse check --include-unconfirmed-ai` (API: `include_unconfirmed_ai=true`) counts them.
+- **The pull request page shows its files and size (W27-37).** The PR scan now stores the
+  changed-file list, so the page shows files, churn and a size label.
+- **A reasoning setting for pull request and folder reviews (W27-26).**
+- **Settings for AI depth and speed (W27-16):** `AI_JUDGE_REASONING`,
+  `FIRST_LOOK_QUICK_REASONING`, `FIRST_LOOK_CALLS`. Defaults are unchanged.
+- **Rules, all starting in shadow:** `bpm-go-open-redirect` (Go), `slop.undeclared_package`
+  and `bpm-perf-sql-call-in-loop` (W27-17, W27-21); gitleaks' rule set imported as shadow
+  candidates for the secrets scanner (W22-07).
+- **Code map on Lodestone, names and lines only (W22-01 slice 1).** Migration 0068.
+- **Findings list sorts by any column (W26-05);** finding page diff in Unified, Split and
+  Patch views; grouped Repository and Settings tabs; a UI polish pass over the shell and shared
+  components (W26-01..04).
+- **Screenshot tours** in `docs/tour/`: eleven tours, one per job, including the AI review and
+  pull request tours.
+- **docs/INSTALL.md "Which model: fast or private"** with measured times for a local 27B model
+  and a small hosted model.
+
+### Changed
+- **Only pertinent code is reviewed (W25-16, W27-01).** Tests, fixtures, generated and vendored
+  code are skipped by code health, anti-slop and every AI step, and do not count toward
+  findings or scores. The secrets scan still covers them.
+- **A repository AI pass re-reads only changed files (W25-07).** Files are tracked by sha-256
+  (migration 0069); "Full review" forces a full pass.
+- **Each AI area reads only its own kind of code, at function level (W27-07, W27-08).**
+- **CVE checks never re-ask for the same advisory and package, and use no reasoning; triage,
+  judge and second opinions keep it (W27-03, W27-06).** Verdicts are short everywhere.
+- **Anti-slop judgement runs after the scan, with memory of earlier verdicts (W27-02,
+  migration 0070);** rule findings are kept when a model call fails (W25-20). The scanner reads
+  up to 20,000 files and says why when partial (W25-08).
+- **First look ranking (W25-09, W27-12, W27-33, W27-34):** production source before tests,
+  fixtures, constants, migrations and seed or dev tooling; large files no longer crowd out the
+  rest of the budget.
+- **zod 4 (W27-38).** zod ^4.6.7 with `fastify-type-provider-zod` ^7. No API change intended.
+
+### Fixed
+- Cancelling an AI pass or judge run aborts its in-flight model call (W25-06).
+- A reply that contains only reasoning no longer fails a review (W25-18).
+- A busy model makes a pass wait instead of fail; scan rows report what really ran (W25).
+- Report health matches the dashboard; pass run time is shown (W27-13).
+- `POST /repos/:id/sync` (API) works again (W27-18).
+- Gitea pull request patches come from the `.diff` endpoint; rule findings on a pull request
+  carry its id (W27-19, W27-20).
+- `child-process-concat` needs a `child_process` receiver; `includes-in-loop` skips receivers
+  typed string (W27-14, W21-20).
+- An empty catch with a reason comment is not a finding.
+- The Gitea token instructions list `read:issue` (W25-10).
+- The supply-chain register keeps its row (W25-08).
+- Pull requests: one brought in by Sync now or the nightly reconcile gets its scan; a second
+  push updates the stored head commit; a run closes the findings the pull request introduced
+  and then fixed (W27-23, W27-24, W27-29, W27-30).
+- AI passes left behind by a stopped worker are closed or queued again at boot (W27-22).
+- Fix drafts: a context line without its leading space, and a JSON answer inside a code
+  fence, are both read (W27-25, W27-28).
+- The worker log says why no AI review was queued when only an admin can change it (W27-31).
+
+### Security
+- Dependency advisories cleared: `pnpm audit` reports none. zod 3 → 4 (GHSA-mrhx-c7xc-m3w5,
+  High), vite and vitest patch releases, and overrides for fast-uri, seroval, minimatch and
+  glob (W27-15, W27-38).
+
+### Known limitations
+- With the Claude Code CLI backend, the API container cannot run the CLI the worker runs, so
+  Settings shows a false "containers disagree" and Test connection cannot pass (W27-27).
+- A hosted model needs two separate opt-ins, for the review and for the CVE second opinion,
+  and a refusal shows only in the worker log (W27-32).
+- `repopulse check` needs the full commit id (W27-35).
+- The accuracy benchmark measures the rule-based checks only; there is no accuracy figure for
+  the AI layer yet.
+
+### Upgrading from 0.2.0
+- Migrations 0068 to 0070 apply on start. No configuration change is required.
+
 ## [0.2.0] — 2026-11-02
 
 ### Added
