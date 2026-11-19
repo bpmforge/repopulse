@@ -140,6 +140,12 @@ export function PrCiFindingsPanel({ repoId, number }: { repoId: string; number: 
               ' Findings below may be from earlier commits of this PR; a CI check would wait.'}
           </p>
         )}
+        {rows.some(({ item }) => item.ai_review && item.verify_status !== 'confirmed') && (
+          <p className="text-xs text-fg-muted" data-testid="pr-ci-ai-note">
+            Rows marked &quot;not in CI&quot; come from an AI review that no second model has
+            confirmed. They are shown here and do not fail a CI check.
+          </p>
+        )}
         <label className="flex items-center gap-2 text-xs text-fg-muted">
           <input
             type="checkbox"
@@ -194,11 +200,6 @@ export function PrCiFindingsPanel({ repoId, number }: { repoId: string; number: 
                       {!f.introduced_by_pr && (
                         <span className="ml-1 text-xs text-fg-muted">(pre-existing)</span>
                       )}
-                      {f.ai_review && f.verify_status !== 'confirmed' && (
-                        <span className="ml-1 text-xs text-fg-muted" data-testid="pr-ci-ai-uncounted">
-                          (AI review, not confirmed by a second model: not counted in CI)
-                        </span>
-                      )}
                       {more > 0 && (
                         <span className="ml-1 text-xs text-fg-muted" data-testid="pr-ci-ai-more">
                           (+{more} more AI {more === 1 ? 'note' : 'notes'} on this line)
@@ -213,6 +214,15 @@ export function PrCiFindingsPanel({ repoId, number }: { repoId: string; number: 
                         f.rule_id ??
                         f.scanner_key ??
                         f.dimension}
+                      {f.ai_review && f.verify_status !== 'confirmed' && (
+                        <span
+                          className="ml-1 rounded border border-border px-1 whitespace-nowrap text-fg-muted"
+                          title="An AI review raised this and no second model has confirmed it, so a CI check does not count it."
+                          data-testid="pr-ci-ai-uncounted"
+                        >
+                          not in CI
+                        </span>
+                      )}
                     </td>
                     <td className="py-1 text-xs whitespace-nowrap">
                       {f.seen_at_head ? 'yes' : 'not checked yet'}
