@@ -4439,7 +4439,7 @@ on the Mac:**
 - 2026-11-18 — W27-18 correction: the dead route was the API-only `POST /repos/:id/sync`.
   The admin page's "Sync now" button calls `POST /repos/:id/sync-now`, which queues a
   reconcile and was not affected.
-- 2026-11-18 — W27-21 (in progress): two problems seeded in the demo pull request were
+- 2026-11-18 — W27-21 (verified on the M4 2026-11-19): two problems seeded in the demo pull request were
   reported by nothing. New shadow rule `slop.undeclared_package`: an import or require of a
   package that no package.json above the file declares (0 hits on this repository, finds
   SampleCo's `currency-fmt`). New shadow rule `bpm-perf-sql-call-in-loop`: a SQL string sent
@@ -4467,10 +4467,10 @@ on the Mac:**
   container (Alpine) cannot run the CLI binary the worker (Debian) runs, so Settings shows a
   false "the two containers disagree" and Test connection cannot pass. Reviews are unaffected.
 - 2026-11-19 — W27-28: a fix answer wrapped in a json code fence is read (Haiku does this).
-- 2026-11-19 — W27-29 (in progress): a reconcile (Sync now, nightly) also runs the secrets,
+- 2026-11-19 — W27-29 (verified on the M4 2026-11-19): a reconcile (Sync now, nightly) also runs the secrets,
   sensitive-change and slopsquat stream for pull request heads, so the CI check no longer
   answers "not fully scanned yet" for ever on a pull request that arrived that way.
-- 2026-11-19 — W27-30 (in progress): a rule finding first raised on a pull request and fixed
+- 2026-11-19 — W27-30 (verified on the M4 2026-11-19): a rule finding first raised on a pull request and fixed
   by its next push stayed open. Pull request runs of the rule engine, the performance pack
   and the anti-slop pack now close what that pull request introduced and no longer has.
 - 2026-11-19 — W27-31: the worker logs, at info and in words, why no AI review was queued
@@ -4481,14 +4481,22 @@ on the Mac:**
   is visible. On Haiku the CVE check was refused for gin until Tier 3 was turned on; then
   8 of 8 confirmed, 8 to 26 s per call. The Claude Code CLI runner also ignores the
   reasoning settings.
-- 2026-11-19 — W27-33 (in progress): the first look ranks database migrations, seed and
+- 2026-11-19 — W27-33 (verified on the M4 2026-11-19): the first look ranks database migrations, seed and
   demo-data scripts and management commands below production source. On saleor it had given
   17 of 23 findings to a demo-data script. Still open: one large file can take most of the
   first look's 150 KB budget.
-- 2026-11-19 — W27-34 (in progress): a file of class methods (Django, GraphQL mutations) is
+- 2026-11-19 — W27-34 (verified on the M4 2026-11-19): a file of class methods (Django, GraphQL mutations) is
   no longer ranked as "no code", and a first look reads at most one large file so that one
   80 KB file cannot leave room for only 5. Found on saleor. A file above 75 KB is still not
   read by a first look.
 - 2026-11-19 — W27-21 noise read: the undeclared-package rule had 0 hits on gin, saleor and
   the Repo Pulse copy and 41 on outline, about 36 of them type-only imports. Those are now
   skipped; the handful of runtime imports of undeclared packages still report.
+- 2026-11-19 — M4 confirmation at 11931a1 (Haiku through the Claude Code CLI): saleor's first
+  look reads order/actions.py first and no development or migrations file (3 min, 10 calls);
+  gin reads the same 11 files as before. Sync now alone runs all 7 pull request scanners and
+  the CI check answers exit 1 with 2 new findings (W27-29). A second push closes the fixed SQL
+  and empty-catch findings (W27-30). 5 of 5 fixes verified (W27-28).
+- 2026-11-19 — W27-35 (todo, found on the M4): the CI check refuses a short commit id with a
+  message that prints two identical ids, and passes a pull request that has a severity 4
+  finding from a shadow rule without saying it was left out.

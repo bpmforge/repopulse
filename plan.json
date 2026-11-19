@@ -14039,12 +14039,12 @@
         "Both find the seeded problems of the demo pull request on a real install"
       ],
       "points": 3,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "2026-11-18 demo PR: require(\"fastcsv-stream-writer-pro\") with no such dependency and a sqlite3 callback query per id in a for-of loop both went unreported; bpm-perf-orm-call-in-loop needs await, and the phantom rules only resolve relative specifiers. SampleCo label D4 (currency-fmt) is the same shape.",
         "Cloud measurements: undeclared packages 0 hits on this repository (1,977 files), 1 hit on SampleCo (the planted one). SQL rule with semgrep 1.186.0: 3 hits on the new triggering fixture, 0 on clean, whole perf pack still 0 on clean.",
         "A fix draft for slop.undeclared_package is not rescannable yet (patches/target.ts lists the phantom rules only).",
-        "2026-11-19 noise read on the M4: gin 0, Repo Pulse copy 0, saleor 0, sampleco 1 (the planted one), outline 41. All 41 are true (history, react-router, koa-compose and others arrive through other packages), but about 36 are type-only imports. Type-only imports are now skipped (import type, export type from, a brace list of type names); the runtime ones (useHistory, parsePath, CSS, compose) still report. Recount on outline pending."
+        "2026-11-19 noise read on the M4: gin 0, Repo Pulse copy 0, saleor 0, sampleco 1 (the planted one), outline 41. All 41 are true (history, react-router, koa-compose and others arrive through other packages), but about 36 are type-only imports. Type-only imports are now skipped (import type, export type from, a brace list of type names); the runtime ones (useHistory, parsePath, CSS, compose) still report. Recount on outline at d69faf4: 45 to 15 over 2,501 files with tests included, all runtime imports (history 7, react-router 4, jszip 2 in tests, @dnd-kit/utilities 1, koa-compose 1)."
       ]
     },
     {
@@ -14254,7 +14254,7 @@
         "A failure there is reported in the job result and does not fail the reconcile"
       ],
       "points": 1,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "2026-11-19: after a Sync now click the pull request head had semgrep, anti_slop, logging and performance runs only, so the CI check exited 4 (not fully scanned yet) for ever."
       ]
@@ -14283,7 +14283,7 @@
         "After a second push that fixes a rule finding, the finding reads resolved (measured on a real install)"
       ],
       "points": 2,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "2026-11-19: semgrep SQL concat and the anti_slop empty catch stayed open after commit 2 removed them; AI review findings did close.",
         "Logging, dependency and image pull request runs are unchanged."
@@ -14363,7 +14363,7 @@
         "A fresh first look on saleor reads no file under core/development or a migrations folder while production source is left"
       ],
       "points": 2,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "2026-11-19 on the M4 (rpcli, Haiku): saleor's first look read 5 files, and 17 of its 23 findings were on saleor/core/development/random_data.py (2,379 lines, second by rule-finding weight). It also read app/migrations/0027. The four strongest shop files by findings (order_bulk_create, order/actions, payment/utils, complete_checkout) were not read: one large file takes most of the 150 KB first-look budget. That second cause is open; this ticket fixes the ranking only."
       ]
@@ -14391,10 +14391,39 @@
         "A fresh first look on saleor reads more than 5 files and the best-ranked one is order or payment code"
       ],
       "points": 2,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "2026-11-19 on the M4 (rpcli, saleor at b8025bac): order_bulk_create.py (first by findings, 97,044 bytes) has 81 definitions in the code map and none of kind function, so W27-12 ranked it as non-runtime. random_data.py (79,783 bytes) then took over half of the 150,000-byte budget, order/actions.py (74,528), payment/utils.py (76,084) and complete_checkout.py (72,531) no longer fitted, and the pass read 5 files.",
         "Limit kept: a file above half the budget (75 KB) is not read by a first look unless every candidate is that large. Reading part of a large file is a follow-up."
+      ]
+    },
+    {
+      "id": "W27-35",
+      "title": "CI check: a short commit id is understood, and uncounted shadow findings are listed",
+      "phase": 27,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "tools/repopulse-cli",
+        "apps/api/src/routes/pulls",
+        "apps/api/src/lib/new-findings.ts",
+        "docs/CI_INTEGRATION.md",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-30"
+      ],
+      "acceptance": [
+        "check --sha with a unique prefix of the stored head passes the head test, or the refusal prints both full commit ids",
+        "When findings from shadow rules exist on the pull request and are not counted, the result says how many and their highest severity, and how to count them",
+        "The exit code is unchanged for a run with no shadow findings"
+      ],
+      "points": 2,
+      "status": "todo",
+      "notes": [
+        "2026-11-19 on the M4 (rpcli at 11931a1, repo sampleco5): check --sha bedd5f7 answered exit 4 'RepoPulse has head bedd5f7, not bedd5f7, for this PR' because the comparison is on full ids and the message prints short ones. With the full id the check passed with 0 new findings while a severity 4 path traversal from the shadow rule bpm-inj-path-js was open on the pull request: shadow findings are left out by default and nothing says so.",
+        "Whether bpm-inj-path-js should leave shadow is the promotion rule's call (20 findings, 30 days, under 20% false), not this ticket's."
       ]
     }
   ]
