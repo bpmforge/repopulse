@@ -86,6 +86,13 @@ function stripPrefix(raw: string): string {
 const HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
 
 /**
+ * An unprefixed line inside a hunk that can be source text starting in column
+ * 0: a letter, an underscore or dollar, a bracket, a quote or a slash. A star,
+ * a hash or other punctuation is not read this way.
+ */
+const UNPREFIXED_CONTEXT = /^[A-Za-z_$(){}[\]'"`/]/;
+
+/**
  * Parses a single-file unified diff.
  *
  * Hunk header COUNTS are not trusted: models routinely miscount, and a header
@@ -168,6 +175,13 @@ export function parseUnifiedDiff(text: string): ParsedDiff {
       current.lines.push({ kind: ' ', text: '' });
     } else if (kind === ' ' || kind === '-' || kind === '+') {
       current.lines.push({ kind, text: line.slice(1) });
+    } else if (UNPREFIXED_CONTEXT.test(line)) {
+      // W27-25: a context line that starts in column 0 (`}`, `module.exports`)
+      // written without its leading space, which local models do often enough
+      // to lose an otherwise valid fix. Read as the context line it claims to
+      // be; nothing is taken on trust, because applyPatch only accepts a hunk
+      // whose context matches the file's own text.
+      current.lines.push({ kind: ' ', text: line });
     } else {
       throw new PatchRejectedError('malformed', `Unrecognised diff line: ${line.slice(0, 80)}`);
     }

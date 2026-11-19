@@ -4456,3 +4456,6 @@ on the Mac:**
 - 2026-11-19 — W27-24 (in progress): a pull request's stored head commit never changed after
   first sight, so a second push was never scanned or reviewed. The writer now updates head,
   title, draft state, base and (when stated) size on every listing. Real-install check pending.
+- 2026-11-19 — W27-25: a drafted fix was rejected as malformed because the model wrote a
+  column-0 context line (`}`) without its leading space. Such a line is now read as context;
+  the hunk still has to match the file's own text to be accepted.

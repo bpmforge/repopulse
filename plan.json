@@ -14126,6 +14126,31 @@
         "2026-11-19 demo: commit 2 pushed to the open pull request; the forge showed the new head, the delta ran (itemsTotal 1) and pull_requests kept the first head, so no scan was queued. The conflict update never set head_sha, on any forge.",
         "Open: the stored updated_at did not move either in that run although it was in the update set. Possible stale cached listing; to be checked on the Mac. Checks and reviews for the new head are not re-fetched (enriched_at is not reset)."
       ]
+    },
+    {
+      "id": "W27-25",
+      "title": "Fix drafts: a context line without its leading space is still read",
+      "phase": 27,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "packages/security/src/patches/diff.ts",
+        "packages/security/src/patches/diff.test.ts",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W27-24"
+      ],
+      "acceptance": [
+        "An unprefixed line inside a hunk that starts with a letter, bracket, quote or slash is read as a context line; other unprefixed lines are still refused as malformed",
+        "A hunk whose unprefixed line does not match the file is refused as does_not_apply"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "2026-11-19 demo: the empty-catch fix on the pull request was rejected as diff_malformed (Unrecognised diff line: }). The model wrote the closing brace context line without its leading space; the rest of the hunk was valid."
+      ]
     }
   ]
 }

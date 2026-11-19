@@ -75,6 +75,25 @@ describe('parseUnifiedDiff — shape gate', () => {
     );
   });
 
+  it('W27-25: reads a column-0 context line written without its leading space', () => {
+    const unprefixed = [
+      `--- a/${FILE}`,
+      `+++ b/${FILE}`,
+      '@@ -3,3 +3,3 @@',
+      'function run(cmd) {',
+      '-  return eval(cmd);',
+      '+  return JSON.parse(cmd);',
+      '}',
+    ].join('\n');
+    const applied = validateAndApply({ modelText: unprefixed, file: FILE, source: SOURCE });
+    expect(applied.after).toBe(SOURCE.replace('eval(cmd)', 'JSON.parse(cmd)'));
+    // Not taken on trust: an unprefixed line that is not the file's text is refused.
+    const wrong = unprefixed.replace(/\}$/, 'end');
+    expect(code(() => validateAndApply({ modelText: wrong, file: FILE, source: SOURCE }))).toBe(
+      'does_not_apply',
+    );
+  });
+
   it('refuses a second file', () => {
     const two = `${GOOD}\n--- a/src/other.js\n+++ b/src/other.js\n@@ -1 +1 @@\n-a\n+b`;
     expect(code(() => parseUnifiedDiff(two))).toBe('multiple_files');
