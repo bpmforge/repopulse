@@ -2,7 +2,7 @@
 
 RepoPulse scans every push to a pull request, lists only what the change introduced, and lets your pipeline ask for the answer. An AI review reads the diff and adds what rules cannot see. When a later push fixes a problem, its finding closes by itself.
 
-**For:** Developer, Security engineer, Engineering lead · **7 steps** · [All tours](README.md)
+**For:** Developer, Security engineer, Engineering lead · **8 steps** · [All tours](README.md)
 
 > Real screens from a RepoPulse test install built from the main branch on 2026-11-19. It tracks SampleCo, a small demo app with planted problems, on a local Gitea, with a pull request that adds two report routes. The AI steps use a small hosted model through the Claude Code CLI option; the rule-based steps use no model.
 
@@ -47,6 +47,12 @@ A finding opens on the code as it was scanned, with the line marked. This is the
 Where it can be proven, the finding comes with a patch: here +2 −2, a parameter instead of concatenation. **Verified fix** means the patch was applied to a copy and the rules ran again: the finding clears and no new one appears. It also says what was not done: the code was not built and no tests were run. Below it, the AI judge says this is a real issue, confidence 5/5, and quotes the two lines it relied on. Copy the patch or download it; RepoPulse never writes to your repository.
 
 ![Take the verified fix, with a second opinion](images/pr-07-verified-fix.webp)
+
+## 8. Push a fix and watch findings close
+
+A second push to the same pull request uses a parameter in the query and handles the error. On the next scan the two rule findings show **Resolved**, each confirmed by the AI review, and the AI's own SQL injection notes are resolved too. What the push did not fix stays **Open**, such as the hardcoded billing key. Nobody closed anything by hand. This screen is from a second copy of the same demo repository.
+
+![Push a fix and watch findings close](images/pr-08-resolved.webp)
 
 ---
 
