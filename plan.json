@@ -14458,7 +14458,8 @@
         "Decision by Brad 2026-11-19: show AI review findings on the pull request page, count in CI only those a second model confirmed.",
         "Decision by Brad 2026-11-19 (model recommendation): docs/INSTALL.md gains 'Which model: fast or private' with the measured times from the M4.",
         "Decision by Brad 2026-11-19: bpm-inj-path-js stays in shadow until the promotion rule moves it (20 findings, 30 days, under 20% false). No change.",
-        "Limit: with one AI connection nothing gives a second model's verdict on a review's own findings, so they stay labelled and uncounted."
+        "Limit: with one AI connection nothing gives a second model's verdict on a review's own findings, so they stay labelled and uncounted.",
+        "Verified on the M4 2026-11-19 (rpcli at 73f3fcc, repo sampleco6): 28 of 28 AI review findings carry the pull request id and show labelled; check --fail-on high counts 2 (0 AI), with --include-unconfirmed-ai 30. The page folds unconfirmed AI notes on the same file and line into one row (28 notes for about 10 problems)."
       ]
     },
     {
@@ -14481,7 +14482,7 @@
         "A failure to store the list does not fail the scan"
       ],
       "points": 2,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "2026-11-19 on the M4 (rpcli at 11931a1): both Gitea pull requests showed 'XS, 0 lines' and 'No file changes ingested for this PR'. No production code wrote facts.pr_files; only the seed and the fake forge did. The pull request scan already lists the files on every push, so it stores them."
       ]

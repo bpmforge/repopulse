@@ -100,6 +100,42 @@ describe('New on this PR (W20-15, UX_TODO X-15)', () => {
     expect(screen.getByText('(pre-existing)')).toBeInTheDocument();
   });
 
+  it('W27-36: labels unconfirmed AI notes and folds the ones on the same line', () => {
+    const base = answer().items[0]!;
+    const ai = (id: number, title: string, line: number, verify = 'unverified') => ({
+      ...base,
+      id,
+      title,
+      line_start: line,
+      line_end: line,
+      scanner_key: null,
+      rule_id: null,
+      ai_review: true,
+      verify_status: verify,
+    });
+    useApiQuery.mockReturnValue({
+      data: answer({
+        items: [
+          base,
+          ai(20, 'security: SQL from a parameter', 30),
+          ai(21, 'best practices: SQL from a parameter', 30),
+          ai(22, 'performance: query per id', 30),
+          ai(23, 'A confirmed AI finding', 30, 'confirmed'),
+          ai(24, 'Hard-coded key', 44),
+        ],
+      }),
+      isLoading: false,
+      isError: false,
+    });
+    render(<PrCiFindingsPanel repoId="3" number="7" />);
+    // The scanner finding, one folded row for line 30, the confirmed one, line 44.
+    expect(screen.getAllByTestId('pr-ci-row')).toHaveLength(4);
+    expect(screen.getByTestId('pr-ci-ai-more')).toHaveTextContent('(+2 more AI notes on this line)');
+    expect(screen.getAllByTestId('pr-ci-ai-uncounted')).toHaveLength(2);
+    expect(screen.queryByText('best practices: SQL from a parameter')).not.toBeInTheDocument();
+    expect(screen.getByText('A confirmed AI finding')).toBeInTheDocument();
+  });
+
   it('names failed scanners in the head line', () => {
     expect(
       headSummary({ sha: 'abcdef123', scanned: true, scanners: [], failed: ['secrets'] }),

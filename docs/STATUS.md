@@ -4510,6 +4510,6 @@ on the Mac:**
   counts only those a second model confirmed (`--include-unconfirmed-ai` counts all).
   INSTALL.md gains "Which model: fast or private" with measured times. zod 4 is W27-38
   (todo). The path traversal rule stays in shadow until the promotion rule moves it.
-- 2026-11-19 — W27-37 (in progress): the pull request page showed no files and "0 lines"
+- 2026-11-19 — W27-37 (verified on the M4 2026-11-19: 3 files, +65 lines): the pull request page showed no files and "0 lines"
   for every pull request because nothing stored the file list. The pull request scan now
   stores the list it reads.
